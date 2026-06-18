@@ -36,6 +36,7 @@ Thumbs.db
 *.xls
 !db/templates/*.xlsx
 !docs/*.xlsx
+!docs/reference/*.xlsx
 
 # 기타
 *.pem
