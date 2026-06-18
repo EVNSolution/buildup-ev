@@ -1,0 +1,42 @@
+# 의존성
+node_modules/
+.pnp
+.pnp.js
+
+# 빌드 산출물
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# 환경변수 (절대 커밋 금지)
+.env
+.env.local
+.env.*.local
+
+# 로그
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 에디터
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 엑셀 (db/templates, docs 제외)
+*.xlsx
+*.xls
+!db/templates/*.xlsx
+!docs/*.xlsx
+
+# 기타
+*.pem
+.cache/
