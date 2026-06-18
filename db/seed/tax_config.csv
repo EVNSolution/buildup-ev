@@ -1,0 +1,9 @@
+param_key,value,unit,memo
+acq_tax_rate,0.05,비율,차량 취득세율
+special_acq_tax_rate,0.02,비율,특장 취득세율
+acq_tax_relief_cap,1400000,원,취득세 감면 상한
+stamp,2500,원,증지대
+plate,25000,원,번호판대
+reg_agency,50000,원,등록대행료
+delivery_fee,179000,원,탁송료
+etc_fee,50000,원,기타 수수료
