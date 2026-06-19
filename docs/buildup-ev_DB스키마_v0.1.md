@@ -155,46 +155,30 @@ key-value 설정 + 이력.
 
 ---
 
-## 클러스터 C — 특장 원가 (원가기반 견적)
+## 클러스터 C — 특장 무게·치수 (하중계산용)
+
+> ※ 원가 "관리"(단가·공정·인건비·마진·원가 롤업)는 **범위 제외**. 이 클러스터는 **하중계산용 무게·치수**만 다룬다.
+> ② 탑 자유설정 견적(원자재 길이별 단가)을 구현할 때 `material`에 `unit_price`를 재도입한다(현재 없음).
 
 ### C1. `material` 원자재마스터 `[확정]`
 | 컬럼 | 타입 | 키 | 설명 |
 |---|---|---|---|
 | material_id | BIGINT | PK | |
 | code / name | VARCHAR | | 알루미늄 0.65T 판넬 등 |
-| unit | ENUM | | kg / m2 / m / ea |
-| unit_price | DECIMAL(12,2) | | 단위당 단가 |
-| unit_weight | DECIMAL(10,3) | | 단위무게/비중 (kg/㎡ 등) |
-| updated_at | DATETIME | | 시장가 변동 추적 |
+| unit | ENUM | | kg / m2 / m / ea (단위무게의 기준) |
+| unit_weight | DECIMAL(10,3) | | 단위무게/비중 (하중계산용) |
+| updated_at | DATETIME | | |
 
 ### C2. `part` 부품마스터 `[확정]`
 | 컬럼 | 타입 | 키 | 설명 |
 |---|---|---|---|
 | part_id | BIGINT | PK | |
 | code / name | VARCHAR | | 냉동기·도어·조명·격벽·온도계 |
-| unit_price | DECIMAL(12,2) | | |
 | weight_kg | DECIMAL(10,3) | | 부품 무게(하중계산용) |
 | updated_at | DATETIME | | |
 
-### C3. `process` 공정·인건비 `[확정]`
-| 컬럼 | 타입 | 키 | 설명 |
-|---|---|---|---|
-| process_id | BIGINT | PK | |
-| code / name | VARCHAR | | 절단·조립·도장 |
-| cost_basis | ENUM | | area / time / ea |
-| unit_cost | DECIMAL(12,2) | | 기준당 비용 |
-| labor_rate | DECIMAL(12,2) | | 인건비 임률 |
-
-### C4. `margin_rule` 마진·관리비 `[확정]`
-| 컬럼 | 타입 | 키 | 설명 |
-|---|---|---|---|
-| id | BIGINT | PK | |
-| scope | VARCHAR(40) | | 적용 범위(전체/차종/카테고리) |
-| type | ENUM | | percent / fixed |
-| value | DECIMAL(12,4) | | |
-
-### C5. `bom_line` 구성표(레시피) `[권장 — 핵심 결정필요]`
-옵션·치수 → 소요 원자재/부품/공정. **원가·무게를 동시에 산출하는 핵심 객체.**
+### C3. `bom_line` 구성표(레시피) `[확정]`
+옵션·치수 → 부품·원자재 **무게 산출**. **무게 = 소요량 × 단위무게(material)/부품무게(part).** (원가 롤업 아님)
 
 | 컬럼 | 타입 | 키 | 설명 |
 |---|---|---|---|
@@ -203,11 +187,11 @@ key-value 설정 + 이력.
 | trigger_type | ENUM | | always / option_value / option_combo |
 | trigger_value_id | BIGINT | FK→option_value, NULL | 이 옵션 선택 시 적용 |
 | trigger_combo | JSON | NULL | 조합 조건(다중 value_id) |
-| item_type | ENUM | | material / part / process |
+| item_type | ENUM | | material / part |
 | item_id | BIGINT | | 위 타입의 마스터 PK 참조 |
-| qty_type | ENUM | | fixed / formula |
-| qty_value | DECIMAL(12,3) | NULL | 고정수량 (도어 2개) |
-| qty_formula | TEXT | NULL | 치수함수 식 (아래) |
+| qty_type | ENUM | | fixed(고정수량) / formula(치수수식) |
+| qty_value | DECIMAL(12,3) | NULL | 고정 소요량 (도어 2개) |
+| qty_formula | TEXT | NULL | 치수→소요량 수식(면적·길이). **무게는 ×단위무게로 자동 파생** |
 | note | VARCHAR | | |
 
 > **`[결정필요]` 치수함수(qty_formula) 표현 방식**
@@ -291,7 +275,7 @@ key-value 설정 + 이력.
 | id | BIGINT | PK | |
 | order_id | BIGINT | FK→order | |
 | value_id | BIGINT | FK→option_value | |
-| custom_json | JSON | NULL | 커스텀 치수 등(커스텀 탑크기 → 원가기반 견적) |
+| custom_json | JSON | NULL | 커스텀 치수 등(탑 자유설정 → 원자재 길이별 견적) |
 
 ### E5. `document` 문서보관함 `[확정]`
 고객/주문별 서류 통합 보관. 필수서류 완결성 게이트.
@@ -312,7 +296,7 @@ key-value 설정 + 이력.
 ## 관계 요약 (FK 맵)
 - A: vehicle_model · option_group 1—N option_value · option_rule(when_value→target group/value) · (option_group_model 보류)
 - B: option_price→(model, value) · door_unit_price→(model, top, doortype) · subsidy_local→region · subsidy_national→model
-- C: bom_line→(model, option_value/combo, material|part|process) · 원가=Σ(bom 소요량×마스터 단가) · 무게=Σ(bom 소요량×마스터 단위무게)
+- C: bom_line→(model, option_value/combo, material|part) · 무게=Σ(bom 소요량×마스터 단위무게) · (원가 롤업 제외)
 - D: vehicle_model→tire(기본) · drawing→model
 - E: customer 1—N quote 1—1 order 1—N order_option N—1 option_value · order 1—N document · customer/quote/order→model
 
@@ -325,6 +309,6 @@ key-value 설정 + 이력.
 6. **VIVAR 수신 치수** — `[확정]` 전장·전폭·전고(특장 반영) + 하대 외측/내측 L/W/H + offset. 축간거리·윤간거리는 차종마스터 고정
 
 ## 참고
-- 변동 잦아 관리 핵심: subsidy_*, material/part 단가, option_price/door_unit_price
+- 변동 잦아 관리 핵심: subsidy_*, option_price/door_unit_price, material 단가(탑 견적용)
 - 마스터 갱신 → 전 견적 자동 반영(값 미저장, 키 참조)
 - 출처: buildup-ev_기획서_v0.1.md §B · 견적서 엑셀 · 타이어DB · cyberts 하중계산

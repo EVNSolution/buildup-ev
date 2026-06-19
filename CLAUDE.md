@@ -22,10 +22,10 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 ## 데이터 모델 (요약 · 상세=docs/DB스키마)
 - **제품·옵션**: vehicle_model · option_group · option_value · option_group_model · option_rule(종속제약)
 - **가격(영업)**: option_price · door_unit_price(룰) · region · subsidy_national · subsidy_local · tax_config
-- **원가(특장)**: material · part · process · margin_rule · bom_line(치수함수)
+- **특장 무게·치수**: material(단위무게) · part(무게) · bom_line(치수→소요량→무게)
 - **하중·도면**: tire(2,356종) · drawing
 - **거래**: customer · quote · order · order_option · document
-- 핵심: 마스터=단가/무게(사전), BOM=소요량(레시피) → `원가=Σ(BOM×마스터단가)`, `무게=Σ(BOM×마스터단위무게)`. 옵션그룹=문항/규칙, 옵션값=보기(+가격·코드, FK 참조 단위).
+- 핵심: 마스터=무게(사전), BOM=소요량(레시피) → `무게=Σ(BOM×단위무게)`. 옵션그룹=문항/규칙, 옵션값=보기(+가격·코드, FK 참조 단위).
 
 ## 핵심 계산 (검증 완료)
 - **영업 견적**: 공급가액(트림+적재함+탑+도어+온도계+격벽) → 부가세 → 차량가 → 보조금(국고+지방+소상공인) → 부가세환급후 → +등록비+기타 = **실구매가**. 회귀검증: 범석환 케이스 = **₩46,471,818**.
@@ -34,7 +34,8 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 - **VIVAR 수신 치수**: 전장·전폭·전고(외측, 특장반영) + 하대 외측/내측 L/W/H + offset. 축간거리·윤간거리=차종마스터 고정.
 
 ## 견적 분기
-표준(프리셋) → **옵션베이스 견적** / 커스텀(비표준 치수) → **원가기반 견적**.
+표준(프리셋) → **옵션베이스 견적** / 커스텀(탑 자유설정) → **원자재 길이별 견적(추후)**.
+원가 관리(공정·인건비·마진·단가 롤업)는 범위 제외. material 단가는 ②탑 자유설정 견적 도입 시 재도입.
 
 ## DB 운영
 `db/templates`의 엑셀 = 사람 입력용 → **시트별 CSV(`db/seed`)로 변환해 커밋**(엑셀은 git diff 안 됨). 스키마=SQL(`db/schema`).
