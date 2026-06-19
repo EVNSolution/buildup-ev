@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>buildup-ev · 영업 화면 UI 초안 v2</title>
+<style>
+  :root{--lime:#C8D200;--dark:#1A1A1A;--bg:#FFF;--body:#333;--muted:#8A8F98;--line:#E6E8EB;--card:#F6F7F4;--pill:#EFF1EC;--warn:#B3471F;--warnbg:#FFF3E8}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo",Arial,sans-serif;color:var(--body);background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+  .note-banner{flex:none;background:#FFFBE6;border-bottom:1px solid #EADf9a;color:#7a6a1a;font-size:12px;padding:6px 16px;text-align:center}
+  .app{flex:1;min-height:0;display:flex;flex-direction:column}
+  header{flex:none;display:flex;align-items:center;gap:14px;padding:11px 20px;border-bottom:1px solid var(--line)}
+  .logo{font-weight:800;font-size:18px;color:var(--dark)}.logo b{color:var(--lime)}
+  .role-badge{background:var(--lime);color:var(--dark);font-weight:700;font-size:12px;padding:4px 10px;border-radius:20px}
+  .spacer{flex:1}.user{font-size:13px;color:var(--muted)}
+  .cust-chip{font-size:12px;border:1px solid var(--line);border-radius:20px;padding:5px 12px;cursor:pointer;background:#fff}
+  .body{flex:1;min-height:0;display:flex;overflow:hidden}
+  /* 좌측: 고정 */
+  .viewer{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--line);background:#fafbfb;overflow:hidden}
+  .vtabs{flex:none;display:flex;align-items:center;gap:6px;padding:11px 16px;border-bottom:1px solid var(--line)}
+  .vtab{font-size:12px;color:var(--muted);padding:5px 10px;border-radius:6px;cursor:pointer}.vtab.on{background:var(--dark);color:#fff;font-weight:600}
+  .vtab-r{margin-left:auto;font-size:12px;border:1px solid var(--line);padding:5px 11px;border-radius:6px;cursor:pointer;background:#fff}
+  .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+  .stage svg{width:55%;max-width:520px}.stage .embed-tag{position:absolute;top:14px;left:16px;font-size:11px;color:#9aa0a8;background:#fff;border:1px solid var(--line);padding:4px 8px;border-radius:6px}
+  .stage .watermark{position:absolute;bottom:10px;right:18px;font-size:11px;color:#b9bdc4}
+  .pricebar{flex:none;border-top:1px solid var(--line);background:#fff;padding:12px 16px}
+  .price-warn{display:none;background:var(--warnbg);border:1px solid #f0c9ad;color:var(--warn);font-size:11.5px;padding:7px 10px;border-radius:8px;margin-bottom:10px}
+  .price-warn.show{display:block}
+  .pgrid{display:flex;gap:10px;align-items:stretch}
+  .pcell{flex:1;background:var(--card);border-radius:10px;padding:10px 13px}
+  .pcell .l{font-size:11px;color:var(--muted)}.pcell .v{font-size:16px;font-weight:700;color:var(--dark);margin-top:3px}
+  .pcell.muted .v{color:#bfc4cb}
+  .pcell.hero{flex:1.5;background:var(--dark);color:#fff;display:flex;flex-direction:column;justify-content:center}
+  .pcell.hero .l{color:var(--lime);font-weight:700;font-size:12px}
+  .pcell.hero .v{color:#fff;font-size:24px;margin-top:4px}
+  .pcell.hero .sub{font-size:10px;color:#9aa0a8;margin-top:3px;visibility:hidden}
+  .ex{color:var(--warn);font-style:italic}
+  /* 우측: 탭+스크롤+푸터, 탭 내용만 스크롤 */
+  .panel{flex:none;width:440px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .ptabs{flex:none;display:flex;border-bottom:1px solid var(--line)}
+  .ptab{flex:1;text-align:center;font-size:13px;padding:13px 4px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent}
+  .ptab.on{color:var(--dark);font-weight:700;border-bottom-color:var(--lime)}
+  .scroll{flex:1;min-height:0;overflow:auto;padding:18px 16px}
+  .tabpane{display:none}.tabpane.on{display:block}
+  .row{margin-bottom:14px}.row label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:54px;font-size:12.5px;padding:9px 6px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--body)}
+  .seg button.on{border-color:var(--dark);background:var(--dark);color:#fff;font-weight:600}
+  select,input[type=text]{width:100%;font-size:13px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--body)}
+  .hint{font-size:11px;color:var(--muted);margin-top:5px}
+  .trim-grid{display:flex;gap:10px}
+  .trim-card{flex:1;border:1.5px solid var(--line);border-radius:12px;padding:11px;cursor:pointer;text-align:center;transition:.12s}
+  .trim-card.on{border-color:var(--lime);box-shadow:0 0 0 2px rgba(200,210,0,.25)}
+  .trim-img{height:70px;background:repeating-linear-gradient(45deg,#f0f2f4,#f0f2f4 8px,#e9ecef 8px,#e9ecef 16px);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#b3b9c0;font-size:11px}
+  .trim-name{font-weight:700;font-size:14px;margin-top:9px;color:var(--dark)}.trim-sub{font-size:11px;color:var(--muted)}
+  .trim-detail{margin-top:12px;background:var(--card);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.55}.trim-detail b{color:var(--dark)}
+  .pfoot{flex:none;border-top:1px solid var(--line);padding:12px 14px;display:flex;gap:8px}
+  .pfoot button{flex:1;font-size:13.5px;font-weight:700;padding:12px;border-radius:9px;cursor:pointer;border:none}
+  .btn-calc{background:var(--lime);color:var(--dark)}
+  .btn-confirm{background:#fff;border:1px solid var(--line)!important;color:#bbb}.btn-confirm.ready{border-color:var(--dark)!important;color:var(--dark)}
+  .overlay{position:fixed;inset:0;background:rgba(20,20,20,.5);display:flex;align-items:center;justify-content:center;z-index:50}.overlay.hide{display:none}
+  .modal{background:#fff;border-radius:16px;width:420px;max-width:92vw;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+  .modal h2{margin:0 0 4px;font-size:18px;color:var(--dark)}.modal p{margin:0 0 16px;font-size:12.5px;color:var(--muted)}
+  .modal .row{margin-bottom:12px}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:5px 0}.check input{width:16px;height:16px;accent-color:var(--lime)}
+  .modal-btns{display:flex;gap:8px;margin-top:18px}
+  .modal-btns button{flex:1;font-size:13.5px;font-weight:700;padding:12px;border-radius:9px;cursor:pointer;border:none}
+  .m-ok{background:var(--lime);color:var(--dark)}.m-skip{background:#fff;border:1px solid var(--line)!important;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="note-banner">UI 초안 v2(mockup) · 옵션·가격은 placeholder/예시 · 3D는 VIVAR 임베드 영역</div>
+<div class="app">
+  <div class="overlay" id="custModal">
+    <div class="modal">
+      <h2>고객 정보 입력</h2>
+      <p>견적·보조금 산정을 위해 먼저 입력해 주세요. 건너뛰면 보조금 미반영 참고 견적만 확인할 수 있습니다.</p>
+      <div class="row"><label>고객명</label><input type="text" placeholder="예: 범석환"></div>
+      <div class="row"><label>사업자 구분</label><select><option>개인사업자</option><option>법인사업자</option><option>간이과세자</option></select></div>
+      <div class="row"><label>지역 (보조금 산정)</label><select><option>경기 남양주시</option><option>서울특별시</option><option>… (160개 지역)</option></select></div>
+      <label class="check"><input type="checkbox" checked> 소상공인 (국고 30% 추가 할인)</label>
+      <label class="check"><input type="checkbox"> 경유차 폐차</label>
+      <div class="modal-btns">
+        <button class="m-ok" onclick="finishCust(false)">입력 완료</button>
+        <button class="m-skip" onclick="finishCust(true)">건너뛰기 (보기만)</button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo">EV<b>&</b>Solution</div><span class="role-badge">영업 (Sales)</span>
+    <div class="spacer"></div>
+    <span class="cust-chip" id="custChip" onclick="openCust()">고객 정보 입력 ▾</span>
+    <div class="user">담당자: 여준성</div>
+  </header>
+
+  <div class="body">
+    <section class="viewer">
+      <div class="vtabs">
+        <span class="vtab on">FREE</span><span class="vtab">TOP</span><span class="vtab">SIDE</span>
+        <span class="vtab">REAR</span><span class="vtab">FRONT</span><span class="vtab-r">차종 변경</span>
+      </div>
+      <div class="stage">
+        <span class="embed-tag">3D 컨피규레이터 (VIVAR iframe 영역)</span>
+        <svg viewBox="0 0 520 230" xmlns="http://www.w3.org/2000/svg">
+          <g fill="none" stroke="#c4c9d0" stroke-width="3">
+            <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
+            <rect x="210" y="55" width="270" height="115" rx="4" fill="#f7f8fa"/>
+            <line x1="150" y1="70" x2="150" y2="108"/>
+            <circle cx="95" cy="178" r="22" fill="#e9ecef"/><circle cx="400" cy="178" r="22" fill="#e9ecef"/>
+            <circle cx="95" cy="178" r="9" fill="#fff"/><circle cx="400" cy="178" r="9" fill="#fff"/>
+          </g>
+          <text x="345" y="118" text-anchor="middle" fill="#aeb4bc" font-size="13">특장 (탑)</text>
+          <text x="120" y="95" text-anchor="middle" fill="#aeb4bc" font-size="11">PV5</text>
+        </svg>
+        <span class="watermark">Powered by VIVAR</span>
+      </div>
+      <div class="pricebar">
+        <div class="price-warn" id="priceWarn">⚠ 고객정보 미입력 — <b>보조금 미반영</b> 참고 견적입니다. 정확한 실구매가는 고객정보 입력 후 확인하세요.</div>
+        <div class="pgrid">
+          <div class="pcell" id="pSubsidy"><div class="l">보조금 적용가</div><div class="v">—</div></div>
+          <div class="pcell"><div class="l">부가세 환급 후</div><div class="v" id="pRefund">—</div></div>
+          <div class="pcell"><div class="l">총 비용 (등록+기타)</div><div class="v" id="pCost">—</div></div>
+          <div class="pcell hero"><div class="l">실구매가 (부가세 환급 후)</div><div class="v" id="pFinal">—</div><div class="sub" id="pFinalSub">고객 실제 부담액 <span class="ex">· 예시</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="ptabs">
+        <div class="ptab on" data-t="t1">차량옵션</div><div class="ptab" data-t="t2">특장</div><div class="ptab" data-t="t3">내부옵션</div>
+      </div>
+      <div class="scroll">
+        <div class="tabpane on" id="t1">
+          <div class="row"><label>차종</label><select><option>PV5 오픈베드</option><option>STEGO-K (예정)</option></select></div>
+          <div class="row"><label>트림 선택</label>
+            <div class="trim-grid">
+              <div class="trim-card on" data-detail="<b>베이직</b> — 기본 적재 사양. 표준 도어·기본 내장. (포함 옵션 목록은 확정 후 표시)">
+                <div class="trim-img">이미지</div><div class="trim-name">베이직</div><div class="trim-sub">기본 사양</div></div>
+              <div class="trim-card" data-detail="<b>플러스</b> — 베이직 + 편의·안전 사양 추가. (차이 항목은 옵션 확정 후 표시)">
+                <div class="trim-img">이미지</div><div class="trim-name">플러스</div><div class="trim-sub">편의사양 추가</div></div>
+            </div>
+            <div class="trim-detail" id="trimDetail"><b>베이직</b> — 기본 적재 사양. 표준 도어·기본 내장. (포함 옵션 목록은 확정 후 표시)</div>
+          </div>
+        </div>
+        <div class="tabpane" id="t2">
+          <div class="row"><label>적재함 유형</label><div class="seg"><button class="on">내장</button><button>냉동</button></div></div>
+          <div class="row"><label>탑 크기</label><div class="seg"><button class="on">저상</button><button>표준</button><button>커스텀</button></div><div class="hint">커스텀 선택 시 치수 입력 → 원자재 길이별 견적(추후)</div></div>
+          <div class="row"><label>도어 종류</label><div class="seg"><button class="on">여닫이</button><button>슬라이딩</button></div></div>
+          <div class="row"><label>도어 추가</label><div class="seg"><button class="on">없음</button><button>운전석방향</button></div></div>
+        </div>
+        <div class="tabpane" id="t3">
+          <div class="row"><label>온도기록계</label><div class="seg"><button>설치(O)</button><button class="on">미설치(X)</button></div></div>
+          <div class="row"><label>격벽</label><div class="seg"><button class="on">없음</button><button>그물망</button><button>냉동격벽</button></div><div class="hint">내장탑에서는 온도기록계 비활성 등 옵션 종속규칙 적용(예정)</div></div>
+        </div>
+      </div>
+      <div class="pfoot">
+        <button class="btn-calc" onclick="genQuote()">견적 생성</button>
+        <button class="btn-confirm" id="btnConfirm">견적 확정</button>
+      </div>
+    </aside>
+  </div>
+</div>
+<script>
+  let skipped=false, calced=false;
+  const Q={subsidy:'51,270,000',refund:'44,936,364',cost:'1,535,455',final:'₩46,471,818'};
+  function openCust(){document.getElementById('custModal').classList.remove('hide');}
+  function finishCust(skip){
+    skipped=skip;
+    document.getElementById('custModal').classList.add('hide');
+    const warn=document.getElementById('priceWarn'),chip=document.getElementById('custChip');
+    if(skip){warn.classList.add('show');chip.textContent='고객정보 미입력 ⚠';
+      alert('고객정보를 건너뛰었습니다.\n보조금이 반영되지 않은 참고 견적만 표시됩니다.');}
+    else{warn.classList.remove('show');chip.textContent='범석환 · 남양주 · 소상공인 ▾';}
+  }
+  document.querySelectorAll('.ptab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.ptab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+    document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('on'));document.getElementById(t.dataset.t).classList.add('on');
+  }));
+  document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  }));
+  document.querySelectorAll('.trim-card').forEach(c=>c.addEventListener('click',()=>{
+    document.querySelectorAll('.trim-card').forEach(x=>x.classList.remove('on'));c.classList.add('on');
+    document.getElementById('trimDetail').innerHTML=c.dataset.detail;
+  }));
+  function genQuote(){
+    calced=true;
+    document.getElementById('pRefund').textContent=Q.refund;
+    document.getElementById('pCost').textContent=Q.cost;
+    document.getElementById('pFinal').textContent=Q.final;
+    document.getElementById('pFinalSub').style.visibility='visible';
+    const ps=document.getElementById('pSubsidy');
+    if(skipped){ps.classList.add('muted');ps.querySelector('.v').textContent='보조금 미반영';
+      alert('보조금 미반영 참고 견적입니다. 확정하려면 고객정보를 입력하세요.');}
+    else{ps.classList.remove('muted');ps.querySelector('.v').textContent=Q.subsidy;}
+    document.getElementById('btnConfirm').classList.add('ready');
+  }
+  document.getElementById('btnConfirm').addEventListener('click',function(){
+    if(!calced){alert('먼저 [견적 생성]을 눌러주세요.');return;}
+    alert('견적이 확정되어 주문으로 전환됩니다. (mockup)');
+  });
+</script>
+</body>
+</html>
