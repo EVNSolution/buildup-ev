@@ -1,53 +1,31 @@
+import { useEffect, useState } from 'react'
+import type { ApiOrder } from '@shared/types/index'
+import { fetchOrders } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { Header } from '../components/Header'
 
 const ORDER_STATUSES = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 
-type DocStatus = 'pending' | 'done' | 'na'
-
-interface MockOrder {
-  order_id: string
-  customer_name: string
-  model: string
-  status: typeof ORDER_STATUSES[number]
-  maker_org_id: string
-  assigned_at: string
-  docs: { name: string; status: DocStatus }[]
+function fmtDate(s: string | null) {
+  return s ? s.slice(0, 10) : '—'
 }
-
-const DOC_STATUS_LABEL: Record<DocStatus, string> = { pending: '대기', done: '완료', na: '—' }
-const DOC_STATUS_COLOR: Record<DocStatus, string> = { pending: '#B3471F', done: '#2e7d32', na: 'var(--muted)' }
-
-// mock 데이터 — maker_org_id = ORG_MAKER1 격리
-const MOCK_ORDERS: MockOrder[] = [
-  {
-    order_id: 'ORD-2026-001', customer_name: '범석환', model: 'PV5 오픈베드',
-    status: '제작착수', maker_org_id: 'ORG_MAKER1', assigned_at: '2026-06-20',
-    docs: [
-      { name: '작업지시서',    status: 'done' },
-      { name: '세부설계도',    status: 'pending' },
-      { name: '하중계산서',    status: 'pending' },
-      { name: '예비변경허가서', status: 'na' },
-    ],
-  },
-  {
-    order_id: 'ORD-2026-002', customer_name: '김영철', model: 'PV5 오픈베드',
-    status: '구조변경', maker_org_id: 'ORG_MAKER1', assigned_at: '2026-06-21',
-    docs: [
-      { name: '작업지시서',    status: 'done' },
-      { name: '세부설계도',    status: 'done' },
-      { name: '하중계산서',    status: 'done' },
-      { name: '예비변경허가서', status: 'pending' },
-    ],
-  },
-]
 
 export function MakerPage() {
   const { session } = useAuth()
-  const orgCode = session?.org.code ?? ''
+  const email = session?.user.email ?? ''
 
-  // org 격리: maker_org_id = 자기 org만
-  const orders = MOCK_ORDERS.filter(o => o.maker_org_id === orgCode)
+  const [orders, setOrders] = useState<ApiOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    if (!email) return
+    setLoading(true)
+    fetchOrders({}, email)
+      .then(setOrders)
+      .catch(e => setErr(e.message))
+      .finally(() => setLoading(false))
+  }, [email])
 
   return (
     <div style={styles.root}>
@@ -56,58 +34,54 @@ export function MakerPage() {
       <div style={styles.body}>
         <div style={styles.titleBar}>
           <h1 style={styles.h1}>특장사 대시보드</h1>
-          <span style={styles.orgChip}>{session?.org.name ?? orgCode}</span>
+          <span style={styles.orgChip}>{session?.org.name ?? session?.org.code}</span>
         </div>
 
-        {orders.length === 0 ? (
+        {err && <div style={styles.errMsg}>{err}</div>}
+        {loading ? (
+          <div style={styles.loading}>로딩 중…</div>
+        ) : orders.length === 0 ? (
           <div style={styles.empty}>배정된 주문이 없습니다.</div>
         ) : (
           <div style={styles.orderList}>
             {orders.map(order => (
-              <OrderCard key={order.order_id} order={order} />
+              <OrderCard key={order.id} order={order} />
             ))}
           </div>
         )}
-
-        <div style={styles.todoNote}>
-          서류 자동생성 · 실데이터 연동 — TODO (실 API 연결 후 구현)
-        </div>
       </div>
     </div>
   )
 }
 
-function OrderCard({ order }: { order: MockOrder }) {
-  const pendingCount = order.docs.filter(d => d.status === 'pending').length
+function OrderCard({ order }: { order: ApiOrder }) {
+  const statusIdx = ORDER_STATUSES.indexOf(order.status as typeof ORDER_STATUSES[number])
 
   return (
     <div style={styles.card}>
       <div style={styles.cardHeader}>
         <div>
-          <div style={styles.orderId}>{order.order_id}</div>
-          <div style={styles.orderCustomer}>{order.customer_name} · {order.model}</div>
+          <div style={styles.orderId}>주문 #{order.id}</div>
+          <div style={styles.orderCustomer}>
+            {order.quote.customer?.name ?? '고객없음'} · {order.quote.model_code}
+          </div>
         </div>
         <div style={styles.cardRight}>
           <span style={styles.statusBadge}>{order.status}</span>
-          <div style={styles.assignedAt}>배정일 {order.assigned_at}</div>
+          <div style={styles.assignedAt}>배정일 {fmtDate(order.assigned_at)}</div>
         </div>
       </div>
 
-      <div style={styles.docSection}>
-        <div style={styles.docLabel}>필수 서류</div>
-        <div style={styles.docGrid}>
-          {order.docs.map(doc => (
-            <div key={doc.name} style={styles.docItem}>
-              <span style={{ color: DOC_STATUS_COLOR[doc.status], fontSize: 11, fontWeight: 600 }}>
-                {DOC_STATUS_LABEL[doc.status]}
-              </span>
-              <span style={styles.docName}>{doc.name}</span>
+      <div style={styles.progressSection}>
+        <div style={styles.progressLabel}>진행 단계</div>
+        <div style={styles.progressSteps}>
+          {ORDER_STATUSES.map((s, i) => (
+            <div key={s} style={styles.stepItem}>
+              <div style={i <= statusIdx ? styles.stepDotActive : styles.stepDot} />
+              <div style={i <= statusIdx ? styles.stepLabelActive : styles.stepLabel}>{s}</div>
             </div>
           ))}
         </div>
-        {pendingCount > 0 && (
-          <div style={styles.pendingWarn}>⚠ 미완료 {pendingCount}건</div>
-        )}
       </div>
 
       <div style={styles.cardActions}>
@@ -127,6 +101,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12, padding: '3px 10px', background: 'var(--card)',
     border: '1px solid var(--line)', borderRadius: 20, color: 'var(--muted)',
   },
+  errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 12 },
+  loading: { color: 'var(--muted)', fontSize: 14, padding: '40px 0', textAlign: 'center' },
   empty: { color: 'var(--muted)', fontSize: 14, padding: '40px 0', textAlign: 'center' },
   orderList: { display: 'flex', flexDirection: 'column', gap: 16 },
   card: {
@@ -142,23 +118,23 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--lime)', color: 'var(--dark)', borderRadius: 12,
   },
   assignedAt: { fontSize: 11, color: 'var(--muted)' },
-  docSection: {},
-  docLabel: { fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 },
-  docGrid: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  docItem: {
-    display: 'flex', alignItems: 'center', gap: 5,
-    padding: '5px 10px', background: 'var(--card)',
-    borderRadius: 8, fontSize: 12,
+  progressSection: {},
+  progressLabel: { fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 },
+  progressSteps: { display: 'flex', gap: 0, alignItems: 'flex-start' },
+  stepItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 },
+  stepDot: {
+    width: 10, height: 10, borderRadius: '50%',
+    background: '#e0e3e8', marginBottom: 5,
   },
-  docName: { color: 'var(--dark)' },
-  pendingWarn: { marginTop: 8, fontSize: 12, color: 'var(--warn)' },
+  stepDotActive: {
+    width: 10, height: 10, borderRadius: '50%',
+    background: 'var(--lime)', marginBottom: 5,
+  },
+  stepLabel: { fontSize: 9.5, color: '#b0b7c0', textAlign: 'center' },
+  stepLabelActive: { fontSize: 9.5, color: 'var(--dark)', fontWeight: 700, textAlign: 'center' },
   cardActions: { display: 'flex', gap: 8 },
   actionBtn: {
     fontSize: 12, padding: '7px 14px', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', color: 'var(--muted)', cursor: 'not-allowed',
-  },
-  todoNote: {
-    marginTop: 24, padding: '10px 14px', background: 'var(--card)',
-    borderRadius: 8, fontSize: 12, color: 'var(--muted)',
   },
 }
