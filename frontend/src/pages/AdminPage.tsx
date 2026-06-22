@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
-import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword } from '../api/auth'
+import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote } from '../api/quotes'
 import { fetchOrders, updateOrderStatus, fetchMakerOrgs } from '../api/orders'
@@ -149,6 +149,9 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
 
 // ── 계정 관리 탭 ──────────────────────────────────────────────────────────
 function AccountsTab() {
+  const { session } = useAuth()
+  const myEmail = session?.user.email ?? ''
+
   const [users, setUsers] = useState<User[]>([])
   const [orgs, setOrgs] = useState<Org[]>([])
   const [modules, setModules] = useState<FeatureModule[]>([])
@@ -160,6 +163,7 @@ function AccountsTab() {
   const [resetting, setResetting] = useState<string | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temp_password: string } | null>(null)
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   function loadAll() {
     setLoading(true); setErr('')
@@ -196,6 +200,20 @@ function AccountsTab() {
     }
   }
 
+  async function handleDelete(email: string) {
+    if (!window.confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return
+    setDeleting(email)
+    setErr('')
+    try {
+      await deleteUser(email)
+      setUsers(prev => prev.filter(u => u.email !== email))
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '삭제 실패')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   async function handleUserModuleToggle(email: string, code: string, current: boolean) {
     const entry: Omit<AccessControl, 'id'> = { subject_type: 'user', subject_ref: email, module_code: code, enabled: !current }
     try {
@@ -216,6 +234,8 @@ function AccountsTab() {
     invited: { background: '#e3f2fd', color: '#1565c0' },
     suspended: { background: '#fdecea', color: '#c62828' },
   }
+  const adminCount = users.filter(u => u.role === 'ADMIN').length
+  const isDeleteDisabled = (u: User) => u.email === myEmail || (u.role === 'ADMIN' && adminCount <= 1)
 
   if (loading) return <div style={styles.content}><div style={{ color: 'var(--muted)', fontSize: 13 }}>로딩 중…</div></div>
 
@@ -282,6 +302,18 @@ function AccountsTab() {
                         disabled={togglingStatus === user.email}
                       >
                         {user.status === 'active' ? '정지' : '활성화'}
+                      </button>
+                      <button
+                        style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.deleteBtn}
+                        onClick={() => handleDelete(user.email)}
+                        disabled={isDeleteDisabled(user) || deleting === user.email}
+                        title={
+                          user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
+                          (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
+                          '계정 삭제'
+                        }
+                      >
+                        {deleting === user.email ? '…' : '삭제'}
                       </button>
                     </div>
                   </td>
@@ -719,6 +751,8 @@ const acc: Record<string, React.CSSProperties> = {
   actionBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 12, color: 'var(--dark)' },
   suspendBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#fdecea', color: '#c62828', fontSize: 12, fontWeight: 600 },
   activateBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600 },
+  deleteBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontSize: 12, fontWeight: 600 },
+  deleteBtnDisabled: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontSize: 12, fontWeight: 600 },
   expandCell: { padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid var(--line)' },
   expandHeader: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 },
   moduleGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },

@@ -110,6 +110,54 @@ usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<v
   }
 });
 
+// ── DELETE /users/:email ─────────────────────────────────────────────────
+
+usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
+  const { email } = req.params as { email: string };
+
+  // 본인 계정 삭제 금지
+  if (email === req.auth!.email) {
+    res.status(403).json({ error: { code: 'SELF_DELETE_FORBIDDEN', message: '본인 계정은 삭제할 수 없습니다.' } });
+    return;
+  }
+
+  try {
+    const target = await prisma.user.findUnique({ where: { email } });
+    if (!target) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
+
+    // 마지막 ADMIN 삭제 금지
+    if (target.role === 'ADMIN') {
+      const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+      if (adminCount <= 1) {
+        res.status(409).json({ error: { code: 'LAST_ADMIN', message: '마지막 관리자 계정은 삭제할 수 없습니다.' } });
+        return;
+      }
+    }
+
+    // FK 참조 검사 (견적·초대·고객)
+    const [quoteCount, inviteeCount, customerCount] = await Promise.all([
+      prisma.quote.count({ where: { sales_user_id: email } }),
+      prisma.user.count({ where: { invited_by: email } }),
+      prisma.customer.count({ where: { created_by: email } }),
+    ]);
+    if (quoteCount + inviteeCount + customerCount > 0) {
+      res.status(409).json({ error: { code: 'HAS_REFERENCES', message: '관련 견적/주문이 있어 삭제할 수 없습니다. 비활성화를 사용하세요.' } });
+      return;
+    }
+
+    await prisma.user.delete({ where: { email } });
+    res.json({ data: { ok: true } });
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === 'P2003') {
+      res.status(409).json({ error: { code: 'HAS_REFERENCES', message: '관련 견적/주문이 있어 삭제할 수 없습니다. 비활성화를 사용하세요.' } });
+    } else {
+      console.error('[DELETE /users/:email]', e);
+      res.status(500).json({ error: { code: 'INTERNAL', message: '계정 삭제 중 오류가 발생했습니다.' } });
+    }
+  }
+});
+
 // ── POST /users/:email/reset-password ─────────────────────────────────────
 
 usersRouter.post('/:email/reset-password', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
