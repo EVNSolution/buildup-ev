@@ -151,3 +151,61 @@ export interface AuthUser {
   role: Role;
   org_code: string;
 }
+
+// ── 영업 API 응답 타입 (GET /models/:code/pricing-bundle) ─────────────────
+
+export interface ApiOptionValue {
+  code: string;
+  name: string;
+  vivar_code: string | null;
+  sort_order: number;
+}
+
+export interface ApiOptionGroup {
+  code: string;
+  category: string | null;
+  name: string;
+  select_type: string;
+  required: boolean;
+  values: ApiOptionValue[];
+}
+
+export interface ApiOptionRule {
+  code: string;
+  when_value: string;
+  effect: string;
+  target_type: string;
+  target_code: string;
+  memo?: string | null;
+}
+
+export interface ApiDoorPrice {
+  top: string;
+  doortype: string;
+  unit_price: number;
+}
+
+export interface ApiTaxConfig {
+  acq_tax_rate: number;
+  special_acq_tax_rate: number;
+  acq_tax_relief_cap: number;
+  stamp: number;
+  plate: number;
+  reg_agency: number;
+  delivery_fee: number;
+  etc_fee: number;
+}
+
+export interface ApiSubsidyNational {
+  amount: number;
+  sosang_rate: number;
+}
+
+export interface ApiPricingBundle {
+  groups: ApiOptionGroup[];
+  rules: ApiOptionRule[];
+  option_prices: Record<string, number>;
+  door_unit_prices: ApiDoorPrice[];
+  tax: ApiTaxConfig;
+  subsidy_national: ApiSubsidyNational | null;
+}

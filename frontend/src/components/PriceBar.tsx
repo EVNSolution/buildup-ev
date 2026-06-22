@@ -1,44 +1,51 @@
-import type { QuoteResult } from '@shared/types/index'
+import type { PricingResult } from '@shared/pricing/core'
 
 interface Props {
-  result: QuoteResult | null
-  hasSubsidy: boolean
+  calc: PricingResult | null
+  hasCustomer: boolean
 }
 
 function fmt(n: number) {
   return '₩' + n.toLocaleString('ko-KR')
 }
 
-export function PriceBar({ result, hasSubsidy }: Props) {
+export function PriceBar({ calc, hasCustomer }: Props) {
+  const ok = calc?.status === 'ok' ? calc : null
+  const isUnsupported = calc?.status === 'unsupported'
+  const tbd = isUnsupported ? (calc as { reason: string }).reason : null
+
   return (
     <div style={styles.bar}>
-      {!hasSubsidy && result && (
+      {!hasCustomer && ok && (
         <div style={styles.warn}>
-          ⚠ 고객정보 미입력 — <b>보조금 미반영</b> 참고 견적입니다. 정확한 실구매가는 고객정보 입력 후 확인하세요.
+          고객정보 미입력 — <b>보조금 미반영</b> 참고 견적입니다. 정확한 실구매가는 고객정보 입력 후 확인하세요.
         </div>
+      )}
+      {isUnsupported && (
+        <div style={styles.warnTbd}>{tbd}</div>
       )}
       <div style={styles.grid}>
         <div style={styles.cell}>
           <div style={styles.cellLabel}>보조금 적용가</div>
-          <div style={hasSubsidy ? styles.cellValue : styles.cellValueMuted}>
-            {result ? (hasSubsidy ? fmt(result.subsidy_applied_price) : '보조금 미반영') : '—'}
+          <div style={hasCustomer ? styles.cellValue : styles.cellValueMuted}>
+            {tbd ? '—' : ok ? (hasCustomer ? fmt(ok.applied_price) : '보조금 미반영') : '—'}
           </div>
         </div>
         <div style={styles.cell}>
           <div style={styles.cellLabel}>부가세 환급 후</div>
-          <div style={styles.cellValue}>{result ? fmt(result.vat_refund_price) : '—'}</div>
+          <div style={styles.cellValue}>{tbd ? '—' : ok ? fmt(ok.vat_refunded_price) : '—'}</div>
         </div>
         <div style={styles.cell}>
           <div style={styles.cellLabel}>총 비용 (등록+기타)</div>
-          <div style={styles.cellValue}>{result ? fmt(result.registration_fee) : '—'}</div>
+          <div style={styles.cellValue}>{tbd ? '—' : ok ? fmt(ok.reg_cost + ok.etc_cost) : '—'}</div>
         </div>
         <div style={styles.hero}>
           <div style={styles.heroLabel}>실구매가 (부가세 환급 후)</div>
           <div style={styles.heroValue}>
-            {result ? (result.final_price ? fmt(result.final_price) : '—') : '—'}
+            {tbd ? '미정 (TBD)' : ok ? fmt(ok.real_price) : '—'}
           </div>
-          {result && result.final_price > 0 && (
-            <div style={styles.heroSub}>고객 실제 부담액 · placeholder</div>
+          {ok && (
+            <div style={styles.heroSub}>공급가 {fmt(ok.supply_price)} · 보조금 {fmt(ok.subsidy_total)}</div>
           )}
         </div>
       </div>
@@ -62,6 +69,16 @@ const styles = {
     borderRadius: 8,
     marginBottom: 10,
   },
+  warnTbd: {
+    background: '#f5f5f5',
+    border: '1px solid #ddd',
+    color: '#555',
+    fontSize: 11.5,
+    padding: '7px 10px',
+    borderRadius: 8,
+    marginBottom: 10,
+    fontWeight: 600,
+  },
   grid: { display: 'flex', gap: 10, alignItems: 'stretch' },
   cell: {
     flex: 1,
@@ -71,7 +88,7 @@ const styles = {
   },
   cellLabel: { fontSize: 11, color: 'var(--muted)' },
   cellValue: { fontSize: 16, fontWeight: 700, color: 'var(--dark)', marginTop: 3 },
-  cellValueMuted: { fontSize: 16, fontWeight: 700, color: '#bfc4cb', marginTop: 3 },
+  cellValueMuted: { fontSize: 14, fontWeight: 700, color: '#bfc4cb', marginTop: 3 },
   hero: {
     flex: 1.5,
     background: 'var(--dark)',

@@ -1,37 +1,40 @@
-import type { QuoteCalculateRequest, QuoteResult } from '@shared/types/index'
+import type { PricingOk } from '@shared/pricing/core'
 
-// TODO: POST /quotes/calculate 실연결
-
-/**
- * Mock 응답 — 회귀 기준: 범석환(남양주, 소상공인) 케이스 실구매가 = ₩46,471,818
- */
-const MOCK_RESULT_WITH_SUBSIDY: QuoteResult = {
-  supply_price: 46_000_000,        // placeholder
-  vat: 4_600_000,                  // placeholder
-  vehicle_price: 50_600_000,       // placeholder
-  subsidy_national: 0,             // placeholder — DB 확정 후
-  subsidy_local: 0,                // placeholder
-  subsidy_small_biz: 0,            // placeholder
-  total_subsidy: 0,                // placeholder
-  subsidy_applied_price: 51_270_000,
-  vat_refund: 6_333_636,
-  vat_refund_price: 44_936_364,
-  registration_fee: 1_535_455,
-  final_price: 46_471_818,         // ← 회귀 검증값
+export interface SaveQuoteRequest {
+  model_code: string
+  year?: number
+  selections: Record<string, string>
+  customer?: {
+    biz_type: 'individual' | 'corporation' | 'simplified'
+    is_sosang: boolean
+    region?: string
+    scrap_diesel?: boolean
+  }
 }
 
-const MOCK_RESULT_NO_SUBSIDY: QuoteResult = {
-  ...MOCK_RESULT_WITH_SUBSIDY,
-  subsidy_national: 0,
-  subsidy_local: 0,
-  subsidy_small_biz: 0,
-  total_subsidy: 0,
-  subsidy_applied_price: 0,
-  final_price: 0, // 보조금 미적용 시 실구매가 미제공
+export async function saveQuote(
+  req: SaveQuoteRequest,
+  email: string,
+): Promise<{ quote_id: number; pricing: PricingOk }> {
+  const res = await fetch('/api/v1/quotes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User': email },
+    body: JSON.stringify(req),
+  })
+  if (res.status === 422) {
+    const body = await res.json()
+    throw new Error(body.error?.message ?? '내장탑 가격 미정(TBD)')
+  }
+  if (!res.ok) throw new Error(`견적 저장 실패: ${res.status}`)
+  const body = await res.json()
+  return body.data
 }
 
-export async function calculateQuote(req: QuoteCalculateRequest): Promise<QuoteResult> {
-  // TODO: return fetch('/api/quotes/calculate', { method:'POST', body:JSON.stringify(req) }).then(r=>r.json())
-  await new Promise(r => setTimeout(r, 300)) // mock latency
-  return req.customer ? MOCK_RESULT_WITH_SUBSIDY : MOCK_RESULT_NO_SUBSIDY
+export async function fetchLocalSubsidy(region: string, year: number, email: string): Promise<number> {
+  if (!region) return 0
+  const url = `/api/v1/subsidy/local?region=${encodeURIComponent(region)}&year=${year}`
+  const res = await fetch(url, { headers: { 'X-User': email } })
+  if (!res.ok) return 0
+  const body = await res.json()
+  return body.data?.amount ?? 0
 }
