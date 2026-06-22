@@ -16,6 +16,7 @@ interface Props {
   onConfirmQuote: () => void
   quoteResult: QuoteResult | null
   isCalculating: boolean
+  canConvert?: boolean
 }
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -34,6 +35,7 @@ export function OptionPanel({
   onConfirmQuote,
   quoteResult,
   isCalculating,
+  canConvert = true,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
 
@@ -79,12 +81,14 @@ export function OptionPanel({
         <button style={styles.btnCalc} onClick={onGenerateQuote} disabled={isCalculating}>
           {isCalculating ? '계산 중…' : '견적 생성'}
         </button>
-        <button
-          style={quoteResult ? styles.btnConfirmReady : styles.btnConfirm}
-          onClick={onConfirmQuote}
-        >
-          견적 확정
-        </button>
+        {canConvert && (
+          <button
+            style={quoteResult ? styles.btnConfirmReady : styles.btnConfirm}
+            onClick={onConfirmQuote}
+          >
+            견적 확정
+          </button>
+        )}
       </div>
     </aside>
   )

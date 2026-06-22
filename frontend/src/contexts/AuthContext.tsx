@@ -1,27 +1,43 @@
 import { createContext, useContext, useState } from 'react'
-import type { AuthUser, Role } from '@shared/types/index'
+import type { User, Org, Role } from '@shared/types/index'
+import { fetchAuthMe } from '../api/auth'
 
-interface AuthContextValue {
-  user: AuthUser
-  setRole: (role: Role) => void
+export interface Session {
+  user: User
+  org: Org
+  permissions: string[]
 }
 
-const MOCK_USERS: Record<Role, AuthUser> = {
-  SALES: { id: 'sales1@evnsolution.com', name: '여준성', role: 'SALES', org_code: 'ORG_HQ' },
-  ADMIN: { id: 'admin@evnsolution.com',  name: '관리자', role: 'ADMIN', org_code: 'ORG_HQ' },
-  MAKER: { id: 'maker1@partner.com',     name: '특장담당', role: 'MAKER', org_code: 'ORG_MAKER1' },
+interface AuthContextValue {
+  session: Session | null
+  login: (email: string, role: Role) => Promise<void>
+  logout: () => void
+  hasPermission: (code: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser>(MOCK_USERS.SALES)
+  const [session, setSession] = useState<Session | null>(null)
 
-  function setRole(role: Role) {
-    setUser(MOCK_USERS[role])
+  async function login(email: string, role: Role) {
+    const data = await fetchAuthMe(role, email)
+    setSession({ user: data.user, org: data.org, permissions: data.permissions })
   }
 
-  return <AuthContext.Provider value={{ user, setRole }}>{children}</AuthContext.Provider>
+  function logout() {
+    setSession(null)
+  }
+
+  function hasPermission(code: string) {
+    return session?.permissions.includes(code) ?? false
+  }
+
+  return (
+    <AuthContext.Provider value={{ session, login, logout, hasPermission }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

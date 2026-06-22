@@ -6,9 +6,11 @@ import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { CustomerModal } from '../components/CustomerModal'
+import { usePermission } from '../components/PermGate'
 
 
 export function SalesPage() {
+  const canConvert = usePermission('order.convert')
   const [showModal, setShowModal] = useState(true)
   const [customer, setCustomer] = useState<CustomerInfo | null>(null)
   const [skipped, setSkipped] = useState(false)
@@ -94,6 +96,7 @@ export function SalesPage() {
 
       <Header customer={customer} onOpenCustomerModal={() => setShowModal(true)} />
 
+
       <div style={styles.body}>
         {/* 좌측: 3D + 가격바 */}
         <section style={styles.viewer}>
@@ -136,6 +139,7 @@ export function SalesPage() {
           onConfirmQuote={handleConfirmQuote}
           quoteResult={quoteResult}
           isCalculating={isCalculating}
+          canConvert={canConvert}
         />
       </div>
 
