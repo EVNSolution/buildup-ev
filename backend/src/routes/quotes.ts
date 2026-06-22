@@ -3,13 +3,14 @@ import type { Request } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { calcPrice, type PricingParams } from '@buildup-ev/shared/pricing';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, QuoteStatus } from '@prisma/client';
 
 export const quotesRouter = Router();
 
 // ── 내부 헬퍼: DB 조회 → PricingParams 빌드 ─────────────────────────────
 
 type CustomerInput = {
+  name?: string;
   biz_type?: string;
   is_sosang?: boolean;
   region?: string;
@@ -80,58 +81,76 @@ async function buildParams(
   };
 }
 
-// ── POST /quotes/calculate — 미저장 계산 (기존 클라이언트 호환) ──────────
+// ── GET /quotes — 목록 (ADMIN=전체, SALES=자기 소유) ───────────────────────
+
+quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const auth = req.auth!;
+  const { status, from, to } = req.query as Record<string, string | undefined>;
+
+  const where: Prisma.QuoteWhereInput = {};
+  if (auth.role === 'SALES') where.sales_user_id = auth.email;
+  if (status) where.status = status as QuoteStatus;
+  if (from || to) {
+    where.created_at = {
+      ...(from ? { gte: new Date(from) } : {}),
+      ...(to   ? { lte: new Date(to)   } : {}),
+    };
+  }
+
+  const quotes = await prisma.quote.findMany({
+    where,
+    orderBy: { created_at: 'desc' },
+    include: { customer: { select: { id: true, name: true } } },
+  });
+  res.json({ data: quotes });
+});
+
+// ── POST /quotes/calculate — 미저장 계산 ─────────────────────────────────
 
 quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-
   const { model_code, year, selections, customer } = req.body as {
-    model_code?: string;
-    year?: number;
-    selections?: Record<string, string>;
-    customer?: CustomerInput;
+    model_code?: string; year?: number;
+    selections?: Record<string, string>; customer?: CustomerInput;
   };
-
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
-
   const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear());
   const result = calcPrice(params);
-
   if (result.status === 'unsupported') {
     res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
     return;
   }
-
   res.json({ data: result });
 });
 
-// ── POST /quotes — 서버 재계산(권위) + 스냅샷 저장 ───────────────────────
+// ── POST /quotes — 서버 재계산 + 스냅샷 저장 ─────────────────────────────
 
 quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-
   const { model_code, year, selections, customer } = req.body as {
-    model_code?: string;
-    year?: number;
-    selections?: Record<string, string>;
-    customer?: CustomerInput;
+    model_code?: string; year?: number;
+    selections?: Record<string, string>; customer?: CustomerInput;
   };
-
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
 
-  const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear());
+  const calcYear = year ?? new Date().getFullYear();
+  const params = await buildParams(model_code, selections, customer, calcYear);
   const result = calcPrice(params);
 
   if (result.status === 'unsupported') {
@@ -139,12 +158,31 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     return;
   }
 
+  // 고객 생성·연결 (name 있을 때만)
+  let customerId: number | undefined;
+  if (customer?.name) {
+    try {
+      const cust = await prisma.customer.create({
+        data: { name: customer.name, created_by: req.auth?.email },
+      });
+      customerId = cust.id;
+    } catch (e: unknown) {
+      if ((e as { code?: string }).code === 'P2003') {
+        const cust = await prisma.customer.create({ data: { name: customer.name } });
+        customerId = cust.id;
+      } else {
+        throw e;
+      }
+    }
+  }
+
   const baseData = {
     model_code,
-    selections:   selections as unknown as Prisma.InputJsonValue,
-    supply_price: result.supply_price,
-    final_price:  result.real_price,
-    status:       'draft' as const,
+    selections:    selections as unknown as Prisma.InputJsonValue,
+    supply_price:  result.supply_price,
+    final_price:   result.real_price,
+    status:        'draft' as const,
+    customer_id:   customerId,
     sales_user_id: req.auth?.email,
     org_id:        req.auth?.org_code,
   };
@@ -153,7 +191,6 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   try {
     quote = await prisma.quote.create({ data: baseData });
   } catch (e: unknown) {
-    // mock 사용자(DB에 없음) → FK 위반 시 user/org 참조 없이 재시도
     if ((e as { code?: string }).code === 'P2003') {
       quote = await prisma.quote.create({
         data: { ...baseData, sales_user_id: undefined, org_id: undefined },
@@ -166,7 +203,59 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   res.status(201).json({ data: { quote_id: quote.id, pricing: result } });
 });
 
-// ── GET /quotes/:id ──────────────────────────────────────────────────────
+// ── PATCH /quotes/:id/confirm — 관리자 확정 + 특장사 배정 + 주문 생성 ────
+
+quotesRouter.patch('/:id/confirm', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+
+  const { maker_org_id } = req.body as { maker_org_id?: string };
+  if (!maker_org_id) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '배정 특장사(maker_org_id) 필수' } });
+    return;
+  }
+
+  const [quote, makerOrg] = await Promise.all([
+    prisma.quote.findUnique({ where: { id } }),
+    prisma.org.findUnique({ where: { code: maker_org_id } }),
+  ]);
+
+  if (!quote) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+    return;
+  }
+  if (quote.status !== 'draft') {
+    res.status(409).json({ error: { code: 'CONFLICT', message: `이미 ${quote.status} 상태입니다` } });
+    return;
+  }
+  if (!makerOrg || makerOrg.type !== 'MAKER') {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효한 특장사 org가 아닙니다' } });
+    return;
+  }
+
+  const [updatedQuote, order] = await prisma.$transaction([
+    prisma.quote.update({ where: { id }, data: { status: 'confirmed' } }),
+    prisma.order.create({
+      data: {
+        quote_id:    id,
+        status:      '제작착수',
+        maker_org_id,
+        assigned_at: new Date(),
+      },
+    }),
+  ]);
+
+  res.json({ data: { quote: updatedQuote, order } });
+});
+
+// ── GET /quotes/:id ───────────────────────────────────────────────────────
 
 quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
@@ -178,7 +267,10 @@ quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Prom
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
     return;
   }
-  const quote = await prisma.quote.findUnique({ where: { id } });
+  const quote = await prisma.quote.findUnique({
+    where: { id },
+    include: { customer: true },
+  });
   if (!quote) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
     return;

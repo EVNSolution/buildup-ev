@@ -107,34 +107,32 @@ describe('GET /api/v1/auth/me/permissions', () => {
 
 // ── org 격리 stub 테스트 ──────────────────────────────────────────────
 
-describe('orgScope stub', () => {
+describe('orders RBAC — 인증·권한 검증', () => {
   const app = createApp();
 
   it('X-User 없는 GET /orders/:id → 403', async () => {
     await request(app).get('/api/v1/orders/1').expect(403);
   });
 
-  it('SALES 인증 있으면 orgScope 통과 (501 Not Implemented)', async () => {
+  it('SALES — GET /orders/:id RBAC 통과 (403 아님)', async () => {
     const res = await request(app)
       .get('/api/v1/orders/1')
-      .set('X-User', 'sales1@evnsolution.com')
-      .expect(501);
-    expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
+      .set('X-User', 'sales1@evnsolution.com');
+    expect(res.status).not.toBe(403);
   });
 
-  it('MAKER 인증 있으면 orgScope 통과 (501 Not Implemented)', async () => {
+  it('MAKER — GET /orders/:id RBAC 통과 (403 아님)', async () => {
     const res = await request(app)
       .get('/api/v1/orders/1')
-      .set('X-User', 'maker1@partner.com')
-      .expect(501);
-    expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
+      .set('X-User', 'maker1@partner.com');
+    expect(res.status).not.toBe(403);
   });
 
-  it('ADMIN은 전체 접근 — orgScope 통과', async () => {
+  it('ADMIN — PATCH /orders/:id/status RBAC 통과 (403 아님)', async () => {
     const res = await request(app)
       .patch('/api/v1/orders/1/status')
       .set('X-User', 'admin@evnsolution.com')
-      .expect(501);
-    expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
+      .send({ status: '구조변경' });
+    expect(res.status).not.toBe(403);
   });
 });

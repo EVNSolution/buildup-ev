@@ -4,9 +4,10 @@ import type { Org, User, FeatureModule, AccessControl, Role } from '@buildup-ev/
 // TODO: DB 연결 시 이 파일 전체를 DB 쿼리로 교체
 
 export const MOCK_ORGS: Record<string, Org> = {
-  ORG_HQ: { code: 'ORG_HQ', type: 'HQ', name: 'EV&Solution 본사', active: true },
-  ORG_DEALER1: { code: 'ORG_DEALER1', type: 'DEALER', name: '○○대리점', active: false },
-  ORG_MAKER1: { code: 'ORG_MAKER1', type: 'MAKER', name: '△△특장', active: false },
+  ORG_HQ:     { code: 'ORG_HQ',     type: 'HQ',     name: 'EV&Solution 본사',      active: true },
+  ORG_SALES1: { code: 'ORG_SALES1', type: 'DEALER', name: 'EV&Solution 직영영업팀', active: true },
+  ORG_DEALER1:{ code: 'ORG_DEALER1',type: 'DEALER', name: '○○대리점',               active: false },
+  ORG_MAKER1: { code: 'ORG_MAKER1', type: 'MAKER',  name: '△△특장',                active: true },
 };
 
 export const MOCK_USERS: Record<string, User> = {
@@ -21,23 +22,23 @@ export const MOCK_USERS: Record<string, User> = {
   },
   'sales1@evnsolution.com': {
     email: 'sales1@evnsolution.com',
-    org_code: 'ORG_HQ',
+    org_code: 'ORG_SALES1',
     role: 'SALES',
     name: '영업담당',
-    status: 'invited',
-    must_change_pw: true,
+    status: 'active',
+    must_change_pw: false,
     invited_by: 'admin@evnsolution.com',
-    active: false,
+    active: true,
   },
   'maker1@partner.com': {
     email: 'maker1@partner.com',
     org_code: 'ORG_MAKER1',
     role: 'MAKER',
     name: '특장담당',
-    status: 'invited',
-    must_change_pw: true,
+    status: 'active',
+    must_change_pw: false,
     invited_by: 'admin@evnsolution.com',
-    active: false,
+    active: true,
   },
 };
 

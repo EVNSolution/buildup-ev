@@ -310,10 +310,11 @@ model Quote {
   @@map("quote")
 }
 
+// 주문 상태 순서(앱 레벨 강제): 제작착수→구조변경→튜닝신청→안전검사→튜닝승인→인도완료
 model Order {
   id           Int       @id @default(autoincrement())
   quote_id     Int       @unique
-  status       String    @default("PENDING") @db.VarChar(30)
+  status       String    @default("제작착수") @db.VarChar(30)
   maker_org_id String?   @db.VarChar(30)
   assigned_at  DateTime?
   created_at   DateTime  @default(now())
