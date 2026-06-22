@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org } from '@shared/types/index'
-import { fetchFeatureModules, fetchAccessControl, upsertAccessControl } from '../api/auth'
+import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
+import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword } from '../api/auth'
+import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote } from '../api/quotes'
 import { fetchOrders, updateOrderStatus, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
@@ -12,14 +13,10 @@ const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
 }
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
-type TabKey = 'quotes' | 'kanban' | 'toggles' | 'override'
+type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts'
 
-function fmtPrice(n: number) {
-  return n ? `₩${n.toLocaleString()}` : '—'
-}
-function fmtDate(s: string) {
-  return s ? s.slice(0, 10) : '—'
-}
+function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
+function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
 
 function getSurfaces(modules: FeatureModule[]): string[] {
   const seen = new Set<string>()
@@ -39,43 +36,24 @@ function isEnabled(ac: AccessControl[], type: 'role' | 'user', ref: string, code
 
 // ── 특장사 확정 모달 ───────────────────────────────────────────────────────
 interface ConfirmModalProps {
-  quoteId: number
-  makerOrgs: Org[]
-  loading: boolean
-  error: string
-  onConfirm: (makerOrgId: string) => void
-  onClose: () => void
+  quoteId: number; makerOrgs: Org[]; loading: boolean; error: string
+  onConfirm: (makerOrgId: string) => void; onClose: () => void
 }
-
 function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }: ConfirmModalProps) {
   const [selected, setSelected] = useState('')
-
   return (
     <div style={modal.overlay} onClick={onClose}>
       <div style={modal.box} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>견적 #{quoteId} 확정 — 특장사 배정</div>
         <div style={modal.desc}>배정할 특장사를 선택하세요. 선택 후 주문이 즉시 생성됩니다.</div>
-
-        <select
-          value={selected}
-          onChange={e => setSelected(e.target.value)}
-          style={modal.select}
-        >
+        <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
           <option value="">— 특장사 선택 (필수) —</option>
-          {makerOrgs.map(o => (
-            <option key={o.code} value={o.code}>{o.name} ({o.code})</option>
-          ))}
+          {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
         </select>
-
         {error && <div style={modal.error}>{error}</div>}
-
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
-          <button
-            style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn}
-            disabled={!selected || loading}
-            onClick={() => onConfirm(selected)}
-          >
+          <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
             {loading ? '처리 중…' : '확정 + 배정'}
           </button>
         </div>
@@ -84,19 +62,283 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
   )
 }
 
-// ── 견적 목록 탭 ──────────────────────────────────────────────────────────
-interface QuotesTabProps {
-  email: string
+// ── 계정 발급 모달 ─────────────────────────────────────────────────────────
+interface CreateUserModalProps {
+  orgs: Org[]
+  onClose: () => void
+}
+function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
+  const [form, setForm] = useState<CreateUserInput>({ email: '', name: '', role: 'SALES', org_code: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<{ user: User; temp_password: string } | null>(null)
+
+  function setField(k: keyof CreateUserInput, v: string) {
+    setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.email || !form.name || !form.role || !form.org_code) { setError('모든 항목을 입력해 주세요.'); return }
+    setLoading(true); setError('')
+    try {
+      const res = await createUser(form)
+      setResult(res)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '계정 발급 실패')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (result) {
+    return (
+      <div style={modal.overlay} onClick={onClose}>
+        <div style={modal.box} onClick={e => e.stopPropagation()}>
+          <div style={modal.title}>계정 발급 완료</div>
+          <div style={modal.desc}>{result.user.email} ({result.user.role}) 계정이 생성되었습니다.</div>
+          <div style={acc.tempPwBox}>
+            <div style={acc.tempPwLabel}>임시 비밀번호 (1회만 표시)</div>
+            <div style={acc.tempPw}>{result.temp_password}</div>
+            <div style={acc.tempPwNote}>이 비밀번호를 안전하게 당사자에게 전달하세요. 다시 조회할 수 없습니다.</div>
+          </div>
+          <div style={modal.actions}>
+            <button style={modal.confirmBtn} onClick={onClose}>확인</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={modal.overlay} onClick={onClose}>
+      <div style={{ ...modal.box, width: 460 }} onClick={e => e.stopPropagation()}>
+        <div style={modal.title}>계정 발급</div>
+        <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={acc.label}>이메일</label>
+            <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} style={acc.input} placeholder="user@example.com" disabled={loading} />
+          </div>
+          <div>
+            <label style={acc.label}>이름</label>
+            <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} style={acc.input} placeholder="홍길동" disabled={loading} />
+          </div>
+          <div>
+            <label style={acc.label}>역할</label>
+            <select value={form.role} onChange={e => setField('role', e.target.value)} style={acc.input} disabled={loading}>
+              {ROLES.map(r => <option key={r} value={r}>{ROLE_KO[r]} ({r})</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={acc.label}>소속 조직</label>
+            <select value={form.org_code} onChange={e => setField('org_code', e.target.value)} style={acc.input} disabled={loading}>
+              <option value="">— 조직 선택 —</option>
+              {orgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
+            </select>
+          </div>
+          {error && <div style={modal.error}>{error}</div>}
+          <div style={modal.actions}>
+            <button type="button" style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
+            <button type="submit" style={loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={loading}>{loading ? '발급 중…' : '발급'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
 }
 
-function QuotesTab({ email }: QuotesTabProps) {
+// ── 계정 관리 탭 ──────────────────────────────────────────────────────────
+function AccountsTab() {
+  const [users, setUsers] = useState<User[]>([])
+  const [orgs, setOrgs] = useState<Org[]>([])
+  const [modules, setModules] = useState<FeatureModule[]>([])
+  const [ac, setAc] = useState<AccessControl[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [expandedEmail, setExpandedEmail] = useState<string | null>(null)
+  const [resetting, setResetting] = useState<string | null>(null)
+  const [resetResult, setResetResult] = useState<{ email: string; temp_password: string } | null>(null)
+  const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
+
+  function loadAll() {
+    setLoading(true); setErr('')
+    Promise.all([fetchUsers(), fetchOrgs(), fetchFeatureModules(), fetchAccessControl()])
+      .then(([u, o, m, a]) => { setUsers(u); setOrgs(o); setModules(m); setAc(a) })
+      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadAll() }, [])
+
+  async function handleResetPw(email: string) {
+    setResetting(email)
+    try {
+      const res = await resetUserPassword(email)
+      setResetResult({ email, temp_password: res.temp_password })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '비밀번호 재설정 실패')
+    } finally {
+      setResetting(null)
+    }
+  }
+
+  async function handleToggleStatus(user: User) {
+    const newStatus = user.status === 'active' ? 'suspended' : 'active'
+    setTogglingStatus(user.email)
+    try {
+      await updateUser(user.email, { status: newStatus })
+      setUsers(prev => prev.map(u => u.email === user.email ? { ...u, status: newStatus } : u))
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '상태 변경 실패')
+    } finally {
+      setTogglingStatus(null)
+    }
+  }
+
+  async function handleUserModuleToggle(email: string, code: string, current: boolean) {
+    const entry: Omit<AccessControl, 'id'> = { subject_type: 'user', subject_ref: email, module_code: code, enabled: !current }
+    try {
+      await upsertAccessControl(entry)
+      setAc(prev => {
+        const idx = prev.findIndex(a => a.subject_type === 'user' && a.subject_ref === email && a.module_code === code)
+        if (idx >= 0) return prev.map((a, i) => i === idx ? entry : a)
+        return [...prev, entry]
+      })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '모듈 토글 실패')
+    }
+  }
+
+  const STATUS_LABEL: Record<string, string> = { active: '활성', invited: '초대됨', suspended: '정지' }
+  const STATUS_STYLE: Record<string, React.CSSProperties> = {
+    active: { background: 'var(--lime)', color: 'var(--dark)' },
+    invited: { background: '#e3f2fd', color: '#1565c0' },
+    suspended: { background: '#fdecea', color: '#c62828' },
+  }
+
+  if (loading) return <div style={styles.content}><div style={{ color: 'var(--muted)', fontSize: 13 }}>로딩 중…</div></div>
+
+  return (
+    <div style={styles.content}>
+      {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 12 }}>{err}</div>}
+
+      {resetResult && (
+        <div style={acc.resetResultBox}>
+          <span style={acc.resetResultLabel}>{resetResult.email} 임시 비밀번호 (1회만 표시):</span>
+          <span style={acc.tempPw}>{resetResult.temp_password}</span>
+          <button style={acc.dismissBtn} onClick={() => setResetResult(null)}>확인</button>
+        </div>
+      )}
+
+      <div style={acc.toolbar}>
+        <span style={acc.count}>{users.length}명</span>
+        <button style={acc.createBtn} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
+      </div>
+
+      <div style={acc.tableWrap}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.thModule}>이메일</th>
+              <th style={styles.thModule}>이름</th>
+              <th style={styles.thRole}>역할</th>
+              <th style={styles.thModule}>조직</th>
+              <th style={styles.thRole}>상태</th>
+              <th style={styles.thModule}>액션</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(user => (
+              <>
+                <tr key={user.email}>
+                  <td style={styles.tdModule}>{user.email}</td>
+                  <td style={styles.tdModule}>{user.name}</td>
+                  <td style={styles.tdToggle}><span style={acc.roleBadge}>{ROLE_KO[user.role]}</span></td>
+                  <td style={styles.tdModule}>{user.org_code}</td>
+                  <td style={styles.tdToggle}>
+                    <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
+                      {STATUS_LABEL[user.status] ?? user.status}
+                    </span>
+                  </td>
+                  <td style={styles.tdModule}>
+                    <div style={acc.actions}>
+                      <button
+                        style={acc.actionBtn}
+                        onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
+                      >
+                        {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
+                      </button>
+                      <button
+                        style={acc.actionBtn}
+                        onClick={() => handleResetPw(user.email)}
+                        disabled={resetting === user.email}
+                      >
+                        {resetting === user.email ? '…' : '비번재설정'}
+                      </button>
+                      <button
+                        style={user.status === 'active' ? acc.suspendBtn : acc.activateBtn}
+                        onClick={() => handleToggleStatus(user)}
+                        disabled={togglingStatus === user.email}
+                      >
+                        {user.status === 'active' ? '정지' : '활성화'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {expandedEmail === user.email && (
+                  <tr key={`${user.email}-expand`}>
+                    <td colSpan={6} style={acc.expandCell}>
+                      <div style={acc.expandHeader}>계정 모듈 override (역할 기본값 대비 예외)</div>
+                      <div style={acc.moduleGrid}>
+                        {modules.map(mod => {
+                          const roleEnabled = isEnabled(ac, 'role', user.role, mod.code)
+                          const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
+                          const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
+                          const hasOverride = userOverride !== undefined
+
+                          return (
+                            <div key={mod.code} style={acc.moduleItem}>
+                              <div style={acc.modName}>{mod.name}</div>
+                              <div style={acc.modCode}>{mod.code}</div>
+                              <div style={acc.modMeta}>
+                                {hasOverride
+                                  ? <span style={acc.overrideTag}>override</span>
+                                  : <span style={acc.roleTag}>역할기본</span>
+                                }
+                              </div>
+                              <button
+                                style={effective ? acc.toggleOn : acc.toggleOff}
+                                onClick={() => handleUserModuleToggle(user.email, mod.code, effective)}
+                              >
+                                {effective ? 'ON' : 'OFF'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showCreate && <CreateUserModal orgs={orgs} onClose={() => { setShowCreate(false); loadAll() }} />}
+    </div>
+  )
+}
+
+// ── 견적 목록 탭 ──────────────────────────────────────────────────────────
+function QuotesTab() {
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
-
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [makerOrgs, setMakerOrgs] = useState<Org[]>([])
   const [confirmLoading, setConfirmLoading] = useState(false)
@@ -104,9 +346,8 @@ function QuotesTab({ email }: QuotesTabProps) {
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
 
   function load() {
-    setLoading(true)
-    setErr('')
-    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined }, email)
+    setLoading(true); setErr('')
+    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined })
       .then(setQuotes)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
@@ -115,23 +356,16 @@ function QuotesTab({ email }: QuotesTabProps) {
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleOpenConfirm(id: number) {
-    setConfirmingId(id)
-    setConfirmError('')
-    setMakerOrgsLoading(true)
-    fetchMakerOrgs(email)
-      .then(setMakerOrgs)
-      .catch(() => setMakerOrgs([]))
-      .finally(() => setMakerOrgsLoading(false))
+    setConfirmingId(id); setConfirmError(''); setMakerOrgsLoading(true)
+    fetchMakerOrgs().then(setMakerOrgs).catch(() => setMakerOrgs([])).finally(() => setMakerOrgsLoading(false))
   }
 
   async function handleConfirm(makerOrgId: string) {
     if (!confirmingId) return
-    setConfirmLoading(true)
-    setConfirmError('')
+    setConfirmLoading(true); setConfirmError('')
     try {
-      await confirmQuote(confirmingId, makerOrgId, email)
-      setConfirmingId(null)
-      load()
+      await confirmQuote(confirmingId, makerOrgId)
+      setConfirmingId(null); load()
     } catch (e: unknown) {
       setConfirmError(e instanceof Error ? e.message : '확정 실패')
     } finally {
@@ -189,9 +423,7 @@ function QuotesTab({ email }: QuotesTabProps) {
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
                     {q.status === 'draft' && (
-                      <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>
-                        확정
-                      </button>
+                      <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                     )}
                   </td>
                 </tr>
@@ -216,23 +448,15 @@ function QuotesTab({ email }: QuotesTabProps) {
 }
 
 // ── 주문 칸반 탭 ──────────────────────────────────────────────────────────
-interface KanbanTabProps {
-  email: string
-}
-
-function KanbanTab({ email }: KanbanTabProps) {
+function KanbanTab() {
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [movingId, setMovingId] = useState<number | null>(null)
 
   function load() {
-    setLoading(true)
-    setErr('')
-    fetchOrders({}, email)
-      .then(setOrders)
-      .catch(e => setErr(e.message))
-      .finally(() => setLoading(false))
+    setLoading(true); setErr('')
+    fetchOrders({}).then(setOrders).catch(e => setErr(e.message)).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -243,7 +467,7 @@ function KanbanTab({ email }: KanbanTabProps) {
     const nextStatus = ORDER_STATUS_SEQ[idx + 1]!
     setMovingId(order.id)
     try {
-      await updateOrderStatus(order.id, nextStatus, email)
+      await updateOrderStatus(order.id, nextStatus)
       await load()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : '상태 변경 실패')
@@ -275,16 +499,10 @@ function KanbanTab({ email }: KanbanTabProps) {
                 return (
                   <div key={order.id} style={kb.card}>
                     <div style={kb.cardId}>주문 #{order.id}</div>
-                    <div style={kb.cardCustomer}>
-                      {order.quote.customer?.name ?? '고객없음'}
-                    </div>
+                    <div style={kb.cardCustomer}>{order.quote.customer?.name ?? '고객없음'}</div>
                     <div style={kb.cardModel}>{order.quote.model_code}</div>
-                    <div style={kb.cardMeta}>
-                      {order.maker_org?.name ?? '특장사없음'}
-                    </div>
-                    {order.assigned_at && (
-                      <div style={kb.cardDate}>배정 {fmtDate(order.assigned_at)}</div>
-                    )}
+                    <div style={kb.cardMeta}>{order.maker_org?.name ?? '특장사없음'}</div>
+                    {order.assigned_at && <div style={kb.cardDate}>배정 {fmtDate(order.assigned_at)}</div>}
                     {!isLast && (
                       <button
                         style={movingId === order.id ? kb.advBtnDisabled : kb.advBtn}
@@ -307,15 +525,9 @@ function KanbanTab({ email }: KanbanTabProps) {
 
 // ── AdminPage ────────────────────────────────────────────────────────────
 export function AdminPage() {
-  const { session } = useAuth()
-  const email = session?.user.email ?? ''
-
   const [modules, setModules] = useState<FeatureModule[]>([])
   const [ac, setAc] = useState<AccessControl[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('quotes')
-  const [overrideEmail, setOverrideEmail] = useState('')
-  const [overrideCode, setOverrideCode] = useState('')
-  const [overrideEnabled, setOverrideEnabled] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
   useEffect(() => {
@@ -328,7 +540,7 @@ export function AdminPage() {
   async function handleRoleToggle(role: Role, code: string, current: boolean) {
     const key = `${role}:${code}`
     setSaving(key)
-    const entry: AccessControl = { subject_type: 'role', subject_ref: role, module_code: code, enabled: !current }
+    const entry: Omit<AccessControl, 'id'> = { subject_type: 'role', subject_ref: role, module_code: code, enabled: !current }
     await upsertAccessControl(entry)
     setAc(prev => {
       const idx = prev.findIndex(a => a.subject_type === 'role' && a.subject_ref === role && a.module_code === code)
@@ -338,32 +550,13 @@ export function AdminPage() {
     setSaving(null)
   }
 
-  async function handleOverrideSave(e: React.FormEvent) {
-    e.preventDefault()
-    if (!overrideEmail || !overrideCode) return
-    const entry: AccessControl = {
-      subject_type: 'user', subject_ref: overrideEmail,
-      module_code: overrideCode, enabled: overrideEnabled,
-    }
-    setSaving('override')
-    await upsertAccessControl(entry)
-    setAc(prev => {
-      const idx = prev.findIndex(a => a.subject_type === 'user' && a.subject_ref === overrideEmail && a.module_code === overrideCode)
-      if (idx >= 0) return prev.map((a, i) => i === idx ? entry : a)
-      return [...prev, entry]
-    })
-    setSaving(null)
-    setOverrideEmail('')
-    setOverrideCode('')
-  }
-
   const surfaces = getSurfaces(modules)
 
   const TABS: { key: TabKey; label: string }[] = [
     { key: 'quotes',   label: '견적 목록' },
     { key: 'kanban',   label: '주문 칸반' },
     { key: 'toggles',  label: '기능모듈 토글' },
-    { key: 'override', label: '계정 Override' },
+    { key: 'accounts', label: '계정 관리' },
   ]
 
   return (
@@ -382,8 +575,8 @@ export function AdminPage() {
           </div>
         </div>
 
-        {activeTab === 'quotes' && <QuotesTab email={email} />}
-        {activeTab === 'kanban' && <KanbanTab email={email} />}
+        {activeTab === 'quotes' && <QuotesTab />}
+        {activeTab === 'kanban' && <KanbanTab />}
 
         {activeTab === 'toggles' && (
           <div style={styles.content}>
@@ -431,219 +624,117 @@ export function AdminPage() {
           </div>
         )}
 
-        {activeTab === 'override' && (
-          <div style={styles.content}>
-            <p style={styles.overrideDesc}>계정 단위 권한 override. 역할 기본값보다 우선 적용됩니다.</p>
-            <form onSubmit={handleOverrideSave} style={styles.overrideForm}>
-              <div style={styles.overrideRow}>
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label}>이메일</label>
-                  <input type="text" value={overrideEmail} onChange={e => setOverrideEmail(e.target.value)} placeholder="user@example.com" style={styles.inputField} />
-                </div>
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label}>모듈 코드</label>
-                  <select value={overrideCode} onChange={e => setOverrideCode(e.target.value)} style={styles.inputField}>
-                    <option value="">선택</option>
-                    {modules.map(m => <option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
-                  </select>
-                </div>
-                <div style={styles.fieldGroup}>
-                  <label style={styles.label}>활성</label>
-                  <select value={overrideEnabled ? 'Y' : 'N'} onChange={e => setOverrideEnabled(e.target.value === 'Y')} style={styles.inputField}>
-                    <option value="Y">ON</option>
-                    <option value="N">OFF</option>
-                  </select>
-                </div>
-                <button type="submit" style={styles.saveBtn} disabled={saving === 'override'}>저장</button>
-              </div>
-            </form>
-
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.thModule}>이메일</th>
-                  <th style={styles.thModule}>모듈</th>
-                  <th style={styles.thRole}>활성</th>
-                  <th style={styles.thModule}>메모</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ac.filter(a => a.subject_type === 'user').map((a, i) => (
-                  <tr key={i}>
-                    <td style={styles.tdModule}>{a.subject_ref}</td>
-                    <td style={styles.tdModule}><span style={styles.modCode}>{a.module_code}</span></td>
-                    <td style={styles.tdToggle}>
-                      <span style={a.enabled ? styles.toggleOn : styles.toggleOff}>{a.enabled ? 'ON' : 'OFF'}</span>
-                    </td>
-                    <td style={styles.tdModule}><span style={styles.modCode}>{a.memo ?? ''}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {activeTab === 'accounts' && <AccountsTab />}
       </div>
     </div>
   )
 }
 
-// ── 스타일: 기존 ────────────────────────────────────────────────────────
+// ── 스타일 ────────────────────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
   root: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   body: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
   titleBar: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' },
   h1: { margin: 0, fontSize: 20, color: 'var(--dark)' },
   tabs: { display: 'flex', gap: 4 },
-  tab: {
-    padding: '6px 14px', border: '1px solid var(--line)', borderRadius: 8,
-    background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)',
-  },
-  tabOn: {
-    padding: '6px 14px', border: '1px solid var(--dark)', borderRadius: 8,
-    background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600,
-  },
+  tab: { padding: '6px 14px', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
+  tabOn: { padding: '6px 14px', border: '1px solid var(--dark)', borderRadius: 8, background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 },
   content: {},
   surfaceGroup: { marginBottom: 28 },
-  surfaceLabel: {
-    fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase',
-    letterSpacing: 1, marginBottom: 8,
-  },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  thModule: { textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
-  thRole: { textAlign: 'center', padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, width: 80 },
+  surfaceLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 8 },
+  table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
+  thModule: { textAlign: 'left' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
+  thRole: { textAlign: 'center' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, width: 80 },
   tdModule: { padding: '10px 12px', borderBottom: '1px solid var(--line)' },
-  tdToggle: { textAlign: 'center', padding: '10px 12px', borderBottom: '1px solid var(--line)' },
+  tdToggle: { textAlign: 'center' as const, padding: '10px 12px', borderBottom: '1px solid var(--line)' },
   modName: { fontSize: 13, color: 'var(--dark)' },
   modCode: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
-  toggleOn: {
-    padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer',
-    background: 'var(--lime)', color: 'var(--dark)', fontWeight: 700, fontSize: 12,
-  },
-  toggleOff: {
-    padding: '4px 12px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer',
-    background: '#fff', color: 'var(--muted)', fontWeight: 600, fontSize: 12,
-  },
-  overrideDesc: { fontSize: 13, color: 'var(--muted)', marginBottom: 16 },
-  overrideForm: { marginBottom: 24 },
-  overrideRow: { display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' },
-  fieldGroup: { display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 160 },
-  label: { fontSize: 11.5, color: 'var(--muted)' },
-  inputField: { fontSize: 13, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 },
-  saveBtn: {
-    padding: '8px 16px', border: 'none', borderRadius: 8, cursor: 'pointer',
-    background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13, alignSelf: 'flex-end',
-  },
+  toggleOn: { padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--lime)', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
+  toggleOff: { padding: '4px 12px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
 }
 
-// ── 스타일: 견적 목록 탭 ──────────────────────────────────────────────────
 const qt: Record<string, React.CSSProperties> = {
   filterBar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
   select: { fontSize: 13, padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 8 },
   dateInput: { fontSize: 13, padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 8 },
   dateSep: { color: 'var(--muted)', fontSize: 13 },
-  searchBtn: {
-    padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer',
-    background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13,
-  },
+  searchBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
   errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 10 },
   loading: { color: 'var(--muted)', fontSize: 13, padding: '24px 0' },
-  empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
-  tableWrap: { overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th: {
-    textAlign: 'left', padding: '9px 12px', borderBottom: '2px solid var(--line)',
-    color: 'var(--muted)', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap',
-  },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' },
+  empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },
+  tableWrap: { overflowX: 'auto' as const },
+  table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
+  th: { textAlign: 'left' as const, padding: '9px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' as const },
+  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' as const },
   tdMuted: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12 },
-  tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' },
-  badgeDraft: {
-    fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
-    background: '#f0f2f4', color: 'var(--muted)',
-  },
-  badgeConfirmed: {
-    fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
-    background: 'var(--lime)', color: 'var(--dark)',
-  },
-  badgeOther: {
-    fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8,
-    background: '#e3f2fd', color: '#1565c0',
-  },
-  confirmBtn: {
-    padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer',
-    background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12,
-  },
+  tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const },
+  badgeDraft: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
+  badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
+  badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
 }
 
-// ── 스타일: 칸반 탭 ──────────────────────────────────────────────────────
 const kb: Record<string, React.CSSProperties> = {
   loading: { color: 'var(--muted)', fontSize: 13, padding: '24px 0' },
   errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 10 },
-  board: { display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12, alignItems: 'flex-start' },
-  column: {
-    flexShrink: 0, width: 200, border: '1px solid var(--line)',
-    borderRadius: 10, background: 'var(--card)', overflow: 'hidden',
-  },
-  colHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 12px', borderBottom: '1px solid var(--line)', background: '#fff',
-  },
+  board: { display: 'flex', gap: 12, overflowX: 'auto' as const, paddingBottom: 12, alignItems: 'flex-start' },
+  column: { flexShrink: 0, width: 200, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--card)', overflow: 'hidden' },
+  colHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--line)', background: '#fff' },
   colTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)' },
-  colCount: {
-    fontSize: 11, fontWeight: 700, padding: '2px 7px',
-    background: 'var(--lime)', borderRadius: 10, color: 'var(--dark)',
-  },
+  colCount: { fontSize: 11, fontWeight: 700, padding: '2px 7px', background: 'var(--lime)', borderRadius: 10, color: 'var(--dark)' },
   cards: { display: 'flex', flexDirection: 'column', gap: 8, padding: 10, minHeight: 80 },
-  card: {
-    background: '#fff', border: '1px solid var(--line)', borderRadius: 8,
-    padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 5,
-  },
+  card: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 5 },
   cardId: { fontSize: 11, color: 'var(--muted)' },
   cardCustomer: { fontSize: 13, fontWeight: 700, color: 'var(--dark)' },
   cardModel: { fontSize: 11, color: 'var(--muted)' },
   cardMeta: { fontSize: 11, color: '#1565c0' },
   cardDate: { fontSize: 10, color: 'var(--muted)' },
-  advBtn: {
-    marginTop: 4, padding: '5px 10px', border: 'none', borderRadius: 6, cursor: 'pointer',
-    background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 11,
-  },
-  advBtnDisabled: {
-    marginTop: 4, padding: '5px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed',
-    background: '#f0f2f4', color: 'var(--muted)', fontWeight: 700, fontSize: 11,
-  },
+  advBtn: { marginTop: 4, padding: '5px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 11 },
+  advBtnDisabled: { marginTop: 4, padding: '5px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed', background: '#f0f2f4', color: 'var(--muted)', fontWeight: 700, fontSize: 11 },
 }
 
-// ── 스타일: 확정 모달 ─────────────────────────────────────────────────────
 const modal: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-  },
-  box: {
-    background: '#fff', borderRadius: 14, padding: '28px 32px',
-    width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16,
-  },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16 },
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)' },
   desc: { fontSize: 13, color: 'var(--muted)' },
-  select: {
-    fontSize: 14, padding: '10px 12px', border: '1px solid var(--line)',
-    borderRadius: 9, width: '100%',
-  },
-  error: {
-    fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)',
-    border: '1px solid #f0c9ad', padding: '7px 10px', borderRadius: 7,
-  },
+  select: { fontSize: 14, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 9, width: '100%' },
+  error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '1px solid #f0c9ad', padding: '7px 10px', borderRadius: 7 },
   actions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
-  cancelBtn: {
-    padding: '9px 18px', border: '1px solid var(--line)', borderRadius: 9,
-    background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)',
-  },
-  confirmBtn: {
-    padding: '9px 20px', border: 'none', borderRadius: 9,
-    background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-  },
-  confirmBtnDisabled: {
-    padding: '9px 20px', border: 'none', borderRadius: 9,
-    background: '#f0f2f4', color: '#b0b7c0', fontWeight: 700, fontSize: 13, cursor: 'not-allowed',
-  },
+  cancelBtn: { padding: '9px 18px', border: '1px solid var(--line)', borderRadius: 9, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
+  confirmBtn: { padding: '9px 20px', border: 'none', borderRadius: 9, background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
+  confirmBtnDisabled: { padding: '9px 20px', border: 'none', borderRadius: 9, background: '#f0f2f4', color: '#b0b7c0', fontWeight: 700, fontSize: 13, cursor: 'not-allowed' },
+}
+
+const acc: Record<string, React.CSSProperties> = {
+  toolbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  count: { fontSize: 13, color: 'var(--muted)' },
+  createBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
+  tableWrap: { overflowX: 'auto' as const },
+  label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
+  input: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 },
+  roleBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
+  statusBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8 },
+  actions: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' as const },
+  actionBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 12, color: 'var(--dark)' },
+  suspendBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#fdecea', color: '#c62828', fontSize: 12, fontWeight: 600 },
+  activateBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600 },
+  expandCell: { padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid var(--line)' },
+  expandHeader: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 },
+  moduleGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },
+  moduleItem: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 12px', minWidth: 160, display: 'flex', flexDirection: 'column', gap: 3 },
+  modName: { fontSize: 12, fontWeight: 600, color: 'var(--dark)' },
+  modCode: { fontSize: 10, color: 'var(--muted)' },
+  modMeta: { marginBottom: 4 },
+  overrideTag: { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#fff3e0', color: '#e65100' },
+  roleTag: { fontSize: 10, color: 'var(--muted)', padding: '1px 0' },
+  toggleOn: { padding: '3px 10px', border: 'none', borderRadius: 5, cursor: 'pointer', background: 'var(--lime)', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
+  toggleOff: { padding: '3px 10px', border: '1px solid var(--line)', borderRadius: 5, cursor: 'pointer', background: '#fff', color: 'var(--muted)', fontWeight: 600, fontSize: 11 },
+  tempPwBox: { background: '#f8f9fa', border: '1px solid var(--line)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 },
+  tempPwLabel: { fontSize: 11, fontWeight: 700, color: 'var(--muted)' },
+  tempPw: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', fontFamily: 'monospace', letterSpacing: 1 },
+  tempPwNote: { fontSize: 11, color: 'var(--warn)' },
+  resetResultBox: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: 10, padding: '10px 14px', marginBottom: 14, flexWrap: 'wrap' as const },
+  resetResultLabel: { fontSize: 12, color: '#e65100' },
+  dismissBtn: { padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e65100', color: '#fff', fontWeight: 700, fontSize: 12 },
 }

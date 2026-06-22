@@ -37,10 +37,9 @@ export function SalesPage() {
 
   // 번들 1회 로드
   useEffect(() => {
-    const email = session?.user.email
-    if (!email) return
+    if (!session) return
     setBundleLoading(true)
-    fetchPricingBundle('PV5_OPENBED', email)
+    fetchPricingBundle('PV5_OPENBED')
       .then(data => {
         setBundle(data)
         const defaults: Record<string, string> = {}
@@ -51,19 +50,18 @@ export function SalesPage() {
       })
       .catch(e => console.error('pricing-bundle 로드 실패', e))
       .finally(() => setBundleLoading(false))
-  }, [session?.user.email])
+  }, [session])
 
   // 지역 변경 시 지방보조금 fetch
   useEffect(() => {
-    const email = session?.user.email
-    if (!customer?.region_code || !email || skipped) {
+    if (!customer?.region_code || skipped) {
       setSubsidyLocal(0)
       return
     }
-    fetchLocalSubsidy(customer.region_code, new Date().getFullYear(), email)
+    fetchLocalSubsidy(customer.region_code, new Date().getFullYear())
       .then(setSubsidyLocal)
       .catch(() => setSubsidyLocal(0))
-  }, [customer?.region_code, session?.user.email, skipped])
+  }, [customer?.region_code, skipped])
 
   // option_rule 기준 비활성 그룹 코드
   const disabledGroupCodes = useMemo<Set<string>>(() => {
@@ -147,8 +145,7 @@ export function SalesPage() {
   }
 
   async function handleSave() {
-    const email = session?.user.email
-    if (!email || !bundle) return
+    if (!bundle) return
     if (liveCalc?.status === 'unsupported') return
 
     setIsSaving(true)
@@ -166,7 +163,7 @@ export function SalesPage() {
           scrap_diesel: customer.is_old_vehicle_scrapped,
         } : undefined,
       }
-      const result = await saveQuote(req, email)
+      const result = await saveQuote(req)
       setSavedQuote(result)
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : '저장 실패')

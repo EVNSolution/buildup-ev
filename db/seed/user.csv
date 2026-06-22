@@ -1,4 +1,1 @@
 email,org_code,role,name,phone,status,must_change_pw,invited_by,active
-admin@evnsolution.com,ORG_HQ,ADMIN,관리자,,active,N,,Y
-sales1@evnsolution.com,ORG_SALES1,SALES,영업담당,,active,N,admin@evnsolution.com,Y
-maker1@partner.com,ORG_MAKER1,MAKER,특장담당,,active,N,admin@evnsolution.com,Y

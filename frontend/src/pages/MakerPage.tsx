@@ -21,7 +21,7 @@ export function MakerPage() {
   useEffect(() => {
     if (!email) return
     setLoading(true)
-    fetchOrders({}, email)
+    fetchOrders({})
       .then(setOrders)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))

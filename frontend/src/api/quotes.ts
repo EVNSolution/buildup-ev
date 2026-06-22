@@ -14,60 +14,52 @@ export interface SaveQuoteRequest {
   }
 }
 
-export async function saveQuote(
-  req: SaveQuoteRequest,
-  email: string,
-): Promise<{ quote_id: number; pricing: PricingOk }> {
+export async function saveQuote(req: SaveQuoteRequest): Promise<{ quote_id: number; pricing: PricingOk }> {
   const res = await fetch('/api/v1/quotes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User': email },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
   })
   if (res.status === 422) {
-    const body = await res.json()
+    const body = await res.json() as { error?: { message?: string } }
     throw new Error(body.error?.message ?? '내장탑 가격 미정(TBD)')
   }
   if (!res.ok) throw new Error(`견적 저장 실패: ${res.status}`)
-  const body = await res.json()
+  const body = await res.json() as { data: { quote_id: number; pricing: PricingOk } }
   return body.data
 }
 
-export async function fetchQuotes(
-  params: { status?: string; from?: string; to?: string },
-  email: string,
-): Promise<ApiQuote[]> {
+export async function fetchQuotes(params: { status?: string; from?: string; to?: string }): Promise<ApiQuote[]> {
   const q = new URLSearchParams()
   if (params.status) q.set('status', params.status)
   if (params.from) q.set('from', params.from)
   if (params.to) q.set('to', params.to)
   const url = `/api/v1/quotes${q.toString() ? '?' + q.toString() : ''}`
-  const res = await fetch(url, { headers: { 'X-User': email } })
+  const res = await fetch(url, { credentials: 'include' })
   if (!res.ok) throw new Error(`견적 목록 로드 실패: ${res.status}`)
-  const body = await res.json()
+  const body = await res.json() as { data: ApiQuote[] }
   return body.data
 }
 
-export async function confirmQuote(
-  quoteId: number,
-  makerOrgId: string,
-  email: string,
-): Promise<void> {
+export async function confirmQuote(quoteId: number, makerOrgId: string): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/confirm`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-User': email },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ maker_org_id: makerOrgId }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
     throw new Error(body.error?.message ?? `확정 실패: ${res.status}`)
   }
 }
 
-export async function fetchLocalSubsidy(region: string, year: number, email: string): Promise<number> {
+export async function fetchLocalSubsidy(region: string, year: number): Promise<number> {
   if (!region) return 0
   const url = `/api/v1/subsidy/local?region=${encodeURIComponent(region)}&year=${year}`
-  const res = await fetch(url, { headers: { 'X-User': email } })
+  const res = await fetch(url, { credentials: 'include' })
   if (!res.ok) return 0
-  const body = await res.json()
+  const body = await res.json() as { data?: { amount?: number } }
   return body.data?.amount ?? 0
 }

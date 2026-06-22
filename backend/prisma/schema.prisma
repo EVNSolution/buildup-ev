@@ -57,6 +57,9 @@ model User {
   invited_by     String?    @db.VarChar(120)
   active         Boolean    @default(true)
   created_at     DateTime   @default(now())
+  password_hash  String?    @db.VarChar(80)
+  login_attempts Int        @default(0)
+  locked_until   DateTime?
 
   org              Org        @relation(fields: [org_code], references: [code])
   inviter          User?      @relation("Invites", fields: [invited_by], references: [email])

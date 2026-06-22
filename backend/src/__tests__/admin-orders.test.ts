@@ -10,13 +10,18 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
+import { authCookie } from './helpers.js';
 
 const shouldSkip = !process.env['DATABASE_URL'];
 
-const ADMIN  = 'admin@evnsolution.com';
-const SALES  = 'sales1@evnsolution.com';
-const MAKER  = 'maker1@partner.com';
+const ADMIN     = 'admin@evnsolution.com';
+const SALES     = 'sales1@evnsolution.com';
+const MAKER     = 'maker1@partner.com';
 const MAKER_ORG = 'ORG_MAKER1';
+
+const ADMIN_COOKIE = authCookie(ADMIN, 'ADMIN', 'ORG_HQ');
+const SALES_COOKIE = authCookie(SALES, 'SALES', 'ORG_SALES1');
+const MAKER_COOKIE = authCookie(MAKER, 'MAKER', MAKER_ORG);
 
 const REEFER_SELECTIONS = {
   TRIM: 'TRIM_PLUS', BODYTYPE: 'BODY_REEFER', TOP: 'TOP_LOW',
@@ -33,7 +38,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   beforeAll(async () => {
     const res = await request(app)
       .post('/api/v1/quotes')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .send({ model_code: 'PV5_OPENBED', year: 2026, selections: REEFER_SELECTIONS, customer: CUSTOMER });
     expect(res.status).toBe(201);
     quoteId = res.body.data.quote_id;
@@ -44,7 +49,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN — 전체 견적 조회', async () => {
     const res = await request(app)
       .get('/api/v1/quotes')
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .expect(200);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
@@ -53,14 +58,14 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('SALES — 자기 견적만 조회', async () => {
     const res = await request(app)
       .get('/api/v1/quotes')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(200);
     const quotes = res.body.data as { sales_user_id: string | null }[];
     expect(quotes.every(q => q.sales_user_id === SALES || q.sales_user_id === null)).toBe(true);
   });
 
   it('MAKER — 견적 조회 권한 없음 → 403', async () => {
-    await request(app).get('/api/v1/quotes').set('X-User', MAKER).expect(403);
+    await request(app).get('/api/v1/quotes').set('Cookie', MAKER_COOKIE).expect(403);
   });
 
   // ── PATCH /quotes/:id/confirm ────────────────────────────────────────────
@@ -68,7 +73,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN 확정 — maker_org_id 없으면 400', async () => {
     const res = await request(app)
       .patch(`/api/v1/quotes/${quoteId}/confirm`)
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .send({})
       .expect(400);
     expect(res.body.error.code).toBe('BAD_INPUT');
@@ -77,8 +82,8 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN 확정 — 유효하지 않은 org → 400', async () => {
     const res = await request(app)
       .patch(`/api/v1/quotes/${quoteId}/confirm`)
-      .set('X-User', ADMIN)
-      .send({ maker_org_id: 'ORG_HQ' })  // HQ is not MAKER type
+      .set('Cookie', ADMIN_COOKIE)
+      .send({ maker_org_id: 'ORG_HQ' })
       .expect(400);
     expect(res.body.error.code).toBe('BAD_INPUT');
   });
@@ -86,7 +91,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('SALES — 확정 권한 없음 → 403', async () => {
     await request(app)
       .patch(`/api/v1/quotes/${quoteId}/confirm`)
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .send({ maker_org_id: MAKER_ORG })
       .expect(403);
   });
@@ -94,7 +99,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN 확정 성공 — quote.confirmed + order 생성 + maker_org 배정', async () => {
     const res = await request(app)
       .patch(`/api/v1/quotes/${quoteId}/confirm`)
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .send({ maker_org_id: MAKER_ORG })
       .expect(200);
 
@@ -109,7 +114,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('이미 confirmed → 재확정 409', async () => {
     const res = await request(app)
       .patch(`/api/v1/quotes/${quoteId}/confirm`)
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .send({ maker_org_id: MAKER_ORG })
       .expect(409);
     expect(res.body.error.code).toBe('CONFLICT');
@@ -120,7 +125,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN — 전체 주문 조회', async () => {
     const res = await request(app)
       .get('/api/v1/orders')
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .expect(200);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
@@ -129,7 +134,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('MAKER — 자기 org 배정 주문만 조회', async () => {
     const res = await request(app)
       .get('/api/v1/orders')
-      .set('X-User', MAKER)
+      .set('Cookie', MAKER_COOKIE)
       .expect(200);
     const orders = res.body.data as { maker_org_id: string }[];
     expect(orders.every(o => o.maker_org_id === MAKER_ORG)).toBe(true);
@@ -139,7 +144,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('SALES — 자기 견적에서 파생된 주문만 조회', async () => {
     const res = await request(app)
       .get('/api/v1/orders')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(200);
     expect(Array.isArray(res.body.data)).toBe(true);
   });
@@ -149,7 +154,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN 상태 전이 — 제작착수 → 구조변경 성공', async () => {
     const res = await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .send({ status: '구조변경' })
       .expect(200);
     expect(res.body.data.status).toBe('구조변경');
@@ -158,7 +163,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('상태 후진 → 409', async () => {
     const res = await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .send({ status: '제작착수' })
       .expect(409);
     expect(res.body.error.code).toBe('CONFLICT');
@@ -167,7 +172,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('잘못된 status → 400', async () => {
     const res = await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .send({ status: '없는상태' })
       .expect(400);
     expect(res.body.error.code).toBe('BAD_INPUT');
@@ -176,7 +181,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('MAKER — 상태 전이 권한 없음 → 403', async () => {
     await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
-      .set('X-User', MAKER)
+      .set('Cookie', MAKER_COOKIE)
       .send({ status: '튜닝신청' })
       .expect(403);
   });
@@ -186,7 +191,7 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   it('ADMIN — MAKER 타입 org 목록', async () => {
     const res = await request(app)
       .get('/api/v1/orgs?type=MAKER')
-      .set('X-User', ADMIN)
+      .set('Cookie', ADMIN_COOKIE)
       .expect(200);
     const orgs = res.body.data as { type: string; code: string }[];
     expect(orgs.every(o => o.type === 'MAKER')).toBe(true);
@@ -194,6 +199,6 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
   });
 
   it('SALES — org 조회 권한 없음 → 403', async () => {
-    await request(app).get('/api/v1/orgs').set('X-User', SALES).expect(403);
+    await request(app).get('/api/v1/orgs').set('Cookie', SALES_COOKIE).expect(403);
   });
 });
