@@ -60,6 +60,8 @@ model User {
   password_hash  String?    @db.VarChar(80)
   login_attempts Int        @default(0)
   locked_until   DateTime?
+  // DEV: master surface switcher — true인 계정만 surface 전환 토글 표시 (테스트용)
+  is_master      Boolean    @default(false)
 
   org              Org        @relation(fields: [org_code], references: [code])
   inviter          User?      @relation("Invites", fields: [invited_by], references: [email])

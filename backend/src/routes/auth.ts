@@ -127,6 +127,7 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
         must_change_pw: dbUser.must_change_pw,
         invited_by: dbUser.invited_by ?? undefined,
         active: dbUser.active,
+        is_master: dbUser.is_master, // DEV: master surface switcher
       },
       org: {
         code: dbUser.org.code,

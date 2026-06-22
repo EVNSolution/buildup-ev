@@ -7,6 +7,8 @@ export interface AuthContext {
   email: string;
   role: Role;
   org_code: string;
+  // DEV: master surface switcher — true이면 rbac 역할 체크 우회
+  is_master?: boolean;
 }
 
 declare module 'express-serve-static-core' {
@@ -46,21 +48,26 @@ export function injectJwtAuth(req: Request, _res: Response, next: NextFunction):
   prisma.user.findUnique({ where: { email: payload.email } })
     .then(user => {
       if (user && user.status === 'active' && user.active) {
-        req.auth = { email: user.email, role: user.role as Role, org_code: user.org_code };
+        req.auth = { email: user.email, role: user.role as Role, org_code: user.org_code, is_master: user.is_master };
       }
       next();
     })
     .catch(() => next());
 }
 
-/** 역할 기반 접근 제어. 허용 역할 목록에 없으면 403. */
+/** 역할 기반 접근 제어. 허용 역할 목록에 없으면 403.
+ * DEV: is_master=true인 계정은 역할 체크 우회 (surface 전환 테스트용). */
 export function rbac(...allowed: Role[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.auth || !allowed.includes(req.auth.role)) {
+    if (!req.auth) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한 없음' } });
       return;
     }
-    next();
+    if (req.auth.is_master || allowed.includes(req.auth.role)) {
+      next();
+      return;
+    }
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한 없음' } });
   };
 }
 

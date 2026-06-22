@@ -28,7 +28,7 @@ async function main() {
 
   await prisma.user.upsert({
     where:  { email: ADMIN_EMAIL },
-    update: { password_hash: hash, must_change_pw: true, status: 'active', active: true },
+    update: { password_hash: hash, must_change_pw: true, status: 'active', active: true, is_master: true },
     create: {
       email:          ADMIN_EMAIL,
       org_code:       ADMIN_ORG,
@@ -37,6 +37,7 @@ async function main() {
       status:         'active',
       must_change_pw: true,
       active:         true,
+      is_master:      true, // DEV: master surface switcher
       password_hash:  hash,
     },
   });
