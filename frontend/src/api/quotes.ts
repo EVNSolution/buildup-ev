@@ -1,10 +1,12 @@
 import type { PricingOk } from '@shared/pricing/core'
+import type { ApiQuote } from '@shared/types/index'
 
 export interface SaveQuoteRequest {
   model_code: string
   year?: number
   selections: Record<string, string>
   customer?: {
+    name?: string
     biz_type: 'individual' | 'corporation' | 'simplified'
     is_sosang: boolean
     region?: string
@@ -28,6 +30,37 @@ export async function saveQuote(
   if (!res.ok) throw new Error(`견적 저장 실패: ${res.status}`)
   const body = await res.json()
   return body.data
+}
+
+export async function fetchQuotes(
+  params: { status?: string; from?: string; to?: string },
+  email: string,
+): Promise<ApiQuote[]> {
+  const q = new URLSearchParams()
+  if (params.status) q.set('status', params.status)
+  if (params.from) q.set('from', params.from)
+  if (params.to) q.set('to', params.to)
+  const url = `/api/v1/quotes${q.toString() ? '?' + q.toString() : ''}`
+  const res = await fetch(url, { headers: { 'X-User': email } })
+  if (!res.ok) throw new Error(`견적 목록 로드 실패: ${res.status}`)
+  const body = await res.json()
+  return body.data
+}
+
+export async function confirmQuote(
+  quoteId: number,
+  makerOrgId: string,
+  email: string,
+): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/confirm`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-User': email },
+    body: JSON.stringify({ maker_org_id: makerOrgId }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error?.message ?? `확정 실패: ${res.status}`)
+  }
 }
 
 export async function fetchLocalSubsidy(region: string, year: number, email: string): Promise<number> {

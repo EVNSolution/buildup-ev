@@ -209,3 +209,38 @@ export interface ApiPricingBundle {
   tax: ApiTaxConfig;
   subsidy_national: ApiSubsidyNational | null;
 }
+
+// ── 견적 / 주문 API 응답 타입 ──────────────────────────────────────────────
+
+export type QuoteStatus = 'draft' | 'confirmed' | 'ordered' | 'expired';
+
+export interface ApiQuote {
+  id: number;
+  model_code: string;
+  status: QuoteStatus;
+  supply_price: number;
+  final_price: number;
+  sales_user_id: string | null;
+  org_id: string | null;
+  customer_id: number | null;
+  created_at: string;
+  customer: { id: number; name: string } | null;
+}
+
+export interface ApiOrder {
+  id: number;
+  quote_id: number;
+  status: string;
+  maker_org_id: string | null;
+  assigned_at: string | null;
+  created_at: string;
+  quote: {
+    model_code: string;
+    supply_price: number;
+    final_price: number;
+    status: string;
+    customer_id: number | null;
+    customer: { id: number; name: string } | null;
+  };
+  maker_org: { code: string; name: string } | null;
+}

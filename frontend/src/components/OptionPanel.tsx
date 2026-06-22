@@ -50,7 +50,7 @@ export function OptionPanel({
     ? `저장 완료 (#${savedQuote.quote_id})`
     : isUnsupported
     ? '내장탑 미정 — 확정 불가'
-    : '견적 확정/저장'
+    : '견적 저장'
 
   const btnDisabled = isSaving || !!savedQuote || isUnsupported
 

@@ -159,6 +159,7 @@ export function SalesPage() {
         year: new Date().getFullYear(),
         selections,
         customer: customer && !skipped ? {
+          name: customer.name,
           biz_type: mapBizType(customer.business_type),
           is_sosang: customer.is_small_business,
           region: customer.region_code,
