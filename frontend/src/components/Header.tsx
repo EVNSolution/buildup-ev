@@ -1,22 +1,22 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import type { CustomerInfo, UserRole } from '@shared/types/index'
+import type { CustomerInfo, Role } from '@shared/types/index'
 
 interface Props {
   customer: CustomerInfo | null
   onOpenCustomerModal: () => void
 }
 
-const ROLE_LABELS: Record<UserRole, string> = {
-  sales: '영업 (Sales)',
-  admin: '관리자 (Admin)',
-  conversion: '특장사 (Conversion)',
+const ROLE_LABELS: Record<Role, string> = {
+  SALES: '영업 (Sales)',
+  ADMIN: '관리자 (Admin)',
+  MAKER: '특장사 (Conversion)',
 }
 
-const ROLE_ROUTES: Record<UserRole, string> = {
-  sales: '/sales',
-  admin: '/admin',
-  conversion: '/conversion',
+const ROLE_ROUTES: Record<Role, string> = {
+  SALES: '/sales',
+  ADMIN: '/admin',
+  MAKER: '/conversion',
 }
 
 export function Header({ customer, onOpenCustomerModal }: Props) {
@@ -24,7 +24,7 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
   const navigate = useNavigate()
 
   function handleRoleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const role = e.target.value as UserRole
+    const role = e.target.value as Role
     setRole(role)
     navigate(ROLE_ROUTES[role])
   }
@@ -42,9 +42,9 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
 
       {/* mock 역할 전환 */}
       <select value={user.role} onChange={handleRoleChange} style={styles.roleSwitch}>
-        <option value="sales">영업</option>
-        <option value="admin">관리자</option>
-        <option value="conversion">특장사</option>
+        <option value="SALES">영업</option>
+        <option value="ADMIN">관리자</option>
+        <option value="MAKER">특장사</option>
       </select>
 
       <div style={styles.userLabel}>담당자: {user.name}</div>

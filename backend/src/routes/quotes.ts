@@ -6,7 +6,7 @@ export const quotesRouter = Router();
 // POST /quotes/calculate — 견적 계산 (미저장, mock)
 // TODO: DB 연결 — 옵션별 단가·보조금 파라미터 조회 후 실계산
 // 회귀기준: 범석환 케이스(베이직·저상·내장·여닫이·추가X·온도계X·격벽X, 경기 남양주, 소상공인) = ₩46,471,818
-quotesRouter.post('/calculate', rbac('sales'), (_req, res) => {
+quotesRouter.post('/calculate', rbac('SALES'), (_req, res) => {
   res.json({
     data: {
       supply_price: null,
@@ -27,13 +27,13 @@ quotesRouter.post('/calculate', rbac('sales'), (_req, res) => {
 });
 
 // POST /quotes — 견적 저장
-quotesRouter.post('/', rbac('sales'), (_req, res) => {
+quotesRouter.post('/', rbac('SALES'), (_req, res) => {
   // TODO: DB 연결
   res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'DB 연결 후 구현 예정' } });
 });
 
 // GET /quotes/:id
-quotesRouter.get('/:id', rbac('sales', 'admin'), (_req, res) => {
+quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), (_req, res) => {
   // TODO: DB 연결
   res.status(501).json({ error: { code: 'NOT_IMPLEMENTED', message: 'DB 연결 후 구현 예정' } });
 });

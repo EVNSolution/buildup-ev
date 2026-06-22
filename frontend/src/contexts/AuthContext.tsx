@@ -1,23 +1,23 @@
 import { createContext, useContext, useState } from 'react'
-import type { AuthUser, UserRole } from '@shared/types/index'
+import type { AuthUser, Role } from '@shared/types/index'
 
 interface AuthContextValue {
   user: AuthUser
-  setRole: (role: UserRole) => void
+  setRole: (role: Role) => void
 }
 
-const MOCK_USERS: Record<UserRole, AuthUser> = {
-  sales: { id: 'u1', name: '여준성', role: 'sales' },
-  admin: { id: 'u2', name: '관리자', role: 'admin' },
-  conversion: { id: 'u3', name: '특장사담당', role: 'conversion' },
+const MOCK_USERS: Record<Role, AuthUser> = {
+  SALES: { id: 'sales1@evnsolution.com', name: '여준성', role: 'SALES', org_code: 'ORG_HQ' },
+  ADMIN: { id: 'admin@evnsolution.com',  name: '관리자', role: 'ADMIN', org_code: 'ORG_HQ' },
+  MAKER: { id: 'maker1@partner.com',     name: '특장담당', role: 'MAKER', org_code: 'ORG_MAKER1' },
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser>(MOCK_USERS.sales)
+  const [user, setUser] = useState<AuthUser>(MOCK_USERS.SALES)
 
-  function setRole(role: UserRole) {
+  function setRole(role: Role) {
     setUser(MOCK_USERS[role])
   }
 

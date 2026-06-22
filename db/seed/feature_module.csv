@@ -1,0 +1,12 @@
+code,name,surface,sort_order,active
+quote.create,견적 생성,영업,1,Y
+order.convert,주문 전환,영업,2,Y
+quote.view.all,전체 진행 조회,"영업,관리자",3,Y
+order.verify,주문 검증(게이트),관리자,4,Y
+workflow.monitor,주문흐름 관제,관리자,5,Y
+subsidy.manage,보조금 DB 관리,관리자,6,Y
+account.manage,계정·권한 관리,관리자,7,Y
+doc.generate,서류 자동생성,특장사,8,Y
+tuning.apply,튜닝승인 신청,특장사,9,Y
+order.receive,배정 주문·일정 조회,특장사,10,Y
+loadcalc.run,하중계산,공통,11,Y
