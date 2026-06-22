@@ -1,1 +1,9 @@
 code,category,name,select_type,required,sort_order,active
+TRIM,차량옵션,트림,single,Y,1,Y
+BODYTYPE,특장,특장형태,single,Y,2,Y
+TOP,특장,탑크기,single,Y,3,Y
+DOORTYPE,특장,도어종류,single,Y,4,Y
+DOORADD,특장,도어추가,single,N,5,Y
+TEMP,내부옵션,온도계,single,N,6,Y
+PARTITION,내부옵션,격벽,single,N,7,Y
+SPOILER,내부옵션,스포일러,single,N,8,Y

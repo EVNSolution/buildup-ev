@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./types": "./types/index.ts",
-    "./load-calc": "./load-calc/core.ts"
+    "./load-calc": "./load-calc/core.ts",
+    "./pricing": "./pricing/core.ts"
   },
   "scripts": {
     "test": "vitest run",

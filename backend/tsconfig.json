@@ -11,6 +11,7 @@
     "skipLibCheck": true,
     "paths": {
       "@buildup-ev/shared/load-calc": ["../shared/load-calc/core.ts"],
+      "@buildup-ev/shared/pricing": ["../shared/pricing/core.ts"],
       "@buildup-ev/shared/types": ["../shared/types/index.ts"]
     }
   },

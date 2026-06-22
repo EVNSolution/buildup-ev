@@ -161,6 +161,32 @@ async function main() {
     console.log(`  option_group_model: ${ogm.length}`);
   }
 
+  // ── option_rule ──────────────────────────────────────────────────────
+  const rules = csv('option_rule.csv').map(r => ({
+    code:        r['code']!,
+    when_value:  r['when_value']!,
+    effect:      r['effect']!,
+    target_type: r['target_type']!,
+    target_code: r['target_code']!,
+    memo:        opt(r['memo']),
+  }));
+  if (rules.length) {
+    await prisma.optionRule.createMany({ data: rules, skipDuplicates: true });
+    console.log(`  option_rule: ${rules.length}`);
+  }
+
+  // ── option_price ─────────────────────────────────────────────────────
+  const optPrices = csv('option_price.csv').map(r => ({
+    model_code:   r['model_code']!,
+    value_code:   r['value_code']!,
+    supply_price: num(r['supply_price']) ?? 0,
+    memo:         opt(r['memo']),
+  }));
+  if (optPrices.length) {
+    await prisma.optionPrice.createMany({ data: optPrices, skipDuplicates: true });
+    console.log(`  option_price: ${optPrices.length}`);
+  }
+
   // ── door_unit_price ───────────────────────────────────────────────────
   const doors = csv('door_unit_price.csv').map(r => ({
     model_code: r['model_code']!,
