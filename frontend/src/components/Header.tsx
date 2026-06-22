@@ -1,11 +1,5 @@
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { CustomerInfo, Role } from '@shared/types/index'
-
-interface Props {
-  customer: CustomerInfo | null
-  onOpenCustomerModal: () => void
-}
 
 const ROLE_LABELS: Record<Role, string> = {
   SALES: '영업 (Sales)',
@@ -13,21 +7,15 @@ const ROLE_LABELS: Record<Role, string> = {
   MAKER: '특장사 (Conversion)',
 }
 
-const ROLE_ROUTES: Record<Role, string> = {
-  SALES: '/sales',
-  ADMIN: '/admin',
-  MAKER: '/conversion',
+interface Props {
+  customer?: CustomerInfo | null
+  onOpenCustomerModal?: () => void
 }
 
 export function Header({ customer, onOpenCustomerModal }: Props) {
-  const { user, setRole } = useAuth()
-  const navigate = useNavigate()
-
-  function handleRoleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const role = e.target.value as Role
-    setRole(role)
-    navigate(ROLE_ROUTES[role])
-  }
+  const { session, logout } = useAuth()
+  const user = session?.user
+  const org  = session?.org
 
   const custLabel = customer
     ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? '소상공인' : '일반'} ▾`
@@ -36,57 +24,52 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
   return (
     <header style={styles.header}>
       <div style={styles.logo}>EV<b style={styles.logoBold}>&</b>Solution</div>
-      <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>
+      {user && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
-      <span style={styles.custChip} onClick={onOpenCustomerModal}>{custLabel}</span>
 
-      {/* mock 역할 전환 */}
-      <select value={user.role} onChange={handleRoleChange} style={styles.roleSwitch}>
-        <option value="SALES">영업</option>
-        <option value="ADMIN">관리자</option>
-        <option value="MAKER">특장사</option>
-      </select>
+      {/* 영업화면 전용: 고객 정보 칩 */}
+      {onOpenCustomerModal && (
+        <span style={styles.custChip} onClick={onOpenCustomerModal}>{custLabel}</span>
+      )}
 
-      <div style={styles.userLabel}>담당자: {user.name}</div>
+      {/* 로그인 사용자 표시 */}
+      {user && (
+        <div style={styles.userInfo}>
+          <span style={styles.userName}>{user.name}</span>
+          <span style={styles.userOrg}>{org?.name ?? user.org_code}</span>
+        </div>
+      )}
+
+      <button style={styles.logoutBtn} onClick={logout}>로그아웃</button>
     </header>
   )
 }
 
-const styles = {
+const styles: Record<string, React.CSSProperties> = {
   header: {
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     padding: '11px 20px',
     borderBottom: '1px solid var(--line)',
+    background: '#fff',
   },
   logo: { fontWeight: 800, fontSize: 18, color: 'var(--dark)' },
   logoBold: { color: 'var(--lime)' },
   badge: {
-    background: 'var(--lime)',
-    color: 'var(--dark)',
-    fontWeight: 700,
-    fontSize: 12,
-    padding: '4px 10px',
-    borderRadius: 20,
+    background: 'var(--lime)', color: 'var(--dark)',
+    fontWeight: 700, fontSize: 12, padding: '4px 10px', borderRadius: 20,
   },
   custChip: {
-    fontSize: 12,
-    border: '1px solid var(--line)',
-    borderRadius: 20,
-    padding: '5px 12px',
-    cursor: 'pointer',
-    background: '#fff',
+    fontSize: 12, border: '1px solid var(--line)', borderRadius: 20,
+    padding: '5px 12px', cursor: 'pointer', background: '#fff',
   },
-  roleSwitch: {
-    fontSize: 12,
-    padding: '4px 8px',
-    border: '1px solid var(--line)',
-    borderRadius: 6,
-    background: '#fff',
-    cursor: 'pointer',
-    color: 'var(--muted)',
+  userInfo: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 },
+  userName: { fontSize: 13, fontWeight: 600, color: 'var(--dark)' },
+  userOrg:  { fontSize: 11, color: 'var(--muted)' },
+  logoutBtn: {
+    fontSize: 12, padding: '5px 12px', border: '1px solid var(--line)',
+    borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--muted)',
   },
-  userLabel: { fontSize: 13, color: 'var(--muted)' },
 }
