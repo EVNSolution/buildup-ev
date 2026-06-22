@@ -29,6 +29,10 @@ export function injectMockAuth(req: Request, _res: Response, next: NextFunction)
       .then(user => {
         if (user) {
           req.auth = { email: user.email, role: user.role as Role, org_code: user.org_code };
+        } else {
+          // DB에 없으면 mock 폴백 (seed 전·테스트 계정 호환)
+          const m = MOCK_USERS[rawUser];
+          if (m) req.auth = { email: m.email, role: m.role, org_code: m.org_code };
         }
         next();
       })

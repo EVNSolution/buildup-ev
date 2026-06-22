@@ -14,13 +14,26 @@ const SEED = resolve(__dirname, '../../db/seed');
 
 const prisma = new PrismaClient();
 
+function splitCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let inQuotes = false;
+  let cur = '';
+  for (const ch of line) {
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { result.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
 function csv(file: string): Record<string, string>[] {
   const raw = readFileSync(resolve(SEED, file), 'utf-8');
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
-  const headers = lines[0]!.split(',');
+  const headers = splitCSVLine(lines[0]!);
   return lines.slice(1).map(line => {
-    const vals = line.split(',');
+    const vals = splitCSVLine(line);
     return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ''])) as Record<string, string>;
   });
 }
