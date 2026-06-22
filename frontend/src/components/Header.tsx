@@ -1,3 +1,4 @@
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { CustomerInfo, Role } from '@shared/types/index'
 
@@ -12,8 +13,17 @@ interface Props {
   onOpenCustomerModal?: () => void
 }
 
+// DEV: master surface switcher — surface별 경로·레이블 정의
+const SURFACES: { path: string; label: string }[] = [
+  { path: '/sales', label: '영업' },
+  { path: '/admin', label: '관리' },
+  { path: '/maker', label: '특장' },
+]
+
 export function Header({ customer, onOpenCustomerModal }: Props) {
   const { session, logout } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const user = session?.user
   const org  = session?.org
 
@@ -26,6 +36,21 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
       <div style={styles.logo}>EV<b style={styles.logoBold}>&</b>Solution</div>
       {user && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
+
+      {/* DEV: master surface switcher — is_master 계정에만 표시 */}
+      {user?.is_master && (
+        <div style={styles.surfaceSwitch}>
+          {SURFACES.map(s => (
+            <button
+              key={s.path}
+              style={location.pathname === s.path ? styles.surfaceBtnActive : styles.surfaceBtn}
+              onClick={() => navigate(s.path)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 영업화면 전용: 고객 정보 칩 */}
       {onOpenCustomerModal && (
@@ -71,5 +96,19 @@ const styles: Record<string, React.CSSProperties> = {
   logoutBtn: {
     fontSize: 12, padding: '5px 12px', border: '1px solid var(--line)',
     borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--muted)',
+  },
+  // DEV: master surface switcher styles
+  surfaceSwitch: {
+    display: 'flex', gap: 2, background: 'var(--card)', borderRadius: 8,
+    padding: 3, border: '1px solid var(--line)',
+  },
+  surfaceBtn: {
+    fontSize: 12, fontWeight: 600, padding: '4px 12px', border: 'none',
+    borderRadius: 6, cursor: 'pointer', background: 'transparent', color: 'var(--muted)',
+  },
+  surfaceBtnActive: {
+    fontSize: 12, fontWeight: 700, padding: '4px 12px', border: 'none',
+    borderRadius: 6, cursor: 'pointer', background: '#fff', color: 'var(--dark)',
+    boxShadow: '0 1px 4px rgba(0,0,0,.1)',
   },
 }

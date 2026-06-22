@@ -109,6 +109,8 @@ export interface User {
   must_change_pw: boolean;
   invited_by?: string;
   active: boolean;
+  // DEV: master surface switcher — true일 때 헤더에 surface 전환 토글 표시
+  is_master?: boolean;
 }
 
 /** F3. 기능 모듈 카탈로그 */
