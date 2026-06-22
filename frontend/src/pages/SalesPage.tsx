@@ -1,92 +1,184 @@
-import { useEffect, useState } from 'react'
-import type { CustomerInfo, QuoteResult, VehicleModel } from '@shared/types/index'
-import { fetchModelOptions } from '../api/models'
-import { calculateQuote } from '../api/quotes'
+import { useEffect, useMemo, useState } from 'react'
+import type { CustomerInfo, ApiPricingBundle } from '@shared/types/index'
+import type { PricingResult, PricingOk } from '@shared/pricing/core'
+import { calcPrice } from '@shared/pricing/core'
+import { fetchPricingBundle } from '../api/models'
+import { saveQuote, fetchLocalSubsidy } from '../api/quotes'
+import type { SaveQuoteRequest } from '../api/quotes'
 import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { CustomerModal } from '../components/CustomerModal'
 import { usePermission } from '../components/PermGate'
+import { useAuth } from '../contexts/AuthContext'
 
+function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual' | 'corporation' | 'simplified' {
+  if (bt === 'corporate') return 'corporation'
+  if (bt === 'simplified') return 'simplified'
+  return 'individual'
+}
 
 export function SalesPage() {
+  const { session } = useAuth()
   const canConvert = usePermission('order.convert')
+
+  const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
+  const [bundleLoading, setBundleLoading] = useState(true)
+  const [selections, setSelections] = useState<Record<string, string>>({})
+
   const [showModal, setShowModal] = useState(true)
   const [customer, setCustomer] = useState<CustomerInfo | null>(null)
   const [skipped, setSkipped] = useState(false)
 
-  const [model, setModel] = useState<VehicleModel | null>(null)
-  const [selectedTrim, setSelectedTrim] = useState('basic')
-  const [selections, setSelections] = useState<Record<string, string>>({})
+  const [subsidyLocal, setSubsidyLocal] = useState(0)
+  const [isSaving, setIsSaving] = useState(false)
+  const [savedQuote, setSavedQuote] = useState<{ quote_id: number; pricing: PricingOk } | null>(null)
+  const [saveError, setSaveError] = useState('')
 
-  const [quoteResult, setQuoteResult] = useState<QuoteResult | null>(null)
-  const [isCalculating, setIsCalculating] = useState(false)
-  const [confirmed, setConfirmed] = useState(false)
-
+  // 번들 1회 로드
   useEffect(() => {
-    fetchModelOptions('PV5').then(res => {
-      setModel(res.model)
-      const defaults: Record<string, string> = {}
-      res.model.option_groups.forEach(g => { defaults[g.key] = g.default_key })
-      setSelections(defaults)
+    const email = session?.user.email
+    if (!email) return
+    setBundleLoading(true)
+    fetchPricingBundle('PV5_OPENBED', email)
+      .then(data => {
+        setBundle(data)
+        const defaults: Record<string, string> = {}
+        for (const g of data.groups) {
+          if (g.values.length > 0) defaults[g.code] = g.values[0]!.code
+        }
+        setSelections(defaults)
+      })
+      .catch(e => console.error('pricing-bundle 로드 실패', e))
+      .finally(() => setBundleLoading(false))
+  }, [session?.user.email])
+
+  // 지역 변경 시 지방보조금 fetch
+  useEffect(() => {
+    const email = session?.user.email
+    if (!customer?.region_code || !email || skipped) {
+      setSubsidyLocal(0)
+      return
+    }
+    fetchLocalSubsidy(customer.region_code, new Date().getFullYear(), email)
+      .then(setSubsidyLocal)
+      .catch(() => setSubsidyLocal(0))
+  }, [customer?.region_code, session?.user.email, skipped])
+
+  // option_rule 기준 비활성 그룹 코드
+  const disabledGroupCodes = useMemo<Set<string>>(() => {
+    if (!bundle) return new Set()
+    const disabled = new Set<string>()
+    for (const rule of bundle.rules) {
+      if (rule.effect === 'disable' && rule.target_type === 'group') {
+        if (Object.values(selections).includes(rule.when_value)) {
+          disabled.add(rule.target_code)
+        }
+      }
+    }
+    return disabled
+  }, [bundle, selections])
+
+  // 실시간 계산
+  const liveCalc = useMemo<PricingResult | null>(() => {
+    if (!bundle || Object.keys(selections).length === 0) return null
+
+    const topCode = selections['TOP'] ?? ''
+    const doorTypeCode = selections['DOORTYPE'] ?? ''
+    const topName = bundle.groups.find(g => g.code === 'TOP')?.values.find(v => v.code === topCode)?.name ?? ''
+    const doorTypeName = bundle.groups.find(g => g.code === 'DOORTYPE')?.values.find(v => v.code === doorTypeCode)?.name ?? ''
+    const baseSwing = bundle.door_unit_prices.find(d => d.top === topName && d.doortype === '여닫이')?.unit_price ?? 0
+    const selectedDoor = bundle.door_unit_prices.find(d => d.top === topName && d.doortype === doorTypeName)?.unit_price ?? 0
+
+    return calcPrice({
+      bodytype_code: selections['BODYTYPE'] ?? '',
+      trim_code: selections['TRIM'] ?? '',
+      selected_value_codes: Object.values(selections),
+      door: {
+        base_swing_price: baseSwing,
+        selected_price: selectedDoor,
+        has_extra: selections['DOORADD'] === 'ADD_DRIVER',
+      },
+      option_prices: bundle.option_prices,
+      subsidy_national: bundle.subsidy_national?.amount ?? 0,
+      subsidy_sosang_rate: bundle.subsidy_national?.sosang_rate ?? 0,
+      subsidy_local: !skipped && customer ? subsidyLocal : 0,
+      tax: bundle.tax,
+      customer: {
+        biz_type: mapBizType(customer?.business_type),
+        is_sosang: !skipped && (customer?.is_small_business ?? false),
+      },
     })
-  }, [])
+  }, [bundle, selections, subsidyLocal, customer, skipped])
+
+  function handleSelect(groupCode: string, valueCode: string) {
+    setSelections(prev => {
+      const next = { ...prev, [groupCode]: valueCode }
+      if (!bundle) return next
+      // 규칙 적용: 비활성화된 그룹의 기존 선택 해제
+      for (const rule of bundle.rules) {
+        if (rule.effect === 'disable' && rule.target_type === 'group') {
+          if (Object.values(next).includes(rule.when_value)) {
+            delete next[rule.target_code]
+          }
+        }
+      }
+      return next
+    })
+    setSavedQuote(null)
+    setSaveError('')
+  }
 
   function handleCustomerComplete(info: CustomerInfo) {
     setCustomer(info)
     setSkipped(false)
     setShowModal(false)
-    setQuoteResult(null)
+    setSavedQuote(null)
+    setSaveError('')
   }
 
   function handleSkip() {
     setCustomer(null)
     setSkipped(true)
+    setSubsidyLocal(0)
     setShowModal(false)
-    setQuoteResult(null)
+    setSavedQuote(null)
+    setSaveError('')
   }
 
-  function handleSelect(groupKey: string, valueKey: string) {
-    setSelections(prev => ({ ...prev, [groupKey]: valueKey }))
-    setQuoteResult(null)
-  }
+  async function handleSave() {
+    const email = session?.user.email
+    if (!email || !bundle) return
+    if (liveCalc?.status === 'unsupported') return
 
-  async function handleGenerateQuote() {
-    if (!model) return
-    if (!customer && !skipped) {
-      setShowModal(true)
-      return
-    }
-    setIsCalculating(true)
+    setIsSaving(true)
+    setSaveError('')
     try {
-      const result = await calculateQuote({
-        model_code: model.code,
-        trim_key: selectedTrim,
-        options: selections,
-        customer: customer ?? undefined,
-      })
-      setQuoteResult(result)
-      setConfirmed(false)
+      const req: SaveQuoteRequest = {
+        model_code: 'PV5_OPENBED',
+        year: new Date().getFullYear(),
+        selections,
+        customer: customer && !skipped ? {
+          biz_type: mapBizType(customer.business_type),
+          is_sosang: customer.is_small_business,
+          region: customer.region_code,
+          scrap_diesel: customer.is_old_vehicle_scrapped,
+        } : undefined,
+      }
+      const result = await saveQuote(req, email)
+      setSavedQuote(result)
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : '저장 실패')
     } finally {
-      setIsCalculating(false)
+      setIsSaving(false)
     }
   }
 
-  function handleConfirmQuote() {
-    if (!quoteResult) {
-      alert('먼저 [견적 생성]을 눌러주세요.')
-      return
-    }
-    if (!customer) {
-      alert('견적 확정을 위해 고객정보를 입력해 주세요.')
-      setShowModal(true)
-      return
-    }
-    setConfirmed(true)
-    alert('견적이 확정되어 주문으로 전환됩니다. (mockup)')
-  }
+  const isUnsupported = liveCalc?.status === 'unsupported'
+  const displayCalc = savedQuote ? { status: 'ok' as const, ...savedQuote.pricing } : liveCalc
 
-  if (!model) return <div style={{ padding: 24, color: 'var(--muted)' }}>로딩 중…</div>
+  if (bundleLoading) return <div style={styles.loading}>로딩 중…</div>
+  if (!bundle) return <div style={styles.loading}>옵션 데이터 로드 실패</div>
 
   return (
     <div style={styles.root}>
@@ -96,9 +188,7 @@ export function SalesPage() {
 
       <Header customer={customer} onOpenCustomerModal={() => setShowModal(true)} />
 
-
       <div style={styles.body}>
-        {/* 좌측: 3D + 가격바 */}
         <section style={styles.viewer}>
           <div style={styles.vtabs}>
             {['FREE', 'TOP', 'SIDE', 'REAR', 'FRONT'].map(v => (
@@ -109,8 +199,6 @@ export function SalesPage() {
 
           <div style={styles.stage}>
             <span style={styles.embedTag}>3D 컨피규레이터 (VIVAR iframe 영역)</span>
-            {/* TODO: 옵션→3D 반영 연동 후 실제 iframe 활성화
-            <iframe src="https://evnsolution.vivar.im" style={styles.iframe} title="VIVAR 3D" /> */}
             <svg viewBox="0 0 520 230" style={styles.placeholderSvg} xmlns="http://www.w3.org/2000/svg">
               <g fill="none" stroke="#c4c9d0" strokeWidth="3">
                 <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
@@ -125,34 +213,31 @@ export function SalesPage() {
             <span style={styles.watermark}>Powered by VIVAR</span>
           </div>
 
-          <PriceBar result={quoteResult} hasSubsidy={!!customer && !skipped} />
+          <PriceBar
+            calc={displayCalc}
+            hasCustomer={!!customer && !skipped}
+          />
         </section>
 
-        {/* 우측: 옵션 패널 */}
         <OptionPanel
-          model={model}
+          bundle={bundle}
           selections={selections}
-          selectedTrim={selectedTrim}
-          onSelectTrim={key => { setSelectedTrim(key); setQuoteResult(null) }}
+          disabledGroupCodes={disabledGroupCodes}
           onSelect={handleSelect}
-          onGenerateQuote={handleGenerateQuote}
-          onConfirmQuote={handleConfirmQuote}
-          quoteResult={quoteResult}
-          isCalculating={isCalculating}
+          onSave={handleSave}
+          isSaving={isSaving}
+          savedQuote={savedQuote}
+          saveError={saveError}
+          isUnsupported={isUnsupported}
           canConvert={canConvert}
         />
       </div>
-
-      {confirmed && (
-        <div style={styles.confirmedBanner}>
-          견적 확정 완료 — 주문 전환 처리 중 (mockup)
-        </div>
-      )}
     </div>
   )
 }
 
 const styles = {
+  loading: { padding: 24, color: 'var(--muted)' },
   root: {
     height: '100%',
     display: 'flex',
@@ -216,18 +301,5 @@ const styles = {
     borderRadius: 6,
   },
   placeholderSvg: { width: '55%', maxWidth: 520 },
-  iframe: { width: '100%', height: '100%', border: 'none' },
   watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4' },
-  confirmedBanner: {
-    position: 'fixed' as const,
-    bottom: 20,
-    left: '50%',
-    transform: 'translateX(-50%)',
-    background: 'var(--dark)',
-    color: '#fff',
-    padding: '10px 24px',
-    borderRadius: 8,
-    fontSize: 13,
-    zIndex: 100,
-  },
 }
