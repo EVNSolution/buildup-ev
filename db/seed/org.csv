@@ -1,4 +1,5 @@
 code,type,name,biz_no,active
 ORG_HQ,HQ,EV&Solution 본사,,Y
+ORG_SALES1,DEALER,EV&Solution 직영영업팀,,Y
 ORG_DEALER1,DEALER,○○대리점,,
-ORG_MAKER1,MAKER,△△특장,,
+ORG_MAKER1,MAKER,△△특장,,Y

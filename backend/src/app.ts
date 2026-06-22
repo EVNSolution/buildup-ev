@@ -7,6 +7,7 @@ import { ordersRouter } from './routes/orders.js';
 import { authRouter } from './routes/auth.js';
 import { featureModulesRouter } from './routes/feature-modules.js';
 import { subsidyRouter } from './routes/subsidy.js';
+import { orgsRouter } from './routes/orgs.js';
 
 export function createApp() {
   const app = express();
@@ -20,6 +21,7 @@ export function createApp() {
   app.use('/api/v1/load-calc', loadCalcRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/subsidy', subsidyRouter);
+  app.use('/api/v1/orgs', orgsRouter);
 
   return app;
 }

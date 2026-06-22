@@ -46,7 +46,7 @@ const dec   = (v: string | undefined) => (v && v !== '') ? v : undefined;
 async function main() {
   console.log('🌱 seeding…');
 
-  // ── org ───────────────────────────────────────────────────────────────
+  // ── org (upsert — CSV가 항상 source of truth) ─────────────────────────
   const orgs = csv('org.csv').map(r => ({
     code:   r['code']!,
     type:   r['type'] as 'HQ' | 'DEALER' | 'MAKER',
@@ -54,10 +54,12 @@ async function main() {
     biz_no: opt(r['biz_no']),
     active: bool(r['active']),
   }));
-  await prisma.org.createMany({ data: orgs, skipDuplicates: true });
+  for (const org of orgs) {
+    await prisma.org.upsert({ where: { code: org.code }, update: org, create: org });
+  }
   console.log(`  org: ${orgs.length}`);
 
-  // ── user ──────────────────────────────────────────────────────────────
+  // ── user (upsert — invited_by FK: null 우선 처리) ─────────────────────
   const users = csv('user.csv').map(r => ({
     email:          r['email']!,
     org_code:       r['org_code']!,
@@ -69,11 +71,14 @@ async function main() {
     invited_by:     opt(r['invited_by']),
     active:         bool(r['active']),
   }));
-  // invited_by는 자기참조 FK — null 우선 삽입 후 upsert로 해결
   const first  = users.filter(u => !u.invited_by);
-  const second = users.filter(u => u.invited_by);
-  await prisma.user.createMany({ data: first,  skipDuplicates: true });
-  await prisma.user.createMany({ data: second, skipDuplicates: true });
+  const second = users.filter(u =>  u.invited_by);
+  for (const u of first)  {
+    await prisma.user.upsert({ where: { email: u.email }, update: u, create: u });
+  }
+  for (const u of second) {
+    await prisma.user.upsert({ where: { email: u.email }, update: u, create: u });
+  }
   console.log(`  user: ${users.length}`);
 
   // ── feature_module ────────────────────────────────────────────────────
