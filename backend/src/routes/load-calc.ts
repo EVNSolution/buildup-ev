@@ -6,7 +6,7 @@ type LoadCalcInput = Parameters<typeof calcLoad>[0];
 
 export const loadCalcRouter = Router();
 
-loadCalcRouter.post('/', rbac('sales', 'admin', 'conversion'), (req, res): void => {
+loadCalcRouter.post('/', rbac('SALES', 'ADMIN', 'MAKER'), (req, res): void => {
   const input = req.body as Partial<LoadCalcInput>;
 
   if (

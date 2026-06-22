@@ -1,0 +1,15 @@
+subject_type,subject_ref,module_code,enabled,memo
+role,SALES,quote.create,Y,
+role,SALES,order.convert,Y,
+role,SALES,quote.view.all,Y,
+role,SALES,loadcalc.run,Y,
+role,ADMIN,order.verify,Y,
+role,ADMIN,workflow.monitor,Y,
+role,ADMIN,subsidy.manage,Y,
+role,ADMIN,account.manage,Y,
+role,ADMIN,loadcalc.run,Y,
+role,MAKER,doc.generate,Y,
+role,MAKER,tuning.apply,Y,
+role,MAKER,order.receive,Y,
+role,MAKER,loadcalc.run,Y,
+user,sales1@evnsolution.com,subsidy.manage,N,개별 차단 예시(override)

@@ -4,7 +4,7 @@ import { rbac } from '../middleware/rbac.js';
 export const modelsRouter = Router();
 
 // GET /models — 차종 목록
-modelsRouter.get('/', rbac('sales', 'admin'), (_req, res) => {
+modelsRouter.get('/', rbac('SALES', 'ADMIN'), (_req, res) => {
   // TODO: DB 연결
   res.json({
     data: [
@@ -26,7 +26,7 @@ modelsRouter.get('/', rbac('sales', 'admin'), (_req, res) => {
 });
 
 // GET /models/:modelCode/options — 차종별 옵션그룹+값+규칙
-modelsRouter.get('/:modelCode/options', rbac('sales', 'admin'), (req, res) => {
+modelsRouter.get('/:modelCode/options', rbac('SALES', 'ADMIN'), (req, res) => {
   // TODO: DB 연결 — option_group, option_value, option_rule 조회
   res.json({ data: [] });
 });

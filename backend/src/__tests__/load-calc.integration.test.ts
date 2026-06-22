@@ -27,7 +27,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
 
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('X-Role', 'sales')
+      .set('X-Role', 'SALES')
       .send(PV5_INPUT)
       .expect(200);
 
@@ -42,7 +42,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
   it('필수 필드 누락(wheelbase_mm 없음) → 400', async () => {
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('X-Role', 'sales')
+      .set('X-Role', 'SALES')
       .send({
         curb_axle_front_kg: 1105,
         curb_axle_rear_kg: 800,
@@ -57,10 +57,10 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
     await request(app).post('/api/v1/load-calc').send(PV5_INPUT).expect(403);
   });
 
-  it('conversion 역할도 허용', async () => {
+  it('MAKER 역할도 허용', async () => {
     await request(app)
       .post('/api/v1/load-calc')
-      .set('X-Role', 'conversion')
+      .set('X-Role', 'MAKER')
       .send(PV5_INPUT)
       .expect(200);
   });

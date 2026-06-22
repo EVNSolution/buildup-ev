@@ -81,12 +81,73 @@ export interface QuoteResult {
   final_price: number;            // 실구매가 (= vat_refund_price + registration_fee)
 }
 
-// ── RBAC ──────────────────────────────────────────────────────────────
+// ── RBAC / 인증·권한 (클러스터 F) ────────────────────────────────────
 
-export type UserRole = 'sales' | 'admin' | 'conversion';
+/** F1. 조직 유형 */
+export type OrgType = 'HQ' | 'DEALER' | 'MAKER';
+
+export interface Org {
+  code: string;
+  type: OrgType;
+  name: string;
+  biz_no?: string;
+  active: boolean;
+}
+
+/** F2. 역할 — DB ENUM 그대로 대문자 */
+export type Role = 'SALES' | 'ADMIN' | 'MAKER';
+
+export type UserStatus = 'active' | 'invited' | 'suspended';
+
+export interface User {
+  email: string;
+  org_code: string;
+  role: Role;
+  name: string;
+  phone?: string;
+  status: UserStatus;
+  must_change_pw: boolean;
+  invited_by?: string;
+  active: boolean;
+}
+
+/** F3. 기능 모듈 카탈로그 */
+export interface FeatureModule {
+  code: string;
+  name: string;
+  /** 콤마 구분 (예: '영업,관리자') */
+  surface: string;
+  sort_order: number;
+  active: boolean;
+}
+
+/** F4. 권한 토글 (역할 기본값 + 계정 override) */
+export type SubjectType = 'role' | 'user';
+
+export interface AccessControl {
+  id?: number;
+  subject_type: SubjectType;
+  /** 역할: 'SALES'|'ADMIN'|'MAKER' / 계정: email */
+  subject_ref: string;
+  module_code: string;
+  enabled: boolean;
+  memo?: string;
+}
+
+/** GET /auth/me 응답 */
+export interface AuthMe {
+  user: User;
+  org: Org;
+  /** 활성 모듈코드 배열 (역할 기본 + 계정 override 머지 결과) */
+  permissions: string[];
+}
+
+/** @deprecated UserRole → Role 로 변경. 하위 호환용 alias. */
+export type UserRole = Role;
 
 export interface AuthUser {
-  id: string;
+  id: string;     // email
   name: string;
-  role: UserRole;
+  role: Role;
+  org_code: string;
 }
