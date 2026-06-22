@@ -1,45 +1,55 @@
-import type { OptionGroup } from '@shared/types/index'
+import type { ApiOptionGroup } from '@shared/types/index'
 
 interface Props {
-  groups: OptionGroup[]
+  groups: ApiOptionGroup[]
   selections: Record<string, string>
-  onSelect: (groupKey: string, valueKey: string) => void
+  onSelect: (groupCode: string, valueCode: string) => void
+  disabledGroupCodes: Set<string>
 }
 
-const INTERIOR_KEYS = ['thermometer', 'partition']
-
-export function InteriorOptionsTab({ groups, selections, onSelect }: Props) {
-  const interiorGroups = groups.filter(g => INTERIOR_KEYS.includes(g.key))
-
+export function InteriorOptionsTab({ groups, selections, onSelect, disabledGroupCodes }: Props) {
   return (
     <div>
-      {interiorGroups.map(group => (
-        <SegmentRow key={group.key} group={group} selected={selections[group.key] ?? group.default_key} onSelect={onSelect} />
-      ))}
-      <div style={styles.hint}>
-        내장탑에서는 온도기록계 비활성 등 옵션 종속규칙 적용(예정)
-      </div>
+      {groups.map(group => {
+        const isDisabled = disabledGroupCodes.has(group.code)
+        // R3: 저상탑→스포일러 숨김
+        if (group.code === 'SPOILER' && isDisabled) return null
+
+        return (
+          <SegmentRow
+            key={group.code}
+            group={group}
+            selected={selections[group.code] ?? ''}
+            onSelect={onSelect}
+            disabled={isDisabled}
+          />
+        )
+      })}
     </div>
   )
 }
 
-function SegmentRow({ group, selected, onSelect }: {
-  group: OptionGroup
+function SegmentRow({ group, selected, onSelect, disabled }: {
+  group: ApiOptionGroup
   selected: string
-  onSelect: (gKey: string, vKey: string) => void
+  onSelect: (code: string, val: string) => void
+  disabled: boolean
 }) {
   return (
-    <div style={styles.row}>
-      <label style={styles.label}>{group.label}</label>
+    <div style={{ ...styles.row, opacity: disabled ? 0.4 : 1 }}>
+      <label style={styles.label}>
+        {group.name}
+        {disabled && <span style={styles.disabledBadge}> 비활성</span>}
+      </label>
       <div style={styles.seg}>
         {group.values.map(v => (
           <button
-            key={v.key}
-            style={v.key === selected ? styles.segBtnOn : styles.segBtn}
-            onClick={() => onSelect(group.key, v.key)}
-            disabled={v.disabled}
+            key={v.code}
+            style={v.code === selected ? styles.segBtnOn : styles.segBtn}
+            onClick={() => !disabled && onSelect(group.code, v.code)}
+            disabled={disabled}
           >
-            {v.label}
+            {v.name}
           </button>
         ))}
       </div>
@@ -47,7 +57,7 @@ function SegmentRow({ group, selected, onSelect }: {
   )
 }
 
-const btnBase: React.CSSProperties = {
+const btnBase = {
   flex: 1,
   minWidth: 54,
   fontSize: 12.5,
@@ -60,10 +70,10 @@ const btnBase: React.CSSProperties = {
 }
 
 const styles = {
-  row: { marginBottom: 14 },
+  row: { marginBottom: 14, transition: 'opacity .15s' },
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
+  disabledBadge: { fontSize: 10, color: 'var(--warn)', marginLeft: 4 },
   seg: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
   segBtn: btnBase,
   segBtnOn: { ...btnBase, borderColor: 'var(--dark)', background: 'var(--dark)', color: '#fff', fontWeight: 600 },
-  hint: { fontSize: 11, color: 'var(--muted)', marginTop: 8 },
 }

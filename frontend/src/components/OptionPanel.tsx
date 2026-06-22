@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { VehicleModel, QuoteResult } from '@shared/types/index'
+import type { ApiPricingBundle, ApiOptionGroup } from '@shared/types/index'
+import type { PricingOk } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
@@ -7,15 +8,15 @@ import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 type TabKey = 'vehicle' | 'body' | 'interior'
 
 interface Props {
-  model: VehicleModel
+  bundle: ApiPricingBundle
   selections: Record<string, string>
-  selectedTrim: string
-  onSelectTrim: (key: string) => void
-  onSelect: (groupKey: string, valueKey: string) => void
-  onGenerateQuote: () => void
-  onConfirmQuote: () => void
-  quoteResult: QuoteResult | null
-  isCalculating: boolean
+  disabledGroupCodes: Set<string>
+  onSelect: (groupCode: string, valueCode: string) => void
+  onSave: () => void
+  isSaving: boolean
+  savedQuote: { quote_id: number; pricing: PricingOk } | null
+  saveError: string
+  isUnsupported: boolean
   canConvert?: boolean
 }
 
@@ -25,19 +26,33 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'interior', label: '내부옵션' },
 ]
 
+function groupsByCategory(bundle: ApiPricingBundle, category: string): ApiOptionGroup[] {
+  return bundle.groups.filter(g => g.category === category)
+}
+
 export function OptionPanel({
-  model,
+  bundle,
   selections,
-  selectedTrim,
-  onSelectTrim,
+  disabledGroupCodes,
   onSelect,
-  onGenerateQuote,
-  onConfirmQuote,
-  quoteResult,
-  isCalculating,
+  onSave,
+  isSaving,
+  savedQuote,
+  saveError,
+  isUnsupported,
   canConvert = true,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
+
+  const btnLabel = isSaving
+    ? '저장 중…'
+    : savedQuote
+    ? `저장 완료 (#${savedQuote.quote_id})`
+    : isUnsupported
+    ? '내장탑 미정 — 확정 불가'
+    : '견적 확정/저장'
+
+  const btnDisabled = isSaving || !!savedQuote || isUnsupported
 
   return (
     <aside style={styles.panel}>
@@ -56,42 +71,53 @@ export function OptionPanel({
       <div style={styles.scroll}>
         {activeTab === 'vehicle' && (
           <VehicleOptionsTab
-            trims={model.trims}
-            selectedTrim={selectedTrim}
-            onSelectTrim={onSelectTrim}
+            groups={groupsByCategory(bundle, '차량옵션')}
+            selections={selections}
+            onSelect={onSelect}
           />
         )}
         {activeTab === 'body' && (
           <BodyOptionsTab
-            groups={model.option_groups}
+            groups={groupsByCategory(bundle, '특장')}
             selections={selections}
             onSelect={onSelect}
+            disabledGroupCodes={disabledGroupCodes}
           />
         )}
         {activeTab === 'interior' && (
           <InteriorOptionsTab
-            groups={model.option_groups}
+            groups={groupsByCategory(bundle, '내부옵션')}
             selections={selections}
             onSelect={onSelect}
+            disabledGroupCodes={disabledGroupCodes}
           />
         )}
       </div>
 
       <div style={styles.footer}>
-        <button style={styles.btnCalc} onClick={onGenerateQuote} disabled={isCalculating}>
-          {isCalculating ? '계산 중…' : '견적 생성'}
-        </button>
+        {saveError && <div style={styles.saveError}>{saveError}</div>}
         {canConvert && (
           <button
-            style={quoteResult ? styles.btnConfirmReady : styles.btnConfirm}
-            onClick={onConfirmQuote}
+            style={btnDisabled ? styles.btnDisabled : savedQuote ? styles.btnSaved : styles.btnConfirm}
+            onClick={onSave}
+            disabled={btnDisabled}
           >
-            견적 확정
+            {btnLabel}
           </button>
         )}
       </div>
     </aside>
   )
+}
+
+const btnBase = {
+  width: '100%',
+  fontSize: 13.5,
+  fontWeight: 700,
+  padding: 12,
+  borderRadius: 9,
+  cursor: 'pointer',
+  border: 'none',
 }
 
 const styles = {
@@ -129,18 +155,32 @@ const styles = {
     borderTop: '1px solid var(--line)',
     padding: '12px 14px',
     display: 'flex',
-    gap: 8,
+    flexDirection: 'column' as const,
+    gap: 6,
   },
-  btnCalc: {
-    flex: 1, fontSize: 13.5, fontWeight: 700, padding: 12, borderRadius: 9,
-    cursor: 'pointer', border: 'none', background: 'var(--lime)', color: 'var(--dark)',
-  } as React.CSSProperties,
+  saveError: {
+    fontSize: 12,
+    color: 'var(--warn)',
+    background: 'var(--warnbg)',
+    border: '1px solid #f0c9ad',
+    padding: '6px 10px',
+    borderRadius: 7,
+  },
   btnConfirm: {
-    flex: 1, fontSize: 13.5, fontWeight: 700, padding: 12, borderRadius: 9,
-    cursor: 'pointer', border: '1px solid var(--line)', background: '#fff', color: '#bbb',
-  } as React.CSSProperties,
-  btnConfirmReady: {
-    flex: 1, fontSize: 13.5, fontWeight: 700, padding: 12, borderRadius: 9,
-    cursor: 'pointer', border: '1px solid var(--dark)', background: '#fff', color: 'var(--dark)',
-  } as React.CSSProperties,
+    ...btnBase,
+    background: 'var(--dark)',
+    color: '#fff',
+  },
+  btnSaved: {
+    ...btnBase,
+    background: '#e6f4ea',
+    color: '#2e7d32',
+    cursor: 'default',
+  },
+  btnDisabled: {
+    ...btnBase,
+    background: '#f0f2f4',
+    color: '#b0b7c0',
+    cursor: 'not-allowed',
+  },
 }
