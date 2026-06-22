@@ -22,8 +22,8 @@ describe('mergePermissions — 권한 머지 로직', () => {
     expect(perms).toContain('order.convert');
     expect(perms).toContain('quote.view.all');
     expect(perms).toContain('loadcalc.run');
-    expect(perms).not.toContain('order.verify');  // 관리자 전용
-    expect(perms).not.toContain('doc.generate');  // 특장사 전용
+    expect(perms).not.toContain('order.verify');
+    expect(perms).not.toContain('doc.generate');
   });
 
   it('ADMIN 역할 기본 모듈 5개 반환', () => {
@@ -44,10 +44,6 @@ describe('mergePermissions — 권한 머지 로직', () => {
   });
 
   it('계정 override가 역할 기본값보다 우선 — sales1의 subsidy.manage 차단', () => {
-    // sales1은 SALES 역할이지만 subsidy.manage는 기본적으로 SALES에 없음.
-    // override로 enabled:false → 없어야 함(있어도 false이므로 동일 결과).
-    // 핵심 케이스: ADMIN 역할에 subsidy.manage가 있는 계정에 override false 시
-    // → 여기서는 sales1에 override가 걸려 있음.
     const permsWithOverride = mergePermissions('SALES', 'sales1@evnsolution.com');
     expect(permsWithOverride).not.toContain('subsidy.manage');
   });
@@ -59,15 +55,14 @@ describe('mergePermissions — 권한 머지 로직', () => {
   });
 });
 
-// ── API 통합 테스트 ────────────────────────────────────────────────────
+// ── API 통합 테스트 (mock 폴백, DB 불필요) ────────────────────────────
 
 describe('GET /api/v1/auth/me', () => {
   const app = createApp();
 
-  it('ADMIN 역할로 조회 — user·org·permissions 포함', async () => {
+  it('ADMIN — user·org·permissions 포함', async () => {
     const res = await request(app)
       .get('/api/v1/auth/me')
-      .set('X-Role', 'ADMIN')
       .set('X-User', 'admin@evnsolution.com')
       .expect(200);
 
@@ -77,21 +72,19 @@ describe('GET /api/v1/auth/me', () => {
     expect(res.body.data.permissions).toContain('order.verify');
   });
 
-  it('SALES 역할로 조회 — 영업 모듈만 포함', async () => {
+  it('SALES — 영업 모듈만 포함', async () => {
     const res = await request(app)
       .get('/api/v1/auth/me')
-      .set('X-Role', 'SALES')
       .set('X-User', 'sales1@evnsolution.com')
       .expect(200);
 
     expect(res.body.data.user.role).toBe('SALES');
     expect(res.body.data.permissions).toContain('quote.create');
     expect(res.body.data.permissions).not.toContain('order.verify');
-    // override: subsidy.manage 차단
     expect(res.body.data.permissions).not.toContain('subsidy.manage');
   });
 
-  it('X-Role 헤더 없음 → 403', async () => {
+  it('X-User 없음 → 403', async () => {
     await request(app).get('/api/v1/auth/me').expect(403);
   });
 });
@@ -99,10 +92,9 @@ describe('GET /api/v1/auth/me', () => {
 describe('GET /api/v1/auth/me/permissions', () => {
   const app = createApp();
 
-  it('MAKER 역할 — 활성 모듈코드 배열 반환', async () => {
+  it('MAKER — 활성 모듈코드 배열 반환', async () => {
     const res = await request(app)
       .get('/api/v1/auth/me/permissions')
-      .set('X-Role', 'MAKER')
       .set('X-User', 'maker1@partner.com')
       .expect(200);
 
@@ -115,17 +107,17 @@ describe('GET /api/v1/auth/me/permissions', () => {
 
 // ── org 격리 stub 테스트 ──────────────────────────────────────────────
 
-describe('orgScope stub — 인증 없으면 403', () => {
+describe('orgScope stub', () => {
   const app = createApp();
 
-  it('X-Role 없는 GET /orders/:id → 403', async () => {
+  it('X-User 없는 GET /orders/:id → 403', async () => {
     await request(app).get('/api/v1/orders/1').expect(403);
   });
 
   it('SALES 인증 있으면 orgScope 통과 (501 Not Implemented)', async () => {
     const res = await request(app)
       .get('/api/v1/orders/1')
-      .set('X-Role', 'SALES')
+      .set('X-User', 'sales1@evnsolution.com')
       .expect(501);
     expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
   });
@@ -133,7 +125,7 @@ describe('orgScope stub — 인증 없으면 403', () => {
   it('MAKER 인증 있으면 orgScope 통과 (501 Not Implemented)', async () => {
     const res = await request(app)
       .get('/api/v1/orders/1')
-      .set('X-Role', 'MAKER')
+      .set('X-User', 'maker1@partner.com')
       .expect(501);
     expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
   });
@@ -141,7 +133,7 @@ describe('orgScope stub — 인증 없으면 403', () => {
   it('ADMIN은 전체 접근 — orgScope 통과', async () => {
     const res = await request(app)
       .patch('/api/v1/orders/1/status')
-      .set('X-Role', 'ADMIN')
+      .set('X-User', 'admin@evnsolution.com')
       .expect(501);
     expect(res.body.error.code).toBe('NOT_IMPLEMENTED');
   });

@@ -1,0 +1,361 @@
+// buildup-ev Prisma schema
+// datasource: PostgreSQL (docker-compose 기본값)
+// 마이그레이션 방식: prisma db push (ERD 안정 전까지 마이그레이션 파일 없음)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── F: 인증·권한 ──────────────────────────────────────────────────────────
+
+enum OrgType {
+  HQ
+  DEALER
+  MAKER
+}
+
+model Org {
+  code   String  @id @db.VarChar(30)
+  type   OrgType
+  name   String  @db.VarChar(60)
+  biz_no String? @db.VarChar(20)
+  active Boolean @default(true)
+
+  users       User[]
+  quote_orgs  Quote[]  @relation("QuoteOrg")
+  maker_orders Order[] @relation("OrderMakerOrg")
+
+  @@map("org")
+}
+
+enum Role {
+  SALES
+  ADMIN
+  MAKER
+}
+
+enum UserStatus {
+  active
+  invited
+  suspended
+}
+
+model User {
+  email          String     @id @db.VarChar(120)
+  org_code       String     @db.VarChar(30)
+  role           Role
+  name           String     @db.VarChar(60)
+  phone          String?    @db.VarChar(20)
+  status         UserStatus @default(invited)
+  must_change_pw Boolean    @default(true)
+  invited_by     String?    @db.VarChar(120)
+  active         Boolean    @default(true)
+  created_at     DateTime   @default(now())
+
+  org              Org        @relation(fields: [org_code], references: [code])
+  inviter          User?      @relation("Invites", fields: [invited_by], references: [email])
+  invitees         User[]     @relation("Invites")
+  customers        Customer[]
+  sales_quotes     Quote[]    @relation("QuoteSales")
+
+  @@map("user")
+}
+
+enum SubjectType {
+  role
+  user
+}
+
+model FeatureModule {
+  code       String  @id @db.VarChar(40)
+  name       String  @db.VarChar(60)
+  surface    String  @db.VarChar(60)
+  sort_order Int     @default(0)
+  active     Boolean @default(true)
+
+  access_controls AccessControl[]
+
+  @@map("feature_module")
+}
+
+model AccessControl {
+  id           BigInt      @id @default(autoincrement())
+  subject_type SubjectType
+  subject_ref  String      @db.VarChar(120)
+  module_code  String      @db.VarChar(40)
+  enabled      Boolean     @default(true)
+  memo         String?
+
+  module FeatureModule @relation(fields: [module_code], references: [code])
+
+  @@unique([subject_type, subject_ref, module_code])
+  @@map("access_control")
+}
+
+// ─── A: 제품·옵션 ──────────────────────────────────────────────────────────
+
+model VehicleModel {
+  code               String  @id @db.VarChar(30)
+  name               String  @db.VarChar(60)
+  drive_type         String  @db.VarChar(10)
+  seats_default      Int
+  length_mm          Int?
+  width_mm           Int?
+  height_mm          Int?
+  wheelbase_mm       Int?
+  tread_front_mm     Int?
+  tread_rear_mm      Int?
+  curb_weight_kg     Int?
+  curb_axle_front_kg Int?
+  curb_axle_rear_kg  Int?
+  gvw_limit_kg       Int?
+  max_length_mm      Int?
+  max_width_mm       Int?
+  max_height_mm      Int?
+  default_tire_front String? @db.VarChar(30)
+  default_tire_rear  String? @db.VarChar(30)
+  active             Boolean @default(true)
+
+  option_group_models OptionGroupModel[]
+  option_prices       OptionPrice[]
+  door_unit_prices    DoorUnitPrice[]
+  subsidies_national  SubsidyNational[]
+  quotes              Quote[]
+
+  @@map("vehicle_model")
+}
+
+model OptionGroup {
+  code        String  @id @db.VarChar(40)
+  category    String? @db.VarChar(40)
+  name        String  @db.VarChar(60)
+  select_type String  @db.VarChar(20)
+  required    Boolean @default(false)
+  sort_order  Int     @default(0)
+  active      Boolean @default(true)
+
+  values OptionValue[]
+  models OptionGroupModel[]
+
+  @@map("option_group")
+}
+
+model OptionValue {
+  code       String  @id @db.VarChar(40)
+  group_code String  @db.VarChar(40)
+  name       String  @db.VarChar(60)
+  vivar_code String? @db.VarChar(40)
+  sort_order Int     @default(0)
+  active     Boolean @default(true)
+
+  group         OptionGroup   @relation(fields: [group_code], references: [code])
+  prices        OptionPrice[]
+  order_options OrderOption[]
+
+  @@map("option_value")
+}
+
+model OptionGroupModel {
+  group_code String @db.VarChar(40)
+  model_code String @db.VarChar(30)
+
+  group OptionGroup  @relation(fields: [group_code], references: [code])
+  model VehicleModel @relation(fields: [model_code], references: [code])
+
+  @@id([group_code, model_code])
+  @@map("option_group_model")
+}
+
+// option_rule: 종속제약. target_code는 폴리모픽(group/value 코드) → FK 없음
+model OptionRule {
+  code        String  @id @db.VarChar(40)
+  when_value  String  @db.VarChar(40)
+  effect      String  @db.VarChar(20)
+  target_type String  @db.VarChar(20)
+  target_code String  @db.VarChar(40)
+  memo        String?
+
+  @@map("option_rule")
+}
+
+// ─── B: 가격·보조금·세율 ──────────────────────────────────────────────────
+
+model OptionPrice {
+  model_code   String @db.VarChar(30)
+  value_code   String @db.VarChar(40)
+  supply_price Int
+  memo         String?
+
+  model VehicleModel @relation(fields: [model_code], references: [code])
+  value OptionValue  @relation(fields: [value_code], references: [code])
+
+  @@id([model_code, value_code])
+  @@map("option_price")
+}
+
+model DoorUnitPrice {
+  model_code String @db.VarChar(30)
+  top        String @db.VarChar(20)
+  doortype   String @db.VarChar(20)
+  unit_price Int
+
+  model VehicleModel @relation(fields: [model_code], references: [code])
+
+  @@id([model_code, top, doortype])
+  @@map("door_unit_price")
+}
+
+model Region {
+  name    String @id @db.VarChar(60)
+  sido    String @db.VarChar(20)
+  sigungu String @db.VarChar(30)
+
+  subsidies_local SubsidyLocal[]
+
+  @@map("region")
+}
+
+model SubsidyNational {
+  model_code  String   @db.VarChar(30)
+  year        Int
+  amount      Int
+  sosang_rate Decimal? @db.Decimal(5, 4)
+
+  model VehicleModel @relation(fields: [model_code], references: [code])
+
+  @@id([model_code, year])
+  @@map("subsidy_national")
+}
+
+model SubsidyLocal {
+  region          String  @db.VarChar(60)
+  year            Int
+  amount          Int
+  extra           Int?
+  remaining_quota Int?
+  as_of           String? @db.VarChar(20)
+
+  region_ref Region @relation(fields: [region], references: [name])
+
+  @@id([region, year])
+  @@map("subsidy_local")
+}
+
+model TaxConfig {
+  param_key String  @id @db.VarChar(40)
+  value     Decimal @db.Decimal(12, 4)
+  unit      String? @db.VarChar(20)
+  memo      String?
+
+  @@map("tax_config")
+}
+
+// ─── D1: 타이어 ───────────────────────────────────────────────────────────
+
+model Tire {
+  spec              String @id @db.VarChar(40)
+  allowable_load_kg Int
+
+  @@map("tire")
+}
+
+// ─── E: 거래 (customer · quote · order · order_option · document) ─────────
+
+model Customer {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(60)
+  phone      String?  @db.VarChar(20)
+  address    String?  @db.VarChar(120)
+  reg_no     String?  @db.VarChar(20)
+  created_by String?  @db.VarChar(120)
+  created_at DateTime @default(now())
+
+  creator User?   @relation(fields: [created_by], references: [email])
+  quotes  Quote[]
+
+  @@map("customer")
+}
+
+enum QuoteStatus {
+  draft
+  confirmed
+  ordered
+  expired
+}
+
+model Quote {
+  id            Int         @id @default(autoincrement())
+  customer_id   Int?
+  model_code    String      @db.VarChar(30)
+  selections    Json        @default("{}")
+  supply_price  Int?
+  final_price   Int?
+  status        QuoteStatus @default(draft)
+  sales_user_id String?     @db.VarChar(120)
+  org_id        String?     @db.VarChar(30)
+  created_at    DateTime    @default(now())
+
+  customer   Customer?    @relation(fields: [customer_id], references: [id])
+  model      VehicleModel @relation(fields: [model_code], references: [code])
+  sales_user User?        @relation("QuoteSales", fields: [sales_user_id], references: [email])
+  org        Org?         @relation("QuoteOrg", fields: [org_id], references: [code])
+  order      Order?
+
+  @@map("quote")
+}
+
+model Order {
+  id           Int       @id @default(autoincrement())
+  quote_id     Int       @unique
+  status       String    @default("PENDING") @db.VarChar(30)
+  maker_org_id String?   @db.VarChar(30)
+  assigned_at  DateTime?
+  created_at   DateTime  @default(now())
+
+  quote     Quote        @relation(fields: [quote_id], references: [id])
+  maker_org Org?         @relation("OrderMakerOrg", fields: [maker_org_id], references: [code])
+  options   OrderOption[]
+  documents Document[]
+
+  @@map("order")
+}
+
+model OrderOption {
+  id         Int    @id @default(autoincrement())
+  order_id   Int
+  group_code String @db.VarChar(40)
+  value_code String @db.VarChar(40)
+
+  order Order       @relation(fields: [order_id], references: [id])
+  value OptionValue @relation(fields: [value_code], references: [code])
+
+  @@unique([order_id, group_code])
+  @@map("order_option")
+}
+
+enum DocStatus {
+  pending
+  done
+  na
+}
+
+model Document {
+  id       Int       @id @default(autoincrement())
+  order_id Int
+  name     String    @db.VarChar(60)
+  status   DocStatus @default(pending)
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@map("document")
+}
+
+// ─── C, D2 보류 — TODO 2단계 ───────────────────────────────────────────────
+// material · part · bom_line · drawing
+// ERD 안정 후 추가

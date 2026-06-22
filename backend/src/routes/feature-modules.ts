@@ -1,13 +1,24 @@
 import { Router } from 'express';
 import { rbac } from '../middleware/rbac.js';
+import { prisma } from '../lib/prisma.js';
 import { MOCK_FEATURE_MODULES } from '../data/auth-mock.js';
 
 export const featureModulesRouter = Router();
 
 /**
  * GET /feature-modules
- * 기능 모듈 카탈로그 전체 반환. 관리자가 권한 토글 UI에서 참조.
+ * DB 가용 시 Prisma 조회, 아니면 mock 폴백.
  */
-featureModulesRouter.get('/', rbac('ADMIN'), (_req, res): void => {
+featureModulesRouter.get('/', rbac('ADMIN'), async (_req, res): Promise<void> => {
+  if (prisma) {
+    try {
+      const modules = await prisma.featureModule.findMany({
+        where: { active: true },
+        orderBy: { sort_order: 'asc' },
+      });
+      res.json({ data: modules });
+      return;
+    } catch { /* DB 오류 시 mock 폴백 */ }
+  }
   res.json({ data: MOCK_FEATURE_MODULES });
 });
