@@ -1,0 +1,43 @@
+:root {
+  --lime: #C8D200;
+  --dark: #1A1A1A;
+  --bg: #FFF;
+  --body: #333;
+  --muted: #8A8F98;
+  --line: #E6E8EB;
+  --card: #F6F7F4;
+  --warn: #B3471F;
+  --warnbg: #FFF3E8;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, 'Apple SD Gothic Neo', Arial, sans-serif;
+  color: var(--body);
+  background: var(--bg);
+}
+
+select, input[type='text'] {
+  width: 100%;
+  font-size: 13px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--body);
+  font-family: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
