@@ -56,7 +56,8 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
     return;
   }
 
-  if (user.status !== 'active' || !user.active) {
+  // suspended or deactivated → block
+  if (user.status === 'suspended' || !user.active) {
     res.status(403).json({ error: { code: 'ACCOUNT_INACTIVE', message: '비활성 계정입니다. 관리자에게 문의하세요.' } });
     return;
   }
@@ -80,8 +81,10 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
     return;
   }
 
-  // Success: reset lockout state
-  await prisma.user.update({ where: { email }, data: { login_attempts: 0, locked_until: null } });
+  // Success: reset lockout state; invited → active on first login
+  const updateData: Record<string, unknown> = { login_attempts: 0, locked_until: null };
+  if (user.status === 'invited') updateData['status'] = 'active';
+  await prisma.user.update({ where: { email }, data: updateData });
 
   const token = signToken({ email: user.email, role: user.role, org_code: user.org_code });
   res.cookie(COOKIE_NAME, token, cookieOpts());

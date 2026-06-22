@@ -27,11 +27,16 @@ function safeUser(u: { email: string; org_code: string; role: string; name: stri
 
 usersRouter.get('/', rbac('ADMIN'), async (_req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
-  const users = await prisma.user.findMany({
-    orderBy: { created_at: 'desc' },
-    include: { org: { select: { code: true, name: true, type: true } } },
-  });
-  res.json({ data: users.map(safeUser) });
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { created_at: 'desc' },
+      include: { org: { select: { code: true, name: true, type: true } } },
+    });
+    res.json({ data: users.map(safeUser) });
+  } catch (e) {
+    console.error('[GET /users]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '사용자 목록 조회 중 오류가 발생했습니다.' } });
+  }
 });
 
 // ── POST /users — 계정 발급 ───────────────────────────────────────────────
@@ -72,7 +77,8 @@ usersRouter.post('/', rbac('ADMIN'), async (req: Request, res): Promise<void> =>
     if ((e as { code?: string }).code === 'P2002') {
       res.status(409).json({ error: { code: 'CONFLICT', message: '이미 존재하는 이메일입니다.' } });
     } else {
-      throw e;
+      console.error('[POST /users]', e);
+      res.status(500).json({ error: { code: 'INTERNAL', message: '계정 생성 중 오류가 발생했습니다.' } });
     }
   }
 });
@@ -91,12 +97,17 @@ usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<v
 
   if (Object.keys(data).length === 0) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '변경할 필드 없음' } }); return; }
 
-  const user = await prisma.user.update({
-    where: { email },
-    data,
-    include: { org: { select: { code: true, name: true, type: true } } },
-  });
-  res.json({ data: safeUser(user) });
+  try {
+    const user = await prisma.user.update({
+      where: { email },
+      data,
+      include: { org: { select: { code: true, name: true, type: true } } },
+    });
+    res.json({ data: safeUser(user) });
+  } catch (e) {
+    console.error('[PATCH /users/:email]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '사용자 수정 중 오류가 발생했습니다.' } });
+  }
 });
 
 // ── POST /users/:email/reset-password ─────────────────────────────────────
@@ -108,10 +119,14 @@ usersRouter.post('/:email/reset-password', rbac('ADMIN'), async (req: Request, r
   const tempPw = generateTempPassword();
   const hash   = await hashPassword(tempPw);
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
-
-  await prisma.user.update({ where: { email }, data: { password_hash: hash, must_change_pw: true } });
-  // temp_password returned ONCE — never stored in plaintext
-  res.json({ data: { temp_password: tempPw } });
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
+    await prisma.user.update({ where: { email }, data: { password_hash: hash, must_change_pw: true } });
+    // temp_password returned ONCE — never stored in plaintext
+    res.json({ data: { temp_password: tempPw } });
+  } catch (e) {
+    console.error('[POST /users/:email/reset-password]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '비밀번호 초기화 중 오류가 발생했습니다.' } });
+  }
 });

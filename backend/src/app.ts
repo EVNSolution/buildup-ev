@@ -16,6 +16,8 @@ export function createApp() {
   const app = express();
   app.use(express.json());
   app.use(cookieParser());
+  // BigInt → Number (Prisma의 BigInt 컬럼이 JSON.stringify를 막는 문제 해결)
+  app.set('json replacer', (_: string, v: unknown) => typeof v === 'bigint' ? Number(v) : v);
   app.use(injectJwtAuth);
 
   app.use('/api/v1/auth', authRouter);

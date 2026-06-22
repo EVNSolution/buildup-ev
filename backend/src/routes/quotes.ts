@@ -101,12 +101,17 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
     };
   }
 
-  const quotes = await prisma.quote.findMany({
-    where,
-    orderBy: { created_at: 'desc' },
-    include: { customer: { select: { id: true, name: true } } },
-  });
-  res.json({ data: quotes });
+  try {
+    const quotes = await prisma.quote.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      include: { customer: { select: { id: true, name: true } } },
+    });
+    res.json({ data: quotes });
+  } catch (e) {
+    console.error('[GET /quotes]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 목록 조회 중 오류가 발생했습니다.' } });
+  }
 });
 
 // ── POST /quotes/calculate — 미저장 계산 ─────────────────────────────────
@@ -124,13 +129,18 @@ quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promis
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
-  const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear());
-  const result = calcPrice(params);
-  if (result.status === 'unsupported') {
-    res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
-    return;
+  try {
+    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear());
+    const result = calcPrice(params);
+    if (result.status === 'unsupported') {
+      res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
+      return;
+    }
+    res.json({ data: result });
+  } catch (e) {
+    console.error('[POST /quotes/calculate]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 계산 중 오류가 발생했습니다.' } });
   }
-  res.json({ data: result });
 });
 
 // ── POST /quotes — 서버 재계산 + 스냅샷 저장 ─────────────────────────────
@@ -240,19 +250,23 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), async (req: Request, res): Pro
     return;
   }
 
-  const [updatedQuote, order] = await prisma.$transaction([
-    prisma.quote.update({ where: { id }, data: { status: 'confirmed' } }),
-    prisma.order.create({
-      data: {
-        quote_id:    id,
-        status:      '제작착수',
-        maker_org_id,
-        assigned_at: new Date(),
-      },
-    }),
-  ]);
-
-  res.json({ data: { quote: updatedQuote, order } });
+  try {
+    const [updatedQuote, order] = await prisma.$transaction([
+      prisma.quote.update({ where: { id }, data: { status: 'confirmed' } }),
+      prisma.order.create({
+        data: {
+          quote_id:    id,
+          status:      '제작착수',
+          maker_org_id,
+          assigned_at: new Date(),
+        },
+      }),
+    ]);
+    res.json({ data: { quote: updatedQuote, order } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/confirm]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 확정 중 오류가 발생했습니다.' } });
+  }
 });
 
 // ── GET /quotes/:id ───────────────────────────────────────────────────────
@@ -267,13 +281,18 @@ quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Prom
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
     return;
   }
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: { customer: true },
-  });
-  if (!quote) {
-    res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
-    return;
+  try {
+    const quote = await prisma.quote.findUnique({
+      where: { id },
+      include: { customer: true },
+    });
+    if (!quote) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+      return;
+    }
+    res.json({ data: quote });
+  } catch (e) {
+    console.error('[GET /quotes/:id]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 조회 중 오류가 발생했습니다.' } });
   }
-  res.json({ data: quote });
 });
