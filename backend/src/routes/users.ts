@@ -1,0 +1,117 @@
+import { Router } from 'express';
+import type { Request } from 'express';
+import { rbac } from '../middleware/rbac.js';
+import { prisma } from '../lib/prisma.js';
+import { hashPassword, generateTempPassword } from '../lib/password.js';
+import type { Role } from '@buildup-ev/shared/types';
+
+export const usersRouter = Router();
+
+function safeUser(u: { email: string; org_code: string; role: string; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; created_at: Date; org?: { code: string; name: string; type: string } }) {
+  return {
+    email: u.email,
+    org_code: u.org_code,
+    role: u.role,
+    name: u.name,
+    phone: u.phone ?? undefined,
+    status: u.status,
+    must_change_pw: u.must_change_pw,
+    invited_by: u.invited_by ?? undefined,
+    active: u.active,
+    created_at: u.created_at,
+    org: u.org,
+  };
+}
+
+// ── GET /users ────────────────────────────────────────────────────────────
+
+usersRouter.get('/', rbac('ADMIN'), async (_req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
+  const users = await prisma.user.findMany({
+    orderBy: { created_at: 'desc' },
+    include: { org: { select: { code: true, name: true, type: true } } },
+  });
+  res.json({ data: users.map(safeUser) });
+});
+
+// ── POST /users — 계정 발급 ───────────────────────────────────────────────
+
+usersRouter.post('/', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
+  const { email, name, role, org_code } = req.body as { email?: string; name?: string; role?: string; org_code?: string };
+  if (!email || !name || !role || !org_code) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: 'email, name, role, org_code 필수' } });
+    return;
+  }
+  if (!['SALES', 'ADMIN', 'MAKER'].includes(role)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 역할' } });
+    return;
+  }
+
+  const tempPw = generateTempPassword();
+  const hash   = await hashPassword(tempPw);
+
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name,
+        role: role as Role,
+        org_code,
+        status: 'invited',
+        must_change_pw: true,
+        active: true,
+        password_hash: hash,
+        invited_by: req.auth?.email,
+      },
+      include: { org: { select: { code: true, name: true, type: true } } },
+    });
+    // temp_password returned ONCE — never stored in plaintext
+    res.status(201).json({ data: { user: safeUser(user), temp_password: tempPw } });
+  } catch (e: unknown) {
+    if ((e as { code?: string }).code === 'P2002') {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '이미 존재하는 이메일입니다.' } });
+    } else {
+      throw e;
+    }
+  }
+});
+
+// ── PATCH /users/:email ───────────────────────────────────────────────────
+
+usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
+  const { email } = req.params as { email: string };
+  const { role, org_code, status } = req.body as { role?: string; org_code?: string; status?: string };
+
+  const data: Record<string, unknown> = {};
+  if (role)     { if (!['SALES','ADMIN','MAKER'].includes(role)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 역할' } }); return; } data['role'] = role; }
+  if (org_code) data['org_code'] = org_code;
+  if (status)   { if (!['active','invited','suspended'].includes(status)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 상태' } }); return; } data['status'] = status; }
+
+  if (Object.keys(data).length === 0) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '변경할 필드 없음' } }); return; }
+
+  const user = await prisma.user.update({
+    where: { email },
+    data,
+    include: { org: { select: { code: true, name: true, type: true } } },
+  });
+  res.json({ data: safeUser(user) });
+});
+
+// ── POST /users/:email/reset-password ─────────────────────────────────────
+
+usersRouter.post('/:email/reset-password', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
+  const { email } = req.params as { email: string };
+
+  const tempPw = generateTempPassword();
+  const hash   = await hashPassword(tempPw);
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
+
+  await prisma.user.update({ where: { email }, data: { password_hash: hash, must_change_pw: true } });
+  // temp_password returned ONCE — never stored in plaintext
+  res.json({ data: { temp_password: tempPw } });
+});

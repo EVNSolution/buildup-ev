@@ -8,9 +8,11 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
+import { authCookie } from './helpers.js';
 
 const shouldSkip = !process.env['DATABASE_URL'];
-const SALES = 'sales1@evnsolution.com';
+const SALES_COOKIE = authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1');
+
 const REEFER_SELECTIONS = {
   TRIM: 'TRIM_PLUS',
   BODYTYPE: 'BODY_REEFER',
@@ -28,7 +30,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/models/:code/pricing-bundle', () => {
   it('PV5_OPENBED — groups·rules·option_prices·door·tax·subsidy_national 포함', async () => {
     const res = await request(app)
       .get('/api/v1/models/PV5_OPENBED/pricing-bundle')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(200);
 
     const { data } = res.body;
@@ -48,7 +50,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/models/:code/pricing-bundle', () => {
   it('존재하지 않는 차종 → 404', async () => {
     await request(app)
       .get('/api/v1/models/UNKNOWN/pricing-bundle')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(404);
   });
 
@@ -63,7 +65,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/subsidy/local', () => {
   it('경기 남양주시 2026 → amount=3450000', async () => {
     const res = await request(app)
       .get('/api/v1/subsidy/local?region=경기 남양주시&year=2026')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(200);
 
     expect(res.body.data.amount).toBe(3_450_000);
@@ -73,7 +75,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/subsidy/local', () => {
   it('없는 지역 → data: null', async () => {
     const res = await request(app)
       .get('/api/v1/subsidy/local?region=없는지역시')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(200);
 
     expect(res.body.data).toBeNull();
@@ -82,7 +84,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/subsidy/local', () => {
   it('region 없음 → 400', async () => {
     await request(app)
       .get('/api/v1/subsidy/local')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .expect(400);
   });
 });
@@ -93,7 +95,7 @@ describe.skipIf(shouldSkip)('POST /api/v1/quotes', () => {
   it('냉동 옵션 → 201 + quote_id + real_price=46471818(±1)', { timeout: 15_000 }, async () => {
     const res = await request(app)
       .post('/api/v1/quotes')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .send({ model_code: 'PV5_OPENBED', year: 2026, selections: REEFER_SELECTIONS, customer: CUSTOMER })
       .expect(201);
 
@@ -105,7 +107,7 @@ describe.skipIf(shouldSkip)('POST /api/v1/quotes', () => {
   it('BODY_DRY → 422 unsupported (저장 거부)', async () => {
     const res = await request(app)
       .post('/api/v1/quotes')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .send({
         model_code: 'PV5_OPENBED',
         selections: { ...REEFER_SELECTIONS, BODYTYPE: 'BODY_DRY' },
@@ -120,7 +122,7 @@ describe.skipIf(shouldSkip)('POST /api/v1/quotes', () => {
   it('필수 파라미터 누락 → 400', async () => {
     await request(app)
       .post('/api/v1/quotes')
-      .set('X-User', SALES)
+      .set('Cookie', SALES_COOKIE)
       .send({ model_code: 'PV5_OPENBED' })
       .expect(400);
   });

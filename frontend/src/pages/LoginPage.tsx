@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { Role } from '@shared/types/index'
@@ -9,55 +9,35 @@ const ROLE_HOME: Record<Role, string> = {
   MAKER: '/maker',
 }
 
-const SEED_ACCOUNTS: { email: string; role: Role; name: string; org: string }[] = [
-  { email: 'admin@evnsolution.com',  role: 'ADMIN', name: '관리자',  org: 'EV&Solution 본사' },
-  { email: 'sales1@evnsolution.com', role: 'SALES', name: '영업담당', org: 'EV&Solution 본사' },
-  { email: 'maker1@partner.com',     role: 'MAKER', name: '특장담당', org: '△△특장' },
-]
-
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'SALES', label: '영업 (Sales)' },
-  { value: 'ADMIN', label: '관리자 (Admin)' },
-  { value: 'MAKER', label: '특장사 (Maker)' },
-]
-
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, session, loading } = useAuth()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // custom form
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role>('SALES')
-
-  async function handleSeedLogin(acc: typeof SEED_ACCOUNTS[0]) {
-    setLoading(true)
-    setError('')
-    try {
-      await login(acc.email, acc.role)
-      navigate(ROLE_HOME[acc.role], { replace: true })
-    } catch {
-      setError('로그인 실패')
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (!loading && session) {
+      navigate(ROLE_HOME[session.user.role] ?? '/sales', { replace: true })
     }
-  }
+  }, [session, loading, navigate])
 
-  async function handleCustomLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim()) { setError('이메일을 입력해 주세요.'); return }
-    setLoading(true)
+    if (!email.trim() || !password) { setError('이메일과 비밀번호를 입력해 주세요.'); return }
+    setSubmitting(true)
     setError('')
     try {
-      await login(email.trim(), role)
-      navigate(ROLE_HOME[role], { replace: true })
-    } catch {
-      setError('로그인 실패')
+      await login(email.trim(), password)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '로그인 실패')
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
+
+  if (loading) return null
 
   return (
     <div style={styles.page}>
@@ -65,58 +45,38 @@ export function LoginPage() {
         <div style={styles.logo}>EV<b style={styles.logoBold}>&</b>Solution</div>
         <p style={styles.sub}>buildup-ev 플랫폼</p>
 
-        <div style={styles.section}>
-          <div style={styles.sectionLabel}>시드 계정으로 바로 로그인</div>
-          <div style={styles.seedList}>
-            {SEED_ACCOUNTS.map(acc => (
-              <button
-                key={acc.email}
-                style={styles.seedBtn}
-                onClick={() => handleSeedLogin(acc)}
-                disabled={loading}
-              >
-                <span style={styles.seedRole}>{acc.role}</span>
-                <span style={styles.seedName}>{acc.name}</span>
-                <span style={styles.seedEmail}>{acc.email}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={styles.divider}><span>또는 직접 입력</span></div>
-
-        <form onSubmit={handleCustomLogin} style={styles.form}>
+        <form onSubmit={handleSubmit} style={styles.form}>
           <div style={styles.fieldRow}>
             <label style={styles.label}>이메일</label>
             <input
-              type="text"
+              type="email"
               placeholder="email@example.com"
               value={email}
               onChange={e => setEmail(e.target.value)}
               style={styles.input}
-              disabled={loading}
+              disabled={submitting}
+              autoComplete="email"
             />
           </div>
           <div style={styles.fieldRow}>
-            <label style={styles.label}>역할</label>
-            <select
-              value={role}
-              onChange={e => setRole(e.target.value as Role)}
+            <label style={styles.label}>비밀번호</label>
+            <input
+              type="password"
+              placeholder="비밀번호"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
               style={styles.input}
-              disabled={loading}
-            >
-              {ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+              disabled={submitting}
+              autoComplete="current-password"
+            />
           </div>
           {error && <div style={styles.error}>{error}</div>}
-          <button type="submit" style={styles.loginBtn} disabled={loading}>
-            {loading ? '로그인 중…' : '로그인'}
+          <button type="submit" style={styles.loginBtn} disabled={submitting}>
+            {submitting ? '로그인 중…' : '로그인'}
           </button>
         </form>
 
-        <div style={styles.notice}>
-          계정은 관리자가 발급합니다. 회원가입 없음.
-        </div>
+        <div style={styles.notice}>계정은 관리자가 발급합니다. 회원가입 없음.</div>
       </div>
     </div>
   )
@@ -129,35 +89,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     background: '#fff', borderRadius: 16, padding: '36px 32px',
-    width: 420, maxWidth: '94vw',
+    width: 400, maxWidth: '94vw',
     boxShadow: '0 4px 24px rgba(0,0,0,.08)',
   },
   logo: { fontWeight: 800, fontSize: 22, color: 'var(--dark)', marginBottom: 4 },
   logoBold: { color: 'var(--lime)' },
-  sub: { margin: '0 0 24px', fontSize: 13, color: 'var(--muted)' },
-  section: { marginBottom: 16 },
-  sectionLabel: { fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 },
-  seedList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  seedBtn: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 14px', border: '1px solid var(--line)',
-    borderRadius: 10, background: '#fff', cursor: 'pointer',
-    textAlign: 'left',
-  },
-  seedRole: {
-    fontSize: 11, fontWeight: 700, background: 'var(--lime)',
-    color: 'var(--dark)', padding: '2px 8px', borderRadius: 12, flexShrink: 0,
-  },
-  seedName: { fontSize: 13, fontWeight: 600, color: 'var(--dark)', flexShrink: 0 },
-  seedEmail: { fontSize: 11.5, color: 'var(--muted)', marginLeft: 'auto' },
-  divider: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    margin: '20px 0', color: 'var(--muted)', fontSize: 12,
-  },
-  form: { display: 'flex', flexDirection: 'column', gap: 12 },
+  sub: { margin: '0 0 28px', fontSize: 13, color: 'var(--muted)' },
+  form: { display: 'flex', flexDirection: 'column', gap: 14 },
   fieldRow: {},
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
-  input: { width: '100%' },
+  input: { width: '100%', boxSizing: 'border-box' as const },
   error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', padding: '7px 10px', borderRadius: 8 },
   loginBtn: {
     padding: '12px', border: 'none', borderRadius: 9, cursor: 'pointer',
