@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@buildup-ev/shared/load-calc": ["../shared/load-calc/core.ts"],
+      "@buildup-ev/shared/types": ["../shared/types/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}
