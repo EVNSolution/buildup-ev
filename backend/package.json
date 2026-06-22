@@ -6,9 +6,16 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "express": "^4.21.2"
   },
   "devDependencies": {
@@ -16,6 +23,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.15.21",
     "@types/supertest": "^6.0.2",
+    "prisma": "^5.22.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.8.3",

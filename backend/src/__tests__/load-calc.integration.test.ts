@@ -27,12 +27,11 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
 
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('X-Role', 'SALES')
+      .set('X-User', 'sales1@evnsolution.com')
       .send(PV5_INPUT)
       .expect(200);
 
     expect(res.body.data).toEqual(expected);
-    // 핵심 수치 명시 검증
     expect(res.body.data.loaded.front_kg).toBe(1180);
     expect(res.body.data.loaded.rear_kg).toBe(1455);
     expect(res.body.data.gvw_kg).toBe(2635);
@@ -42,7 +41,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
   it('필수 필드 누락(wheelbase_mm 없음) → 400', async () => {
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('X-Role', 'SALES')
+      .set('X-User', 'sales1@evnsolution.com')
       .send({
         curb_axle_front_kg: 1105,
         curb_axle_rear_kg: 800,
@@ -53,14 +52,14 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
     expect(res.body.error.code).toBe('BAD_INPUT');
   });
 
-  it('X-Role 헤더 없음 → 403', async () => {
+  it('X-User 헤더 없음 → 403', async () => {
     await request(app).post('/api/v1/load-calc').send(PV5_INPUT).expect(403);
   });
 
   it('MAKER 역할도 허용', async () => {
     await request(app)
       .post('/api/v1/load-calc')
-      .set('X-Role', 'MAKER')
+      .set('X-User', 'maker1@partner.com')
       .send(PV5_INPUT)
       .expect(200);
   });

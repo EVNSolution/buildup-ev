@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@buildup-ev/shared/load-calc': path.resolve(__dirname, '../shared/load-calc/core.ts'),
+      '@buildup-ev/shared/pricing': path.resolve(__dirname, '../shared/pricing/core.ts'),
       '@buildup-ev/shared/types': path.resolve(__dirname, '../shared/types/index.ts'),
     },
   },
