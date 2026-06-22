@@ -60,3 +60,7 @@ export async function updateUser(email: string, data: { role?: string; org_code?
 export async function resetUserPassword(email: string): Promise<{ temp_password: string }> {
   return apiFetch(`/api/v1/users/${encodeURIComponent(email)}/reset-password`, { method: 'POST' })
 }
+
+export async function deleteUser(email: string): Promise<void> {
+  await apiFetch<{ ok: boolean }>(`/api/v1/users/${encodeURIComponent(email)}`, { method: 'DELETE' })
+}
