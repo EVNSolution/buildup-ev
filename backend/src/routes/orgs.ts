@@ -16,6 +16,11 @@ orgsRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
   const where: { type?: OrgType; active: boolean } = { active: true };
   if (type) where.type = type.toUpperCase() as OrgType;
 
-  const orgs = await prisma.org.findMany({ where, orderBy: { name: 'asc' } });
-  res.json({ data: orgs });
+  try {
+    const orgs = await prisma.org.findMany({ where, orderBy: { name: 'asc' } });
+    res.json({ data: orgs });
+  } catch (e) {
+    console.error('[GET /orgs]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '조직 목록을 불러오는 중 오류가 발생했습니다.' } });
+  }
 });

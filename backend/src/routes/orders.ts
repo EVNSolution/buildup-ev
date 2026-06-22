@@ -36,21 +36,26 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res)
     };
   }
 
-  const orders = await prisma.order.findMany({
-    where,
-    orderBy: { created_at: 'desc' },
-    include: {
-      quote: {
-        select: {
-          model_code: true, supply_price: true, final_price: true,
-          status: true, customer_id: true,
-          customer: { select: { id: true, name: true } },
+  try {
+    const orders = await prisma.order.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      include: {
+        quote: {
+          select: {
+            model_code: true, supply_price: true, final_price: true,
+            status: true, customer_id: true,
+            customer: { select: { id: true, name: true } },
+          },
         },
+        maker_org: { select: { code: true, name: true } },
       },
-      maker_org: { select: { code: true, name: true } },
-    },
-  });
-  res.json({ data: orders });
+    });
+    res.json({ data: orders });
+  } catch (e) {
+    console.error('[GET /orders]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '주문 목록을 불러오는 중 오류가 발생했습니다.' } });
+  }
 });
 
 // ── GET /orders/:id ───────────────────────────────────────────────────────
@@ -65,18 +70,23 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, r
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } });
     return;
   }
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      quote: { include: { customer: true } },
-      maker_org: true,
-    },
-  });
-  if (!order) {
-    res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
-    return;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        quote: { include: { customer: true } },
+        maker_org: true,
+      },
+    });
+    if (!order) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
+      return;
+    }
+    res.json({ data: order });
+  } catch (e) {
+    console.error('[GET /orders/:id]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '주문 조회 중 오류가 발생했습니다.' } });
   }
-  res.json({ data: order });
 });
 
 // ── PATCH /orders/:id/status — 상태 전이 (ADMIN만, 앞으로만) ─────────────
@@ -100,24 +110,29 @@ ordersRouter.patch('/:id/status', rbac('ADMIN'), async (req: Request, res): Prom
     return;
   }
 
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) {
-    res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
-    return;
+  try {
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
+      return;
+    }
+
+    const currentIdx = ORDER_STATUS_SEQ.indexOf(order.status as OrderStatusStr);
+    const newIdx     = ORDER_STATUS_SEQ.indexOf(status as OrderStatusStr);
+
+    if (newIdx <= currentIdx) {
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: `상태는 앞으로만 진행 가능 (현재: ${order.status})` },
+      });
+      return;
+    }
+
+    const updated = await prisma.order.update({ where: { id }, data: { status } });
+    res.json({ data: updated });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/status]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '상태 변경 중 오류가 발생했습니다.' } });
   }
-
-  const currentIdx = ORDER_STATUS_SEQ.indexOf(order.status as OrderStatusStr);
-  const newIdx     = ORDER_STATUS_SEQ.indexOf(status as OrderStatusStr);
-
-  if (newIdx <= currentIdx) {
-    res.status(409).json({
-      error: { code: 'CONFLICT', message: `상태는 앞으로만 진행 가능 (현재: ${order.status})` },
-    });
-    return;
-  }
-
-  const updated = await prisma.order.update({ where: { id }, data: { status } });
-  res.json({ data: updated });
 });
 
 // ── GET /orders/:orderId/documents ────────────────────────────────────────
@@ -132,6 +147,11 @@ ordersRouter.get('/:orderId/documents', rbac('ADMIN', 'MAKER'), async (req: Requ
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } });
     return;
   }
-  const docs = await prisma.document.findMany({ where: { order_id: orderId } });
-  res.json({ data: docs });
+  try {
+    const docs = await prisma.document.findMany({ where: { order_id: orderId } });
+    res.json({ data: docs });
+  } catch (e) {
+    console.error('[GET /orders/:orderId/documents]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '문서 조회 중 오류가 발생했습니다.' } });
+  }
 });
