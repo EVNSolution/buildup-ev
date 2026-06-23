@@ -269,7 +269,10 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), async (req: Request, res): Pro
   }
 });
 
-// ── DELETE /quotes/:id — 견적 삭제 (SALES=자기 draft, ADMIN=전체 draft) ──
+// ── DELETE /quotes/:id — 견적 삭제 ───────────────────────────────────────
+// draft:     SALES=본인, ADMIN=전체 삭제 가능
+// confirmed: is_master만 삭제 가능 (연결된 order·order_option·document 트랜잭션 cascade)
+// 그 외:     삭제 불가
 
 quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
@@ -287,16 +290,40 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
       return;
     }
-    if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
-      res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
+
+    if (quote.status === 'draft') {
+      // SALES는 본인 draft만
+      if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
+        return;
+      }
+      await prisma.quote.delete({ where: { id } });
+      res.json({ data: { ok: true } });
       return;
     }
-    if (quote.status !== 'draft') {
-      res.status(409).json({ error: { code: 'CONFLICT', message: '주문으로 전환된 견적은 삭제할 수 없습니다' } });
+
+    if (quote.status === 'confirmed') {
+      // confirmed는 is_master만
+      if (!req.auth!.is_master) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정 견적은 마스터 관리자만 삭제 가능' } });
+        return;
+      }
+      // 연결된 order → order_option + document → order → quote 트랜잭션 cascade 삭제
+      const order = await prisma.order.findUnique({ where: { quote_id: id } });
+      await prisma.$transaction(async (tx) => {
+        if (order) {
+          await tx.document.deleteMany({ where: { order_id: order.id } });
+          await tx.orderOption.deleteMany({ where: { order_id: order.id } });
+          await tx.order.delete({ where: { id: order.id } });
+        }
+        await tx.quote.delete({ where: { id } });
+      });
+      res.json({ data: { ok: true } });
       return;
     }
-    await prisma.quote.delete({ where: { id } });
-    res.json({ data: { ok: true } });
+
+    // ordered/expired 등 — 삭제 불가
+    res.status(409).json({ error: { code: 'CONFLICT', message: '이 상태의 견적은 삭제할 수 없습니다' } });
   } catch (e) {
     console.error('[DELETE /quotes/:id]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '견적 삭제 중 오류가 발생했습니다.' } });

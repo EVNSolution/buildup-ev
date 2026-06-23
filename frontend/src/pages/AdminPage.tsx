@@ -365,6 +365,9 @@ function AccountsTab() {
 
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
 function QuotesTab() {
+  const { session } = useAuth()
+  const isMaster = session?.user.is_master ?? false
+
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
@@ -406,8 +409,12 @@ function QuotesTab() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
+  async function handleDelete(id: number, status: string) {
+    if (status === 'confirmed') {
+      if (!window.confirm(`견적 #${id}\n\n확정 견적과 연결된 주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`)) return
+    } else {
+      if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
+    }
     setDeletingId(id); setErr('')
     try {
       await deleteQuote(id)
@@ -472,11 +479,13 @@ function QuotesTab() {
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                       )}
-                      {q.status === 'draft' && (
+                      {/* draft: 누구나 삭제 가능 / confirmed: is_master만 활성 */}
+                      {(q.status === 'draft' || (q.status === 'confirmed' && isMaster)) && (
                         <button
-                          style={deletingId === q.id ? qt.deleteBtnDisabled : qt.deleteBtn}
+                          style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status === 'confirmed' ? qt.deleteBtnStrong : qt.deleteBtn)}
                           disabled={deletingId === q.id}
-                          onClick={() => handleDelete(q.id)}
+                          onClick={() => handleDelete(q.id, q.status)}
+                          title={q.status === 'confirmed' ? '확정 견적 삭제 — 연결 주문·서류도 함께 삭제됩니다' : '견적 삭제'}
                         >
                           {deletingId === q.id ? '…' : '삭제'}
                         </button>
@@ -677,6 +686,7 @@ const qt: Record<string, React.CSSProperties> = {
   badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontWeight: 700, fontSize: 12 },
+  deleteBtnStrong: { padding: '5px 12px', border: '2px solid #b71c1c', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontWeight: 700, fontSize: 12 },
   deleteBtnDisabled: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontWeight: 700, fontSize: 12 },
 }
 
