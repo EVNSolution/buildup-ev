@@ -11,9 +11,10 @@ interface Props {
   orders: ApiOrder[]
   onRefresh: () => void
   onError: (msg: string) => void
+  onCardClick?: (orderId: number) => void
 }
 
-export function OrderKanbanBoard({ orders, onRefresh, onError }: Props) {
+export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick }: Props) {
   const [movingId, setMovingId] = useState<number | null>(null)
 
   async function handleMove(order: ApiOrder, direction: 'next' | 'prev') {
@@ -58,7 +59,11 @@ export function OrderKanbanBoard({ orders, onRefresh, onError }: Props) {
               const isLast  = idx === ORDER_STATUS_SEQ.length - 1
               const busy    = movingId === order.id
               return (
-                <div key={order.id} style={kb.card}>
+                <div
+                  key={order.id}
+                  style={{ ...kb.card, cursor: onCardClick ? 'pointer' : 'default' }}
+                  onClick={e => { if ((e.target as HTMLElement).tagName !== 'BUTTON') onCardClick?.(order.id) }}
+                >
                   <div style={kb.cardId}>주문 #{order.id}</div>
                   <div style={kb.cardCustomer}>{order.quote.customer?.name ?? '고객없음'}</div>
                   <div style={kb.cardModel}>{order.quote.model_code}</div>

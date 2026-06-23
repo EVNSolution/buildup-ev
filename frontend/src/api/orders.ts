@@ -1,4 +1,4 @@
-import type { ApiOrder, Org } from '@shared/types/index'
+import type { ApiOrder, ApiOrderMakerDetail, Org } from '@shared/types/index'
 
 export async function fetchOrders(
   params: { status?: string; from?: string; to?: string },
@@ -25,6 +25,13 @@ export async function updateOrderStatus(orderId: number, status: string): Promis
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
     throw new Error(body.error?.message ?? `상태 변경 실패: ${res.status}`)
   }
+}
+
+export async function fetchOrderDetail(id: number): Promise<ApiOrderMakerDetail> {
+  const res = await fetch(`/api/v1/orders/${id}`, { credentials: 'include' })
+  if (!res.ok) throw new Error(`주문 상세 로드 실패: ${res.status}`)
+  const body = await res.json() as { data: ApiOrderMakerDetail }
+  return body.data
 }
 
 export async function fetchMakerOrgs(): Promise<Org[]> {

@@ -59,6 +59,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res)
 });
 
 // ── GET /orders/:id ───────────────────────────────────────────────────────
+// MAKER: 자기 org 스코프 강제 + 가격·영업 필드 제외, 사양·서류만 반환
 
 ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
@@ -71,11 +72,81 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, r
     return;
   }
   try {
+    const auth = req.auth!;
+
+    if (auth.role === 'MAKER') {
+      // MAKER: 사양·서류만 — 가격·영업 필드 제외
+      const order = await prisma.order.findUnique({
+        where: { id },
+        include: {
+          quote: { select: { model_code: true, selections: true, customer: { select: { name: true } } } },
+          documents: { orderBy: { id: 'asc' } },
+          options: { include: { value: { include: { group: { select: { code: true, name: true } } } } } },
+        },
+      });
+      if (!order) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
+        return;
+      }
+      if (order.maker_org_id !== auth.org_code) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
+        return;
+      }
+
+      // 옵션 사양 해석: OrderOption 있으면 우선, 없으면 quote.selections JSON 파싱
+      type ResolvedOpt = { id: number; group_code: string; group_name: string; value_code: string; value_name: string };
+      let options: ResolvedOpt[] = [];
+      if (order.options.length > 0) {
+        options = order.options.map(o => ({
+          id: o.id,
+          group_code: o.group_code,
+          group_name: o.value.group.name,
+          value_code: o.value_code,
+          value_name: o.value.name,
+        }));
+      } else {
+        const selections = (order.quote.selections ?? {}) as Record<string, string>;
+        const valueCodes = Object.values(selections).filter(Boolean);
+        if (valueCodes.length > 0) {
+          const values = await prisma.optionValue.findMany({
+            where: { code: { in: valueCodes } },
+            include: { group: { select: { code: true, name: true } } },
+          });
+          const vMap = new Map(values.map(v => [v.code, v]));
+          options = Object.entries(selections)
+            .filter(([, vCode]) => vMap.has(vCode))
+            .map(([gCode, vCode], idx) => {
+              const v = vMap.get(vCode)!;
+              return { id: idx, group_code: gCode, group_name: v.group.name, value_code: vCode, value_name: v.name };
+            });
+        }
+      }
+
+      res.json({
+        data: {
+          id: order.id,
+          quote_id: order.quote_id,
+          status: order.status,
+          maker_org_id: order.maker_org_id,
+          assigned_at: order.assigned_at,
+          created_at: order.created_at,
+          model_code: order.quote.model_code,
+          customer_name: order.quote.customer?.name ?? null,
+          options,
+          documents: order.documents,
+        },
+      });
+      return;
+    }
+
+    // ADMIN / SALES: 기존 전체 응답 + options·documents 추가
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
         quote: { include: { customer: true } },
         maker_org: true,
+        documents: { orderBy: { id: 'asc' } },
+        options: { include: { value: { include: { group: { select: { code: true, name: true } } } } } },
       },
     });
     if (!order) {
@@ -144,7 +215,15 @@ ordersRouter.get('/:orderId/documents', rbac('ADMIN', 'MAKER'), async (req: Requ
     return;
   }
   try {
-    const docs = await prisma.document.findMany({ where: { order_id: orderId } });
+    // MAKER: 자기 org 주문만
+    if (req.auth!.role === 'MAKER') {
+      const order = await prisma.order.findUnique({ where: { id: orderId }, select: { maker_org_id: true } });
+      if (!order || order.maker_org_id !== req.auth!.org_code) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
+        return;
+      }
+    }
+    const docs = await prisma.document.findMany({ where: { order_id: orderId }, orderBy: { id: 'asc' } });
     res.json({ data: docs });
   } catch (e) {
     console.error('[GET /orders/:orderId/documents]', e);

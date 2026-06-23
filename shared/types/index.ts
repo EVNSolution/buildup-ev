@@ -246,3 +246,31 @@ export interface ApiOrder {
   };
   maker_org: { code: string; name: string } | null;
 }
+
+export interface ApiOrderOption {
+  id: number;
+  group_code: string;
+  group_name: string;
+  value_code: string;
+  value_name: string;
+}
+
+export interface ApiDocument {
+  id: number;
+  name: string;
+  status: 'pending' | 'done' | 'na';
+}
+
+/** MAKER용 주문 상세 — 가격·영업 정보 제외, 제작에 필요한 사양·서류만 */
+export interface ApiOrderMakerDetail {
+  id: number;
+  quote_id: number;
+  status: string;
+  maker_org_id: string | null;
+  assigned_at: string | null;
+  created_at: string;
+  model_code: string;
+  customer_name: string | null;
+  options: ApiOrderOption[];
+  documents: ApiDocument[];
+}
