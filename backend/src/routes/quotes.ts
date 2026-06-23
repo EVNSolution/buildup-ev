@@ -269,6 +269,40 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), async (req: Request, res): Pro
   }
 });
 
+// ── DELETE /quotes/:id — 견적 삭제 (SALES=자기 draft, ADMIN=전체 draft) ──
+
+quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id } });
+    if (!quote) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+      return;
+    }
+    if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
+      return;
+    }
+    if (quote.status !== 'draft') {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '주문으로 전환된 견적은 삭제할 수 없습니다' } });
+      return;
+    }
+    await prisma.quote.delete({ where: { id } });
+    res.json({ data: { ok: true } });
+  } catch (e) {
+    console.error('[DELETE /quotes/:id]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 삭제 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── GET /quotes/:id ───────────────────────────────────────────────────────
 
 quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {

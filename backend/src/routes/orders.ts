@@ -89,9 +89,9 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, r
   }
 });
 
-// ── PATCH /orders/:id/status — 상태 전이 (ADMIN만, 앞으로만) ─────────────
+// ── PATCH /orders/:id/status — 상태 전이 (ADMIN=전체, MAKER=자기 org, 양방향) ─
 
-ordersRouter.patch('/:id/status', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -117,13 +117,9 @@ ordersRouter.patch('/:id/status', rbac('ADMIN'), async (req: Request, res): Prom
       return;
     }
 
-    const currentIdx = ORDER_STATUS_SEQ.indexOf(order.status as OrderStatusStr);
-    const newIdx     = ORDER_STATUS_SEQ.indexOf(status as OrderStatusStr);
-
-    if (newIdx <= currentIdx) {
-      res.status(409).json({
-        error: { code: 'CONFLICT', message: `상태는 앞으로만 진행 가능 (현재: ${order.status})` },
-      });
+    // MAKER는 자기 org 주문만 변경 가능
+    if (req.auth!.role === 'MAKER' && order.maker_org_id !== req.auth!.org_code) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 변경할 수 있습니다' } });
       return;
     }
 
