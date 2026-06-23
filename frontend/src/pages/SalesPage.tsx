@@ -259,7 +259,7 @@ export function SalesPage() {
   }
 
   const isUnsupported = liveCalc?.status === 'unsupported'
-  const displayCalc = savedQuote ? { status: 'ok' as const, ...savedQuote.pricing } : liveCalc
+  const displayCalc = savedQuote ? { ...savedQuote.pricing, status: 'ok' as const } : liveCalc
 
   if (bundleLoading) return <div style={styles.loading}>로딩 중…</div>
   if (!bundle) return <div style={styles.loading}>옵션 데이터 로드 실패</div>

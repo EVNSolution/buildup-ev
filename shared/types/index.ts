@@ -227,6 +227,7 @@ export interface ApiQuote {
   customer_id: number | null;
   created_at: string;
   customer: { id: number; name: string } | null;
+  order: { maker_org: { code: string; name: string } | null } | null;
 }
 
 export interface ApiOrder {

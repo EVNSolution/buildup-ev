@@ -485,6 +485,7 @@ function QuotesTab() {
                 <th style={qt.th}>영업</th>
                 <th style={qt.th}>실구매가</th>
                 <th style={qt.th}>상태</th>
+                <th style={qt.th}>특장사</th>
                 <th style={qt.th}>일시</th>
                 <th style={qt.th}>액션</th>
               </tr>
@@ -501,6 +502,7 @@ function QuotesTab() {
                       {QUOTE_STATUS_LABELS[q.status] ?? q.status}
                     </span>
                   </td>
+                  <td style={qt.tdMuted}>{q.order?.maker_org?.name ?? '—'}</td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
                     <div style={{ display: 'flex', gap: 6 }}>

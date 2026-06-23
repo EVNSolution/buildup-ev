@@ -105,7 +105,10 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
     const quotes = await prisma.quote.findMany({
       where,
       orderBy: { created_at: 'desc' },
-      include: { customer: { select: { id: true, name: true } } },
+      include: {
+        customer: { select: { id: true, name: true } },
+        order: { select: { maker_org: { select: { code: true, name: true } } } },
+      },
     });
     res.json({ data: quotes });
   } catch (e) {
