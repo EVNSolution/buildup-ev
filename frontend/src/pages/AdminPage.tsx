@@ -6,6 +6,7 @@ import { fetchQuotes, confirmQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
+import { PdfModal } from '../components/PdfModal'
 import { useAuth } from '../contexts/AuthContext'
 
 const ROLES: Role[] = ['SALES', 'ADMIN', 'MAKER']
@@ -408,6 +409,7 @@ function QuotesTab() {
   const [confirmError, setConfirmError] = useState('')
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -506,6 +508,10 @@ function QuotesTab() {
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        style={qt.pdfBtn}
+                        onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                      >견적서</button>
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                       )}
@@ -537,6 +543,13 @@ function QuotesTab() {
           error={confirmError}
           onConfirm={handleConfirm}
           onClose={() => { setConfirmingId(null); setConfirmError('') }}
+        />
+      )}
+      {pdfQuote && (
+        <PdfModal
+          quoteId={pdfQuote.id}
+          customerName={pdfQuote.customerName}
+          onClose={() => setPdfQuote(null)}
         />
       )}
     </div>
@@ -710,6 +723,7 @@ const qt: Record<string, React.CSSProperties> = {
   badgeDraft: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
   badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  pdfBtn: { padding: '5px 12px', border: '1px solid var(--line)', borderRadius: 7, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtnStrong: { padding: '5px 12px', border: '2px solid #b71c1c', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontWeight: 700, fontSize: 12 },

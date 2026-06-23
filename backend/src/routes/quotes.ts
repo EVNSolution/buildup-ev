@@ -1,9 +1,15 @@
 import { Router } from 'express';
 import type { Request } from 'express';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { calcPrice, type PricingParams } from '@buildup-ev/shared/pricing';
 import type { Prisma, QuoteStatus } from '@prisma/client';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const QUOTE_PDF_TEMPLATE = readFileSync(join(__dirname, '../templates/quote-pdf.html'), 'utf-8');
 
 export const quotesRouter = Router();
 
@@ -331,6 +337,134 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
   } catch (e) {
     console.error('[DELETE /quotes/:id]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '견적 삭제 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── GET /quotes/:id/pdf — 견적서 PDF 생성 ────────────────────────────────
+
+quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+
+  try {
+    const quote = await prisma.quote.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        order: { select: { maker_org: { select: { code: true, name: true } } } },
+      },
+    });
+
+    if (!quote) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+      return;
+    }
+
+    // SALES는 본인 견적만
+    if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 출력할 수 있습니다' } });
+      return;
+    }
+
+    // 옵션 이름 조회
+    const selections = (quote.selections ?? {}) as Record<string, string>;
+    const valueCodes = Object.values(selections).filter(Boolean);
+    const groupCodes = Object.keys(selections).filter(Boolean);
+
+    const [optionValues, optionGroups, optionPrices] = await Promise.all([
+      prisma.optionValue.findMany({ where: { code: { in: valueCodes } } }),
+      prisma.optionGroup.findMany({ where: { code: { in: groupCodes } } }),
+      prisma.optionPrice.findMany({ where: { model_code: quote.model_code, value_code: { in: valueCodes } } }),
+    ]);
+
+    const valueMap = new Map(optionValues.map(v => [v.code, v.name]));
+    const groupMap = new Map(optionGroups.map(g => [g.code, g.name]));
+    const priceMap = new Map(optionPrices.map(p => [p.value_code, p.supply_price]));
+
+    const OPTION_ROWS = Object.entries(selections).map(([gCode, vCode]) => {
+      const gName = groupMap.get(gCode) ?? gCode;
+      const vName = valueMap.get(vCode) ?? vCode;
+      const price = priceMap.has(vCode) ? `₩${Number(priceMap.get(vCode)).toLocaleString()}` : '포함';
+      return `<tr><td><div class="opt-group">${gName}</div><div class="opt-val">${vName}</div></td>`
+           + `<td>${vCode}</td><td>${price}</td></tr>`;
+    }).join('\n');
+
+    const STATUS_KO: Record<string, string> = { draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료' };
+    const BIZ_KO: Record<string, string>    = { individual: '개인사업자', corporate: '법인사업자', simplified: '간이과세자' };
+
+    const supplyPrice = Number(quote.supply_price);
+    const finalPrice  = Number(quote.final_price);
+    const fmt = (n: number | null) => n != null ? `₩${n.toLocaleString()}` : '—';
+
+    const makerOrg = quote.order?.maker_org;
+    const MAKER_BANNER = makerOrg
+      ? `<div class="maker-banner">
+           <div class="maker-banner-dot"></div>
+           <div>
+             <div class="maker-banner-label">배정 특장사</div>
+             <div class="maker-banner-name">${makerOrg.name} (${makerOrg.code})</div>
+           </div>
+         </div>`
+      : '';
+
+    const html = QUOTE_PDF_TEMPLATE
+      .replace('{{QUOTE_ID}}',         `Q-${String(id).padStart(5, '0')}`)
+      .replace('{{QUOTE_DATE}}',        quote.created_at.toISOString().slice(0, 10))
+      .replace('{{MODEL_CODE}}',        quote.model_code)
+      .replace('{{QUOTE_STATUS}}',      STATUS_KO[quote.status] ?? quote.status)
+      .replace('{{CUSTOMER_NAME}}',     quote.customer?.name ?? '—')
+      .replace('{{BIZ_TYPE}}',          '—')
+      .replace('{{REGION}}',            '—')
+      .replace('{{IS_SOSANG}}',         '—')
+      .replace('{{MAKER_BANNER}}',      MAKER_BANNER)
+      .replace('{{OPTION_ROWS}}',       OPTION_ROWS)
+      .replace('{{SUPPLY_PRICE}}',      fmt(supplyPrice))
+      .replace('{{VAT}}',               '—')
+      .replace('{{VEHICLE_PRICE}}',     '—')
+      .replace('{{SUBSIDY_NATIONAL}}',  '—')
+      .replace('{{SUBSIDY_LOCAL}}',     '—')
+      .replace('{{SUBSIDY_SOSANG}}',    '—')
+      .replace('{{TOTAL_SUBSIDY}}',     '—')
+      .replace('{{SUBSIDY_APPLIED}}',   '—')
+      .replace('{{VAT_REFUND_PRICE}}',  '—')
+      .replace('{{REG_FEE}}',           '—')
+      .replace('{{FINAL_PRICE}}',       fmt(finalPrice));
+
+    // puppeteer PDF 생성 (동적 import — 무거운 모듈을 요청 시점에만 로드)
+    const { default: puppeteer } = await import('puppeteer');
+    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' }); // 웹폰트 로드 대기
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      });
+      const customerSlug = (quote.customer?.name ?? '').replace(/\s+/g, '_') || 'unknown';
+      const filename = `견적서_${customerSlug}_${id}.pdf`;
+      const isDownload = req.query['download'] === '1';
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        isDownload
+          ? `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+          : `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      );
+      res.end(pdf);
+    } finally {
+      await browser.close();
+    }
+  } catch (e) {
+    console.error('[GET /quotes/:id/pdf]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: 'PDF 생성 중 오류가 발생했습니다.' } });
   }
 });
 

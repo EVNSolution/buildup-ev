@@ -4,6 +4,10 @@ BODYTYPE,특장,특장형태,single,Y,2,Y
 TOP,특장,탑크기,single,Y,3,Y
 DOORTYPE,특장,도어종류,single,Y,4,Y
 DOORADD,특장,도어추가,single,N,5,Y
-TEMP,내부옵션,온도계,single,N,6,Y
-PARTITION,내부옵션,격벽,single,N,7,Y
-SPOILER,내부옵션,스포일러,single,N,8,Y
+TEMP,옵션,온도기록계,single,N,6,Y
+PARTITION,옵션,격벽,single,N,7,Y
+SPOILER,옵션,스포일러,single,N,8,Y
+DECAL,옵션,데칼,single,N,9,Y
+TINT,옵션,썬팅,single,N,10,Y
+BLACKBOX,옵션,블랙박스,single,N,11,Y
+SUPPLYKIT,옵션,지급품 키트,single,N,12,Y

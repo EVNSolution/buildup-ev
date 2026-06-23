@@ -141,7 +141,9 @@ async function main() {
     active:      bool(r['active']),
   }));
   if (optGroups.length) {
-    await prisma.optionGroup.createMany({ data: optGroups, skipDuplicates: true });
+    for (const g of optGroups) {
+      await prisma.optionGroup.upsert({ where: { code: g.code }, update: g, create: g });
+    }
     console.log(`  option_group: ${optGroups.length}`);
   }
 
@@ -154,7 +156,9 @@ async function main() {
     active:     bool(r['active']),
   }));
   if (optValues.length) {
-    await prisma.optionValue.createMany({ data: optValues, skipDuplicates: true });
+    for (const v of optValues) {
+      await prisma.optionValue.upsert({ where: { code: v.code }, update: v, create: v });
+    }
     console.log(`  option_value: ${optValues.length}`);
   }
 

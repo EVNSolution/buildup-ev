@@ -10,6 +10,7 @@ import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { CustomerModal } from '../components/CustomerModal'
+import { PdfModal } from '../components/PdfModal'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -36,6 +37,7 @@ function MyListView() {
   const [orders, setOrders]   = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
+  const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
 
   useEffect(() => {
     setLoading(true); setErr('')
@@ -52,6 +54,14 @@ function MyListView() {
   if (err)     return <div style={{ ...lv.empty, color: 'var(--warn)' }}>{err}</div>
 
   return (
+    <>
+    {pdfQuote && (
+      <PdfModal
+        quoteId={pdfQuote.id}
+        customerName={pdfQuote.customerName}
+        onClose={() => setPdfQuote(null)}
+      />
+    )}
     <div style={lv.root}>
       <div style={lv.section}>
         <div style={lv.sectionTitle}>내 견적 ({quotes.length})</div>
@@ -69,6 +79,7 @@ function MyListView() {
                   <th style={lv.th}>주문 현황</th>
                   <th style={lv.th}>특장사</th>
                   <th style={lv.th}>날짜</th>
+                  <th style={lv.th}></th>
                 </tr>
               </thead>
               <tbody>
@@ -92,6 +103,12 @@ function MyListView() {
                       </td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{q.order?.maker_org?.name ?? '—'}</td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
+                      <td style={lv.td}>
+                        <button
+                          style={lv.pdfBtn}
+                          onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                        >견적서</button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -101,6 +118,7 @@ function MyListView() {
         )}
       </div>
     </div>
+    </>
   )
 }
 
@@ -429,4 +447,5 @@ const lv: Record<string, React.CSSProperties> = {
   badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
   badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  pdfBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
 }
