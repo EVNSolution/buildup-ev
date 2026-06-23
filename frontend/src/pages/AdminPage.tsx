@@ -290,7 +290,10 @@ function AccountsTab() {
                 <tr key={user.email}>
                   <td style={styles.tdModule}>{user.email}</td>
                   <td style={styles.tdModule}>{user.name}</td>
-                  <td style={styles.tdToggle}><span style={acc.roleBadge}>{ROLE_KO[user.role]}</span></td>
+                  <td style={styles.tdToggle}>
+                    <span style={acc.roleBadge}>{ROLE_KO[user.role]}</span>
+                    {user.is_master && <span style={acc.masterBadge}>마스터</span>}
+                  </td>
                   <td style={styles.tdModule}>{user.org_code}</td>
                   <td style={styles.tdToggle}>
                     <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
@@ -299,48 +302,62 @@ function AccountsTab() {
                   </td>
                   <td style={styles.tdModule}>
                     <div style={acc.actions}>
-                      <button
-                        style={acc.actionBtn}
-                        onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
-                      >
-                        {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
-                      </button>
-                      <button
-                        style={acc.actionBtn}
-                        onClick={() => handleResetPw(user.email)}
-                        disabled={resetting === user.email}
-                      >
-                        {resetting === user.email ? '…' : '비번재설정'}
-                      </button>
-                      <button
-                        style={user.status === 'active' ? acc.suspendBtn : acc.activateBtn}
-                        onClick={() => handleToggleStatus(user)}
-                        disabled={togglingStatus === user.email}
-                      >
-                        {user.status === 'active' ? '정지' : '활성화'}
-                      </button>
-                      <button
-                        style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.deleteBtn}
-                        onClick={() => handleDelete(user.email)}
-                        disabled={isDeleteDisabled(user) || deleting === user.email}
-                        title={
-                          user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
-                          (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
-                          '계정 삭제'
-                        }
-                      >
-                        {deleting === user.email ? '…' : '삭제'}
-                      </button>
-                      {/* 마스터 전용 cascade 삭제 버튼 */}
-                      {isMaster && (
-                        <button
-                          style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.cascadeDeleteBtn}
-                          onClick={() => handleCascadeDelete(user.email)}
-                          disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
-                          title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
-                        >
-                          {cascadeDeleting === user.email ? '…' : '완전 삭제'}
-                        </button>
+                      {/* 마스터 행: 비-마스터 → 버튼 없음 / 마스터 본인 → 비번재설정만 */}
+                      {user.is_master ? (
+                        isMaster && (
+                          <button
+                            style={acc.actionBtn}
+                            onClick={() => handleResetPw(user.email)}
+                            disabled={resetting === user.email}
+                          >
+                            {resetting === user.email ? '…' : '비번재설정'}
+                          </button>
+                        )
+                      ) : (
+                        <>
+                          <button
+                            style={acc.actionBtn}
+                            onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
+                          >
+                            {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
+                          </button>
+                          <button
+                            style={acc.actionBtn}
+                            onClick={() => handleResetPw(user.email)}
+                            disabled={resetting === user.email}
+                          >
+                            {resetting === user.email ? '…' : '비번재설정'}
+                          </button>
+                          <button
+                            style={user.status === 'active' ? acc.suspendBtn : acc.activateBtn}
+                            onClick={() => handleToggleStatus(user)}
+                            disabled={togglingStatus === user.email}
+                          >
+                            {user.status === 'active' ? '정지' : '활성화'}
+                          </button>
+                          <button
+                            style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.deleteBtn}
+                            onClick={() => handleDelete(user.email)}
+                            disabled={isDeleteDisabled(user) || deleting === user.email}
+                            title={
+                              user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
+                              (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
+                              '계정 삭제'
+                            }
+                          >
+                            {deleting === user.email ? '…' : '삭제'}
+                          </button>
+                          {isMaster && (
+                            <button
+                              style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.cascadeDeleteBtn}
+                              onClick={() => handleCascadeDelete(user.email)}
+                              disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
+                              title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
+                            >
+                              {cascadeDeleting === user.email ? '…' : '완전 삭제'}
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>
@@ -558,6 +575,9 @@ function QuotesTab() {
 
 // ── 주문 칸반 탭 ──────────────────────────────────────────────────────────
 function KanbanTab() {
+  const { session } = useAuth()
+  const canControl = session?.user.is_master ?? false
+
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
@@ -574,7 +594,8 @@ function KanbanTab() {
   return (
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
-      <OrderKanbanBoard orders={orders} onRefresh={load} onError={setErr} />
+      {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>조회 전용 — 상태 변경은 배정 특장사만 가능합니다.</div>}
+      <OrderKanbanBoard orders={orders} onRefresh={load} onError={setErr} readOnly={!canControl} />
     </div>
   )
 }
@@ -751,6 +772,7 @@ const acc: Record<string, React.CSSProperties> = {
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
   input: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 },
   roleBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
+  masterBadge: { fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: '#1a1a1a', color: '#c8d200', marginLeft: 4 },
   statusBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8 },
   actions: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' as const },
   actionBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 12, color: 'var(--dark)' },

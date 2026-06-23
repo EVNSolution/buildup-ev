@@ -12,9 +12,10 @@ interface Props {
   onRefresh: () => void
   onError: (msg: string) => void
   onCardClick?: (orderId: number) => void
+  readOnly?: boolean
 }
 
-export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick }: Props) {
+export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, readOnly = false }: Props) {
   const [movingId, setMovingId] = useState<number | null>(null)
 
   async function handleMove(order: ApiOrder, direction: 'next' | 'prev') {
@@ -69,27 +70,29 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick }: Pr
                   <div style={kb.cardModel}>{order.quote.model_code}</div>
                   <div style={kb.cardMeta}>{order.maker_org?.name ?? '특장사없음'}</div>
                   {order.assigned_at && <div style={kb.cardDate}>배정 {fmtDate(order.assigned_at)}</div>}
-                  <div style={kb.btnRow}>
-                    {!isFirst && (
-                      <button
-                        style={busy ? kb.revBtnDisabled : kb.revBtn}
-                        disabled={busy}
-                        onClick={() => handleMove(order, 'prev')}
-                        title={`← ${ORDER_STATUS_SEQ[colIdx - 1]}`}
-                      >
-                        {busy ? '…' : '← 되돌리기'}
-                      </button>
-                    )}
-                    {!isLast && (
-                      <button
-                        style={busy ? kb.advBtnDisabled : kb.advBtn}
-                        disabled={busy}
-                        onClick={() => handleMove(order, 'next')}
-                      >
-                        {busy ? '처리 중…' : '다음 단계 →'}
-                      </button>
-                    )}
-                  </div>
+                  {!readOnly && (
+                    <div style={kb.btnRow}>
+                      {!isFirst && (
+                        <button
+                          style={busy ? kb.revBtnDisabled : kb.revBtn}
+                          disabled={busy}
+                          onClick={() => handleMove(order, 'prev')}
+                          title={`← ${ORDER_STATUS_SEQ[colIdx - 1]}`}
+                        >
+                          {busy ? '…' : '← 되돌리기'}
+                        </button>
+                      )}
+                      {!isLast && (
+                        <button
+                          style={busy ? kb.advBtnDisabled : kb.advBtn}
+                          disabled={busy}
+                          onClick={() => handleMove(order, 'next')}
+                        >
+                          {busy ? '처리 중…' : '다음 단계 →'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
