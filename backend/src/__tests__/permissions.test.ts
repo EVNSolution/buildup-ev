@@ -120,7 +120,7 @@ describe('orders RBAC — 인증·권한 검증', () => {
   it('MAKER — GET /orders/:id RBAC 통과 (403 아님)', async () => {
     const res = await request(app)
       .get('/api/v1/orders/1')
-      .set('Cookie', authCookie('maker1@partner.com', 'MAKER', 'ORG_MAKER1'));
+      .set('Cookie', authCookie('maker1@partner.com', 'MAKER', 'ORG_BRAIN'));
     expect(res.status).not.toBe(403);
   });
 

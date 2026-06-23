@@ -17,7 +17,7 @@ const shouldSkip = !process.env['DATABASE_URL'];
 const ADMIN     = 'admin@evnsolution.com';
 const SALES     = 'sales1@evnsolution.com';
 const MAKER     = 'maker1@partner.com';
-const MAKER_ORG = 'ORG_MAKER1';
+const MAKER_ORG = 'ORG_BRAIN';
 
 const ADMIN_COOKIE = authCookie(ADMIN, 'ADMIN', 'ORG_HQ');
 const SALES_COOKIE = authCookie(SALES, 'SALES', 'ORG_SALES1');
