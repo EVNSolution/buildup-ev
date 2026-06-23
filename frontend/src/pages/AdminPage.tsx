@@ -10,6 +10,14 @@ import { useAuth } from '../contexts/AuthContext'
 
 const ROLES: Role[] = ['SALES', 'ADMIN', 'MAKER']
 const ROLE_KO: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAKER: '특장사' }
+const ROLE_SURFACE: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAKER: '특장사' }
+
+function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[] {
+  const surface = ROLE_SURFACE[role]
+  return modules
+    .filter(m => m.surface.split(',').map(s => s.trim()).includes(surface))
+    .sort((a, b) => a.sort_order - b.sort_order)
+}
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
 }
@@ -18,16 +26,6 @@ type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts'
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
 
-function getSurfaces(modules: FeatureModule[]): string[] {
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const m of modules) {
-    for (const s of m.surface.split(',').map(x => x.trim())) {
-      if (!seen.has(s)) { seen.add(s); result.push(s) }
-    }
-  }
-  return result
-}
 
 function isEnabled(ac: AccessControl[], type: 'role' | 'user', ref: string, code: string): boolean {
   const entry = ac.find(a => a.subject_type === type && a.subject_ref === ref && a.module_code === code)
@@ -349,9 +347,9 @@ function AccountsTab() {
                 {expandedEmail === user.email && (
                   <tr key={`${user.email}-expand`}>
                     <td colSpan={6} style={acc.expandCell}>
-                      <div style={acc.expandHeader}>계정 모듈 override (역할 기본값 대비 예외)</div>
+                      <div style={acc.expandHeader}>계정 모듈 override — {ROLE_KO[user.role]} 역할 기준</div>
                       <div style={acc.moduleGrid}>
-                        {modules.map(mod => {
+                        {getModulesForRole(modules, user.role).map(mod => {
                           const roleEnabled = isEnabled(ac, 'role', user.role, mod.code)
                           const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
                           const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
@@ -591,8 +589,6 @@ export function AdminPage() {
     setSaving(null)
   }
 
-  const surfaces = getSurfaces(modules)
-
   const TABS: { key: TabKey; label: string }[] = [
     { key: 'quotes',   label: '견적 목록' },
     { key: 'kanban',   label: '주문 칸반' },
@@ -621,42 +617,40 @@ export function AdminPage() {
 
         {activeTab === 'toggles' && (
           <div style={styles.content}>
-            {surfaces.map(surface => {
-              const surfaceMods = modules.filter(m => m.surface.split(',').map(s => s.trim()).includes(surface))
+            {ROLES.map(role => {
+              const roleMods = getModulesForRole(modules, role)
               return (
-                <div key={surface} style={styles.surfaceGroup}>
-                  <div style={styles.surfaceLabel}>{surface}</div>
+                <div key={role} style={styles.surfaceGroup}>
+                  <div style={styles.surfaceLabel}>{ROLE_KO[role]} ({role})</div>
                   <table style={styles.table}>
                     <thead>
                       <tr>
                         <th style={styles.thModule}>모듈</th>
-                        {ROLES.map(r => <th key={r} style={styles.thRole}>{ROLE_KO[r]}</th>)}
+                        <th style={styles.thRole}>{ROLE_KO[role]} 기본값</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {surfaceMods.map(mod => (
-                        <tr key={mod.code}>
-                          <td style={styles.tdModule}>
-                            <div style={styles.modName}>{mod.name}</div>
-                            <div style={styles.modCode}>{mod.code}</div>
-                          </td>
-                          {ROLES.map(role => {
-                            const enabled = isEnabled(ac, 'role', role, mod.code)
-                            const key = `${role}:${mod.code}`
-                            return (
-                              <td key={role} style={styles.tdToggle}>
-                                <button
-                                  style={enabled ? styles.toggleOn : styles.toggleOff}
-                                  onClick={() => handleRoleToggle(role, mod.code, enabled)}
-                                  disabled={saving === key}
-                                >
-                                  {enabled ? 'ON' : 'OFF'}
-                                </button>
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
+                      {roleMods.map(mod => {
+                        const enabled = isEnabled(ac, 'role', role, mod.code)
+                        const key = `${role}:${mod.code}`
+                        return (
+                          <tr key={mod.code}>
+                            <td style={styles.tdModule}>
+                              <div style={styles.modName}>{mod.name}</div>
+                              <div style={styles.modCode}>{mod.code}</div>
+                            </td>
+                            <td style={styles.tdToggle}>
+                              <button
+                                style={enabled ? styles.toggleOn : styles.toggleOff}
+                                onClick={() => handleRoleToggle(role, mod.code, enabled)}
+                                disabled={saving === key}
+                              >
+                                {enabled ? 'ON' : 'OFF'}
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

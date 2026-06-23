@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { calcPrice, type PricingParams } from '@buildup-ev/shared/pricing';
 import type { Prisma, QuoteStatus } from '@prisma/client';
@@ -215,7 +215,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
 
 // ── PATCH /quotes/:id/confirm — 관리자 확정 + 특장사 배정 + 주문 생성 ────
 
-quotesRouter.patch('/:id/confirm', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -262,6 +262,7 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), async (req: Request, res): Pro
         },
       }),
     ]);
+    // TODO 2단계: order 생성 후 필요 서류 목록 자동생성 (Document rows insert)
     res.json({ data: { quote: updatedQuote, order } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/confirm]', e);

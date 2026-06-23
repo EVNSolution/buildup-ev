@@ -15,64 +15,64 @@ import { mergePermissions } from '../lib/permissions.js';
 import type { AccessControl } from '@buildup-ev/shared/types';
 import { authCookie } from './helpers.js';
 
-// ── 단위 테스트용 AC 픽스처 ────────────────────────────────────────────
-
+// ── 단위 테스트용 AC 픽스처 (8모듈 기준) ──────────────────────────────
 const ROLE_ACS: AccessControl[] = [
   { subject_type: 'role', subject_ref: 'SALES', module_code: 'quote.create',    enabled: true },
-  { subject_type: 'role', subject_ref: 'SALES', module_code: 'order.convert',   enabled: true },
-  { subject_type: 'role', subject_ref: 'SALES', module_code: 'quote.view.all',  enabled: true },
-  { subject_type: 'role', subject_ref: 'SALES', module_code: 'loadcalc.run',    enabled: true },
-  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'order.verify',    enabled: true },
-  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'workflow.monitor',enabled: true },
+  { subject_type: 'role', subject_ref: 'SALES', module_code: 'order.view',      enabled: true },
+  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'order.confirm',   enabled: true },
+  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'view.all',        enabled: true },
+  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'order.view',      enabled: true },
+  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'order.control',   enabled: true },
   { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'subsidy.manage',  enabled: true },
   { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'account.manage',  enabled: true },
-  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'loadcalc.run',    enabled: true },
-  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'doc.generate',    enabled: true },
-  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'tuning.apply',    enabled: true },
-  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'order.receive',   enabled: true },
-  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'loadcalc.run',    enabled: true },
-  { subject_type: 'user', subject_ref: 'sales1@evnsolution.com', module_code: 'subsidy.manage', enabled: false, memo: '개별 차단 예시' },
+  { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'doc.view',        enabled: true },
+  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'order.view',      enabled: true },
+  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'order.control',   enabled: true },
+  { subject_type: 'role', subject_ref: 'MAKER', module_code: 'doc.view',        enabled: true },
+  { subject_type: 'user', subject_ref: 'sales1@evnsolution.com', module_code: 'order.view', enabled: false, memo: '개별 차단 예시' },
 ];
 
 // ── 단위 테스트: mergePermissions ──────────────────────────────────────
 
 describe('mergePermissions — 권한 머지 로직', () => {
-  it('SALES 역할 기본 모듈 4개 반환', () => {
+  it('SALES 역할 기본 모듈 2개 반환', () => {
     const perms = mergePermissions('SALES', 'unknown@test.com', ROLE_ACS);
     expect(perms).toContain('quote.create');
-    expect(perms).toContain('order.convert');
-    expect(perms).toContain('quote.view.all');
-    expect(perms).toContain('loadcalc.run');
-    expect(perms).not.toContain('order.verify');
-    expect(perms).not.toContain('doc.generate');
+    expect(perms).toContain('order.view');
+    expect(perms).not.toContain('order.confirm');
+    expect(perms).not.toContain('doc.view');
   });
 
-  it('ADMIN 역할 기본 모듈 5개 반환', () => {
+  it('ADMIN 역할 기본 모듈 7개 반환', () => {
     const perms = mergePermissions('ADMIN', 'unknown@test.com', ROLE_ACS);
-    expect(perms).toContain('order.verify');
-    expect(perms).toContain('workflow.monitor');
+    expect(perms).toContain('order.confirm');
+    expect(perms).toContain('view.all');
+    expect(perms).toContain('order.view');
+    expect(perms).toContain('order.control');
     expect(perms).toContain('subsidy.manage');
     expect(perms).toContain('account.manage');
-    expect(perms).toContain('loadcalc.run');
+    expect(perms).toContain('doc.view');
+    expect(perms).not.toContain('quote.create');
   });
 
-  it('MAKER 역할 기본 모듈 4개 반환', () => {
+  it('MAKER 역할 기본 모듈 3개 반환', () => {
     const perms = mergePermissions('MAKER', 'unknown@test.com', ROLE_ACS);
-    expect(perms).toContain('doc.generate');
-    expect(perms).toContain('tuning.apply');
-    expect(perms).toContain('order.receive');
-    expect(perms).toContain('loadcalc.run');
+    expect(perms).toContain('order.view');
+    expect(perms).toContain('order.control');
+    expect(perms).toContain('doc.view');
+    expect(perms).not.toContain('quote.create');
+    expect(perms).not.toContain('order.confirm');
   });
 
-  it('계정 override가 역할 기본값보다 우선 — sales1의 subsidy.manage 차단', () => {
+  it('계정 override가 역할 기본값보다 우선 — sales1의 order.view 차단', () => {
     const perms = mergePermissions('SALES', 'sales1@evnsolution.com', ROLE_ACS);
-    expect(perms).not.toContain('subsidy.manage');
+    expect(perms).not.toContain('order.view');
   });
 
   it('override 없는 SALES 계정 — 역할 기본값 그대로', () => {
     const perms = mergePermissions('SALES', 'other@evnsolution.com', ROLE_ACS);
     expect(perms).toContain('quote.create');
-    expect(perms).not.toContain('order.verify');
+    expect(perms).not.toContain('order.confirm');
   });
 });
 

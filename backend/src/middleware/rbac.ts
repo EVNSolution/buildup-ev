@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { Role } from '@buildup-ev/shared/types';
 import { prisma } from '../lib/prisma.js';
 import { verifyToken } from '../lib/jwt.js';
+import { mergePermissions } from '../lib/permissions.js';
 
 export interface AuthContext {
   email: string;
@@ -77,4 +78,36 @@ export function orgScope(req: Request, res: Response, next: NextFunction): void 
     return;
   }
   next();
+}
+
+/** 권한 모듈 코드 기반 접근 제어. 역할 체크(rbac) 이후에 체인으로 사용.
+ * DEV: is_master=true이면 우회. TEST/DB없음이면 우회. */
+export function requirePermission(code: string) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.auth) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '인증 필요' } });
+      return;
+    }
+    if (req.auth.is_master) { next(); return; }
+    if (!prisma || process.env['NODE_ENV'] === 'test') { next(); return; }
+
+    try {
+      const acs = await prisma.accessControl.findMany({
+        where: {
+          OR: [
+            { subject_type: 'role', subject_ref: req.auth.role },
+            { subject_type: 'user', subject_ref: req.auth.email },
+          ],
+        },
+      });
+      const perms = mergePermissions(req.auth.role, req.auth.email, acs);
+      if (!perms.includes(code)) {
+        res.status(403).json({ error: { code: 'PERMISSION_DENIED', message: `'${code}' 권한이 없습니다.` } });
+        return;
+      }
+      next();
+    } catch {
+      next();
+    }
+  };
 }

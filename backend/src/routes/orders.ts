@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
 
@@ -14,7 +14,7 @@ type OrderStatusStr = typeof ORDER_STATUS_SEQ[number];
 
 // ── GET /orders — 목록 (ADMIN=전체, MAKER=자기 배정, SALES=자기 견적) ─────
 
-ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res): Promise<void> => {
+ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.view'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -61,7 +61,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res)
 // ── GET /orders/:id ───────────────────────────────────────────────────────
 // MAKER: 자기 org 스코프 강제 + 가격·영업 필드 제외, 사양·서류만 반환
 
-ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
+ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('order.view'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -162,7 +162,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, r
 
 // ── PATCH /orders/:id/status — 상태 전이 (ADMIN=전체, MAKER=자기 org, 양방향) ─
 
-ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
+ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -204,7 +204,7 @@ ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), async (req: Request, r
 
 // ── GET /orders/:orderId/documents ────────────────────────────────────────
 
-ordersRouter.get('/:orderId/documents', rbac('ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
+ordersRouter.get('/:orderId/documents', rbac('ADMIN', 'MAKER'), requirePermission('doc.view'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;

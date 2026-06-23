@@ -12,10 +12,12 @@ describe.skipIf(shouldSkip)('DB 연결 smoke test', () => {
 
   afterAll(() => prisma.$disconnect());
 
-  it('feature_module 조회 — seed 후 11개 이상', async () => {
+  it('feature_module 조회 — seed 후 8개', async () => {
     const modules = await prisma.featureModule.findMany();
-    expect(modules.length).toBeGreaterThanOrEqual(11);
+    expect(modules.length).toBe(8);
     expect(modules.map(m => m.code)).toContain('quote.create');
+    expect(modules.map(m => m.code)).toContain('order.confirm');
+    expect(modules.map(m => m.code)).toContain('order.view');
   });
 
   it('org 조회 — ORG_HQ 존재', async () => {

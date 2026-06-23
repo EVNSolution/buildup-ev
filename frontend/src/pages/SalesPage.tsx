@@ -20,7 +20,7 @@ function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual'
 
 export function SalesPage() {
   const { session } = useAuth()
-  const canConvert = usePermission('order.convert')
+  const canConvert = usePermission('quote.create')
 
   const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
   const [bundleLoading, setBundleLoading] = useState(true)
