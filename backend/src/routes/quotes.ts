@@ -448,8 +448,16 @@ quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): 
         printBackground: true,
         margin: { top: '0', right: '0', bottom: '0', left: '0' },
       });
+      const customerSlug = (quote.customer?.name ?? '').replace(/\s+/g, '_') || 'unknown';
+      const filename = `견적서_${customerSlug}_${id}.pdf`;
+      const isDownload = req.query['download'] === '1';
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="quote-${id}.pdf"`);
+      res.setHeader(
+        'Content-Disposition',
+        isDownload
+          ? `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+          : `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      );
       res.end(pdf);
     } finally {
       await browser.close();
