@@ -81,7 +81,8 @@ async function main() {
   }
   console.log(`  user: ${users.length}`);
 
-  // ── feature_module (truncate+re-insert — CSV가 항상 source of truth) ──
+  // ── feature_module + access_control (FK 순서: AC 전체 삭제 → FM 삭제 → FM 삽입 → AC 삽입)
+  // 모듈 코드 전면 교체 시 기존 AC rows(user override 포함)가 구 코드를 참조하므로 전부 초기화
   const modules = csv('feature_module.csv').map(r => ({
     code:       r['code']!,
     name:       r['name']!,
@@ -89,11 +90,6 @@ async function main() {
     sort_order: num(r['sort_order']) ?? 0,
     active:     bool(r['active']),
   }));
-  await prisma.featureModule.deleteMany({});
-  await prisma.featureModule.createMany({ data: modules });
-  console.log(`  feature_module: ${modules.length}`);
-
-  // ── access_control (역할 기본값만 truncate+re-insert, user override 보존) ─
   const acs = csv('access_control.csv').map(r => ({
     subject_type: r['subject_type'] as 'role' | 'user',
     subject_ref:  r['subject_ref']!,
@@ -101,8 +97,11 @@ async function main() {
     enabled:      bool(r['enabled']),
     memo:         opt(r['memo']),
   }));
-  await prisma.accessControl.deleteMany({ where: { subject_type: 'role' } });
+  await prisma.accessControl.deleteMany({});
+  await prisma.featureModule.deleteMany({});
+  await prisma.featureModule.createMany({ data: modules });
   await prisma.accessControl.createMany({ data: acs });
+  console.log(`  feature_module: ${modules.length}`);
   console.log(`  access_control: ${acs.length}`);
 
   // ── vehicle_model ─────────────────────────────────────────────────────
