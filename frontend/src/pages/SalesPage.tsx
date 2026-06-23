@@ -67,6 +67,7 @@ function MyListView() {
                   <th style={lv.th}>실구매가</th>
                   <th style={lv.th}>상태</th>
                   <th style={lv.th}>주문 현황</th>
+                  <th style={lv.th}>특장사</th>
                   <th style={lv.th}>날짜</th>
                 </tr>
               </thead>
@@ -89,6 +90,7 @@ function MyListView() {
                           : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                         }
                       </td>
+                      <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{q.order?.maker_org?.name ?? '—'}</td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                     </tr>
                   )
