@@ -63,6 +63,13 @@ export async function deleteQuote(id: number): Promise<void> {
   }
 }
 
+export async function fetchRegions(): Promise<string[]> {
+  const res = await fetch('/api/v1/regions', { credentials: 'include' })
+  if (!res.ok) return []
+  const body = await res.json() as { data: string[] }
+  return body.data
+}
+
 export async function fetchLocalSubsidy(region: string, year: number): Promise<number> {
   if (!region) return 0
   const url = `/api/v1/subsidy/local?region=${encodeURIComponent(region)}&year=${year}`

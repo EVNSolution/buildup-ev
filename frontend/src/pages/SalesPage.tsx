@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { CustomerInfo, ApiPricingBundle } from '@shared/types/index'
+import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
+import { fetchOrders } from '../api/orders'
 import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
@@ -18,9 +19,94 @@ function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual'
   return 'individual'
 }
 
+// ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
+const QUOTE_STATUS_KO: Record<string, string> = {
+  draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
+}
+const ORDER_STATUS_BADGE: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8,
+  background: 'var(--lime)', color: 'var(--dark)',
+}
+
+function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
+function fmtDate(s: string)  { return s ? s.slice(0, 10) : '—' }
+
+function MyListView() {
+  const [quotes, setQuotes]   = useState<ApiQuote[]>([])
+  const [orders, setOrders]   = useState<ApiOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr]         = useState('')
+
+  useEffect(() => {
+    setLoading(true); setErr('')
+    Promise.all([fetchQuotes({}), fetchOrders({})])
+      .then(([q, o]) => { setQuotes(q); setOrders(o) })
+      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // order_id 빠른 조회용 (quote_id → order)
+  const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
+
+  if (loading) return <div style={lv.empty}>로딩 중…</div>
+  if (err)     return <div style={{ ...lv.empty, color: 'var(--warn)' }}>{err}</div>
+
+  return (
+    <div style={lv.root}>
+      <div style={lv.section}>
+        <div style={lv.sectionTitle}>내 견적 ({quotes.length})</div>
+        {quotes.length === 0 ? (
+          <div style={lv.empty}>저장된 견적이 없습니다.</div>
+        ) : (
+          <div style={lv.tableWrap}>
+            <table style={lv.table}>
+              <thead>
+                <tr>
+                  <th style={lv.th}>#</th>
+                  <th style={lv.th}>고객</th>
+                  <th style={lv.th}>실구매가</th>
+                  <th style={lv.th}>상태</th>
+                  <th style={lv.th}>주문 현황</th>
+                  <th style={lv.th}>날짜</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map(q => {
+                  const order = orderByQuote.get(q.id)
+                  return (
+                    <tr key={q.id}>
+                      <td style={lv.td}>{q.id}</td>
+                      <td style={lv.td}>{q.customer?.name ?? '—'}</td>
+                      <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
+                      <td style={lv.td}>
+                        <span style={q.status === 'draft' ? lv.badgeDraft : q.status === 'confirmed' || q.status === 'ordered' ? lv.badgeActive : lv.badgeMuted}>
+                          {QUOTE_STATUS_KO[q.status] ?? q.status}
+                        </span>
+                      </td>
+                      <td style={lv.td}>
+                        {order
+                          ? <span style={ORDER_STATUS_BADGE}>{order.status}</span>
+                          : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+                        }
+                      </td>
+                      <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── SalesPage ───────────────────────────────────────────────────────────────
 export function SalesPage() {
   const { session } = useAuth()
   const canConvert = usePermission('quote.create')
+  const [salesTab, setSalesTab] = useState<'config' | 'list'>('config')
 
   const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
   const [bundleLoading, setBundleLoading] = useState(true)
@@ -186,7 +272,14 @@ export function SalesPage() {
 
       <Header customer={customer} onOpenCustomerModal={() => setShowModal(true)} />
 
-      <div style={styles.body}>
+      <div style={styles.tabBar}>
+        <button style={salesTab === 'config' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('config')}>컨피규레이터</button>
+        <button style={salesTab === 'list'   ? styles.tabOn : styles.tab} onClick={() => setSalesTab('list')}>내 견적·주문</button>
+      </div>
+
+      {salesTab === 'list' && <MyListView />}
+
+      <div style={{ ...styles.body, display: salesTab === 'list' ? 'none' : 'flex' }}>
         <section style={styles.viewer}>
           <div style={styles.vtabs}>
             {['FREE', 'TOP', 'SIDE', 'REAR', 'FRONT'].map(v => (
@@ -241,6 +334,22 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     overflow: 'hidden',
+  },
+  tabBar: {
+    flexShrink: 0,
+    display: 'flex',
+    gap: 4,
+    padding: '8px 16px',
+    borderBottom: '1px solid var(--line)',
+    background: '#fff',
+  },
+  tab: {
+    padding: '6px 14px', border: '1px solid var(--line)', borderRadius: 8,
+    background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)',
+  },
+  tabOn: {
+    padding: '6px 14px', border: '1px solid var(--dark)', borderRadius: 8,
+    background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600,
   },
   body: {
     flex: 1,
@@ -300,4 +409,22 @@ const styles = {
   },
   placeholderSvg: { width: '55%', maxWidth: 520 },
   watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4' },
+}
+
+const lv: Record<string, React.CSSProperties> = {
+  root: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
+  section: { marginBottom: 28 },
+  sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 },
+  empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
+  tableWrap: { overflowX: 'auto' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th: {
+    textAlign: 'left', padding: '8px 12px',
+    borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12,
+    whiteSpace: 'nowrap',
+  },
+  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' },
+  badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
+  badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
+  badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
 }

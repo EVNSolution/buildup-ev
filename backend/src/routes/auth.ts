@@ -11,8 +11,9 @@ import type { Role } from '@buildup-ev/shared/types';
 export const authRouter = Router();
 
 const COOKIE_NAME = 'access_token';
-const LOCK_AFTER  = 5;
+const LOCK_AFTER  = 10;           // 연속 실패 10회 → 잠금
 const LOCK_MS     = 15 * 60 * 1000;
+const IS_PROD     = process.env['NODE_ENV'] === 'production';
 
 function cookieOpts(): CookieOptions {
   return {
@@ -24,9 +25,12 @@ function cookieOpts(): CookieOptions {
   };
 }
 
+// 운영에서만 적용 — 개발 환경에서는 rate limit 없음
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,                          // 20회/15분 (실패만 카운트)
+  skipSuccessfulRequests: true,     // 성공한 로그인은 카운트 제외
+  skip: () => !IS_PROD,             // 개발 환경 전체 우회
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: 'TOO_MANY_REQUESTS', message: '너무 많은 시도. 15분 후 다시 시도해주세요.' } },
@@ -62,8 +66,8 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
     return;
   }
 
-  // Check lockout
-  if (user.locked_until && user.locked_until > new Date()) {
+  // Check lockout (운영 환경에서만 적용)
+  if (IS_PROD && user.locked_until && user.locked_until > new Date()) {
     const remainMin = Math.ceil((user.locked_until.getTime() - Date.now()) / 60000);
     res.status(423).json({ error: { code: 'ACCOUNT_LOCKED', message: `계정이 잠겼습니다. ${remainMin}분 후 다시 시도해주세요.` } });
     return;
@@ -72,11 +76,14 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
   const valid = await verifyPassword(password, user.password_hash);
 
   if (!valid) {
-    const attempts = user.login_attempts + 1;
-    const lockData = attempts >= LOCK_AFTER
-      ? { login_attempts: attempts, locked_until: new Date(Date.now() + LOCK_MS) }
-      : { login_attempts: attempts };
-    await prisma.user.update({ where: { email }, data: lockData });
+    // 실패 카운트·잠금은 운영 환경에서만
+    if (IS_PROD) {
+      const attempts = user.login_attempts + 1;
+      const lockData = attempts >= LOCK_AFTER
+        ? { login_attempts: attempts, locked_until: new Date(Date.now() + LOCK_MS) }
+        : { login_attempts: attempts };
+      await prisma.user.update({ where: { email }, data: lockData });
+    }
     res.status(401).json(INVALID);
     return;
   }

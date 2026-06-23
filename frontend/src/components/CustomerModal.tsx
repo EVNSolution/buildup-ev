@@ -1,19 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CustomerInfo } from '@shared/types/index'
+import { fetchRegions } from '../api/quotes'
 
 interface Props {
   onComplete: (info: CustomerInfo) => void
   onSkip: () => void
 }
 
-const REGIONS = ['경기 남양주시', '서울특별시', '부산광역시', '인천광역시', '대구광역시']
-
 export function CustomerModal({ onComplete, onSkip }: Props) {
   const [name, setName] = useState('')
   const [businessType, setBusinessType] = useState<CustomerInfo['business_type']>('individual')
-  const [region, setRegion] = useState('경기 남양주시')
+  const [regions, setRegions] = useState<string[]>([])
+  const [region, setRegion] = useState('')
   const [isSmallBiz, setIsSmallBiz] = useState(false)
   const [isScrapped, setIsScrapped] = useState(false)
+
+  useEffect(() => {
+    fetchRegions().then(list => {
+      setRegions(list)
+      if (list.length > 0) setRegion(list[0]!)
+    })
+  }, [])
 
   function handleComplete() {
     onComplete({
@@ -54,9 +61,11 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
 
         <div style={styles.row}>
           <label style={styles.label}>지역 (보조금 산정)</label>
-          <select value={region} onChange={e => setRegion(e.target.value)}>
-            {REGIONS.map(r => <option key={r}>{r}</option>)}
-            <option disabled>… (160개 지역 — DB 연결 후)</option>
+          <select value={region} onChange={e => setRegion(e.target.value)} disabled={regions.length === 0}>
+            {regions.length === 0
+              ? <option>지역 목록 로딩 중…</option>
+              : regions.map(r => <option key={r} value={r}>{r}</option>)
+            }
           </select>
         </div>
 
@@ -70,7 +79,7 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
         </label>
 
         <div style={styles.btnRow}>
-          <button style={styles.btnOk} onClick={handleComplete}>입력 완료</button>
+          <button style={styles.btnOk} onClick={handleComplete} disabled={regions.length === 0 || !region}>입력 완료</button>
           <button style={styles.btnSkip} onClick={onSkip}>건너뛰기 (보기만)</button>
         </div>
       </div>

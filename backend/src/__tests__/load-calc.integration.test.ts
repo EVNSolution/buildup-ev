@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { calcLoad } from '@buildup-ev/shared/load-calc';
+import { authCookie } from './helpers.js';
 
 const PV5_INPUT = {
   curb_axle_front_kg: 1105,
@@ -27,7 +28,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
 
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('X-User', 'sales1@evnsolution.com')
+      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1'))
       .send(PV5_INPUT)
       .expect(200);
 
@@ -41,7 +42,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
   it('필수 필드 누락(wheelbase_mm 없음) → 400', async () => {
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('X-User', 'sales1@evnsolution.com')
+      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1'))
       .send({
         curb_axle_front_kg: 1105,
         curb_axle_rear_kg: 800,
@@ -52,14 +53,14 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
     expect(res.body.error.code).toBe('BAD_INPUT');
   });
 
-  it('X-User 헤더 없음 → 403', async () => {
+  it('인증 쿠키 없음 → 403', async () => {
     await request(app).post('/api/v1/load-calc').send(PV5_INPUT).expect(403);
   });
 
   it('MAKER 역할도 허용', async () => {
     await request(app)
       .post('/api/v1/load-calc')
-      .set('X-User', 'maker1@partner.com')
+      .set('Cookie', authCookie('maker1@partner.com', 'MAKER', 'ORG_BRAIN'))
       .send(PV5_INPUT)
       .expect(200);
   });

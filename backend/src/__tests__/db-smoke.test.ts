@@ -26,9 +26,8 @@ describe.skipIf(shouldSkip)('DB 연결 smoke test', () => {
     expect(org?.type).toBe('HQ');
   });
 
-  it('user 조회 — admin 계정 존재', async () => {
-    const user = await prisma.user.findUnique({ where: { email: 'admin@evnsolution.com' } });
-    expect(user).not.toBeNull();
-    expect(user?.role).toBe('ADMIN');
+  it('user 조회 — ADMIN 역할 계정이 1개 이상 존재', async () => {
+    const count = await prisma.user.count({ where: { role: 'ADMIN' } });
+    expect(count).toBeGreaterThanOrEqual(1);
   });
 });

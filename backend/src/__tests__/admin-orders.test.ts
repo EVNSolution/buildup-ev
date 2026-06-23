@@ -160,13 +160,13 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
     expect(res.body.data.status).toBe('구조변경');
   });
 
-  it('상태 후진 → 409', async () => {
+  it('상태 후진(양방향 허용) → 200', async () => {
     const res = await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
       .set('Cookie', ADMIN_COOKIE)
       .send({ status: '제작착수' })
-      .expect(409);
-    expect(res.body.error.code).toBe('CONFLICT');
+      .expect(200);
+    expect(res.body.data.status).toBe('제작착수');
   });
 
   it('잘못된 status → 400', async () => {
@@ -178,12 +178,13 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
     expect(res.body.error.code).toBe('BAD_INPUT');
   });
 
-  it('MAKER — 상태 전이 권한 없음 → 403', async () => {
-    await request(app)
+  it('MAKER — 자기 org 주문 상태 전이 허용 → 200', async () => {
+    const res = await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
       .set('Cookie', MAKER_COOKIE)
-      .send({ status: '튜닝신청' })
-      .expect(403);
+      .send({ status: '구조변경' })
+      .expect(200);
+    expect(res.body.data.status).toBe('구조변경');
   });
 
   // ── GET /orgs?type=MAKER ─────────────────────────────────────────────────

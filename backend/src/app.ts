@@ -11,6 +11,7 @@ import { accessControlRouter } from './routes/access-control.js';
 import { featureModulesRouter } from './routes/feature-modules.js';
 import { subsidyRouter } from './routes/subsidy.js';
 import { orgsRouter } from './routes/orgs.js';
+import { regionsRouter } from './routes/regions.js';
 
 export function createApp() {
   const app = express();
@@ -30,6 +31,7 @@ export function createApp() {
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/subsidy', subsidyRouter);
   app.use('/api/v1/orgs', orgsRouter);
+  app.use('/api/v1/regions', regionsRouter);
 
   return app;
 }
