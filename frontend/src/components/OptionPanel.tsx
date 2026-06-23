@@ -23,7 +23,7 @@ interface Props {
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'vehicle', label: '차량옵션' },
   { key: 'body', label: '특장' },
-  { key: 'interior', label: '내부옵션' },
+  { key: 'interior', label: '옵션' },
 ]
 
 function groupsByCategory(bundle: ApiPricingBundle, category: string): ApiOptionGroup[] {
@@ -86,7 +86,7 @@ export function OptionPanel({
         )}
         {activeTab === 'interior' && (
           <InteriorOptionsTab
-            groups={groupsByCategory(bundle, '내부옵션')}
+            groups={groupsByCategory(bundle, '옵션')}
             selections={selections}
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
