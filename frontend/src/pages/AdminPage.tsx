@@ -347,9 +347,11 @@ function AccountsTab() {
                 {expandedEmail === user.email && (
                   <tr key={`${user.email}-expand`}>
                     <td colSpan={6} style={acc.expandCell}>
-                      <div style={acc.expandHeader}>계정 모듈 override — {ROLE_KO[user.role]} 역할 기준</div>
+                      <div style={acc.expandHeader}>
+                        {user.is_master ? '마스터 — 8개 모듈 전체' : `계정 모듈 override — ${ROLE_KO[user.role]} 역할 기준`}
+                      </div>
                       <div style={acc.moduleGrid}>
-                        {getModulesForRole(modules, user.role).map(mod => {
+                        {(user.is_master ? modules : getModulesForRole(modules, user.role)).map(mod => {
                           const roleEnabled = isEnabled(ac, 'role', user.role, mod.code)
                           const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
                           const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled

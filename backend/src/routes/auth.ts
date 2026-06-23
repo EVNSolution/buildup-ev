@@ -111,10 +111,17 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } });
     return;
   }
-  const acs = await prisma.accessControl.findMany({
-    where: { OR: [{ subject_type: 'role', subject_ref: dbUser.role }, { subject_type: 'user', subject_ref: email }] },
-  });
-  const permissions = mergePermissions(dbUser.role as Role, email, acs);
+  let permissions: string[];
+  if (dbUser.is_master) {
+    // DEV: master gets all active modules regardless of role defaults
+    const allMods = await prisma.featureModule.findMany({ where: { active: true } });
+    permissions = allMods.map(m => m.code);
+  } else {
+    const acs = await prisma.accessControl.findMany({
+      where: { OR: [{ subject_type: 'role', subject_ref: dbUser.role }, { subject_type: 'user', subject_ref: email }] },
+    });
+    permissions = mergePermissions(dbUser.role as Role, email, acs);
+  }
   res.json({
     data: {
       user: {
@@ -147,11 +154,18 @@ authRouter.get('/me/permissions', rbac('SALES', 'ADMIN', 'MAKER'), async (req: R
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } });
     return;
   }
-  const { email, role } = req.auth!;
-  const acs = await prisma.accessControl.findMany({
-    where: { OR: [{ subject_type: 'role', subject_ref: role }, { subject_type: 'user', subject_ref: email }] },
-  });
-  res.json({ data: { permissions: mergePermissions(role, email, acs) } });
+  const { email, role, is_master } = req.auth!;
+  let perms: string[];
+  if (is_master) {
+    const allMods = await prisma.featureModule.findMany({ where: { active: true } });
+    perms = allMods.map(m => m.code);
+  } else {
+    const acs = await prisma.accessControl.findMany({
+      where: { OR: [{ subject_type: 'role', subject_ref: role }, { subject_type: 'user', subject_ref: email }] },
+    });
+    perms = mergePermissions(role, email, acs);
+  }
+  res.json({ data: { permissions: perms } });
 });
 
 // ── POST /auth/change-password ────────────────────────────────────────────

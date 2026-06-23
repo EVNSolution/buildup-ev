@@ -7,7 +7,7 @@ import type { Role } from '@buildup-ev/shared/types';
 
 export const usersRouter = Router();
 
-function safeUser(u: { email: string; org_code: string; role: string; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; created_at: Date; org?: { code: string; name: string; type: string } }) {
+function safeUser(u: { email: string; org_code: string; role: string; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; is_master: boolean; created_at: Date; org?: { code: string; name: string; type: string } }) {
   return {
     email: u.email,
     org_code: u.org_code,
@@ -18,6 +18,7 @@ function safeUser(u: { email: string; org_code: string; role: string; name: stri
     must_change_pw: u.must_change_pw,
     invited_by: u.invited_by ?? undefined,
     active: u.active,
+    is_master: u.is_master, // DEV: master surface switcher
     created_at: u.created_at,
     org: u.org,
   };
