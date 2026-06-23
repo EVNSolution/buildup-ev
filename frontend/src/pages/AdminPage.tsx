@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, confirmQuote } from '../api/quotes'
-import { fetchOrders, updateOrderStatus, fetchMakerOrgs } from '../api/orders'
+import { fetchQuotes, confirmQuote, deleteQuote } from '../api/quotes'
+import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
+import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { useAuth } from '../contexts/AuthContext'
 
 const ROLES: Role[] = ['SALES', 'ADMIN', 'MAKER']
@@ -12,7 +13,6 @@ const ROLE_KO: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAK
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
 }
-const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
@@ -376,6 +376,7 @@ function QuotesTab() {
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState('')
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -402,6 +403,19 @@ function QuotesTab() {
       setConfirmError(e instanceof Error ? e.message : '확정 실패')
     } finally {
       setConfirmLoading(false)
+    }
+  }
+
+  async function handleDelete(id: number) {
+    if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
+    setDeletingId(id); setErr('')
+    try {
+      await deleteQuote(id)
+      setQuotes(prev => prev.filter(q => q.id !== id))
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '삭제 실패')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -454,9 +468,20 @@ function QuotesTab() {
                   </td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
-                    {q.status === 'draft' && (
-                      <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
-                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {q.status === 'draft' && (
+                        <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
+                      )}
+                      {q.status === 'draft' && (
+                        <button
+                          style={deletingId === q.id ? qt.deleteBtnDisabled : qt.deleteBtn}
+                          disabled={deletingId === q.id}
+                          onClick={() => handleDelete(q.id)}
+                        >
+                          {deletingId === q.id ? '…' : '삭제'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -484,7 +509,6 @@ function KanbanTab() {
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [movingId, setMovingId] = useState<number | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -493,64 +517,12 @@ function KanbanTab() {
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleAdvance(order: ApiOrder) {
-    const idx = ORDER_STATUS_SEQ.indexOf(order.status as typeof ORDER_STATUS_SEQ[number])
-    if (idx < 0 || idx >= ORDER_STATUS_SEQ.length - 1) return
-    const nextStatus = ORDER_STATUS_SEQ[idx + 1]!
-    setMovingId(order.id)
-    try {
-      await updateOrderStatus(order.id, nextStatus)
-      await load()
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '상태 변경 실패')
-    } finally {
-      setMovingId(null)
-    }
-  }
-
-  const ordersByStatus = ORDER_STATUS_SEQ.reduce<Record<string, ApiOrder[]>>((acc, s) => {
-    acc[s] = orders.filter(o => o.status === s)
-    return acc
-  }, {} as Record<string, ApiOrder[]>)
-
-  if (loading) return <div style={kb.loading}>로딩 중…</div>
+  if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
 
   return (
     <div>
-      {err && <div style={kb.errMsg}>{err}</div>}
-      <div style={kb.board}>
-        {ORDER_STATUS_SEQ.map(status => (
-          <div key={status} style={kb.column}>
-            <div style={kb.colHeader}>
-              <span style={kb.colTitle}>{status}</span>
-              <span style={kb.colCount}>{ordersByStatus[status]?.length ?? 0}</span>
-            </div>
-            <div style={kb.cards}>
-              {(ordersByStatus[status] ?? []).map(order => {
-                const isLast = ORDER_STATUS_SEQ.indexOf(status as typeof ORDER_STATUS_SEQ[number]) === ORDER_STATUS_SEQ.length - 1
-                return (
-                  <div key={order.id} style={kb.card}>
-                    <div style={kb.cardId}>주문 #{order.id}</div>
-                    <div style={kb.cardCustomer}>{order.quote.customer?.name ?? '고객없음'}</div>
-                    <div style={kb.cardModel}>{order.quote.model_code}</div>
-                    <div style={kb.cardMeta}>{order.maker_org?.name ?? '특장사없음'}</div>
-                    {order.assigned_at && <div style={kb.cardDate}>배정 {fmtDate(order.assigned_at)}</div>}
-                    {!isLast && (
-                      <button
-                        style={movingId === order.id ? kb.advBtnDisabled : kb.advBtn}
-                        disabled={movingId === order.id}
-                        onClick={() => handleAdvance(order)}
-                      >
-                        {movingId === order.id ? '처리 중…' : '다음 단계 →'}
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
+      <OrderKanbanBoard orders={orders} onRefresh={load} onError={setErr} />
     </div>
   )
 }
@@ -704,25 +676,8 @@ const qt: Record<string, React.CSSProperties> = {
   badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
-}
-
-const kb: Record<string, React.CSSProperties> = {
-  loading: { color: 'var(--muted)', fontSize: 13, padding: '24px 0' },
-  errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 10 },
-  board: { display: 'flex', gap: 12, overflowX: 'auto' as const, paddingBottom: 12, alignItems: 'flex-start' },
-  column: { flexShrink: 0, width: 200, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--card)', overflow: 'hidden' },
-  colHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--line)', background: '#fff' },
-  colTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)' },
-  colCount: { fontSize: 11, fontWeight: 700, padding: '2px 7px', background: 'var(--lime)', borderRadius: 10, color: 'var(--dark)' },
-  cards: { display: 'flex', flexDirection: 'column', gap: 8, padding: 10, minHeight: 80 },
-  card: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 5 },
-  cardId: { fontSize: 11, color: 'var(--muted)' },
-  cardCustomer: { fontSize: 13, fontWeight: 700, color: 'var(--dark)' },
-  cardModel: { fontSize: 11, color: 'var(--muted)' },
-  cardMeta: { fontSize: 11, color: '#1565c0' },
-  cardDate: { fontSize: 10, color: 'var(--muted)' },
-  advBtn: { marginTop: 4, padding: '5px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 11 },
-  advBtnDisabled: { marginTop: 4, padding: '5px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed', background: '#f0f2f4', color: 'var(--muted)', fontWeight: 700, fontSize: 11 },
+  deleteBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontWeight: 700, fontSize: 12 },
+  deleteBtnDisabled: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontWeight: 700, fontSize: 12 },
 }
 
 const modal: Record<string, React.CSSProperties> = {

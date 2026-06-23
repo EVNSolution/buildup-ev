@@ -55,6 +55,14 @@ export async function confirmQuote(quoteId: number, makerOrgId: string): Promise
   }
 }
 
+export async function deleteQuote(id: number): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${id}`, { method: 'DELETE', credentials: 'include' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `삭제 실패: ${res.status}`)
+  }
+}
+
 export async function fetchLocalSubsidy(region: string, year: number): Promise<number> {
   if (!region) return 0
   const url = `/api/v1/subsidy/local?region=${encodeURIComponent(region)}&year=${year}`
