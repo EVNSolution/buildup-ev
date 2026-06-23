@@ -64,3 +64,7 @@ export async function resetUserPassword(email: string): Promise<{ temp_password:
 export async function deleteUser(email: string): Promise<void> {
   await apiFetch<{ ok: boolean }>(`/api/v1/users/${encodeURIComponent(email)}`, { method: 'DELETE' })
 }
+
+export async function cascadeDeleteUser(email: string): Promise<void> {
+  await apiFetch<{ ok: boolean }>(`/api/v1/users/${encodeURIComponent(email)}?cascade=true`, { method: 'DELETE' })
+}

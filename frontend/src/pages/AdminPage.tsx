@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
-import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
+import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
@@ -151,6 +151,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
 function AccountsTab() {
   const { session } = useAuth()
   const myEmail = session?.user.email ?? ''
+  const isMaster = session?.user.is_master ?? false
 
   const [users, setUsers] = useState<User[]>([])
   const [orgs, setOrgs] = useState<Org[]>([])
@@ -164,6 +165,7 @@ function AccountsTab() {
   const [resetResult, setResetResult] = useState<{ email: string; temp_password: string } | null>(null)
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [cascadeDeleting, setCascadeDeleting] = useState<string | null>(null)
 
   function loadAll() {
     setLoading(true); setErr('')
@@ -211,6 +213,21 @@ function AccountsTab() {
       setErr(e instanceof Error ? e.message : '삭제 실패')
     } finally {
       setDeleting(null)
+    }
+  }
+
+  async function handleCascadeDelete(email: string) {
+    if (!window.confirm(
+      `[완전 삭제] ${email}\n\n이 계정과 연결된 모든 견적·주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`
+    )) return
+    setCascadeDeleting(email); setErr('')
+    try {
+      await cascadeDeleteUser(email)
+      setUsers(prev => prev.filter(u => u.email !== email))
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '완전 삭제 실패')
+    } finally {
+      setCascadeDeleting(null)
     }
   }
 
@@ -315,6 +332,17 @@ function AccountsTab() {
                       >
                         {deleting === user.email ? '…' : '삭제'}
                       </button>
+                      {/* 마스터 전용 cascade 삭제 버튼 */}
+                      {isMaster && (
+                        <button
+                          style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.cascadeDeleteBtn}
+                          onClick={() => handleCascadeDelete(user.email)}
+                          disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
+                          title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
+                        >
+                          {cascadeDeleting === user.email ? '…' : '완전 삭제'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -718,6 +746,7 @@ const acc: Record<string, React.CSSProperties> = {
   activateBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600 },
   deleteBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontSize: 12, fontWeight: 600 },
   deleteBtnDisabled: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontSize: 12, fontWeight: 600 },
+  cascadeDeleteBtn: { padding: '4px 10px', border: '2px solid #b71c1c', borderRadius: 6, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontSize: 12, fontWeight: 700 },
   expandCell: { padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid var(--line)' },
   expandHeader: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 },
   moduleGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },

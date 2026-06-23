@@ -110,13 +110,16 @@ usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<v
   }
 });
 
-// ── DELETE /users/:email ─────────────────────────────────────────────────
+// ── DELETE /users/:email ──────────────────────────────────────────────────
+// ?cascade=true: is_master 전용 — 연결 데이터 전체 cascade 삭제 (테스트 정리용)
+// 기본(cascade 없음): 일반 ADMIN — 참조 없는 계정만 삭제
 
 usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email } = req.params as { email: string };
+  const cascade = req.query['cascade'] === 'true';
 
-  // 본인 계정 삭제 금지
+  // 공통 가드: 본인 계정 삭제 금지
   if (email === req.auth!.email) {
     res.status(403).json({ error: { code: 'SELF_DELETE_FORBIDDEN', message: '본인 계정은 삭제할 수 없습니다.' } });
     return;
@@ -126,7 +129,7 @@ usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<
     const target = await prisma.user.findUnique({ where: { email } });
     if (!target) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
 
-    // 마지막 ADMIN 삭제 금지
+    // 공통 가드: 마지막 ADMIN 삭제 금지
     if (target.role === 'ADMIN') {
       const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
       if (adminCount <= 1) {
@@ -135,7 +138,36 @@ usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<
       }
     }
 
-    // FK 참조 검사 (견적·초대·고객)
+    if (cascade) {
+      // is_master 전용 cascade 삭제
+      if (!req.auth!.is_master) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '강제 삭제는 마스터 관리자만 가능합니다.' } });
+        return;
+      }
+      await prisma.$transaction(async (tx) => {
+        // invited_by·created_by FK를 null로 해제
+        await tx.user.updateMany({ where: { invited_by: email }, data: { invited_by: null } });
+        await tx.customer.updateMany({ where: { created_by: email }, data: { created_by: null } });
+        // quote → order → order_option·document cascade
+        const quotes = await tx.quote.findMany({ where: { sales_user_id: email }, select: { id: true } });
+        const quoteIds = quotes.map(q => q.id);
+        if (quoteIds.length > 0) {
+          const orders = await tx.order.findMany({ where: { quote_id: { in: quoteIds } }, select: { id: true } });
+          const orderIds = orders.map(o => o.id);
+          if (orderIds.length > 0) {
+            await tx.document.deleteMany({ where: { order_id: { in: orderIds } } });
+            await tx.orderOption.deleteMany({ where: { order_id: { in: orderIds } } });
+            await tx.order.deleteMany({ where: { id: { in: orderIds } } });
+          }
+          await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
+        }
+        await tx.user.delete({ where: { email } });
+      });
+      res.json({ data: { ok: true } });
+      return;
+    }
+
+    // 일반 삭제: FK 참조 있으면 409
     const [quoteCount, inviteeCount, customerCount] = await Promise.all([
       prisma.quote.count({ where: { sales_user_id: email } }),
       prisma.user.count({ where: { invited_by: email } }),
@@ -145,7 +177,6 @@ usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<
       res.status(409).json({ error: { code: 'HAS_REFERENCES', message: '관련 견적/주문이 있어 삭제할 수 없습니다. 비활성화를 사용하세요.' } });
       return;
     }
-
     await prisma.user.delete({ where: { email } });
     res.json({ data: { ok: true } });
   } catch (e: unknown) {
