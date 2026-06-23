@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+      font-size: 12px;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 0;
+    }
+
+    /* ── 페이지 구조 ── */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 16mm 18mm 14mm;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── 헤더 ── */
+    .header {
+      display: flex;
+      align-items: stretch;
+      border-bottom: 3px solid #1a1a1a;
+      padding-bottom: 12px;
+    }
+    .brand-bar {
+      width: 5px;
+      background: #c8d200;
+      border-radius: 3px;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+    .brand-text {
+      flex: 1;
+    }
+    .brand-name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #1a1a1a;
+      line-height: 1.2;
+    }
+    .brand-name span { color: #c8d200; }
+    .brand-sub {
+      font-size: 10px;
+      color: #666;
+      margin-top: 2px;
+    }
+    .doc-title {
+      text-align: right;
+      align-self: flex-end;
+    }
+    .doc-title-main {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.3px;
+    }
+    .doc-title-sub {
+      font-size: 10px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    /* ── 섹션 공통 ── */
+    .section { display: flex; flex-direction: column; gap: 6px; }
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #888;
+      border-bottom: 1px solid #e0e0e0;
+      padding-bottom: 4px;
+    }
+
+    /* ── 2열 메타 그리드 ── */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .meta-row {
+      display: contents;
+    }
+    .meta-key {
+      background: #f7f8f3;
+      padding: 6px 10px;
+      font-size: 10.5px;
+      color: #666;
+      border-bottom: 1px solid #e8e8e8;
+      border-right: 1px solid #e8e8e8;
+    }
+    .meta-val {
+      padding: 6px 10px;
+      font-size: 10.5px;
+      color: #1a1a1a;
+      border-bottom: 1px solid #e8e8e8;
+    }
+    .meta-key:last-of-type, .meta-val:last-of-type { border-bottom: none; }
+
+    /* ── 옵션 테이블 ── */
+    .options-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .options-table thead tr {
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .options-table thead th {
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 10.5px;
+      letter-spacing: 0.3px;
+    }
+    .options-table thead th:last-child { text-align: right; }
+    .options-table tbody tr { border-bottom: 1px solid #f0f0f0; }
+    .options-table tbody tr:last-child { border-bottom: none; }
+    .options-table tbody td {
+      padding: 7px 10px;
+      vertical-align: middle;
+    }
+    .options-table tbody td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .options-table tbody tr:nth-child(even) { background: #fafafa; }
+    .opt-group { font-size: 9.5px; color: #888; }
+    .opt-val { font-size: 11px; color: #1a1a1a; font-weight: 500; }
+
+    /* ── 가격 요약표 ── */
+    .price-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+    .price-table td { padding: 6px 10px; }
+    .price-table .price-key {
+      color: #555;
+      width: 55%;
+    }
+    .price-table .price-val {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #1a1a1a;
+    }
+    .price-table .price-sub {
+      color: #888;
+      font-size: 10.5px;
+    }
+    .price-table tr.divider td {
+      border-top: 1px solid #e0e0e0;
+      padding-top: 8px;
+    }
+    .price-table tr.total td {
+      border-top: 2px solid #1a1a1a;
+      background: #f7f8f3;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 9px 10px;
+    }
+    .price-table tr.total .price-key { color: #1a1a1a; }
+    .price-table tr.total .price-val { color: #1a1a1a; font-size: 14px; }
+    .lime { color: #8a9200; font-weight: 700; }
+    .muted { color: #aaa; }
+
+    /* ── 확정 특장사 배너 ── */
+    .maker-banner {
+      background: #f7f8f3;
+      border: 1px solid #c8d200;
+      border-radius: 6px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .maker-banner-dot {
+      width: 8px; height: 8px;
+      background: #c8d200;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .maker-banner-label { font-size: 10px; color: #888; }
+    .maker-banner-name { font-size: 12px; font-weight: 700; color: #1a1a1a; }
+
+    /* ── 푸터 ── */
+    .footer {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      font-size: 9.5px;
+      color: #bbb;
+    }
+    .footer-note { line-height: 1.6; }
+    .footer-sig { text-align: right; }
+    .footer-sig-name { font-size: 11px; font-weight: 700; color: #666; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── 헤더 ── -->
+  <div class="header">
+    <div class="brand-bar"></div>
+    <div class="brand-text">
+      <div class="brand-name">EV<span>&</span>Solution</div>
+      <div class="brand-sub">전기 특장차 솔루션 · EV&amp; Buildup Platform</div>
+    </div>
+    <div class="doc-title">
+      <div class="doc-title-main">견 적 서</div>
+      <div class="doc-title-sub">QUOTATION</div>
+    </div>
+  </div>
+
+  <!-- ── 견적·고객 정보 ── -->
+  <div class="section">
+    <div class="section-label">견적 정보</div>
+    <div class="meta-grid">
+      <div class="meta-key">견적 번호</div>
+      <div class="meta-val">{{QUOTE_ID}}</div>
+      <div class="meta-key">작성일</div>
+      <div class="meta-val">{{QUOTE_DATE}}</div>
+      <div class="meta-key">차종 (모델)</div>
+      <div class="meta-val">{{MODEL_CODE}}</div>
+      <div class="meta-key">견적 상태</div>
+      <div class="meta-val">{{QUOTE_STATUS}}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">고객 정보</div>
+    <div class="meta-grid">
+      <div class="meta-key">고객명</div>
+      <div class="meta-val">{{CUSTOMER_NAME}}</div>
+      <div class="meta-key">사업자 구분</div>
+      <div class="meta-val">{{BIZ_TYPE}}</div>
+      <div class="meta-key">지역</div>
+      <div class="meta-val">{{REGION}}</div>
+      <div class="meta-key">소상공인</div>
+      <div class="meta-val">{{IS_SOSANG}}</div>
+    </div>
+  </div>
+
+  {{MAKER_BANNER}}
+
+  <!-- ── 옵션 내역 ── -->
+  <div class="section">
+    <div class="section-label">선택 옵션 내역</div>
+    <table class="options-table">
+      <thead>
+        <tr>
+          <th>항목</th>
+          <th>선택값</th>
+          <th>공급가 (부가세 별도)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{OPTION_ROWS}}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── 가격 요약 ── -->
+  <div class="section">
+    <div class="section-label">가격 요약</div>
+    <table class="price-table">
+      <tr>
+        <td class="price-key">공급가액</td>
+        <td class="price-val">{{SUPPLY_PRICE}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">부가세 (10%)</td>
+        <td class="price-val price-sub">{{VAT}}</td>
+      </tr>
+      <tr class="divider">
+        <td class="price-key">차량가 (공급가액 + 부가세)</td>
+        <td class="price-val">{{VEHICLE_PRICE}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">국고 보조금</td>
+        <td class="price-val price-sub lime">{{SUBSIDY_NATIONAL}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">지방 보조금</td>
+        <td class="price-val price-sub lime">{{SUBSIDY_LOCAL}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">소상공인 할인</td>
+        <td class="price-val price-sub lime">{{SUBSIDY_SOSANG}}</td>
+      </tr>
+      <tr>
+        <td class="price-key">보조금 합계</td>
+        <td class="price-val lime">{{TOTAL_SUBSIDY}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">보조금 적용가</td>
+        <td class="price-val price-sub">{{SUBSIDY_APPLIED}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">부가세 환급 후</td>
+        <td class="price-val price-sub">{{VAT_REFUND_PRICE}}</td>
+      </tr>
+      <tr>
+        <td class="price-key price-sub">등록비 · 기타</td>
+        <td class="price-val price-sub">{{REG_FEE}}</td>
+      </tr>
+      <tr class="total">
+        <td class="price-key">실 구매가</td>
+        <td class="price-val">{{FINAL_PRICE}}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ── 푸터 ── -->
+  <div class="footer">
+    <div class="footer-note">
+      본 견적서는 EV&amp;Solution Buildup Platform에서 자동 생성되었습니다.<br/>
+      보조금은 지역·사업자 구분·잔여물량에 따라 변동될 수 있으며, 확정 견적 기준으로 발행됩니다.<br/>
+      문의: EV&amp;Solution 영업팀
+    </div>
+    <div class="footer-sig">
+      <div class="footer-sig-name">EV&amp;Solution</div>
+      <div>전기 특장차 전문기업</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -506,6 +506,12 @@ function QuotesTab() {
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <a
+                        href={`/api/v1/quotes/${q.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={qt.pdfBtn}
+                      >견적서</a>
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                       )}
@@ -710,6 +716,7 @@ const qt: Record<string, React.CSSProperties> = {
   badgeDraft: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
   badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  pdfBtn: { padding: '5px 12px', border: '1px solid var(--line)', borderRadius: 7, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 12, textDecoration: 'none', display: 'inline-block' } as React.CSSProperties,
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtnStrong: { padding: '5px 12px', border: '2px solid #b71c1c', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontWeight: 700, fontSize: 12 },

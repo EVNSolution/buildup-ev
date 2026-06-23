@@ -69,6 +69,7 @@ function MyListView() {
                   <th style={lv.th}>주문 현황</th>
                   <th style={lv.th}>특장사</th>
                   <th style={lv.th}>날짜</th>
+                  <th style={lv.th}></th>
                 </tr>
               </thead>
               <tbody>
@@ -92,6 +93,14 @@ function MyListView() {
                       </td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{q.order?.maker_org?.name ?? '—'}</td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
+                      <td style={lv.td}>
+                        <a
+                          href={`/api/v1/quotes/${q.id}/pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={lv.pdfBtn}
+                        >견적서</a>
+                      </td>
                     </tr>
                   )
                 })}
@@ -429,4 +438,5 @@ const lv: Record<string, React.CSSProperties> = {
   badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
   badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  pdfBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11, textDecoration: 'none', display: 'inline-block' } as React.CSSProperties,
 }
