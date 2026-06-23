@@ -4,6 +4,7 @@ import { fetchOrders, fetchOrderDetail } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { Header } from '../components/Header'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
@@ -21,6 +22,7 @@ function OrderDetail({ orderId, onBack }: { orderId: number; onBack: () => void 
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [tab, setTab] = useState<'spec' | 'docs'>('spec')
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     setLoading(true); setErr('')
@@ -37,12 +39,12 @@ function OrderDetail({ orderId, onBack }: { orderId: number; onBack: () => void 
   const statusIdx = ORDER_STATUS_SEQ.indexOf(detail.status as typeof ORDER_STATUS_SEQ[number])
 
   return (
-    <div style={det.root}>
+    <div style={{ ...det.root, maxWidth: isMobile ? '100%' : 720 }}>
       {/* 헤더 */}
       <div style={det.header}>
         <button style={det.backBtn} onClick={onBack}>← 배정 주문</button>
         <div style={det.titleRow}>
-          <span style={det.orderId}>주문 #{detail.id}</span>
+          <span style={{ ...det.orderId, fontSize: isMobile ? 18 : 20 }}>주문 #{detail.id}</span>
           <span style={det.statusBadge}>{detail.status}</span>
           <span style={det.model}>{detail.model_code}</span>
         </div>
@@ -57,9 +59,9 @@ function OrderDetail({ orderId, onBack }: { orderId: number; onBack: () => void 
       </div>
 
       {/* 진행 단계 */}
-      <div style={det.progressSection}>
+      <div style={{ ...det.progressSection, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {ORDER_STATUS_SEQ.map((s, i) => (
-          <div key={s} style={det.stepItem}>
+          <div key={s} style={{ ...det.stepItem, ...(isMobile ? { flex: '0 0 33%', marginBottom: 8 } : {}) }}>
             <div style={i <= statusIdx ? det.stepDotActive : det.stepDot} />
             <div style={i <= statusIdx ? det.stepLabelActive : det.stepLabel}>{s}</div>
           </div>
@@ -76,6 +78,16 @@ function OrderDetail({ orderId, onBack }: { orderId: number; onBack: () => void 
         <div style={det.section}>
           {detail.options.length === 0 ? (
             <div style={det.empty}>옵션 정보 없음</div>
+          ) : isMobile ? (
+            // 모바일: 라벨:값 카드 스타일
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {detail.options.map((opt, i) => (
+                <div key={i} style={detMob.row}>
+                  <span style={detMob.label}>{opt.group_name}</span>
+                  <span style={detMob.value}>{opt.value_name}</span>
+                </div>
+              ))}
+            </div>
           ) : (
             <table style={det.table}>
               <thead>
@@ -101,6 +113,18 @@ function OrderDetail({ orderId, onBack }: { orderId: number; onBack: () => void 
         <div style={det.section}>
           {detail.documents.length === 0 ? (
             <div style={det.empty}>서류 준비 중</div>
+          ) : isMobile ? (
+            // 모바일: 라벨:값 카드 스타일
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {detail.documents.map(doc => (
+                <div key={doc.id} style={detMob.row}>
+                  <span style={detMob.label}>{doc.name}</span>
+                  <span style={{ ...det.docBadge, ...DOC_STATUS_STYLE[doc.status] }}>
+                    {DOC_STATUS_LABEL[doc.status] ?? doc.status}
+                  </span>
+                </div>
+              ))}
+            </div>
           ) : (
             <table style={det.table}>
               <thead>
@@ -132,6 +156,7 @@ function OrderDetail({ orderId, onBack }: { orderId: number; onBack: () => void 
 // ── MakerPage ──────────────────────────────────────────────────────────────
 export function MakerPage() {
   const { session } = useAuth()
+  const isMobile = useIsMobile()
   const email = session?.user.email ?? ''
 
   const [orders, setOrders] = useState<ApiOrder[]>([])
@@ -156,13 +181,13 @@ export function MakerPage() {
     <div style={styles.root}>
       <Header />
 
-      <div style={styles.body}>
+      <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         {selectedId !== null ? (
           <OrderDetail orderId={selectedId} onBack={() => setSelectedId(null)} />
         ) : (
           <>
-            <div style={styles.titleBar}>
-              <h1 style={styles.h1}>특장사 작업 칸반</h1>
+            <div style={{ ...styles.titleBar, flexWrap: 'wrap' }}>
+              <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>특장사 작업 칸반</h1>
               <span style={styles.orgChip}>{session?.org.name ?? session?.org.code}</span>
             </div>
             {err && <div style={styles.errMsg}>{err}</div>}
@@ -208,6 +233,7 @@ const det: Record<string, React.CSSProperties> = {
     alignSelf: 'flex-start', fontSize: 12, padding: '5px 12px',
     border: '1px solid var(--line)', borderRadius: 7, background: '#fff',
     cursor: 'pointer', color: 'var(--muted)', marginBottom: 4,
+    minHeight: 44,
   },
   titleRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const },
   orderId: { fontSize: 20, fontWeight: 800, color: 'var(--dark)' },
@@ -232,12 +258,12 @@ const det: Record<string, React.CSSProperties> = {
   tabBtn: {
     padding: '8px 18px', border: 'none', borderBottom: '2px solid transparent',
     background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--muted)',
-    fontWeight: 600, marginBottom: -2,
+    fontWeight: 600, marginBottom: -2, minHeight: 44,
   },
   tabActive: {
     padding: '8px 18px', border: 'none', borderBottom: '2px solid var(--dark)',
     background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dark)',
-    fontWeight: 700, marginBottom: -2,
+    fontWeight: 700, marginBottom: -2, minHeight: 44,
   },
   section: { paddingTop: 4 },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },
@@ -249,4 +275,14 @@ const det: Record<string, React.CSSProperties> = {
   tdLabel: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, width: '40%' },
   tdValue: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontWeight: 600, color: 'var(--dark)' },
   docBadge: { fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 8 },
+}
+
+// 모바일 상세 라벨:값 스타일
+const detMob: Record<string, React.CSSProperties> = {
+  row: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '10px 0', borderBottom: '1px solid var(--line)', gap: 12,
+  },
+  label: { fontSize: 12, color: 'var(--muted)', flexShrink: 0 },
+  value: { fontSize: 13, fontWeight: 600, color: 'var(--dark)', textAlign: 'right' as const },
 }

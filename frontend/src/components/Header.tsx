@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useIsMobile } from '../hooks/useIsMobile'
 import type { CustomerInfo, Role } from '@shared/types/index'
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -24,6 +25,7 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
   const { session, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const isMobile = useIsMobile()
   const user = session?.user
   const org  = session?.org
 
@@ -32,14 +34,22 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
     : '고객 정보 입력 ▾'
 
   return (
-    <header style={styles.header}>
+    <header style={{
+      ...styles.header,
+      padding: isMobile ? '10px 14px' : '11px 20px',
+      flexWrap: isMobile ? 'wrap' : 'nowrap',
+      gap: isMobile ? 8 : 12,
+    }}>
       <div style={styles.logo}>EV<b style={styles.logoBold}>&</b>Solution</div>
-      {user && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
+      {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
 
       {/* DEV: master surface switcher — is_master 계정에만 표시 */}
       {user?.is_master && (
-        <div style={styles.surfaceSwitch}>
+        <div style={{
+          ...styles.surfaceSwitch,
+          ...(isMobile ? { order: 10, width: '100%', justifyContent: 'center' } : {}),
+        }}>
           {SURFACES.map(s => (
             <button
               key={s.path}
@@ -61,11 +71,19 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
       {user && (
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user.name}</span>
-          <span style={styles.userOrg}>{org?.name ?? user.org_code}</span>
+          {!isMobile && <span style={styles.userOrg}>{org?.name ?? user.org_code}</span>}
         </div>
       )}
 
-      <button style={styles.logoutBtn} onClick={logout}>로그아웃</button>
+      <button
+        style={{
+          ...styles.logoutBtn,
+          ...(isMobile ? { minHeight: 44, padding: '10px 14px' } : {}),
+        }}
+        onClick={logout}
+      >
+        로그아웃
+      </button>
     </header>
   )
 }
