@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ApiOrder } from '@shared/types/index'
 import { updateOrderStatus } from '../api/orders'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 type OrderStatus = typeof ORDER_STATUS_SEQ[number]
@@ -17,6 +18,7 @@ interface Props {
 
 export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, readOnly = false }: Props) {
   const [movingId, setMovingId] = useState<number | null>(null)
+  const isMobile = useIsMobile()
 
   async function handleMove(order: ApiOrder, direction: 'next' | 'prev') {
     const idx = ORDER_STATUS_SEQ.indexOf(order.status as OrderStatus)
@@ -45,10 +47,12 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
     return acc
   }, {} as Record<string, ApiOrder[]>)
 
+  const colWidth = isMobile ? 170 : 160
+
   return (
-    <div style={kb.board}>
+    <div style={{ ...kb.board, WebkitOverflowScrolling: 'touch' as unknown as undefined }}>
       {ORDER_STATUS_SEQ.map((status, colIdx) => (
-        <div key={status} style={kb.column}>
+        <div key={status} style={{ ...kb.column, minWidth: colWidth, flex: `0 0 ${colWidth}px` }}>
           <div style={kb.colHeader}>
             <span style={kb.colTitle}>{status}</span>
             <span style={kb.colCount}>{byStatus[status]?.length ?? 0}</span>
@@ -74,7 +78,10 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
                     <div style={kb.btnRow}>
                       {!isFirst && (
                         <button
-                          style={busy ? kb.revBtnDisabled : kb.revBtn}
+                          style={{
+                            ...(busy ? kb.revBtnDisabled : kb.revBtn),
+                            ...(isMobile ? { minHeight: 44, fontSize: 12 } : {}),
+                          }}
                           disabled={busy}
                           onClick={() => handleMove(order, 'prev')}
                           title={`← ${ORDER_STATUS_SEQ[colIdx - 1]}`}
@@ -84,7 +91,10 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
                       )}
                       {!isLast && (
                         <button
-                          style={busy ? kb.advBtnDisabled : kb.advBtn}
+                          style={{
+                            ...(busy ? kb.advBtnDisabled : kb.advBtn),
+                            ...(isMobile ? { minHeight: 44, fontSize: 12 } : {}),
+                          }}
                           disabled={busy}
                           onClick={() => handleMove(order, 'next')}
                         >

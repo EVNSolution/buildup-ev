@@ -8,6 +8,7 @@ import { Header } from '../components/Header'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { PdfModal } from '../components/PdfModal'
 import { useAuth } from '../contexts/AuthContext'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const ROLES: Role[] = ['SALES', 'ADMIN', 'MAKER']
 const ROLE_KO: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAKER: '특장사' }
@@ -151,6 +152,7 @@ function AccountsTab() {
   const { session } = useAuth()
   const myEmail = session?.user.email ?? ''
   const isMaster = session?.user.is_master ?? false
+  const isMobile = useIsMobile()
 
   const [users, setUsers] = useState<User[]>([])
   const [orgs, setOrgs] = useState<Org[]>([])
@@ -253,6 +255,103 @@ function AccountsTab() {
   const adminCount = users.filter(u => u.role === 'ADMIN').length
   const isDeleteDisabled = (u: User) => u.email === myEmail || (u.role === 'ADMIN' && adminCount <= 1)
 
+  function renderModuleExpand(user: User) {
+    return (
+      <div style={acc.expandCell}>
+        <div style={acc.expandHeader}>
+          {user.is_master ? '마스터 — 8개 모듈 전체' : `계정 모듈 override — ${ROLE_KO[user.role]} 역할 기준`}
+        </div>
+        <div style={acc.moduleGrid}>
+          {(user.is_master ? modules : getModulesForRole(modules, user.role)).map(mod => {
+            const roleEnabled = isEnabled(ac, 'role', user.role, mod.code)
+            const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
+            const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
+            const hasOverride = userOverride !== undefined
+            return (
+              <div key={mod.code} style={acc.moduleItem}>
+                <div style={acc.modName}>{mod.name}</div>
+                <div style={acc.modCode}>{mod.code}</div>
+                <div style={acc.modMeta}>
+                  {hasOverride
+                    ? <span style={acc.overrideTag}>override</span>
+                    : <span style={acc.roleTag}>역할기본</span>
+                  }
+                </div>
+                <button
+                  style={effective ? acc.toggleOn : acc.toggleOff}
+                  onClick={() => handleUserModuleToggle(user.email, mod.code, effective)}
+                >
+                  {effective ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  function renderActionButtons(user: User) {
+    const btnH = isMobile ? { minHeight: 44 } : {}
+    if (user.is_master) {
+      return isMaster ? (
+        <button
+          style={{ ...acc.actionBtn, ...btnH }}
+          onClick={() => handleResetPw(user.email)}
+          disabled={resetting === user.email}
+        >
+          {resetting === user.email ? '…' : '비번재설정'}
+        </button>
+      ) : null
+    }
+    return (
+      <>
+        <button
+          style={{ ...acc.actionBtn, ...btnH }}
+          onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
+        >
+          {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
+        </button>
+        <button
+          style={{ ...acc.actionBtn, ...btnH }}
+          onClick={() => handleResetPw(user.email)}
+          disabled={resetting === user.email}
+        >
+          {resetting === user.email ? '…' : '비번재설정'}
+        </button>
+        <button
+          style={{ ...(user.status === 'active' ? acc.suspendBtn : acc.activateBtn), ...btnH }}
+          onClick={() => handleToggleStatus(user)}
+          disabled={togglingStatus === user.email}
+        >
+          {user.status === 'active' ? '정지' : '활성화'}
+        </button>
+        <button
+          style={{ ...(isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.deleteBtn), ...btnH }}
+          onClick={() => handleDelete(user.email)}
+          disabled={isDeleteDisabled(user) || deleting === user.email}
+          title={
+            user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
+            (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
+            '계정 삭제'
+          }
+        >
+          {deleting === user.email ? '…' : '삭제'}
+        </button>
+        {isMaster && (
+          <button
+            style={{ ...(isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.cascadeDeleteBtn), ...btnH }}
+            onClick={() => handleCascadeDelete(user.email)}
+            disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
+            title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
+          >
+            {cascadeDeleting === user.email ? '…' : '완전삭제'}
+          </button>
+        )}
+      </>
+    )
+  }
+
   if (loading) return <div style={styles.content}><div style={{ color: 'var(--muted)', fontSize: 13 }}>로딩 중…</div></div>
 
   return (
@@ -269,140 +368,90 @@ function AccountsTab() {
 
       <div style={acc.toolbar}>
         <span style={acc.count}>{users.length}명</span>
-        <button style={acc.createBtn} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
+        <button style={{ ...acc.createBtn, minHeight: isMobile ? 44 : undefined }} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
       </div>
 
-      <div style={acc.tableWrap}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.thModule}>이메일</th>
-              <th style={styles.thModule}>이름</th>
-              <th style={styles.thRole}>역할</th>
-              <th style={styles.thModule}>조직</th>
-              <th style={styles.thRole}>상태</th>
-              <th style={styles.thModule}>액션</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <>
-                <tr key={user.email}>
-                  <td style={styles.tdModule}>{user.email}</td>
-                  <td style={styles.tdModule}>{user.name}</td>
-                  <td style={styles.tdToggle}>
-                    <span style={acc.roleBadge}>{ROLE_KO[user.role]}</span>
-                    {user.is_master && <span style={acc.masterBadge}>마스터</span>}
-                  </td>
-                  <td style={styles.tdModule}>{user.org_code}</td>
-                  <td style={styles.tdToggle}>
-                    <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
-                      {STATUS_LABEL[user.status] ?? user.status}
-                    </span>
-                  </td>
-                  <td style={styles.tdModule}>
-                    <div style={acc.actions}>
-                      {/* 마스터 행: 비-마스터 → 버튼 없음 / 마스터 본인 → 비번재설정만 */}
-                      {user.is_master ? (
-                        isMaster && (
-                          <button
-                            style={acc.actionBtn}
-                            onClick={() => handleResetPw(user.email)}
-                            disabled={resetting === user.email}
-                          >
-                            {resetting === user.email ? '…' : '비번재설정'}
-                          </button>
-                        )
-                      ) : (
-                        <>
-                          <button
-                            style={acc.actionBtn}
-                            onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
-                          >
-                            {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
-                          </button>
-                          <button
-                            style={acc.actionBtn}
-                            onClick={() => handleResetPw(user.email)}
-                            disabled={resetting === user.email}
-                          >
-                            {resetting === user.email ? '…' : '비번재설정'}
-                          </button>
-                          <button
-                            style={user.status === 'active' ? acc.suspendBtn : acc.activateBtn}
-                            onClick={() => handleToggleStatus(user)}
-                            disabled={togglingStatus === user.email}
-                          >
-                            {user.status === 'active' ? '정지' : '활성화'}
-                          </button>
-                          <button
-                            style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.deleteBtn}
-                            onClick={() => handleDelete(user.email)}
-                            disabled={isDeleteDisabled(user) || deleting === user.email}
-                            title={
-                              user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
-                              (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
-                              '계정 삭제'
-                            }
-                          >
-                            {deleting === user.email ? '…' : '삭제'}
-                          </button>
-                          {isMaster && (
-                            <button
-                              style={isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.cascadeDeleteBtn}
-                              onClick={() => handleCascadeDelete(user.email)}
-                              disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
-                              title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
-                            >
-                              {cascadeDeleting === user.email ? '…' : '완전 삭제'}
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-                {expandedEmail === user.email && (
-                  <tr key={`${user.email}-expand`}>
-                    <td colSpan={6} style={acc.expandCell}>
-                      <div style={acc.expandHeader}>
-                        {user.is_master ? '마스터 — 8개 모듈 전체' : `계정 모듈 override — ${ROLE_KO[user.role]} 역할 기준`}
-                      </div>
-                      <div style={acc.moduleGrid}>
-                        {(user.is_master ? modules : getModulesForRole(modules, user.role)).map(mod => {
-                          const roleEnabled = isEnabled(ac, 'role', user.role, mod.code)
-                          const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
-                          const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
-                          const hasOverride = userOverride !== undefined
-
-                          return (
-                            <div key={mod.code} style={acc.moduleItem}>
-                              <div style={acc.modName}>{mod.name}</div>
-                              <div style={acc.modCode}>{mod.code}</div>
-                              <div style={acc.modMeta}>
-                                {hasOverride
-                                  ? <span style={acc.overrideTag}>override</span>
-                                  : <span style={acc.roleTag}>역할기본</span>
-                                }
-                              </div>
-                              <button
-                                style={effective ? acc.toggleOn : acc.toggleOff}
-                                onClick={() => handleUserModuleToggle(user.email, mod.code, effective)}
-                              >
-                                {effective ? 'ON' : 'OFF'}
-                              </button>
-                            </div>
-                          )
-                        })}
+      {isMobile ? (
+        // ── 모바일: 카드 리스트 ──
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {users.map(user => (
+            <div key={user.email} style={accMob.card}>
+              <div style={accMob.cardTop}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={accMob.name}>{user.name}</span>
+                  {user.is_master && <span style={acc.masterBadge}>마스터</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={acc.roleBadge}>{ROLE_KO[user.role]}</span>
+                  <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
+                    {STATUS_LABEL[user.status] ?? user.status}
+                  </span>
+                </div>
+              </div>
+              <div style={accMob.row}>
+                <span style={accMob.label}>이메일</span>
+                <span style={accMob.value}>{user.email}</span>
+              </div>
+              <div style={accMob.row}>
+                <span style={accMob.label}>조직</span>
+                <span style={accMob.value}>{user.org_code}</span>
+              </div>
+              <div style={accMob.actions}>
+                {renderActionButtons(user)}
+              </div>
+              {expandedEmail === user.email && renderModuleExpand(user)}
+            </div>
+          ))}
+        </div>
+      ) : (
+        // ── 데스크톱: 표 ──
+        <div style={acc.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.thModule}>이메일</th>
+                <th style={styles.thModule}>이름</th>
+                <th style={styles.thRole}>역할</th>
+                <th style={styles.thModule}>조직</th>
+                <th style={styles.thRole}>상태</th>
+                <th style={styles.thModule}>액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(user => (
+                <>
+                  <tr key={user.email}>
+                    <td style={styles.tdModule}>{user.email}</td>
+                    <td style={styles.tdModule}>{user.name}</td>
+                    <td style={styles.tdToggle}>
+                      <span style={acc.roleBadge}>{ROLE_KO[user.role]}</span>
+                      {user.is_master && <span style={acc.masterBadge}>마스터</span>}
+                    </td>
+                    <td style={styles.tdModule}>{user.org_code}</td>
+                    <td style={styles.tdToggle}>
+                      <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
+                        {STATUS_LABEL[user.status] ?? user.status}
+                      </span>
+                    </td>
+                    <td style={styles.tdModule}>
+                      <div style={acc.actions}>
+                        {renderActionButtons(user)}
                       </div>
                     </td>
                   </tr>
-                )}
-              </>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  {expandedEmail === user.email && (
+                    <tr key={`${user.email}-expand`}>
+                      <td colSpan={6} style={{ padding: 0 }}>
+                        {renderModuleExpand(user)}
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {showCreate && <CreateUserModal orgs={orgs} onClose={() => { setShowCreate(false); loadAll() }} />}
     </div>
@@ -413,6 +462,7 @@ function AccountsTab() {
 function QuotesTab() {
   const { session } = useAuth()
   const isMaster = session?.user.is_master ?? false
+  const isMobile = useIsMobile()
 
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
   const [loading, setLoading] = useState(true)
@@ -473,28 +523,84 @@ function QuotesTab() {
     }
   }
 
+  function statusBadgeStyle(status: string) {
+    if (status === 'draft') return qt.badgeDraft
+    if (status === 'confirmed') return qt.badgeConfirmed
+    return qt.badgeOther
+  }
+
   return (
     <div>
-      <div style={qt.filterBar}>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={qt.select}>
+      <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>
           <option value="">전체 상태</option>
           <option value="draft">임시저장</option>
           <option value="confirmed">확정</option>
           <option value="ordered">주문</option>
           <option value="expired">만료</option>
         </select>
-        <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={qt.dateInput} />
-        <span style={qt.dateSep}>~</span>
-        <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={qt.dateInput} />
-        <button onClick={load} style={qt.searchBtn}>조회</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...qt.dateInput, ...(isMobile ? { minHeight: 44 } : {}) }} />
+          <span style={qt.dateSep}>~</span>
+          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput, ...(isMobile ? { minHeight: 44 } : {}) }} />
+        </div>
+        <button onClick={load} style={{ ...qt.searchBtn, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>조회</button>
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
+
       {loading ? (
         <div style={qt.loading}>로딩 중…</div>
       ) : quotes.length === 0 ? (
         <div style={qt.empty}>견적이 없습니다.</div>
+      ) : isMobile ? (
+        // ── 모바일: 카드 리스트 ──
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {quotes.map(q => (
+            <div key={q.id} style={qtMob.card}>
+              <div style={qtMob.cardTop}>
+                <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
+                <span style={statusBadgeStyle(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</span>
+              </div>
+              <div style={qtMob.rows}>
+                <div style={qtMob.row}>
+                  <span style={qtMob.label}># · 특장사</span>
+                  <span>#{q.id} · {q.order?.maker_org?.name ?? '—'}</span>
+                </div>
+                <div style={qtMob.row}>
+                  <span style={qtMob.label}>영업</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{q.sales_user_id ?? '—'}</span>
+                </div>
+                <div style={qtMob.row}>
+                  <span style={qtMob.label}>실구매가</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtPrice(q.final_price)}</span>
+                </div>
+                <div style={qtMob.row}>
+                  <span style={qtMob.label}>일시</span>
+                  <span>{fmtDate(q.created_at)}</span>
+                </div>
+              </div>
+              <div style={qtMob.actions}>
+                <button
+                  style={{ ...qt.pdfBtn, flex: 1, minHeight: 44 }}
+                  onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                >견적서</button>
+                {q.status === 'draft' && (
+                  <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>확정</button>
+                )}
+                {(q.status === 'draft' || (q.status === 'confirmed' && isMaster)) && (
+                  <button
+                    style={{ ...(deletingId === q.id ? qt.deleteBtnDisabled : (q.status === 'confirmed' ? qt.deleteBtnStrong : qt.deleteBtn)), flex: 1, minHeight: 44 }}
+                    disabled={deletingId === q.id}
+                    onClick={() => handleDelete(q.id, q.status)}
+                  >{deletingId === q.id ? '…' : '삭제'}</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
+        // ── 데스크톱: 표 ──
         <div style={qt.tableWrap}>
           <table style={qt.table}>
             <thead>
@@ -517,7 +623,7 @@ function QuotesTab() {
                   <td style={qt.tdMuted}>{q.sales_user_id ?? '—'}</td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
-                    <span style={q.status === 'draft' ? qt.badgeDraft : q.status === 'confirmed' ? qt.badgeConfirmed : qt.badgeOther}>
+                    <span style={statusBadgeStyle(q.status)}>
                       {QUOTE_STATUS_LABELS[q.status] ?? q.status}
                     </span>
                   </td>
@@ -532,7 +638,6 @@ function QuotesTab() {
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                       )}
-                      {/* draft: 누구나 삭제 가능 / confirmed: is_master만 활성 */}
                       {(q.status === 'draft' || (q.status === 'confirmed' && isMaster)) && (
                         <button
                           style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status === 'confirmed' ? qt.deleteBtnStrong : qt.deleteBtn)}
@@ -602,6 +707,7 @@ function KanbanTab() {
 
 // ── AdminPage ────────────────────────────────────────────────────────────
 export function AdminPage() {
+  const isMobile = useIsMobile()
   const [modules, setModules] = useState<FeatureModule[]>([])
   const [ac, setAc] = useState<AccessControl[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('quotes')
@@ -630,7 +736,7 @@ export function AdminPage() {
   const TABS: { key: TabKey; label: string }[] = [
     { key: 'quotes',   label: '견적 목록' },
     { key: 'kanban',   label: '주문 칸반' },
-    { key: 'toggles',  label: '기능모듈 토글' },
+    { key: 'toggles',  label: '기능모듈' },
     { key: 'accounts', label: '계정 관리' },
   ]
 
@@ -638,12 +744,19 @@ export function AdminPage() {
     <div style={styles.root}>
       <Header />
 
-      <div style={styles.body}>
-        <div style={styles.titleBar}>
-          <h1 style={styles.h1}>관리자 대시보드</h1>
-          <div style={styles.tabs}>
+      <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
+        <div style={{ ...styles.titleBar, flexDirection: isMobile ? 'column' : undefined, alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? 8 : 16 }}>
+          <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>관리자 대시보드</h1>
+          <div style={{ ...styles.tabs, flexWrap: 'wrap', gap: isMobile ? 6 : 4, width: isMobile ? '100%' : undefined }}>
             {TABS.map(t => (
-              <button key={t.key} style={activeTab === t.key ? styles.tabOn : styles.tab} onClick={() => setActiveTab(t.key)}>
+              <button
+                key={t.key}
+                style={{
+                  ...(activeTab === t.key ? styles.tabOn : styles.tab),
+                  ...(isMobile ? { flex: '1 0 45%', minHeight: 44, fontSize: 14, textAlign: 'center' } : {}),
+                }}
+                onClick={() => setActiveTab(t.key)}
+              >
                 {t.label}
               </button>
             ))}
@@ -751,6 +864,17 @@ const qt: Record<string, React.CSSProperties> = {
   deleteBtnDisabled: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontWeight: 700, fontSize: 12 },
 }
 
+// 모바일 견적 카드 스타일
+const qtMob: Record<string, React.CSSProperties> = {
+  card: { border: '1px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
+  cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const },
+  name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)' },
+  rows: { display: 'flex', flexDirection: 'column', gap: 6 },
+  row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13 },
+  label: { color: 'var(--muted)', fontSize: 12, flexShrink: 0, marginRight: 8 },
+  actions: { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
+}
+
 const modal: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16 },
@@ -784,7 +908,7 @@ const acc: Record<string, React.CSSProperties> = {
   expandCell: { padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid var(--line)' },
   expandHeader: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 },
   moduleGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },
-  moduleItem: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 12px', minWidth: 160, display: 'flex', flexDirection: 'column', gap: 3 },
+  moduleItem: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 12px', minWidth: 140, display: 'flex', flexDirection: 'column', gap: 3 },
   modName: { fontSize: 12, fontWeight: 600, color: 'var(--dark)' },
   modCode: { fontSize: 10, color: 'var(--muted)' },
   modMeta: { marginBottom: 4 },
@@ -799,4 +923,15 @@ const acc: Record<string, React.CSSProperties> = {
   resetResultBox: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: 10, padding: '10px 14px', marginBottom: 14, flexWrap: 'wrap' as const },
   resetResultLabel: { fontSize: 12, color: '#e65100' },
   dismissBtn: { padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e65100', color: '#fff', fontWeight: 700, fontSize: 12 },
+}
+
+// 모바일 계정 카드 스타일
+const accMob: Record<string, React.CSSProperties> = {
+  card: { border: '1px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
+  cardTop: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const },
+  name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)' },
+  row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13 },
+  label: { color: 'var(--muted)', fontSize: 12, flexShrink: 0, marginRight: 8 },
+  value: { fontSize: 12, color: 'var(--body)', textAlign: 'right' as const, wordBreak: 'break-all' as const },
+  actions: { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
 }
