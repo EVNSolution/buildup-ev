@@ -99,6 +99,15 @@ usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<v
   if (Object.keys(data).length === 0) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '변경할 필드 없음' } }); return; }
 
   try {
+    // 마스터 계정 상태 변경 금지
+    if (status) {
+      const target = await prisma.user.findUnique({ where: { email } });
+      if (target?.is_master) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '마스터 계정 상태는 변경할 수 없습니다.' } });
+        return;
+      }
+    }
+
     const user = await prisma.user.update({
       where: { email },
       data,
@@ -129,6 +138,12 @@ usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<
   try {
     const target = await prisma.user.findUnique({ where: { email } });
     if (!target) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
+
+    // 마스터 계정 삭제 금지 (누구든)
+    if (target.is_master) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '마스터 계정은 삭제할 수 없습니다.' } });
+      return;
+    }
 
     // 공통 가드: 마지막 ADMIN 삭제 금지
     if (target.role === 'ADMIN') {
@@ -202,6 +217,13 @@ usersRouter.post('/:email/reset-password', rbac('ADMIN'), async (req: Request, r
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } }); return; }
+
+    // 마스터 비번 재설정은 마스터 본인만
+    if (user.is_master && !req.auth!.is_master) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '마스터 계정 비밀번호는 마스터 본인만 재설정할 수 있습니다.' } });
+      return;
+    }
+
     await prisma.user.update({ where: { email }, data: { password_hash: hash, must_change_pw: true } });
     // temp_password returned ONCE — never stored in plaintext
     res.json({ data: { temp_password: tempPw } });

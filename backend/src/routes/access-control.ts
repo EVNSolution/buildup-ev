@@ -25,6 +25,15 @@ accessControlRouter.post('/', rbac('ADMIN'), async (req: Request, res): Promise<
     return;
   }
 
+  // 마스터 유저의 모듈은 항상 전체 ON — 변경 금지
+  if (subject_type === 'user') {
+    const target = await prisma.user.findUnique({ where: { email: subject_ref } });
+    if (target?.is_master) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '마스터 계정의 모듈은 변경할 수 없습니다.' } });
+      return;
+    }
+  }
+
   const ac = await prisma.accessControl.upsert({
     where: { subject_type_subject_ref_module_code: { subject_type: subject_type as 'role' | 'user', subject_ref, module_code } },
     update: { enabled, memo },
