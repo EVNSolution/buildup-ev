@@ -24,12 +24,30 @@ function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
 }
-const QUOTE_STATUS_TIPS: Record<string, string> = {
-  draft: '작성 중인 견적. 아직 확정되지 않아 고객에게 공식 발송할 수 없습니다.',
-  confirmed: '관리자가 특장사를 배정하여 확정한 견적. 주문이 생성된 상태입니다.',
-  ordered: '주문으로 전환되어 특장사 제작이 진행 중입니다.',
-  expired: '유효기간이 지나거나 취소된 견적입니다.',
+
+const QUOTE_STATUS_FLOW = [
+  { key: 'draft',     label: '임시저장', desc: '작성 중인 견적' },
+  { key: 'confirmed', label: '확정',     desc: '특장사 배정 · 주문 생성' },
+  { key: 'ordered',   label: '주문',     desc: '특장사 제작 진행 중' },
+] as const
+
+function quoteStatusTip(status: string): React.ReactNode {
+  return (
+    <div>
+      <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>견적 상태</div>
+      {QUOTE_STATUS_FLOW.map((s, i) => (
+        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? '#c8d200' : '#ccc', fontSize: 11 }}>
+          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+          <span>{s.label}</span>
+          <span style={{ fontSize: 9.5, color: s.key === status ? '#b0b8c0' : '#666', marginLeft: 2 }}>({s.desc})</span>
+          {s.key === status && <span style={{ fontSize: 9, color: '#c8d200', marginLeft: 2 }}>← 현재</span>}
+        </div>
+      ))}
+      {status === 'expired' && <div style={{ fontSize: 10, color: '#e57373', marginTop: 5 }}>만료/취소된 견적입니다</div>}
+    </div>
+  )
 }
+
 const MODULE_DESC: Record<string, string> = {
   'quote.create': '견적 작성 및 저장',
   'quote.confirm': '견적 확정 및 특장사 배정',
@@ -577,7 +595,7 @@ function QuotesTab() {
             <div key={q.id} style={qtMob.card}>
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
-                <Tooltip text={QUOTE_STATUS_TIPS[q.status] ?? q.status} placement="below">
+                <Tooltip text={quoteStatusTip(q.status)} placement="below">
                   <span style={statusBadgeStyle(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</span>
                 </Tooltip>
               </div>
@@ -646,7 +664,7 @@ function QuotesTab() {
                   <td style={qt.tdMuted}>{q.sales_user_id ?? '—'}</td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
-                    <Tooltip text={QUOTE_STATUS_TIPS[q.status] ?? q.status} placement="below">
+                    <Tooltip text={quoteStatusTip(q.status)} placement="below">
                       <span style={statusBadgeStyle(q.status)}>
                         {QUOTE_STATUS_LABELS[q.status] ?? q.status}
                       </span>

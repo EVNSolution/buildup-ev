@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useIsMobile } from '../hooks/useIsMobile'
 
 interface Props {
@@ -6,36 +7,78 @@ interface Props {
   children: React.ReactNode
   placement?: 'below' | 'above'
   maxWidth?: number
+  minWidth?: number
 }
 
-export function Tooltip({ text, children, placement = 'below', maxWidth = 210 }: Props) {
+interface Pos {
+  top?: number
+  bottom?: number
+  left: number
+}
+
+export function Tooltip({ text, children, placement = 'below', maxWidth = 220, minWidth = 150 }: Props) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<Pos>({ left: 0 })
+  const triggerRef = useRef<HTMLSpanElement>(null)
   const isMobile = useIsMobile()
 
-  const bubblePos: React.CSSProperties = placement === 'above'
-    ? { bottom: 'calc(100% + 5px)', top: 'auto' }
-    : { top: 'calc(100% + 5px)', bottom: 'auto' }
+  const calcAndOpen = useCallback(() => {
+    if (!triggerRef.current) return
+    const r = triggerRef.current.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    // left edge of tooltip, clamped to stay inside viewport
+    const left = Math.max(8, Math.min(cx - maxWidth / 2, window.innerWidth - maxWidth - 8))
+    if (placement === 'above') {
+      setPos({ bottom: window.innerHeight - r.top + 6, left })
+    } else {
+      setPos({ top: r.bottom + 6, left })
+    }
+    setOpen(true)
+  }, [placement, maxWidth])
+
+  const bubble = open ? createPortal(
+    <div style={{
+      position: 'fixed',
+      top: pos.top,
+      bottom: pos.bottom,
+      left: pos.left,
+      minWidth,
+      maxWidth,
+      zIndex: 9999,
+      background: '#1a1a1a',
+      color: '#fff',
+      fontSize: 11.5,
+      lineHeight: 1.55,
+      padding: '8px 11px',
+      borderRadius: 8,
+      boxShadow: '0 3px 14px rgba(0,0,0,.4)',
+      pointerEvents: 'none',
+      whiteSpace: typeof text === 'string' ? 'pre-wrap' : 'normal',
+      textAlign: 'left',
+      wordBreak: 'keep-all',
+    }}>
+      {text}
+    </div>,
+    document.body
+  ) : null
 
   return (
     <span
+      ref={triggerRef}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}
-      onMouseEnter={() => !isMobile && setOpen(true)}
+      onMouseEnter={() => !isMobile && calcAndOpen()}
       onMouseLeave={() => !isMobile && setOpen(false)}
     >
       {children}
       {isMobile && (
         <button
           style={tt.iconBtn}
-          onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+          onClick={e => { e.stopPropagation(); open ? setOpen(false) : calcAndOpen() }}
         >
           ?
         </button>
       )}
-      {open && (
-        <div style={{ ...tt.bubble, ...bubblePos, maxWidth }}>
-          {text}
-        </div>
-      )}
+      {bubble}
     </span>
   )
 }
@@ -43,26 +86,10 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 210 }:
 const tt: Record<string, React.CSSProperties> = {
   iconBtn: {
     width: 15, height: 15, borderRadius: '50%',
-    border: '1px solid rgba(255,255,255,0.4)',
-    background: 'rgba(255,255,255,0.15)', color: 'inherit',
+    border: '1px solid rgba(0,0,0,0.2)',
+    background: 'rgba(0,0,0,0.08)', color: 'inherit',
     fontSize: 9, cursor: 'pointer', flexShrink: 0,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: 0, lineHeight: 1,
-  },
-  bubble: {
-    position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: 200,
-    background: '#1a1a1a',
-    color: '#fff',
-    fontSize: 11.5,
-    lineHeight: 1.55,
-    padding: '8px 11px',
-    borderRadius: 8,
-    boxShadow: '0 3px 12px rgba(0,0,0,.3)',
-    pointerEvents: 'none',
-    whiteSpace: 'pre-wrap' as const,
-    textAlign: 'left' as const,
   },
 }
