@@ -7,6 +7,7 @@ import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { PdfModal } from '../components/PdfModal'
+import { Tooltip } from '../components/Tooltip'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 
@@ -22,6 +23,22 @@ function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[
 }
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
+}
+const QUOTE_STATUS_TIPS: Record<string, string> = {
+  draft: '작성 중인 견적. 아직 확정되지 않아 고객에게 공식 발송할 수 없습니다.',
+  confirmed: '관리자가 특장사를 배정하여 확정한 견적. 주문이 생성된 상태입니다.',
+  ordered: '주문으로 전환되어 특장사 제작이 진행 중입니다.',
+  expired: '유효기간이 지나거나 취소된 견적입니다.',
+}
+const MODULE_DESC: Record<string, string> = {
+  'quote.create': '견적 작성 및 저장',
+  'quote.confirm': '견적 확정 및 특장사 배정',
+  'order.view': '주문 현황 조회',
+  'kanban.view': '주문 칸반 보드 조회',
+  'kanban.control': '주문 단계 직접 변경',
+  'admin.accounts': '계정 발급 및 권한 관리',
+  'admin.modules': '기능 모듈 ON/OFF 제어',
+  'document.generate': '구조변경 서류 자동 생성',
 }
 type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts'
 
@@ -560,12 +577,14 @@ function QuotesTab() {
             <div key={q.id} style={qtMob.card}>
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
-                <span style={statusBadgeStyle(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</span>
+                <Tooltip text={QUOTE_STATUS_TIPS[q.status] ?? q.status} placement="below">
+                  <span style={statusBadgeStyle(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</span>
+                </Tooltip>
               </div>
               <div style={qtMob.rows}>
                 <div style={qtMob.row}>
                   <span style={qtMob.label}># · 특장사</span>
-                  <span>#{q.id} · {q.order?.maker_org?.name ?? '—'}</span>
+                  <span>{q.quote_no ?? `#${q.id}`} · {q.order?.maker_org?.name ?? '—'}</span>
                 </div>
                 <div style={qtMob.row}>
                   <span style={qtMob.label}>영업</span>
@@ -585,6 +604,10 @@ function QuotesTab() {
                   style={{ ...qt.pdfBtn, flex: 1, minHeight: 44 }}
                   onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                 >견적서</button>
+                <button
+                  style={{ ...qt.sendBtn, flex: 1, minHeight: 44 }}
+                  onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
+                >발송</button>
                 {q.status === 'draft' && (
                   <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                 )}
@@ -618,14 +641,16 @@ function QuotesTab() {
             <tbody>
               {quotes.map(q => (
                 <tr key={q.id}>
-                  <td style={qt.td}>{q.id}</td>
+                  <td style={qt.td}>{q.quote_no ?? `#${q.id}`}</td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
                   <td style={qt.tdMuted}>{q.sales_user_id ?? '—'}</td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
-                    <span style={statusBadgeStyle(q.status)}>
-                      {QUOTE_STATUS_LABELS[q.status] ?? q.status}
-                    </span>
+                    <Tooltip text={QUOTE_STATUS_TIPS[q.status] ?? q.status} placement="below">
+                      <span style={statusBadgeStyle(q.status)}>
+                        {QUOTE_STATUS_LABELS[q.status] ?? q.status}
+                      </span>
+                    </Tooltip>
                   </td>
                   <td style={qt.tdMuted}>{q.order?.maker_org?.name ?? '—'}</td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
@@ -635,6 +660,10 @@ function QuotesTab() {
                         style={qt.pdfBtn}
                         onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                       >견적서</button>
+                      <button
+                        style={qt.sendBtn}
+                        onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
+                      >발송</button>
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                       )}
@@ -787,7 +816,13 @@ export function AdminPage() {
                         return (
                           <tr key={mod.code}>
                             <td style={styles.tdModule}>
-                              <div style={styles.modName}>{mod.name}</div>
+                              {MODULE_DESC[mod.code] ? (
+                                <Tooltip text={MODULE_DESC[mod.code]!} placement="below">
+                                  <div style={styles.modName}>{mod.name}</div>
+                                </Tooltip>
+                              ) : (
+                                <div style={styles.modName}>{mod.name}</div>
+                              )}
                               <div style={styles.modCode}>{mod.code}</div>
                             </td>
                             <td style={styles.tdToggle}>
@@ -858,6 +893,7 @@ const qt: Record<string, React.CSSProperties> = {
   badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
   pdfBtn: { padding: '5px 12px', border: '1px solid var(--line)', borderRadius: 7, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
+  sendBtn: { padding: '5px 12px', border: '1px solid #b8c9e0', borderRadius: 7, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 12 },
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontWeight: 700, fontSize: 12 },
   deleteBtnStrong: { padding: '5px 12px', border: '2px solid #b71c1c', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontWeight: 700, fontSize: 12 },

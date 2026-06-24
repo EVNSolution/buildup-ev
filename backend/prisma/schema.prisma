@@ -275,6 +275,7 @@ model Tire {
 model Customer {
   id         Int      @id @default(autoincrement())
   name       String   @db.VarChar(60)
+  email      String?  @db.VarChar(120)
   phone      String?  @db.VarChar(20)
   address    String?  @db.VarChar(120)
   reg_no     String?  @db.VarChar(20)
@@ -296,6 +297,7 @@ enum QuoteStatus {
 
 model Quote {
   id            Int         @id @default(autoincrement())
+  quote_no      String?     @unique @db.VarChar(10)
   customer_id   Int?
   model_code    String      @db.VarChar(30)
   selections    Json        @default("{}")

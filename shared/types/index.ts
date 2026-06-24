@@ -46,6 +46,8 @@ export type BusinessType = 'individual' | 'corporate' | 'simplified';
 
 export interface CustomerInfo {
   name: string;
+  email?: string;
+  phone?: string;
   business_type: BusinessType;
   region_code: string;
   is_small_business: boolean;
@@ -218,6 +220,7 @@ export type QuoteStatus = 'draft' | 'confirmed' | 'ordered' | 'expired';
 
 export interface ApiQuote {
   id: number;
+  quote_no: string | null;
   model_code: string;
   status: QuoteStatus;
   supply_price: number;
@@ -226,7 +229,7 @@ export interface ApiQuote {
   org_id: string | null;
   customer_id: number | null;
   created_at: string;
-  customer: { id: number; name: string } | null;
+  customer: { id: number; name: string; email?: string | null; phone?: string | null } | null;
   order: { maker_org: { code: string; name: string } | null } | null;
 }
 

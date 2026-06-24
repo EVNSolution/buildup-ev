@@ -1,4 +1,5 @@
 import type { PricingResult } from '@shared/pricing/core'
+import { Tooltip } from './Tooltip'
 
 interface Props {
   calc: PricingResult | null
@@ -26,21 +27,37 @@ export function PriceBar({ calc, hasCustomer }: Props) {
       )}
       <div style={styles.grid}>
         <div style={styles.cell}>
-          <div style={styles.cellLabel}>보조금 적용가</div>
+          <div style={styles.cellLabel}>
+            <Tooltip placement="above" text={'국고+지방 보조금을 차량가에서\n차감한 가격 (소상공인 할인 포함)'}>
+              보조금 적용가
+            </Tooltip>
+          </div>
           <div style={hasCustomer ? styles.cellValue : styles.cellValueMuted}>
             {tbd ? '—' : ok ? (hasCustomer ? fmt(ok.applied_price) : '보조금 미반영') : '—'}
           </div>
         </div>
         <div style={styles.cell}>
-          <div style={styles.cellLabel}>부가세 환급 후</div>
+          <div style={styles.cellLabel}>
+            <Tooltip placement="above" text={'법인·개인사업자는 부가세(10%)\n환급 가능. 환급 후 실질 부담액'}>
+              부가세 환급 후
+            </Tooltip>
+          </div>
           <div style={styles.cellValue}>{tbd ? '—' : ok ? fmt(ok.vat_refunded_price) : '—'}</div>
         </div>
         <div style={styles.cell}>
-          <div style={styles.cellLabel}>총 비용 (등록+기타)</div>
+          <div style={styles.cellLabel}>
+            <Tooltip placement="above" text="등록비·이전비 등 부대비용 합계">
+              총 비용 (등록+기타)
+            </Tooltip>
+          </div>
           <div style={styles.cellValue}>{tbd ? '—' : ok ? fmt(ok.reg_cost + ok.etc_cost) : '—'}</div>
         </div>
         <div style={styles.hero}>
-          <div style={styles.heroLabel}>실구매가 (부가세 환급 후)</div>
+          <div style={styles.heroLabel}>
+            <Tooltip placement="above" text={'보조금 차감 + 부가세 환급\n부대비용 포함 최종 실부담액'}>
+              실구매가 (부가세 환급 후)
+            </Tooltip>
+          </div>
           <div style={styles.heroValue}>
             {tbd ? '미정 (TBD)' : ok ? fmt(ok.real_price) : '—'}
           </div>

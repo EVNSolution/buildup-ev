@@ -87,7 +87,7 @@ function MyListView() {
                   const order = orderByQuote.get(q.id)
                   return (
                     <tr key={q.id}>
-                      <td style={lv.td}>{q.id}</td>
+                      <td style={lv.td}>{q.quote_no ?? `#${q.id}`}</td>
                       <td style={lv.td}>{q.customer?.name ?? '—'}</td>
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
@@ -104,10 +104,16 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{q.order?.maker_org?.name ?? '—'}</td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
-                        <button
-                          style={lv.pdfBtn}
-                          onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
-                        >견적서</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            style={lv.pdfBtn}
+                            onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                          >견적서</button>
+                          <button
+                            style={lv.sendBtn}
+                            onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
+                          >발송</button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -263,6 +269,8 @@ export function SalesPage() {
         selections,
         customer: customer && !skipped ? {
           name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
           biz_type: mapBizType(customer.business_type),
           is_sosang: customer.is_small_business,
           region: customer.region_code,
@@ -448,4 +456,5 @@ const lv: Record<string, React.CSSProperties> = {
   badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
   pdfBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
+  sendBtn: { padding: '4px 10px', border: '1px solid #b8c9e0', borderRadius: 6, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 11 },
 }
