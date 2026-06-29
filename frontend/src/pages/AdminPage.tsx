@@ -5,6 +5,7 @@ import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
+import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { PdfModal } from '../components/PdfModal'
 import { Tooltip } from '../components/Tooltip'
@@ -733,6 +734,7 @@ function KanbanTab() {
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -743,11 +745,15 @@ function KanbanTab() {
 
   if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
 
+  if (selectedOrderId !== null) {
+    return <OrderDetail orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} backLabel="← 주문 칸반" />
+  }
+
   return (
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
       {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>조회 전용 — 상태 변경은 배정 특장사만 가능합니다.</div>}
-      <OrderKanbanBoard orders={orders} onRefresh={load} onError={setErr} readOnly={!canControl} />
+      <OrderKanbanBoard orders={orders} onRefresh={load} onError={setErr} readOnly={!canControl} onCardClick={setSelectedOrderId} />
     </div>
   )
 }
