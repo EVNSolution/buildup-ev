@@ -44,10 +44,11 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
       .catch(e => setSpecErr(e instanceof Error ? e.message : '제원 로드 실패'))
   }, [modelCode])
 
-  // 적재량 = 제작허용총중량 - 공차중량, 1000kg 초과 시 1000kg로 내림
+  // 적재량 = 제작허용총중량 - (공차중량 + 정원중량), 50kg 단위 내림, 1000kg 상한
   useEffect(() => {
     if (!spec || spec.gvw_limit_kg == null) return
-    const maxCargo = Math.min(Math.max(0, spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg), 1000)
+    const raw = spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg - INPUT_DEFAULTS.crewWeight
+    const maxCargo = Math.min(Math.floor(Math.max(0, raw) / 50) * 50, 1000)
     setInputs(prev => ({ ...prev, cargoWeight: maxCargo }))
   }, [spec])
 
@@ -96,7 +97,7 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
           <span style={lc.specLabel}>최대적재량 (계산)</span>
           <span style={lc.specVal}>
             {spec.gvw_limit_kg != null
-              ? fmtKg(Math.min(Math.max(0, spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg), 1000))
+              ? fmtKg(Math.min(Math.floor(Math.max(0, spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg - inputs.crewWeight) / 50) * 50, 1000))
               : '—'}
           </span>
           <span style={lc.specLabel}>타이어 허용 (전/후)</span>
