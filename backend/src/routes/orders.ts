@@ -153,7 +153,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
       return;
     }
-    res.json({ data: order });
+    res.json({ data: { ...order, model_code: order.quote.model_code, customer_name: order.quote.customer?.name ?? null } });
   } catch (e) {
     console.error('[GET /orders/:id]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '주문 조회 중 오류가 발생했습니다.' } });
