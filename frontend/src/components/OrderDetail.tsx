@@ -9,7 +9,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 const INPUT_DEFAULTS = {
   installWeight: 0, installDist: 0,
   removeWeight: 0,  removeDist: 0,
-  cargoWeight: 0,   cargoDist: 35,
+  cargoDist: 35,
   crewWeight: 130,  crewDist: 1500,
 }
 
@@ -28,7 +28,7 @@ function fmtPct(n: number) { return n.toFixed(1) + ' %' }
 interface LoadInputs {
   installWeight: number; installDist: number
   removeWeight: number;  removeDist: number
-  cargoWeight: number;   cargoDist: number
+  cargoDist: number
   crewWeight: number;    crewDist: number
 }
 
@@ -44,13 +44,10 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
       .catch(e => setSpecErr(e instanceof Error ? e.message : '제원 로드 실패'))
   }, [modelCode])
 
-  // 적재량 = 제작허용총중량 - (공차중량 + 정원중량), 50kg 단위 내림, 1000kg 상한
-  useEffect(() => {
-    if (!spec || spec.gvw_limit_kg == null) return
-    const raw = spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg - INPUT_DEFAULTS.crewWeight
-    const maxCargo = Math.min(Math.floor(Math.max(0, raw) / 50) * 50, 1000)
-    setInputs(prev => ({ ...prev, cargoWeight: maxCargo }))
-  }, [spec])
+  // 적재량: 제작허용총중량 - (공차중량 + 정원중량), 50kg 단위 내림, 1000kg 상한 — 파생값(편집 불가)
+  const cargoWeight = spec?.gvw_limit_kg != null
+    ? Math.min(Math.floor(Math.max(0, spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg - inputs.crewWeight) / 50) * 50, 1000)
+    : 0
 
   function set(k: keyof LoadInputs, v: string) {
     const n = Number(v)
@@ -68,7 +65,7 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
       tire_rear:          spec.tire_rear,
       install_items: inputs.installWeight > 0 ? [{ weight_kg: inputs.installWeight, dist_to_rear_axle_mm: inputs.installDist }] : [],
       remove_items:  inputs.removeWeight  > 0 ? [{ weight_kg: inputs.removeWeight,  dist_to_rear_axle_mm: inputs.removeDist  }] : [],
-      cargo: { weight_kg: inputs.cargoWeight, dist_to_rear_axle_mm: inputs.cargoDist },
+      cargo: { weight_kg: cargoWeight, dist_to_rear_axle_mm: inputs.cargoDist },
       crew_items: inputs.crewWeight > 0 ? [{ weight_kg: inputs.crewWeight, dist_to_rear_axle_mm: inputs.crewDist }] : [],
     })
   }, [spec, inputs])
@@ -121,7 +118,7 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
 
           <label style={lc.iLabel}>적재량 (kg)</label>
           <span style={{ ...lc.input, display: 'flex', alignItems: 'center', background: '#f0f2f4', color: 'var(--text)', cursor: 'default' }}>
-            {inputs.cargoWeight.toLocaleString()} kg
+            {cargoWeight.toLocaleString()} kg
           </span>
           <label style={lc.iLabel}>하대옵셋트 — 후축까지 (mm)</label>
           <input style={lc.input} type="number" value={inputs.cargoDist} onChange={e => set('cargoDist', e.target.value)} />
