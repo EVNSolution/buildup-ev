@@ -5,11 +5,11 @@ import { fetchOrderDetail } from '../api/orders'
 import { fetchModelSpec, type ModelSpec } from '../api/models'
 import { useIsMobile } from '../hooks/useIsMobile'
 
-// ── PV5 검증 fixture 기본값 (core.test.ts 기준) ──────────────────────────────
-const PV5_DEFAULTS = {
+// 적재량 기본값은 spec 로드 후 제작허용총중량-공차중량으로 계산 (≤1000kg)
+const INPUT_DEFAULTS = {
   installWeight: 0, installDist: 0,
   removeWeight: 0,  removeDist: 0,
-  cargoWeight: 600, cargoDist: 35,
+  cargoWeight: 0,   cargoDist: 35,
   crewWeight: 130,  crewDist: 1500,
 }
 
@@ -36,13 +36,20 @@ interface LoadInputs {
 function LoadCalcTab({ modelCode }: { modelCode: string }) {
   const [spec, setSpec] = useState<ModelSpec | null>(null)
   const [specErr, setSpecErr] = useState('')
-  const [inputs, setInputs] = useState<LoadInputs>(PV5_DEFAULTS)
+  const [inputs, setInputs] = useState<LoadInputs>(INPUT_DEFAULTS)
 
   useEffect(() => {
     fetchModelSpec(modelCode)
       .then(setSpec)
       .catch(e => setSpecErr(e instanceof Error ? e.message : '제원 로드 실패'))
   }, [modelCode])
+
+  // 적재량 = 제작허용총중량 - 공차중량, 1000kg 초과 시 1000kg로 내림
+  useEffect(() => {
+    if (!spec || spec.gvw_limit_kg == null) return
+    const maxCargo = Math.min(Math.max(0, spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg), 1000)
+    setInputs(prev => ({ ...prev, cargoWeight: maxCargo }))
+  }, [spec])
 
   function set(k: keyof LoadInputs, v: string) {
     const n = Number(v)
@@ -86,6 +93,12 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
           <span style={lc.specLabel}>공차 전축</span><span style={lc.specVal}>{fmtKg(spec.curb_axle_front_kg)}</span>
           <span style={lc.specLabel}>공차 후축</span><span style={lc.specVal}>{fmtKg(spec.curb_axle_rear_kg)}</span>
           <span style={lc.specLabel}>GVW 한계</span><span style={lc.specVal}>{spec.gvw_limit_kg != null ? fmtKg(spec.gvw_limit_kg) : '미설정'}</span>
+          <span style={lc.specLabel}>최대적재량 (계산)</span>
+          <span style={lc.specVal}>
+            {spec.gvw_limit_kg != null
+              ? fmtKg(Math.min(Math.max(0, spec.gvw_limit_kg - spec.curb_axle_front_kg - spec.curb_axle_rear_kg), 1000))
+              : '—'}
+          </span>
           <span style={lc.specLabel}>타이어 허용 (전/후)</span>
           <span style={lc.specVal}>{spec.tire_front.allowable_load_kg} × {spec.tire_front.wheels} / {spec.tire_rear.allowable_load_kg} × {spec.tire_rear.wheels} kg</span>
         </div>
