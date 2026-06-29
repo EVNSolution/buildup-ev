@@ -23,7 +23,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
   const { status, from, to } = req.query as Record<string, string | undefined>;
 
   const where: Prisma.OrderWhereInput = {};
-  if (auth.role === 'MAKER') {
+  if (auth.role === 'MAKER' && !auth.is_master) {
     where.maker_org_id = auth.org_code;
   } else if (auth.role === 'SALES') {
     where.quote = { sales_user_id: auth.email };
@@ -88,7 +88,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
         res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
         return;
       }
-      if (order.maker_org_id !== auth.org_code) {
+      if (!auth.is_master && order.maker_org_id !== auth.org_code) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
         return;
       }
@@ -139,7 +139,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       return;
     }
 
-    // ADMIN / SALES: 기존 전체 응답 + options·documents 추가
+    // ADMIN / SALES (+ is_master): 전체 응답 + options·documents
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -153,7 +153,37 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
       return;
     }
-    res.json({ data: { ...order, model_code: order.quote.model_code, customer_name: order.quote.customer?.name ?? null } });
+
+    // options: order_option 우선, 비면 quote.selections 보강
+    type AdminResolvedOpt = { id: number; group_code: string; group_name: string; value_code: string; value_name: string };
+    let resolvedOptions: AdminResolvedOpt[] = [];
+    if (order.options.length > 0) {
+      resolvedOptions = order.options.map(o => ({
+        id: o.id,
+        group_code: o.group_code,
+        group_name: o.value.group.name,
+        value_code: o.value_code,
+        value_name: o.value.name,
+      }));
+    } else {
+      const selections = (order.quote.selections ?? {}) as Record<string, string>;
+      const valueCodes = Object.values(selections).filter(Boolean);
+      if (valueCodes.length > 0) {
+        const values = await prisma.optionValue.findMany({
+          where: { code: { in: valueCodes } },
+          include: { group: { select: { code: true, name: true } } },
+        });
+        const vMap = new Map(values.map(v => [v.code, v]));
+        resolvedOptions = Object.entries(selections)
+          .filter(([, vCode]) => vMap.has(vCode))
+          .map(([gCode, vCode], idx) => {
+            const v = vMap.get(vCode)!;
+            return { id: idx, group_code: gCode, group_name: v.group.name, value_code: vCode, value_name: v.name };
+          });
+      }
+    }
+
+    res.json({ data: { ...order, model_code: order.quote.model_code, customer_name: order.quote.customer?.name ?? null, options: resolvedOptions } });
   } catch (e) {
     console.error('[GET /orders/:id]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '주문 조회 중 오류가 발생했습니다.' } });
