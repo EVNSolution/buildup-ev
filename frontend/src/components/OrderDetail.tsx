@@ -5,12 +5,12 @@ import { fetchOrderDetail } from '../api/orders'
 import { fetchModelSpec, type ModelSpec } from '../api/models'
 import { useIsMobile } from '../hooks/useIsMobile'
 
-// 적재량 기본값은 spec 로드 후 제작허용총중량-공차중량으로 계산 (≤1000kg)
+// 기본값 출처: doc-templates/pv5-spec.json 하중계산_기준입력
 const INPUT_DEFAULTS = {
   installWeight: 0, installDist: 0,
   removeWeight: 0,  removeDist: 0,
   cargoDist: 35,
-  crewWeight: 130,  crewDist: 1500,
+  crewWeight: 130,  crewDist: 2995,
 }
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const

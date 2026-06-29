@@ -57,3 +57,24 @@ export function loadTires(): Map<string, number> {
   const rows = readCsv("tire.csv");
   return new Map(rows.map((r) => [r["spec"] ?? "", Number(r["allowable_load_kg"])]));
 }
+
+export interface LoadCalcDefaults {
+  crewWeight: number;
+  crewDist: number;
+  cargoDist: number;
+}
+
+/** doc-templates/pv5-spec.json 의 하중계산_기준입력 섹션을 읽어 반환 */
+export function loadPV5LoadCalcDefaults(): LoadCalcDefaults {
+  const specPath = path.resolve(
+    fileURLToPath(import.meta.url),
+    "../../../doc-templates/pv5-spec.json"
+  );
+  const spec = JSON.parse(fs.readFileSync(specPath, "utf-8")) as Record<string, unknown>;
+  const ki = spec["하중계산_기준입력"] as Record<string, number>;
+  return {
+    crewWeight: ki["정원_중량_kg"] ?? 130,
+    crewDist:   ki["정원_위치_후축까지_mm"] ?? 2995,
+    cargoDist:  ki["적재_무게중심_위치_후축까지_mm"] ?? 35,
+  };
+}
