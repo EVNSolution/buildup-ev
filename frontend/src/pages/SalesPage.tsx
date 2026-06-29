@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice } from '@shared/pricing/core'
@@ -173,6 +173,14 @@ export function SalesPage() {
   const [savedQuote, setSavedQuote] = useState<{ quote_id: number; pricing: PricingOk } | null>(null)
   const [saveError, setSaveError] = useState('')
 
+  const vivarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [vivarState, setVivarState] = useState<'loading' | 'ok' | 'fail'>('loading')
+
+  useEffect(() => {
+    vivarTimer.current = setTimeout(() => setVivarState('fail'), 10000)
+    return () => { if (vivarTimer.current) clearTimeout(vivarTimer.current) }
+  }, [])
+
   // 번들 1회 로드
   useEffect(() => {
     if (!session) return
@@ -343,18 +351,38 @@ export function SalesPage() {
           </div>
 
           <div style={styles.stage}>
-            <span style={styles.embedTag}>3D 컨피규레이터 (VIVAR iframe 영역)</span>
-            <svg viewBox="0 0 520 230" style={styles.placeholderSvg} xmlns="http://www.w3.org/2000/svg">
-              <g fill="none" stroke="#c4c9d0" strokeWidth="3">
-                <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
-                <rect x="210" y="55" width="270" height="115" rx="4" fill="#f7f8fa"/>
-                <line x1="150" y1="70" x2="150" y2="108"/>
-                <circle cx="95" cy="178" r="22" fill="#e9ecef"/><circle cx="400" cy="178" r="22" fill="#e9ecef"/>
-                <circle cx="95" cy="178" r="9" fill="#fff"/><circle cx="400" cy="178" r="9" fill="#fff"/>
-              </g>
-              <text x="345" y="118" textAnchor="middle" fill="#aeb4bc" fontSize="13">특장 (탑)</text>
-              <text x="120" y="95" textAnchor="middle" fill="#aeb4bc" fontSize="11">PV5</text>
-            </svg>
+            {/* iframe: 성공 전까지 hidden 상태로 백그라운드 로드 */}
+            <iframe
+              src="https://evnsolution.vivar.im/"
+              style={{ ...styles.vivarFrame, visibility: vivarState === 'ok' ? 'visible' : 'hidden' }}
+              allow="fullscreen; xr-spatial-tracking"
+              title="VIVAR 3D 컨피규레이터"
+              onLoad={() => {
+                if (vivarTimer.current) { clearTimeout(vivarTimer.current); vivarTimer.current = null }
+                setVivarState('ok')
+              }}
+              onError={() => setVivarState('fail')}
+            />
+            {/* 로딩 중 or 실패 시 fallback placeholder */}
+            {vivarState !== 'ok' && (
+              <div style={styles.fallback}>
+                <svg viewBox="0 0 520 230" style={styles.placeholderSvg} xmlns="http://www.w3.org/2000/svg">
+                  <g fill="none" stroke="#c4c9d0" strokeWidth="3">
+                    <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
+                    <rect x="210" y="55" width="270" height="115" rx="4" fill="#f7f8fa"/>
+                    <line x1="150" y1="70" x2="150" y2="108"/>
+                    <circle cx="95" cy="178" r="22" fill="#e9ecef"/><circle cx="400" cy="178" r="22" fill="#e9ecef"/>
+                    <circle cx="95" cy="178" r="9" fill="#fff"/><circle cx="400" cy="178" r="9" fill="#fff"/>
+                  </g>
+                  <text x="345" y="118" textAnchor="middle" fill="#aeb4bc" fontSize="13">특장 (탑)</text>
+                  <text x="120" y="95" textAnchor="middle" fill="#aeb4bc" fontSize="11">PV5</text>
+                </svg>
+                {vivarState === 'fail' && (
+                  <span style={styles.fallbackMsg}>3D 로드 불가 (도메인 frame 허용 필요)</span>
+                )}
+              </div>
+            )}
+            <span style={styles.caption}>3D 미리보기 · 옵션 연동 예정</span>
             <span style={styles.watermark}>Powered by VIVAR</span>
           </div>
 
@@ -444,11 +472,12 @@ const styles = {
   },
   stage: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 260,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative' as const,
+    overflow: 'hidden' as const,
   },
   embedTag: {
     position: 'absolute' as const,
@@ -462,7 +491,11 @@ const styles = {
     borderRadius: 6,
   },
   placeholderSvg: { width: '55%', maxWidth: 520 },
-  watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4' },
+  vivarFrame: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', border: 'none' },
+  fallback: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8 },
+  fallbackMsg: { fontSize: 11, color: '#b71c1c', background: '#fff8f8', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: 6 },
+  caption: { position: 'absolute' as const, bottom: 10, left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: '#9aa0a8', background: 'rgba(255,255,255,0.82)', border: '1px solid var(--line)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' as const, pointerEvents: 'none' as const, zIndex: 10 },
+  watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4', zIndex: 10, pointerEvents: 'none' as const },
 }
 
 const lv: Record<string, React.CSSProperties> = {
