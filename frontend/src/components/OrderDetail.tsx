@@ -120,7 +120,9 @@ function LoadCalcTab({ modelCode }: { modelCode: string }) {
           <input style={lc.input} type="number" value={inputs.removeDist} onChange={e => set('removeDist', e.target.value)} />
 
           <label style={lc.iLabel}>적재량 (kg)</label>
-          <input style={lc.input} type="number" value={inputs.cargoWeight} onChange={e => set('cargoWeight', e.target.value)} />
+          <span style={{ ...lc.input, display: 'flex', alignItems: 'center', background: '#f0f2f4', color: 'var(--text)', cursor: 'default' }}>
+            {inputs.cargoWeight.toLocaleString()} kg
+          </span>
           <label style={lc.iLabel}>하대옵셋트 — 후축까지 (mm)</label>
           <input style={lc.input} type="number" value={inputs.cargoDist} onChange={e => set('cargoDist', e.target.value)} />
 
