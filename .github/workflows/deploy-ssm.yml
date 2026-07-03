@@ -1,0 +1,142 @@
+name: Deploy via SSM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-buildup-ev-ssm
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+  APP_ENV: ${{ secrets.APP_ENV }}
+  SERVER_NAME: ${{ secrets.SERVER_NAME }}
+  SSM_APP_ENV_PARAM: /buildup-ev/app-env
+  APP_BASE_DIR: /opt/buildup-ev
+  REPO_URL: https://github.com/EVNSolution/buildup-ev.git
+  PM2_APP_PREFIX: buildup-ev
+  API_PORT_BLUE: '3101'
+  API_PORT_GREEN: '3102'
+
+jobs:
+  deploy:
+    name: Deploy main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deploy scripts
+        uses: actions/checkout@v5
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          test -n "$AWS_REGION" || { echo 'Missing secret: AWS_REGION'; exit 1; }
+          test -n "$AWS_ROLE_ARN" || { echo 'Missing secret: AWS_ROLE_ARN'; exit 1; }
+          test -n "$EC2_INSTANCE_ID" || { echo 'Missing secret: EC2_INSTANCE_ID'; exit 1; }
+          test -n "$SERVER_NAME" || { echo 'Missing secret: SERVER_NAME'; exit 1; }
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync app environment
+        run: |
+          set -euo pipefail
+          if [ -n "$APP_ENV" ]; then
+            aws ssm put-parameter \
+              --name "$SSM_APP_ENV_PARAM" \
+              --type SecureString \
+              --value "$APP_ENV" \
+              --overwrite >/dev/null
+          fi
+
+      - name: Send SSM deploy command
+        id: ssm
+        env:
+          DEPLOY_REF: main
+        run: |
+          set -euo pipefail
+          remote_b64="$(base64 -w 0 deploy/remote-deploy.sh)"
+          setup_b64="$(base64 -w 0 deploy/setup-deploy.sh)"
+          export remote_b64 setup_b64
+
+          python3 - <<'PY' > /tmp/buildup-ev-ssm-commands.json
+          import json, os, shlex
+          remote_env = {
+              'DEPLOY_REF': os.environ['DEPLOY_REF'],
+              'APP_BASE_DIR': os.environ['APP_BASE_DIR'],
+              'REPO_URL': os.environ['REPO_URL'],
+              'PM2_APP_PREFIX': os.environ['PM2_APP_PREFIX'],
+              'SERVER_NAME': os.environ['SERVER_NAME'],
+              'SSM_APP_ENV_PARAM': os.environ['SSM_APP_ENV_PARAM'],
+              'API_PORT_BLUE': os.environ['API_PORT_BLUE'],
+              'API_PORT_GREEN': os.environ['API_PORT_GREEN'],
+          }
+          run_remote = ' '.join(f'{k}={shlex.quote(v)}' for k, v in remote_env.items()) + ' /tmp/buildup-ev-remote-deploy.sh'
+          commands = [
+              'set -eu',
+              "cat >/tmp/buildup-ev-setup.b64 <<'EOF'\n" + os.environ['setup_b64'] + "\nEOF",
+              "cat >/tmp/buildup-ev-remote.b64 <<'EOF'\n" + os.environ['remote_b64'] + "\nEOF",
+              'base64 -d /tmp/buildup-ev-setup.b64 >/tmp/buildup-ev-setup.sh',
+              'base64 -d /tmp/buildup-ev-remote.b64 >/tmp/buildup-ev-remote-deploy.sh',
+              'chmod +x /tmp/buildup-ev-setup.sh /tmp/buildup-ev-remote-deploy.sh',
+              run_remote,
+          ]
+          print(json.dumps({'commands': commands}))
+          PY
+
+          command_id="$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "buildup-ev deploy ${DEPLOY_REF}" \
+            --timeout-seconds 3600 \
+            --parameters file:///tmp/buildup-ev-ssm-commands.json \
+            --query 'Command.CommandId' \
+            --output text)"
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+          echo "SSM command: $command_id"
+
+      - name: Wait for deployment
+        env:
+          COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 3600))
+          status=Pending
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            status="$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query Status \
+              --output text 2>/dev/null || true)"
+            status="${status:-Pending}"
+            echo "SSM status: $status"
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut|Cancelling|Undeliverable|Terminated|DeliveryTimedOut) break ;;
+            esac
+            sleep 15
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardOutputContent \
+            --output text || true
+
+          echo '--- stderr ---'
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardErrorContent \
+            --output text || true
+
+          test "$status" = Success
