@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>튜닝 전·후 주요제원 대비표</title>
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  html { background:#e9e9e9; }
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic","맑은 고딕",sans-serif; font-size: 8.5px; color:#000; width:210mm; min-height:297mm; margin:6mm auto; padding:10mm; background:#fff; box-shadow:0 0 6px rgba(0,0,0,.25); }
+  @media print { html{background:#fff;} body{ margin:0; box-shadow:none; } }
+  .law { font-size: 8px; margin-bottom: 2px; }
+  .mgmt { text-align:right; font-size:8px; margin-bottom:2px; }
+  .mgmt span { border:1px solid #000; padding:1px 4px; }
+  h1 { text-align:center; font-size:18px; letter-spacing:6px; margin:4px 0 6px; }
+  table { width:100%; border-collapse: collapse; table-layout: fixed; }
+  td,th { border:1px solid #000; padding:1px 3px; text-align:center; vertical-align:middle; height:15px; }
+  .lbl { background:#f2f2f2; font-weight:600; }
+  .lft { display:flex; gap:0; }
+  .half { width:50%; }
+  .foot { font-size:7.5px; text-align:right; margin-top:3px; }
+  /* 데이터 출처: {{}}=바인딩. ①차종(pv5-spec) ②하중계산 ③영업(고객) ④특장(등록증) ⑤튜닝후 ⑥더미 */
+</style>
+</head>
+<body>
+  <div class="law">■ 자동차관리법 시행규칙 [별지 제33호의2서식] &lt;개정 2024. 2. 16.&gt;</div>
+  <div class="mgmt">제원관리번호 <span>{{제원관리번호}}</span></div>
+  <h1>튜닝 전·후 주요제원 대비표</h1>
+
+  <table>
+    <colgroup><col style="width:4%"><col style="width:13%"><col style="width:16%"><col style="width:16%"><col style="width:4%"><col style="width:13%"><col style="width:17%"><col style="width:17%"></colgroup>
+    <tr><td>1</td><td class="lbl">소유자 주소</td><td colspan="6" style="text-align:left">{{소유자주소}}</td></tr>
+    <tr><td>2</td><td class="lbl">성명</td><td colspan="2">{{소유자성명}}</td><td>3</td><td class="lbl">최초등록일</td><td colspan="2">{{최초등록일}}</td></tr>
+    <tr><td>4</td><td class="lbl">등록번호</td><td colspan="2">{{등록번호}}</td><td>5</td><td class="lbl">종별</td><td colspan="2">{{종별}}</td></tr>
+    <tr><td>6</td><td class="lbl">차명</td><td colspan="2">{{차명}}</td><td>7</td><td class="lbl">구분</td><td colspan="2">{{구분}}</td></tr>
+    <tr><td>8</td><td class="lbl">형식</td><td colspan="2">{{형식코드}}</td><td>9</td><td class="lbl">차체형상</td><td colspan="2">{{차체형상}}</td></tr>
+
+    <tr><td rowspan="2">10</td><td rowspan="2" class="lbl">승차정원(명)</td><td class="lbl">튜닝 전</td><td class="lbl">튜닝 후</td><td rowspan="2">11</td><td rowspan="2" class="lbl">유형</td><td class="lbl">튜닝 전</td><td class="lbl">튜닝 후</td></tr>
+    <tr><td>{{승차정원_전}}</td><td>{{승차정원_후}}</td><td>{{유형_전}}</td><td>{{유형_후}}</td></tr>
+
+    <tr><td>12</td><td class="lbl">차량중량(㎏)</td><td>{{차량중량_전}}</td><td>{{차량중량_후}}</td><td>13</td><td class="lbl">용도</td><td>{{용도_전}}</td><td>{{용도_후}}</td></tr>
+    <tr><td>14</td><td class="lbl">최대적재량(㎏)</td><td>{{최대적재량_전}}</td><td>{{최대적재량_후}}</td><td rowspan="2" style="writing-mode:vertical-rl">26</td><td class="lbl">사용연료</td><td>{{사용연료}}</td><td>{{사용연료}}</td></tr>
+    <tr><td>15</td><td class="lbl">차량총중량(㎏)</td><td>{{차량총중량_전}}</td><td>{{차량총중량_후}}</td><td class="lbl">내연기관</td><td colspan="2">{{내연기관}}</td></tr>
+  </table>
+
+  <!-- 차체제원·하대·하중분포·원동기 상세는 아래 2단 표로 (좌: 16~25 / 우: 26~32) -->
+  <div class="lft">
+    <table class="half">
+      <colgroup><col style="width:7%"><col style="width:33%"><col style="width:15%"><col style="width:30%"><col style="width:30%"></colgroup>
+      <tr><td colspan="3"></td><td class="lbl">튜닝 전</td><td class="lbl">튜닝 후</td></tr>
+      <tr><td rowspan="3">16</td><td rowspan="3" class="lbl">차체제원(㎜)</td><td class="lbl">길이</td><td>{{차체길이_전}}</td><td>{{차체길이_후}}</td></tr>
+      <tr><td class="lbl">너비</td><td>{{차체너비_전}}</td><td>{{차체너비_후}}</td></tr>
+      <tr><td class="lbl">높이</td><td>{{차체높이_전}}</td><td>{{차체높이_후}}</td></tr>
+      <tr><td rowspan="3">17</td><td rowspan="3" class="lbl">하대내측지수(㎜)</td><td class="lbl">길이</td><td>{{하대길이_전}}</td><td>{{하대길이_후}}</td></tr>
+      <tr><td class="lbl">너비</td><td>{{하대너비_전}}</td><td>{{하대너비_후}}</td></tr>
+      <tr><td class="lbl">높이</td><td>{{하대높이_전}}</td><td>{{하대높이_후}}</td></tr>
+      <tr><td>18</td><td class="lbl" colspan="2">하대옵셋트(㎜)</td><td>{{하대옵셋_전}}</td><td>{{하대옵셋_후}}</td></tr>
+      <tr><td rowspan="2">19</td><td rowspan="2" class="lbl">공차 시 하중분포(㎏)</td><td class="lbl">전축</td><td>{{공차전축_전}}</td><td>{{공차전축_후}}</td></tr>
+      <tr><td class="lbl">후축</td><td>{{공차후축_전}}</td><td>{{공차후축_후}}</td></tr>
+      <tr><td rowspan="2">20</td><td rowspan="2" class="lbl">적차 시 하중분포(㎏)</td><td class="lbl">전축</td><td>{{적차전축_전}}</td><td>{{적차전축_후}}</td></tr>
+      <tr><td class="lbl">후축</td><td>{{적차후축_전}}</td><td>{{적차후축_후}}</td></tr>
+      <tr><td rowspan="2">21</td><td rowspan="2" class="lbl">적재 시 타이어 하중율(%)</td><td class="lbl">전축</td><td>{{타이어율전축_전}}</td><td>{{타이어율전축_후}}</td></tr>
+      <tr><td class="lbl">후축</td><td>{{타이어율후축_전}}</td><td>{{타이어율후축_후}}</td></tr>
+      <tr><td>22</td><td class="lbl" colspan="2">적재 시 앞바퀴 하중분포율(%)</td><td>{{앞바퀴율_전}}</td><td>{{앞바퀴율_후}}</td></tr>
+      <tr><td>23</td><td class="lbl" colspan="2">축간거리(㎜)</td><td>{{축간거리}}</td><td>{{축간거리}}</td></tr>
+      <tr><td>24</td><td class="lbl" colspan="2">제작허용총중량(㎏)</td><td colspan="2">{{제작허용총중량}}</td></tr>
+      <tr><td>25</td><td class="lbl" colspan="2">모델연도</td><td colspan="2">{{모델연도}}</td></tr>
+    </table>
+
+    <table class="half">
+      <colgroup><col style="width:7%"><col style="width:30%"><col style="width:33%"><col style="width:30%"></colgroup>
+      <tr><td rowspan="6" style="writing-mode:vertical-rl">26 원동기</td><td class="lbl">구동전동기 형식</td><td colspan="2">{{전동기형식}}</td></tr>
+      <tr><td class="lbl">개수</td><td colspan="2">{{전동기개수}}</td></tr>
+      <tr><td class="lbl">최고출력(kW/PS)</td><td colspan="2">{{전동기출력}}</td></tr>
+      <tr><td class="lbl">최대토크(㎏f·m)</td><td colspan="2">{{전동기토크}}</td></tr>
+      <tr><td class="lbl">구동축전지(종류/용량)</td><td colspan="2">{{배터리}}</td></tr>
+      <tr><td class="lbl">내연기관</td><td colspan="2">{{내연기관}}</td></tr>
+      <tr><td rowspan="2">27</td><td class="lbl">1회충전주행거리(㎞)</td><td colspan="2">{{주행거리}}</td></tr>
+      <tr><td class="lbl">전비(㎞/kWh)</td><td colspan="2">{{전비}}</td></tr>
+      <tr><td rowspan="2">28</td><td class="lbl">윤간거리(㎜) 전</td><td colspan="2">{{윤간거리_전}}</td></tr>
+      <tr><td class="lbl">후</td><td colspan="2">{{윤간거리_후}}</td></tr>
+      <tr><td rowspan="2">29</td><td class="lbl">변속기 종류</td><td colspan="2">{{변속기}}</td></tr>
+      <tr><td class="lbl">단수</td><td colspan="2">{{변속단수}}</td></tr>
+      <tr><td rowspan="2">30</td><td class="lbl">타이어 형식(전)</td><td colspan="2">{{타이어형식}}</td></tr>
+      <tr><td class="lbl">타이어 형식(후)</td><td colspan="2">{{타이어형식}}</td></tr>
+      <tr><td>31</td><td class="lbl">구동방식</td><td colspan="2">{{구동방식}}</td></tr>
+      <tr><td>32</td><td class="lbl">차대번호(1~8)</td><td colspan="2">{{차대번호}}</td></tr>
+    </table>
+  </div>
+
+  <table style="margin-top:0;border-top:none">
+    <tr><td style="width:4%">33</td><td class="lbl" style="width:13%">튜닝 개요</td><td colspan="6" style="text-align:left">{{튜닝개요}}</td></tr>
+    <tr><td>34</td><td class="lbl">비고</td><td colspan="6" style="text-align:left">{{비고}}</td></tr>
+  </table>
+  <div class="foot">210㎜×297㎜[백상지(80g/㎡) 또는 중질지(80g/㎡)]</div>
+</body>
+</html>

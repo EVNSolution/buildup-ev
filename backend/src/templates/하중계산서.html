@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>하중 계산서</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    font-size: 10px; color: #000; width: 210mm; min-height: 297mm; padding: 12mm; background: #fff;
+  }
+  /* 흑백 전용. 컬러 없음. 정답지(별지 서식) 셀 구조 재현. */
+  h1 { text-align:center; font-size:18px; letter-spacing:6px; margin-bottom:8px; font-weight:700; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  td, th { border:1px solid #000; padding:2px 4px; vertical-align:middle; text-align:center; height:20px; }
+  th { background:#eee; font-weight:700; }
+  .lbl { background:#f4f4f4; font-weight:600; text-align:center; }
+  .l { text-align:left; }
+  .sp { height:10px; border:none; }
+  .box { border:1px solid #000; display:inline-block; padding:0 6px; font-weight:700; }
+  .note { font-size:8.5px; margin-top:6px; text-align:left; }
+</style>
+</head>
+<body>
+  <h1>하 중 계 산 서</h1>
+
+  <!-- ===== 1. 주요 제원 (구조변경 전/후) ===== -->
+  <table style="margin-bottom:8px;">
+    <colgroup>
+      <col style="width:15%"><col style="width:13%"><col style="width:13%">
+      <col style="width:6%">
+      <col style="width:15%"><col style="width:13%"><col style="width:13%">
+    </colgroup>
+    <tr>
+      <th>항목</th><th>구조변경 전</th><th>구조변경 후</th>
+      <th></th>
+      <th>항목</th><th>구조변경 전</th><th>구조변경 후</th>
+    </tr>
+    <tr><td class="lbl">승차정원 (인)</td><td>{{정원_전}}</td><td>{{정원_후}}</td><td></td>
+        <td class="lbl">전장 (㎜)</td><td>{{전장_전}}</td><td>{{전장_후}}</td></tr>
+    <tr><td class="lbl">차량중량 (㎏)</td><td>{{차량중량_전}}</td><td>{{차량중량_후}}</td><td></td>
+        <td class="lbl">전폭 (㎜)</td><td>{{전폭_전}}</td><td>{{전폭_후}}</td></tr>
+    <tr><td class="lbl">최대적재량 (㎏)</td><td>{{최대적재_전}}</td><td>{{최대적재_후}}</td><td></td>
+        <td class="lbl">전고 (㎜)</td><td>{{전고_전}}</td><td>{{전고_후}}</td></tr>
+    <tr><td class="lbl">차량총중량 (㎏)</td><td>{{총중량_전}}</td><td>{{총중량_후}}</td><td></td>
+        <td class="lbl">하대장 (㎜)</td><td>{{하대장_전}}</td><td>{{하대장_후}}</td></tr>
+    <tr><td class="lbl">축간거리 (㎜)</td><td>{{축간_전}}</td><td>{{축간_후}}</td><td></td>
+        <td class="lbl">하대폭 (㎜)</td><td>{{하대폭_전}}</td><td>{{하대폭_후}}</td></tr>
+    <tr><td class="lbl">하대옵셋트 (㎜)</td><td>{{옵셋_전}}</td><td>{{옵셋_후}}</td><td></td>
+        <td class="lbl">하대고 (㎜)</td><td>{{하대고_전}}</td><td>{{하대고_후}}</td></tr>
+    <tr><td class="lbl">앞 오버행 (㎜)</td><td>{{앞오버행_전}}</td><td>{{앞오버행_후}}</td><td></td>
+        <td class="lbl">뒤 오버행 (㎜)</td><td>{{뒤오버행_전}}</td><td>{{뒤오버행_후}}</td></tr>
+  </table>
+
+  <!-- ===== 2. 축하중 분포 (전축/후축 × 공차/적차 × 구조변경 전·후) ===== -->
+  <table style="margin-bottom:8px;">
+    <colgroup>
+      <col style="width:12%">
+      <col style="width:14.6%"><col style="width:14.6%"><col style="width:14.6%">
+      <col style="width:14.6%"><col style="width:14.6%"><col style="width:14.6%">
+    </colgroup>
+    <tr>
+      <th rowspan="2">축 구분</th>
+      <th colspan="3">공차 시</th>
+      <th colspan="3">적차 시</th>
+    </tr>
+    <tr>
+      <th>변경 전 (㎏)</th><th>변경 후 (㎏)</th><th>타이어부하율 (%)</th>
+      <th>변경 전 (㎏)</th><th>변경 후 (㎏)</th><th>타이어부하율 (%)</th>
+    </tr>
+    <tr>
+      <td class="lbl">전축</td>
+      <td>{{공차전축_전}}</td><td>{{공차전축_후}}</td><td>{{부하율공차전축}}</td>
+      <td>{{적차전축_전}}</td><td>{{적차전축_후}}</td><td>{{부하율적차전축}}</td>
+    </tr>
+    <tr>
+      <td class="lbl">후축</td>
+      <td>{{공차후축_전}}</td><td>{{공차후축_후}}</td><td>{{부하율공차후축}}</td>
+      <td>{{적차후축_전}}</td><td>{{적차후축_후}}</td><td>{{부하율적차후축}}</td>
+    </tr>
+  </table>
+
+  <!-- ===== 3. 타이어 ===== -->
+  <table style="margin-bottom:8px;">
+    <colgroup><col style="width:12%"><col style="width:29%"><col style="width:29%"><col style="width:15%"><col style="width:15%"></colgroup>
+    <tr><th>축 구분</th><th>규격 (변경 전)</th><th>규격 (변경 후)</th><th>허용하중 (㎏)</th><th>개수</th></tr>
+    <tr><td class="lbl">전축</td><td>{{타이어규격_전}}</td><td>{{타이어규격_후}}</td><td>{{타이어허용}}</td><td>2</td></tr>
+    <tr><td class="lbl">후축</td><td>{{타이어규격_전}}</td><td>{{타이어규격_후}}</td><td>{{타이어허용}}</td><td>2</td></tr>
+  </table>
+
+  <!-- ===== 4. 탈거 / 설치 / 정원 (탈거·설치는 옵션에 따라 가변) ===== -->
+  <table>
+    <colgroup><col style="width:12%"><col style="width:46%"><col style="width:21%"><col style="width:21%"></colgroup>
+    <tr><th>구분</th><th>항목</th><th>중량 (㎏)</th><th>위치 (후축까지 ㎜)</th></tr>
+    {{REMOVE_ROWS}}
+    {{INSTALL_ROWS}}
+    <tr><td class="lbl">정원</td><td class="l">승차정원 {{정원_인원}}인</td><td>{{정원_중량}}</td><td>{{정원_위치}}</td></tr>
+    <tr><td class="lbl">합계</td><td class="l">차량중량 후 = 공차 − 탈거 + 설치</td><td>{{차량중량_후}}</td><td></td></tr>
+  </table>
+
+  <!-- ===== 5. 법규 판정 (하중 기준) ===== -->
+  <table style="margin-top:8px;">
+    <colgroup><col style="width:52%"><col style="width:28%"><col style="width:20%"></colgroup>
+    <tr><th>법규 항목</th><th>기준 / 결과</th><th>판정</th></tr>
+    <tr><td class="l">① 적차 총중량 ≤ 제작허용총중량</td>
+        <td>{{총중량_후}} ≤ {{제작허용총중량}}</td>
+        <td><span class="box">{{총중량판정}}</span></td></tr>
+    <tr><td class="l">② 타이어 부하율 ≤ 100% (축하중 ÷ 허용 {{타이어허용}}×2)</td>
+        <td>전축 {{부하율적차전축}}% / 후축 {{부하율적차후축}}%</td>
+        <td><span class="box">{{부하율판정}}</span></td></tr>
+    <tr><td class="l"><b>종합 판정</b></td><td>하중 기준</td>
+        <td><span class="box">{{종합판정}}</span></td></tr>
+  </table>
+
+  <div class="note">※ 위치는 후축(rear axle) 기준 거리(㎜). 정원 {{정원_중량}}㎏ @후축까지 {{정원_위치}}㎜.</div>
+  <div class="note">※ 치수 기준 최대허용제원 검토는 VIVAR 치수 연동 후 추가됩니다.</div>
+</body>
+</html>

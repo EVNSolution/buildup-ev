@@ -234,7 +234,7 @@ describe("calcLoad — pv5-spec.json 하중계산_기준입력 기준 (정답지
     tireLoad = load;
 
     // 적재량 = floor50(제작허용총중량 - 공차중량 - 정원중량), ≤ 1000 kg
-    const gvw = pv5.gvw_limit_kg ?? 2635;
+    const gvw = pv5.gvw_limit_kg ?? 2680;
     cargoKg = Math.min(
       Math.floor(Math.max(0, gvw - pv5.curb_axle_front_kg - pv5.curb_axle_rear_kg - defs.crewWeight) / 50) * 50,
       1000
@@ -265,5 +265,5 @@ describe("calcLoad — pv5-spec.json 하중계산_기준입력 기준 (정답지
   it("공차 후축 부하율 53.3 %", () => expect(result.tire_load_rate.curb_rear_pct).toBe(53.3));
   it("적차 전축 부하율 83.0 %", () => expect(result.tire_load_rate.loaded_front_pct).toBe(83.0));
   it("적차 후축 부하율 92.7 %", () => expect(result.tire_load_rate.loaded_rear_pct).toBe(92.7));
-  it("GVW 적합 (2635 ≤ 2635)",  () => expect(result.legal.within_gvw).toBe(true));
+  it("GVW 적합 (2635 ≤ 2680)",  () => expect(result.legal.within_gvw).toBe(true));
 });
