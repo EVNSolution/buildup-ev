@@ -1,3 +1,4 @@
 code,when_value,effect,target_type,target_code,memo
 R1,BODY_DRY,disable,group,TEMP,드라이탑이면 온도계 선택불가
 R3,TOP_LOW,disable,group,SPOILER,저상탑이면 스포일러 선택불가
+R4,BODY_REEFER,disable,value,DOOR_FOLD,냉동탑이면 양문미닫이 선택불가

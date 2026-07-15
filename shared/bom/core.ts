@@ -1,30 +1,80 @@
 /**
- * 옵션 선택 → 탈거/설치 BOM 자동 산출 (option-weights-real.json 데이터 inline)
+ * 옵션 선택 → 탈거/설치 BOM 자동 산출.
+ * 무게·CG_x 값은 전부 doc-templates/option-weights-real.json 을 런타임에 읽어서 사용한다
+ * (코드에 하드코딩 금지 — 두 소스가 어긋나면 조용히 넘어가지 않고 throw).
  *
  * 좌표계: CG_x = 전축 기준 거리 (mm)
  * load-calc 입력 dist_to_rear_axle_mm = 축간거리(2995) − CG_x
  */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { WeightItem } from '../load-calc/types.js';
 import type { BomResult } from './types.js';
 
-// ── 상수 ──────────────────────────────────────────────────────────────────────
-
 const WHEELBASE_MM = 2995;
 const CURB_BASE_KG = 1905;
-const DECK_WEIGHT_KG = 252;
-const DECK_CG_X = 3050;
-const TOP_CG_X = 3050;
 
 function cgxToRear(cg_x: number): number {
   return WHEELBASE_MM - cg_x;
 }
 
-// ── 옵션코드 → 한국어 매핑 ────────────────────────────────────────────────────
+// ── option-weights-real.json 단일소스 로드 ────────────────────────────────────
 
-const BODY_TYPE_MAP: Record<string, string> = {
-  BODY_REEFER: '냉동탑',
-  BODY_DRY: '내장탑',
-};
+interface TopEntry {
+  무게: number;
+  최대적재량_kg: number;
+}
+interface TopCategory {
+  _적재함유형코드: string;
+  CG_x_전축기준_mm: number;
+  [topType: string]: unknown; // 저상/표준 → Record<도어구성키, TopEntry>
+}
+interface RemoveEntry {
+  명칭: string;
+  무게_저상: number;
+  무게_표준: number;
+  CG_x_전축기준_mm: number;
+}
+interface IndivOptEntry {
+  명칭: string;
+  무게: number;
+  무게계산_포함: boolean;
+  CG_x_전축기준_mm?: number;
+}
+interface BomSource {
+  기본_탈거: RemoveEntry[];
+  탑_설치: Record<string, TopCategory>;
+  개별_옵션_항목: Record<string, IndivOptEntry>;
+}
+
+function loadBomSource(): BomSource {
+  const dataPath = path.resolve(
+    fileURLToPath(import.meta.url),
+    '../../../doc-templates/option-weights-real.json'
+  );
+  const raw = JSON.parse(fs.readFileSync(dataPath, 'utf-8')) as Record<string, unknown>;
+  if (!Array.isArray(raw['기본_탈거']) || (raw['기본_탈거'] as unknown[]).length === 0) {
+    throw new Error('option-weights-real.json: 기본_탈거 섹션이 없거나 비어있습니다');
+  }
+  if (!raw['탑_설치'] || typeof raw['탑_설치'] !== 'object') {
+    throw new Error('option-weights-real.json: 탑_설치 섹션이 없습니다');
+  }
+  if (!raw['개별_옵션_항목'] || typeof raw['개별_옵션_항목'] !== 'object') {
+    throw new Error('option-weights-real.json: 개별_옵션_항목 섹션이 없습니다');
+  }
+  return raw as unknown as BomSource;
+}
+
+const SRC = loadBomSource();
+
+// ── 옵션코드 ↔ BOM 한글 키 매핑 (코드 사전 — 값은 전부 위 SRC 에서 읽음) ─────────
+// 탑종류코드는 JSON의 _적재함유형코드에서 역매핑(단일소스), TOP/DOOR 코드사전은
+// 앱 옵션코드 체계 ↔ BOM 한글키 간 고정 번역표라 자주 바뀌지 않아 코드에 둠.
+
+const BODY_TYPE_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(SRC.탑_설치).map(([korName, cat]) => [cat._적재함유형코드, korName])
+);
 
 const TOP_TYPE_MAP: Record<string, string> = {
   TOP_LOW: '저상',
@@ -40,67 +90,12 @@ const DOOR_CONFIG_MAP: Record<string, string> = {
   'DOOR_FOLD':             '양문미닫이',
 };
 
-// ── 탑 설치 데이터 (option-weights-real.json 탑_설치) ─────────────────────────
-
-const TOP_DATA: Record<string, Record<string, Record<string, { 무게: number; 최대적재량_kg: number }>>> = {
-  냉동탑: {
-    저상: {
-      기본_여닫이:    { 무게: 396.7, 최대적재량_kg: 500 },
-      기본_슬라이딩:  { 무게: 406.7, 최대적재량_kg: 500 },
-      '4도어_여닫이': { 무게: 428.0, 최대적재량_kg: 440 },
-      '4도어_슬라이딩': { 무게: 448.0, 최대적재량_kg: 420 },
-    },
-    표준: {
-      기본_여닫이:    { 무게: 426.4, 최대적재량_kg: 440 },
-      기본_슬라이딩:  { 무게: 436.4, 최대적재량_kg: 430 },
-      '4도어_여닫이': { 무게: 463.5, 최대적재량_kg: 400 },
-      '4도어_슬라이딩': { 무게: 483.5, 최대적재량_kg: 390 },
-    },
-  },
-  내장탑: {
-    저상: {
-      기본_여닫이:    { 무게: 315.2, 최대적재량_kg: 550 },
-      기본_슬라이딩:  { 무게: 325.2, 최대적재량_kg: 550 },
-      '4도어_여닫이': { 무게: 341.7, 최대적재량_kg: 500 },
-      '4도어_슬라이딩': { 무게: 361.7, 최대적재량_kg: 500 },
-      양문미닫이:     { 무게: 435.8, 최대적재량_kg: 400 },
-    },
-    표준: {
-      기본_여닫이:    { 무게: 341.0, 최대적재량_kg: 500 },
-      기본_슬라이딩:  { 무게: 351.0, 최대적재량_kg: 500 },
-      '4도어_여닫이': { 무게: 372.2, 최대적재량_kg: 500 },
-      '4도어_슬라이딩': { 무게: 392.2, 최대적재량_kg: 500 },
-      양문미닫이:     { 무게: 449.1, 최대적재량_kg: 400 },
-    },
-  },
-};
-
-// ── 개별 옵션 데이터 (option-weights-real.json 개별_옵션_항목) ─────────────────
-
-interface IndivOpt {
-  명칭: string;
-  무게: number;
-  무게계산_포함: boolean;
-  CG_x?: number;
-}
-
-// 출처: doc-templates/option-weights-real.json 개별_옵션_항목 (전 항목 무게계산_포함=false, 사용자 결정 2026-07)
-const INDIV_OPTS: Record<string, IndivOpt> = {
-  TEMP_O:      { 명칭: '온도기록계',     무게: 0,  무게계산_포함: false },
-  PART_NET:    { 명칭: '격벽(그물망)',   무게: 0,  무게계산_포함: false },
-  PART_REEFER: { 명칭: '격벽(냉동격벽)', 무게: 0,  무게계산_포함: false },
-  SPOILER_O:   { 명칭: '스포일러',       무게: 0,  무게계산_포함: false },
-  DECAL_O:     { 명칭: '데칼',           무게: 5,  무게계산_포함: false },
-  TINT_O:      { 명칭: '썬팅',           무게: 3,  무게계산_포함: false },
-  BLACKBOX_O:  { 명칭: '블랙박스',       무게: 1,  무게계산_포함: false },
-  SUPPLYKIT_O: { 명칭: '지급품 키트',    무게: 10, 무게계산_포함: false },
-};
-
 // ── 공개 API ──────────────────────────────────────────────────────────────────
 
 /**
  * 주문 옵션 선택값(groupCode → valueCode)으로 BOM 자동 산출.
- * BODYTYPE·TOP·DOORTYPE 미선택 시 null 반환.
+ * BODYTYPE·TOP·DOORTYPE 미선택이거나 유효하지 않은 조합(예: 냉동탑+양문미닫이)이면 null 반환.
+ * option-weights-real.json 구조 자체가 깨져있으면(무게계산_포함=true인데 CG_x 누락 등) throw.
  */
 export function calcBom(selections: Record<string, string>): BomResult | null {
   const bodyCode = selections['BODYTYPE'];
@@ -118,28 +113,42 @@ export function calcBom(selections: Record<string, string>): BomResult | null {
   const doorConfig = DOOR_CONFIG_MAP[doorKey];
   if (!doorConfig) return null;
 
-  const topEntry = TOP_DATA[bodyType]?.[topType]?.[doorConfig];
-  if (!topEntry) return null;
+  const topCategory = SRC.탑_설치[bodyType];
+  if (!topCategory) throw new Error(`option-weights-real.json: 탑_설치.${bodyType} 없음`);
 
-  // 탈거
+  const topTypeEntries = topCategory[topType] as Record<string, TopEntry> | undefined;
+  const topEntry = topTypeEntries?.[doorConfig];
+  if (!topEntry) return null; // 조합 자체가 존재하지 않음(옵션 제약 위반) — 정상 케이스
+
+  const topCgX = topCategory.CG_x_전축기준_mm;
+
+  // 탈거: 기본_탈거[0](오픈베드 데크) — topType(저상/표준)별 무게 선택
+  // TODO(정확도): 무게_저상/무게_표준(252kg)은 역산 추정값(option-weights-real.json 기본_탈거._주 참조).
+  //   실측 무게 확보 전까지 '구조변경 후' 계산 결과를 최종 서류로 신뢰하지 말 것.
+  const deck = SRC.기본_탈거[0]!;
+  const deckWeight = topType === '저상' ? deck.무게_저상 : deck.무게_표준;
   const removeItems = [
-    { label: '오픈베드 데크(적재함)', weight_kg: DECK_WEIGHT_KG, cg_x_mm: DECK_CG_X },
+    { label: deck.명칭, weight_kg: deckWeight, cg_x_mm: deck.CG_x_전축기준_mm },
   ];
 
-  // 설치 (탑)
+  // 설치: 탑 완성무게 (개별 옵션은 전부 무게계산_포함=false → 아래에서 서류표기 라벨만 추가)
   const installItems = [
-    { label: `${bodyType}(${topType}) 완성`, weight_kg: topEntry.무게, cg_x_mm: TOP_CG_X },
+    { label: `${bodyType}(${topType}) 완성`, weight_kg: topEntry.무게, cg_x_mm: topCgX },
   ];
 
-  // 개별 옵션 처리
+  // 개별 옵션: 무게계산_포함=true 인 것만 install에 반영, false는 서류 표기용 라벨만
   const selectedValues = new Set(Object.values(selections));
   const extraLabels: string[] = [];
-
-  for (const [valueCode, opt] of Object.entries(INDIV_OPTS)) {
+  for (const [valueCode, opt] of Object.entries(SRC.개별_옵션_항목)) {
     if (!selectedValues.has(valueCode)) continue;
-    if (opt.무게계산_포함 && opt.CG_x !== undefined) {
-      installItems.push({ label: opt.명칭, weight_kg: opt.무게, cg_x_mm: opt.CG_x });
-    } else if (!opt.무게계산_포함) {
+    if (opt.무게계산_포함) {
+      if (opt.CG_x_전축기준_mm === undefined) {
+        throw new Error(
+          `option-weights-real.json: 개별_옵션_항목.${valueCode} 는 무게계산_포함=true인데 CG_x_전축기준_mm 누락`
+        );
+      }
+      installItems.push({ label: opt.명칭, weight_kg: opt.무게, cg_x_mm: opt.CG_x_전축기준_mm });
+    } else {
       extraLabels.push(opt.명칭);
     }
   }

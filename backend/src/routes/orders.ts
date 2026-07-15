@@ -134,6 +134,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           customer_name: order.quote.customer?.name ?? null,
           options,
           documents: order.documents,
+          vehicle_info: (order as unknown as { vehicle_info?: unknown }).vehicle_info ?? null,
         },
       });
       return;

@@ -133,7 +133,7 @@ modelsRouter.get('/:modelCode/spec', rbac('SALES', 'ADMIN', 'MAKER'), async (req
 
   // mock fallback
   if (modelCode === 'PV5_OPENBED') {
-    res.json({ data: { wheelbase_mm: 2995, curb_axle_front_kg: 1105, curb_axle_rear_kg: 800, gvw_limit_kg: 2635, tire_front: { allowable_load_kg: 750, wheels: 2 }, tire_rear: { allowable_load_kg: 750, wheels: 2 } } });
+    res.json({ data: { wheelbase_mm: 2995, curb_axle_front_kg: 1105, curb_axle_rear_kg: 800, gvw_limit_kg: 2680, tire_front: { allowable_load_kg: 750, wheels: 2 }, tire_rear: { allowable_load_kg: 750, wheels: 2 } } });
     return;
   }
   res.status(404).json({ error: { code: 'NOT_FOUND', message: '차종을 찾을 수 없습니다' } });

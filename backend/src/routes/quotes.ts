@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { deleteGeneratedDocFiles } from '../services/docgen.js';
 import { calcPrice, type PricingParams } from '@buildup-ev/shared/pricing';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 
@@ -340,16 +341,21 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정 견적은 마스터 관리자만 삭제 가능' } });
         return;
       }
-      // 연결된 order → order_option + document → order → quote 트랜잭션 cascade 삭제
+      // 연결된 order → order_option + document + generated_document → order → quote 트랜잭션 cascade 삭제
       const order = await prisma.order.findUnique({ where: { quote_id: id } });
       await prisma.$transaction(async (tx) => {
         if (order) {
           await tx.document.deleteMany({ where: { order_id: order.id } });
+          await tx.generatedDocument.deleteMany({ where: { order_id: order.id } });
           await tx.orderOption.deleteMany({ where: { order_id: order.id } });
           await tx.order.delete({ where: { id: order.id } });
         }
         await tx.quote.delete({ where: { id } });
       });
+      // DB 커밋 성공 후 실제 PDF 파일 정리(고아 파일 방지). 파일 삭제 실패는 무시(로그만).
+      if (order) {
+        await deleteGeneratedDocFiles(order.id).catch(e => console.error('[DELETE /quotes/:id] 서류 파일 정리 실패', e));
+      }
       res.json({ data: { ok: true } });
       return;
     }

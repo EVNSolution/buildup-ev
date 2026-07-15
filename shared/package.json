@@ -6,7 +6,9 @@
   "exports": {
     "./types": "./types/index.ts",
     "./load-calc": "./load-calc/core.ts",
-    "./pricing": "./pricing/core.ts"
+    "./load-calc/pv5-defaults": "./load-calc/pv5-defaults.ts",
+    "./pricing": "./pricing/core.ts",
+    "./bom": "./bom/core.ts"
   },
   "scripts": {
     "test": "vitest run",

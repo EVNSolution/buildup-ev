@@ -127,7 +127,9 @@ async function main() {
     default_tire_rear:  opt(r['default_tire_rear']),
     active:             bool(r['active']),
   }));
-  await prisma.vehicleModel.createMany({ data: models, skipDuplicates: true });
+  for (const m of models) {
+    await prisma.vehicleModel.upsert({ where: { code: m.code }, update: m, create: m });
+  }
   console.log(`  vehicle_model: ${models.length}`);
 
   // ── option_group / option_value / option_group_model (데이터 없으면 통과) ───

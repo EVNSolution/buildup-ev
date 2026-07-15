@@ -1,4 +1,4 @@
-import type { ApiOrder, ApiOrderMakerDetail, Org } from '@shared/types/index'
+import type { ApiOrder, ApiOrderMakerDetail, OrderVehicleInfo, Org } from '@shared/types/index'
 
 export async function fetchOrders(
   params: { status?: string; from?: string; to?: string },
@@ -39,4 +39,17 @@ export async function fetchMakerOrgs(): Promise<Org[]> {
   if (!res.ok) throw new Error(`특장사 목록 로드 실패: ${res.status}`)
   const body = await res.json() as { data: Org[] }
   return body.data
+}
+
+export async function saveVehicleInfo(orderId: number, info: OrderVehicleInfo): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/vehicle-info`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(info),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `차량정보 저장 실패: ${res.status}`)
+  }
 }

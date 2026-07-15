@@ -5,6 +5,7 @@ import { modelsRouter } from './routes/models.js';
 import { quotesRouter } from './routes/quotes.js';
 import { loadCalcRouter } from './routes/load-calc.js';
 import { ordersRouter } from './routes/orders.js';
+import { docsRouter } from './routes/docs.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
@@ -29,6 +30,7 @@ export function createApp() {
   app.use('/api/v1/quotes', quotesRouter);
   app.use('/api/v1/load-calc', loadCalcRouter);
   app.use('/api/v1/orders', ordersRouter);
+  app.use('/api/v1/orders', docsRouter);
   app.use('/api/v1/subsidy', subsidyRouter);
   app.use('/api/v1/orgs', orgsRouter);
   app.use('/api/v1/regions', regionsRouter);

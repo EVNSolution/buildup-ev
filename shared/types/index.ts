@@ -265,6 +265,18 @@ export interface ApiDocument {
   status: 'pending' | 'done' | 'na';
 }
 
+/** 구조변경 서류 바인딩용 차량 정보 (특장사 입력, order.vehicle_info) */
+export interface OrderVehicleInfo {
+  제원관리번호?: string;
+  등록번호?: string;
+  차대번호?: string;
+  형식코드?: string;
+  모델연도?: string | number;
+  소유자성명?: string;
+  소유자주소?: string;
+  최초등록일?: string;
+}
+
 /** MAKER용 주문 상세 — 가격·영업 정보 제외, 제작에 필요한 사양·서류만 */
 export interface ApiOrderMakerDetail {
   id: number;
@@ -277,4 +289,5 @@ export interface ApiOrderMakerDetail {
   customer_name: string | null;
   options: ApiOrderOption[];
   documents: ApiDocument[];
+  vehicle_info?: OrderVehicleInfo | null;
 }

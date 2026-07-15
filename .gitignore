@@ -44,3 +44,6 @@ Thumbs.db
 *.pem
 .cache/
 frontend/.vite/
+
+# 개인용 로컬 스크립트 (DB 접속정보 등 비밀정보 포함 가능)
+*.local.sh
