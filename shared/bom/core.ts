@@ -6,9 +6,9 @@
  * 좌표계: CG_x = 전축 기준 거리 (mm)
  * load-calc 입력 dist_to_rear_axle_mm = 축간거리(2995) − CG_x
  */
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// 무게·CG 단일소스. 정적 import 로 번들에 포함 — 프론트(vite 브라우저)·백엔드(tsx) 양쪽에서
+// 동작(과거 node:fs readFileSync 는 브라우저 번들을 깨뜨려 프론트 빌드 실패의 원인이었음).
+import BOM_SOURCE_JSON from '../../doc-templates/option-weights-real.json';
 import type { WeightItem } from '../load-calc/types.js';
 import type { BomResult } from './types.js';
 
@@ -49,11 +49,7 @@ interface BomSource {
 }
 
 function loadBomSource(): BomSource {
-  const dataPath = path.resolve(
-    fileURLToPath(import.meta.url),
-    '../../../doc-templates/option-weights-real.json'
-  );
-  const raw = JSON.parse(fs.readFileSync(dataPath, 'utf-8')) as Record<string, unknown>;
+  const raw = BOM_SOURCE_JSON as unknown as Record<string, unknown>;
   if (!Array.isArray(raw['기본_탈거']) || (raw['기본_탈거'] as unknown[]).length === 0) {
     throw new Error('option-weights-real.json: 기본_탈거 섹션이 없거나 비어있습니다');
   }
