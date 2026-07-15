@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ApiOrder } from '@shared/types/index'
 import { updateOrderStatus } from '../api/orders'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { Tooltip } from './Tooltip'
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 type OrderStatus = typeof ORDER_STATUS_SEQ[number]
@@ -54,7 +55,22 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
       {ORDER_STATUS_SEQ.map((status, colIdx) => (
         <div key={status} style={{ ...kb.column, minWidth: colWidth, flex: `0 0 ${colWidth}px` }}>
           <div style={kb.colHeader}>
-            <span style={kb.colTitle}>{status}</span>
+            <Tooltip
+              text={
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>진행 단계 (6단계)</div>
+                  {ORDER_STATUS_SEQ.map((s, i) => (
+                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s === status ? 700 : 400, color: s === status ? '#c8d200' : '#ccc', fontSize: 11 }}>
+                      <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+                      <span>{s}</span>
+                      {s === status && <span style={{ fontSize: 9, color: '#c8d200' }}>← 현재</span>}
+                    </div>
+                  ))}
+                </div>
+              }
+            >
+              <span style={kb.colTitle}>{status}</span>
+            </Tooltip>
             <span style={kb.colCount}>{byStatus[status]?.length ?? 0}</span>
           </div>
           <div style={kb.cards}>

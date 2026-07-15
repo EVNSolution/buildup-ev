@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { deleteGeneratedDocFiles } from '../services/docgen.js';
 import { calcPrice, type PricingParams } from '@buildup-ev/shared/pricing';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 
@@ -17,11 +18,25 @@ export const quotesRouter = Router();
 
 type CustomerInput = {
   name?: string;
+  email?: string;
+  phone?: string;
   biz_type?: string;
   is_sosang?: boolean;
   region?: string;
   scrap_diesel?: boolean;
 };
+
+// ── 연도별 순차 견적번호 생성 (YY-NNNN) ─────────────────────────────────────
+async function genQuoteNo(prismaClient: NonNullable<typeof prisma>, year: number): Promise<string> {
+  const prefix = String(year).slice(-2);
+  const last = await prismaClient.quote.findFirst({
+    where: { quote_no: { startsWith: `${prefix}-` } },
+    orderBy: { quote_no: 'desc' },
+    select: { quote_no: true },
+  });
+  const seq = last?.quote_no ? parseInt(last.quote_no.split('-')[1] ?? '0', 10) + 1 : 1;
+  return `${prefix}-${String(seq).padStart(4, '0')}`;
+}
 
 async function buildParams(
   model_code: string,
@@ -112,7 +127,7 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, email: true, phone: true } },
         order: { select: { maker_org: { select: { code: true, name: true } } } },
       },
     });
@@ -182,12 +197,12 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   if (customer?.name) {
     try {
       const cust = await prisma.customer.create({
-        data: { name: customer.name, created_by: req.auth?.email },
+        data: { name: customer.name, email: customer.email, phone: customer.phone, created_by: req.auth?.email },
       });
       customerId = cust.id;
     } catch (e: unknown) {
       if ((e as { code?: string }).code === 'P2003') {
-        const cust = await prisma.customer.create({ data: { name: customer.name } });
+        const cust = await prisma.customer.create({ data: { name: customer.name, email: customer.email, phone: customer.phone } });
         customerId = cust.id;
       } else {
         throw e;
@@ -217,6 +232,14 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     } else {
       throw e;
     }
+  }
+
+  // quote_no 부여 (YY-NNNN)
+  try {
+    const quote_no = await genQuoteNo(prisma, calcYear);
+    await prisma.quote.update({ where: { id: quote.id }, data: { quote_no } });
+  } catch {
+    // quote_no 부여 실패는 치명적이지 않음 — 백필로 복구 가능
   }
 
   res.status(201).json({ data: { quote_id: quote.id, pricing: result } });
@@ -318,16 +341,21 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정 견적은 마스터 관리자만 삭제 가능' } });
         return;
       }
-      // 연결된 order → order_option + document → order → quote 트랜잭션 cascade 삭제
+      // 연결된 order → order_option + document + generated_document → order → quote 트랜잭션 cascade 삭제
       const order = await prisma.order.findUnique({ where: { quote_id: id } });
       await prisma.$transaction(async (tx) => {
         if (order) {
           await tx.document.deleteMany({ where: { order_id: order.id } });
+          await tx.generatedDocument.deleteMany({ where: { order_id: order.id } });
           await tx.orderOption.deleteMany({ where: { order_id: order.id } });
           await tx.order.delete({ where: { id: order.id } });
         }
         await tx.quote.delete({ where: { id } });
       });
+      // DB 커밋 성공 후 실제 PDF 파일 정리(고아 파일 방지). 파일 삭제 실패는 무시(로그만).
+      if (order) {
+        await deleteGeneratedDocFiles(order.id).catch(e => console.error('[DELETE /quotes/:id] 서류 파일 정리 실패', e));
+      }
       res.json({ data: { ok: true } });
       return;
     }
@@ -415,7 +443,7 @@ quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): 
       : '';
 
     const html = QUOTE_PDF_TEMPLATE
-      .replace('{{QUOTE_ID}}',         `Q-${String(id).padStart(5, '0')}`)
+      .replace('{{QUOTE_NO}}',         quote.quote_no ?? `Q-${String(id).padStart(5, '0')}`)
       .replace('{{QUOTE_DATE}}',        quote.created_at.toISOString().slice(0, 10))
       .replace('{{MODEL_CODE}}',        quote.model_code)
       .replace('{{QUOTE_STATUS}}',      STATUS_KO[quote.status] ?? quote.status)

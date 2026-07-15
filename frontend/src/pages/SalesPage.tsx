@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice } from '@shared/pricing/core'
@@ -11,6 +11,7 @@ import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { CustomerModal } from '../components/CustomerModal'
 import { PdfModal } from '../components/PdfModal'
+import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -23,6 +24,29 @@ function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual'
 // ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
 const QUOTE_STATUS_KO: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
+}
+
+const QUOTE_STATUS_FLOW = [
+  { key: 'draft',     label: '임시저장', desc: '작성 중인 견적' },
+  { key: 'confirmed', label: '확정',     desc: '특장사 배정 · 주문 생성' },
+  { key: 'ordered',   label: '주문',     desc: '특장사 제작 진행 중' },
+] as const
+
+function quoteStatusTip(status: string): React.ReactNode {
+  return (
+    <div>
+      <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>견적 상태</div>
+      {QUOTE_STATUS_FLOW.map((s, i) => (
+        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? '#c8d200' : '#ccc', fontSize: 11 }}>
+          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+          <span>{s.label}</span>
+          <span style={{ fontSize: 9.5, color: s.key === status ? '#b0b8c0' : '#666', marginLeft: 2 }}>({s.desc})</span>
+          {s.key === status && <span style={{ fontSize: 9, color: '#c8d200', marginLeft: 2 }}>← 현재</span>}
+        </div>
+      ))}
+      {status === 'expired' && <div style={{ fontSize: 10, color: '#e57373', marginTop: 5 }}>만료/취소된 견적입니다</div>}
+    </div>
+  )
 }
 const ORDER_STATUS_BADGE: React.CSSProperties = {
   fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8,
@@ -87,13 +111,15 @@ function MyListView() {
                   const order = orderByQuote.get(q.id)
                   return (
                     <tr key={q.id}>
-                      <td style={lv.td}>{q.id}</td>
+                      <td style={lv.td}>{q.quote_no ?? `#${q.id}`}</td>
                       <td style={lv.td}>{q.customer?.name ?? '—'}</td>
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
-                        <span style={q.status === 'draft' ? lv.badgeDraft : q.status === 'confirmed' || q.status === 'ordered' ? lv.badgeActive : lv.badgeMuted}>
-                          {QUOTE_STATUS_KO[q.status] ?? q.status}
-                        </span>
+                        <Tooltip text={quoteStatusTip(q.status)} placement="below">
+                          <span style={q.status === 'draft' ? lv.badgeDraft : q.status === 'confirmed' || q.status === 'ordered' ? lv.badgeActive : lv.badgeMuted}>
+                            {QUOTE_STATUS_KO[q.status] ?? q.status}
+                          </span>
+                        </Tooltip>
                       </td>
                       <td style={lv.td}>
                         {order
@@ -104,10 +130,16 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{q.order?.maker_org?.name ?? '—'}</td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
-                        <button
-                          style={lv.pdfBtn}
-                          onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
-                        >견적서</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            style={lv.pdfBtn}
+                            onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                          >견적서</button>
+                          <button
+                            style={lv.sendBtn}
+                            onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
+                          >발송</button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -140,6 +172,14 @@ export function SalesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [savedQuote, setSavedQuote] = useState<{ quote_id: number; pricing: PricingOk } | null>(null)
   const [saveError, setSaveError] = useState('')
+
+  const vivarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [vivarState, setVivarState] = useState<'loading' | 'ok' | 'fail'>('loading')
+
+  useEffect(() => {
+    vivarTimer.current = setTimeout(() => setVivarState('fail'), 10000)
+    return () => { if (vivarTimer.current) clearTimeout(vivarTimer.current) }
+  }, [])
 
   // 번들 1회 로드
   useEffect(() => {
@@ -263,6 +303,8 @@ export function SalesPage() {
         selections,
         customer: customer && !skipped ? {
           name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
           biz_type: mapBizType(customer.business_type),
           is_sosang: customer.is_small_business,
           region: customer.region_code,
@@ -309,18 +351,38 @@ export function SalesPage() {
           </div>
 
           <div style={styles.stage}>
-            <span style={styles.embedTag}>3D 컨피규레이터 (VIVAR iframe 영역)</span>
-            <svg viewBox="0 0 520 230" style={styles.placeholderSvg} xmlns="http://www.w3.org/2000/svg">
-              <g fill="none" stroke="#c4c9d0" strokeWidth="3">
-                <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
-                <rect x="210" y="55" width="270" height="115" rx="4" fill="#f7f8fa"/>
-                <line x1="150" y1="70" x2="150" y2="108"/>
-                <circle cx="95" cy="178" r="22" fill="#e9ecef"/><circle cx="400" cy="178" r="22" fill="#e9ecef"/>
-                <circle cx="95" cy="178" r="9" fill="#fff"/><circle cx="400" cy="178" r="9" fill="#fff"/>
-              </g>
-              <text x="345" y="118" textAnchor="middle" fill="#aeb4bc" fontSize="13">특장 (탑)</text>
-              <text x="120" y="95" textAnchor="middle" fill="#aeb4bc" fontSize="11">PV5</text>
-            </svg>
+            {/* iframe: 성공 전까지 hidden 상태로 백그라운드 로드 */}
+            <iframe
+              src="https://evnsolution.vivar.im/"
+              style={{ ...styles.vivarFrame, visibility: vivarState === 'ok' ? 'visible' : 'hidden' }}
+              allow="fullscreen; xr-spatial-tracking"
+              title="VIVAR 3D 컨피규레이터"
+              onLoad={() => {
+                if (vivarTimer.current) { clearTimeout(vivarTimer.current); vivarTimer.current = null }
+                setVivarState('ok')
+              }}
+              onError={() => setVivarState('fail')}
+            />
+            {/* 로딩 중 or 실패 시 fallback placeholder */}
+            {vivarState !== 'ok' && (
+              <div style={styles.fallback}>
+                <svg viewBox="0 0 520 230" style={styles.placeholderSvg} xmlns="http://www.w3.org/2000/svg">
+                  <g fill="none" stroke="#c4c9d0" strokeWidth="3">
+                    <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
+                    <rect x="210" y="55" width="270" height="115" rx="4" fill="#f7f8fa"/>
+                    <line x1="150" y1="70" x2="150" y2="108"/>
+                    <circle cx="95" cy="178" r="22" fill="#e9ecef"/><circle cx="400" cy="178" r="22" fill="#e9ecef"/>
+                    <circle cx="95" cy="178" r="9" fill="#fff"/><circle cx="400" cy="178" r="9" fill="#fff"/>
+                  </g>
+                  <text x="345" y="118" textAnchor="middle" fill="#aeb4bc" fontSize="13">특장 (탑)</text>
+                  <text x="120" y="95" textAnchor="middle" fill="#aeb4bc" fontSize="11">PV5</text>
+                </svg>
+                {vivarState === 'fail' && (
+                  <span style={styles.fallbackMsg}>3D 로드 불가 (도메인 frame 허용 필요)</span>
+                )}
+              </div>
+            )}
+            <span style={styles.caption}>3D 미리보기 · 옵션 연동 예정</span>
             <span style={styles.watermark}>Powered by VIVAR</span>
           </div>
 
@@ -410,11 +472,12 @@ const styles = {
   },
   stage: {
     flex: 1,
-    minHeight: 0,
+    minHeight: 260,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative' as const,
+    overflow: 'hidden' as const,
   },
   embedTag: {
     position: 'absolute' as const,
@@ -428,7 +491,11 @@ const styles = {
     borderRadius: 6,
   },
   placeholderSvg: { width: '55%', maxWidth: 520 },
-  watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4' },
+  vivarFrame: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', border: 'none', transformOrigin: 'top left', transform: 'scale(1.7) translate(-90px, -68px)' },
+  fallback: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8 },
+  fallbackMsg: { fontSize: 11, color: '#b71c1c', background: '#fff8f8', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: 6 },
+  caption: { position: 'absolute' as const, bottom: 10, left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: '#9aa0a8', background: 'rgba(255,255,255,0.82)', border: '1px solid var(--line)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' as const, pointerEvents: 'none' as const, zIndex: 10 },
+  watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4', zIndex: 10, pointerEvents: 'none' as const },
 }
 
 const lv: Record<string, React.CSSProperties> = {
@@ -448,4 +515,5 @@ const lv: Record<string, React.CSSProperties> = {
   badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
   pdfBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
+  sendBtn: { padding: '4px 10px', border: '1px solid #b8c9e0', borderRadius: 6, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 11 },
 }

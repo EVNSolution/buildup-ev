@@ -275,6 +275,7 @@ model Tire {
 model Customer {
   id         Int      @id @default(autoincrement())
   name       String   @db.VarChar(60)
+  email      String?  @db.VarChar(120)
   phone      String?  @db.VarChar(20)
   address    String?  @db.VarChar(120)
   reg_no     String?  @db.VarChar(20)
@@ -296,6 +297,7 @@ enum QuoteStatus {
 
 model Quote {
   id            Int         @id @default(autoincrement())
+  quote_no      String?     @unique @db.VarChar(10)
   customer_id   Int?
   model_code    String      @db.VarChar(30)
   selections    Json        @default("{}")
@@ -323,11 +325,14 @@ model Order {
   maker_org_id String?   @db.VarChar(30)
   assigned_at  DateTime?
   created_at   DateTime  @default(now())
+  // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
+  vehicle_info Json?
 
   quote     Quote        @relation(fields: [quote_id], references: [id])
   maker_org Org?         @relation("OrderMakerOrg", fields: [maker_org_id], references: [code])
   options   OrderOption[]
   documents Document[]
+  generated_documents GeneratedDocument[]
 
   @@map("order")
 }
@@ -360,6 +365,28 @@ model Document {
   order Order @relation(fields: [order_id], references: [id])
 
   @@map("document")
+}
+
+// 자동생성 구조변경 서류(PDF) 이력. 관청 제출물이라 재생성해도 덮어쓰지 않고 버전 누적.
+// 같은 (order_id, type) 의 최신 버전 = version 최댓값.
+enum GeneratedDocType {
+  load_calc
+  spec_table
+  work_order
+}
+
+model GeneratedDocument {
+  id           Int              @id @default(autoincrement())
+  order_id     Int
+  type         GeneratedDocType
+  version      Int
+  file_path    String           @db.VarChar(500)
+  generated_at DateTime         @default(now())
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@unique([order_id, type, version])
+  @@map("generated_document")
 }
 
 // ─── C, D2 보류 — TODO 2단계 ───────────────────────────────────────────────

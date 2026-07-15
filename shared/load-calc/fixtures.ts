@@ -57,3 +57,7 @@ export function loadTires(): Map<string, number> {
   const rows = readCsv("tire.csv");
   return new Map(rows.map((r) => [r["spec"] ?? "", Number(r["allowable_load_kg"])]));
 }
+
+// loadPV5LoadCalcDefaults 는 백엔드(docgen)에서도 써야 해서 pv5-defaults.ts 로 분리 후 재수출.
+// (fixtures.ts 자체는 db/seed CSV 를 직접 읽는 테스트 전용 파일 — 패키지 공개 export에 없음)
+export { loadPV5LoadCalcDefaults, type LoadCalcDefaults } from "./pv5-defaults.js";

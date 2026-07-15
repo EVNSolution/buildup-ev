@@ -9,6 +9,8 @@ interface Props {
 
 export function CustomerModal({ onComplete, onSkip }: Props) {
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [businessType, setBusinessType] = useState<CustomerInfo['business_type']>('individual')
   const [regions, setRegions] = useState<string[]>([])
   const [region, setRegion] = useState('')
@@ -25,6 +27,8 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
   function handleComplete() {
     onComplete({
       name: name || '고객',
+      email: email || undefined,
+      phone: phone || undefined,
       business_type: businessType,
       region_code: region,
       is_small_business: isSmallBiz,
@@ -47,6 +51,26 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
             placeholder="예: 범석환"
             value={name}
             onChange={e => setName(e.target.value)}
+          />
+        </div>
+
+        <div style={styles.row}>
+          <label style={styles.label}>이메일 <span style={styles.optional}>(선택 · 견적서 발송 시 사용)</span></label>
+          <input
+            type="email"
+            placeholder="customer@example.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+          />
+        </div>
+
+        <div style={styles.row}>
+          <label style={styles.label}>연락처 <span style={styles.optional}>(선택)</span></label>
+          <input
+            type="tel"
+            placeholder="010-0000-0000"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
           />
         </div>
 
@@ -102,6 +126,8 @@ const styles = {
     borderRadius: 16,
     width: 420,
     maxWidth: '92vw',
+    maxHeight: '90vh',
+    overflowY: 'auto' as const,
     padding: 22,
     boxShadow: '0 10px 40px rgba(0,0,0,.25)',
   },
@@ -109,6 +135,7 @@ const styles = {
   desc: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)' },
   row: { marginBottom: 12 },
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
+  optional: { fontSize: 10.5, color: '#b0b7c0' },
   check: {
     display: 'flex',
     alignItems: 'center',

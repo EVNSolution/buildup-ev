@@ -7,6 +7,8 @@ export interface SaveQuoteRequest {
   selections: Record<string, string>
   customer?: {
     name?: string
+    email?: string
+    phone?: string
     biz_type: 'individual' | 'corporation' | 'simplified'
     is_sosang: boolean
     region?: string

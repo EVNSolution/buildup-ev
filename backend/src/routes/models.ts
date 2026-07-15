@@ -99,6 +99,46 @@ modelsRouter.get('/:modelCode/pricing-bundle', rbac('SALES', 'ADMIN'), async (re
   });
 });
 
+// GET /models/:code/spec — 하중계산용 차종 제원 (wheelbase·공차축하중·GVW·타이어)
+modelsRouter.get('/:modelCode/spec', rbac('SALES', 'ADMIN', 'MAKER'), async (req, res): Promise<void> => {
+  const modelCode = req.params['modelCode'] as string;
+
+  if (prisma) {
+    try {
+      const model = await prisma.vehicleModel.findUnique({
+        where: { code: modelCode },
+        select: {
+          wheelbase_mm: true, curb_axle_front_kg: true, curb_axle_rear_kg: true,
+          gvw_limit_kg: true, default_tire_front: true, default_tire_rear: true,
+        },
+      });
+      if (!model) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '차종을 찾을 수 없습니다' } }); return; }
+
+      const [tireFront, tireRear] = await Promise.all([
+        model.default_tire_front ? prisma.tire.findUnique({ where: { spec: model.default_tire_front } }) : null,
+        model.default_tire_rear  ? prisma.tire.findUnique({ where: { spec: model.default_tire_rear  } }) : null,
+      ]);
+
+      res.json({ data: {
+        wheelbase_mm:       model.wheelbase_mm       ?? 2995,
+        curb_axle_front_kg: model.curb_axle_front_kg ?? 1105,
+        curb_axle_rear_kg:  model.curb_axle_rear_kg  ?? 800,
+        gvw_limit_kg:       model.gvw_limit_kg,
+        tire_front: { allowable_load_kg: tireFront?.allowable_load_kg ?? 750, wheels: 2 },
+        tire_rear:  { allowable_load_kg: tireRear?.allowable_load_kg  ?? 750, wheels: 2 },
+      } });
+      return;
+    } catch { /* fallthrough to mock */ }
+  }
+
+  // mock fallback
+  if (modelCode === 'PV5_OPENBED') {
+    res.json({ data: { wheelbase_mm: 2995, curb_axle_front_kg: 1105, curb_axle_rear_kg: 800, gvw_limit_kg: 2680, tire_front: { allowable_load_kg: 750, wheels: 2 }, tire_rear: { allowable_load_kg: 750, wheels: 2 } } });
+    return;
+  }
+  res.status(404).json({ error: { code: 'NOT_FOUND', message: '차종을 찾을 수 없습니다' } });
+});
+
 modelsRouter.get('/:modelCode/options', rbac('SALES', 'ADMIN'), async (req, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });

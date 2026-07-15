@@ -3,7 +3,8 @@
 > Claude Code가 **매 세션 읽는 프로젝트 컨텍스트**다. 이 파일을 repo 루트에 둘 것. 상세 스펙은 `docs/` 참조.
 
 ## 프로젝트
-buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이터 + 견적 + 발주 + 구조변경 서류 자동화** 웹 플랫폼. EV&Solution 자체 소유·개발. 배포는 별도 담당(나는 백/프론트/앱 개발만).
+buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이터 + 견적 + 발주 + 구조변경 서류 자동화** 웹 플랫폼. EV&Solution 자체 소유·개발.
+배포 인프라는 배포 담당이 세팅·지원하고, **일상적인 변경 배포는 `main` push(자동배포)로 직접 수행**한다. 상세는 아래 `## 배포·운영` 참조.
 
 ## 아키텍처 절대원칙 (어기지 말 것)
 1. **VIVAR = 3D 시각화 전용(iframe).** 견적·가격·보조금·세율·서류·권한·하중계산 로직은 **100% EV& 소유**, VIVAR로 넘기지 않음.
@@ -42,7 +43,25 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 ## git/개발 규칙
 - `main`=안정. 기능마다 `feature/...` 브랜치 → **작게 자주 커밋** → 푸시 → PR → 병합.
 - `.env`(키·비번) **커밋 금지**(`.env.example`만). node_modules/dist 등 `.gitignore`.
-- 스택 미확정(배포 담당과 협의). 컴포넌트 기반 + RBAC 라우팅 + 데이터레이어 분리(추후 API 교체 가능 구조).
+- 컴포넌트 기반 + RBAC 라우팅 + 데이터레이어 분리(추후 API 교체 가능 구조).
+
+## 배포·운영 (반드시 준수 — 여기서 사고 많이 남)
+- **배포 = `origin/main`에 push하면 GitHub Actions가 자동 배포.** 수동 rsync·서버 직접 빌드로 배포하지 말 것.
+- ⚠️ **`main` push = 프로덕션 즉시 반영.** 검증 끝난 것만 push. 데모·운영 중엔 특히 신중히(불안하면 배포 담당과 함께).
+- ⚠️ **git 밖 변경(rsync·서버 직접 수정)은 다음 자동배포가 git 기준으로 덮어써 소실됨.** 모든 변경은 반드시 **커밋 → push**로 git에 남길 것.
+- **인프라는 추측 금지 — 만지기 전 `sudo docker ps`·`systemctl`로 재확인**(non-sudo 결과로 "Docker 안 씀" 같은 결론 내지 말 것). 현재 구성(참고):
+  - 백엔드 = systemd `buildup-ev` (tsx, :3001) · 프론트 = Caddy 정적 `frontend/dist`
+  - Postgres = Docker `buildup-ev-postgres` · 리버스프록시 = Docker `buildup-ev-caddy`
+  - 수동 재시작 필요 시: `sudo systemctl restart buildup-ev` + `sudo docker restart buildup-ev-caddy` (컨테이너 이름 추측 금지)
+- **비밀정보 커밋·출력 절대 금지**: `.env`, `*.pem`(BUILDUP-EV-key.pem), `JWT_SECRET`, `DATABASE_URL`. **서버 `.env`는 건드리지 말 것**(JWT_SECRET 불일치 사고 원인).
+- **DB 스키마/seed 변경 전 백업**: `sudo docker exec buildup-ev-postgres pg_dump …`. seed는 **참조 테이블만 upsert**인지 확인 — 주문·견적 등 트랜잭션 테이블에 `delete/truncate` 금지.
+- **프론트/백 반영 경로 다름**: 브라우저에서 도는 로직(예 LoadCalcTab의 `calcBom`) 변경 → **프론트 재빌드** 필요. 백엔드 템플릿·라우트는 런타임 로드 → **백엔드 재시작**. (PDF는 되는데 화면 탭은 옛값이면 프론트 빌드 안 된 것.)
+
+## 작업 안전 가드레일 (이번 세션 사고들에서 도출)
+- **검증 없이 단정하지 말 것.** "테스트 실패는 무관", "Docker 안 씀", "커밋했다" 등은 실제 확인(`git stash` 후 재실행, `sudo docker ps`, `git status`) 뒤에만 말할 것.
+- **테스트를 코드 출력에 맞춰 바꿔 무력화하지 말 것.** 테스트는 **정답지(공식 하중계산)·제원표(별지 서식)** 를 지키는 파수꾼 = ground truth. 코드가 정답지/제원표를 재현하도록 고칠 것.
+- **구조변경 서류(제원대비표·하중계산서·작업지시서)는 예시 PDF 양식을 충실 재현.** 셀 구조 그대로 두고 **숫자칸만 바인딩**. **흑백 전용(색 금지).** 위치 기준=**후축까지**. **탈거/설치만 가변행.** 렌더 스크린샷을 예시 PDF와 시각 대조해 마무리.
+- **옵션→서류/하중은 전부 옵션 선택값에서 자동 산출**(하드코딩 금지). 무게·CG는 실측 BOM(`doc-templates/option-weights-real.json`) 단일 소스.
 
 ## 개발 순서
 DB 구축 → 백엔드 API(옵션→견적→하중계산→주문/서류) → 프론트(영업 Surface 먼저, Phase 1) → 앱.

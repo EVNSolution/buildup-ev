@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { calcLoad } from "./core.js";
-import { loadVehicleModels, loadTires, type VehicleModel } from "./fixtures.js";
+import { loadVehicleModels, loadTires, loadPV5LoadCalcDefaults, type VehicleModel, type LoadCalcDefaults } from "./fixtures.js";
 
 /**
  * 검증 기준: docs/reference/PV5_하중계산기_TS모방.xlsx "검증_PV5" 시트
@@ -201,4 +201,69 @@ describe("calcLoad — DB 시드 데이터 기반 (vehicle_model + tire CSV)", (
     // ceil5 검증: 적차 전축 = 1180 (동일 케이스)
     expect(r.loaded.front_kg).toBe(1180);
   });
+});
+
+// ── pv5-spec.json 기준입력 정답지 검증 ────────────────────────────────────────
+/**
+ * doc-templates/pv5-spec.json 하중계산_기준입력 을 실제로 읽어 계산.
+ * 정원 위치 2995 mm(= 전축, 축간거리) 기준이며 정답지와 일치해야 함.
+ *
+ * 기대값 (정답지):
+ *   공차 전/후축   1105 / 800 kg
+ *   적차 전/후축   1245 / 1390 kg   (ceil5(7.01+130)=140 → 1105+140=1245)
+ *   타이어 부하율  73.7/53.3% (공차) / 83.0/92.7% (적차)  [750 kg × 2]
+ */
+describe("calcLoad — pv5-spec.json 하중계산_기준입력 기준 (정답지 검증)", () => {
+  let pv5: VehicleModel;
+  let tireLoad: number;
+  let defs: LoadCalcDefaults;
+  let cargoKg: number;
+  let result: ReturnType<typeof calcLoad>;
+
+  beforeAll(() => {
+    const models = loadVehicleModels();
+    const tires  = loadTires();
+    defs = loadPV5LoadCalcDefaults();
+
+    const found = models.find((m) => m.code === "PV5_OPENBED");
+    if (!found) throw new Error("vehicle_model.csv 에 PV5_OPENBED 없음");
+    pv5 = found;
+
+    const load = tires.get(pv5.default_tire_front);
+    if (!load) throw new Error(`tire.csv 에 ${pv5.default_tire_front} 없음`);
+    tireLoad = load;
+
+    // 적재량 = floor50(제작허용총중량 - 공차중량 - 정원중량), ≤ 1000 kg
+    const gvw = pv5.gvw_limit_kg ?? 2680;
+    cargoKg = Math.min(
+      Math.floor(Math.max(0, gvw - pv5.curb_axle_front_kg - pv5.curb_axle_rear_kg - defs.crewWeight) / 50) * 50,
+      1000
+    );
+
+    result = calcLoad({
+      wheelbase_mm:       pv5.wheelbase_mm,
+      curb_axle_front_kg: pv5.curb_axle_front_kg,
+      curb_axle_rear_kg:  pv5.curb_axle_rear_kg,
+      gvw_limit_kg:       pv5.gvw_limit_kg ?? undefined,
+      tire_front: { allowable_load_kg: tireLoad, wheels: 2 },
+      tire_rear:  { allowable_load_kg: tireLoad, wheels: 2 },
+      cargo:      { weight_kg: cargoKg, dist_to_rear_axle_mm: defs.cargoDist },
+      crew_items: [{ weight_kg: defs.crewWeight, dist_to_rear_axle_mm: defs.crewDist }],
+    });
+  });
+
+  it("pv5-spec.json 정원 위치 2995 mm (전축)", () => expect(defs.crewDist).toBe(2995));
+  it("적재량 자동계산 600 kg", () => expect(cargoKg).toBe(600));
+
+  it("공차 전축 1105 kg", () => expect(result.curb.front_kg).toBe(1105));
+  it("공차 후축 800 kg",  () => expect(result.curb.rear_kg).toBe(800));
+  it("적차 전축 1245 kg", () => expect(result.loaded.front_kg).toBe(1245));
+  it("적차 후축 1390 kg", () => expect(result.loaded.rear_kg).toBe(1390));
+  it("차량총중량 2635 kg", () => expect(result.gvw_kg).toBe(2635));
+
+  it("공차 전축 부하율 73.7 %", () => expect(result.tire_load_rate.curb_front_pct).toBe(73.7));
+  it("공차 후축 부하율 53.3 %", () => expect(result.tire_load_rate.curb_rear_pct).toBe(53.3));
+  it("적차 전축 부하율 83.0 %", () => expect(result.tire_load_rate.loaded_front_pct).toBe(83.0));
+  it("적차 후축 부하율 92.7 %", () => expect(result.tire_load_rate.loaded_rear_pct).toBe(92.7));
+  it("GVW 적합 (2635 ≤ 2680)",  () => expect(result.legal.within_gvw).toBe(true));
 });
