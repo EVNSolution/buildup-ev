@@ -1,3 +1,5 @@
 code,when_value,effect,target_type,target_code,memo
-R_EVSLIDE_REEFER_ONLY,BODY_DRY,hide,value,DOOR_EVSLIDE,EV미닫이는 냉동(REEFER) 전용
-R_SPOILER_STD_ONLY,TOP_LOW,disable,value,SPOILER_O,스포일러는 표준탑만 (저상 불가)
+R_EVSLIDE_REEFER_ONLY,BODY_DRY,hide,value,DOOR_EVSLIDE,EV미닫이는 냉동 전용 (내장 숨김)
+R_COUPANG_DRY_ONLY,BODY_REEFER,hide,value,DOOR_COUPANG,쿠팡(양문)미닫이는 내장 전용 (냉동 숨김)
+R_TEMP_REEFER_ONLY,BODY_DRY,hide,group,TEMP,온도기록계는 냉동만 (내장 숨김)
+R_PARTMOVE_REEFER_ONLY,BODY_DRY,hide,value,PART_REEFER,냉장/냉동 이동식 격벽은 냉동만 (내장 숨김)

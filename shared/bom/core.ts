@@ -77,13 +77,15 @@ const TOP_TYPE_MAP: Record<string, string> = {
   TOP_STD: '표준',
 };
 
-// DOORTYPE + DOORADD → 도어구성 키 (DOOR_FOLD는 DOORADD 무관)
+// DOORTYPE + DOORADD → 도어구성 키 (양문/쿠팡미닫이는 DOORADD 무관, 내장 전용)
+// DOOR_COUPANG(쿠팡미닫이) = 양문미닫이 동일 상품 — 내장탑에서만 유효.
 const DOOR_CONFIG_MAP: Record<string, string> = {
   'DOOR_SWING+ADD_NONE':   '기본_여닫이',
   'DOOR_SLIDE+ADD_NONE':   '기본_슬라이딩',
   'DOOR_SWING+ADD_DRIVER': '4도어_여닫이',
   'DOOR_SLIDE+ADD_DRIVER': '4도어_슬라이딩',
   'DOOR_FOLD':             '양문미닫이',
+  'DOOR_COUPANG':          '양문미닫이',
 };
 
 // ── 공개 API ──────────────────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ export function calcBom(selections: Record<string, string>): BomResult | null {
   const topType  = TOP_TYPE_MAP[topCode];
   if (!bodyType || !topType) return null;
 
-  const doorKey    = doorCode === 'DOOR_FOLD' ? 'DOOR_FOLD' : `${doorCode}+${addCode}`;
+  const doorKey    = (doorCode === 'DOOR_FOLD' || doorCode === 'DOOR_COUPANG') ? doorCode : `${doorCode}+${addCode}`;
   const doorConfig = DOOR_CONFIG_MAP[doorKey];
   if (!doorConfig) return null;
 

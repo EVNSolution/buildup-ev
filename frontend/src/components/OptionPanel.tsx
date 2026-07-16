@@ -11,6 +11,9 @@ interface Props {
   bundle: ApiPricingBundle
   selections: Record<string, string>
   disabledGroupCodes: Set<string>
+  hiddenGroupCodes: Set<string>
+  hiddenValueCodes: Set<string>
+  priceDelta: (groupCode: string, valueCode: string) => number
   onSelect: (groupCode: string, valueCode: string) => void
   onSave: () => void
   isSaving: boolean
@@ -26,14 +29,17 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'interior', label: '옵션' },
 ]
 
-function groupsByCategory(bundle: ApiPricingBundle, category: string): ApiOptionGroup[] {
-  return bundle.groups.filter(g => g.category === category)
+function groupsByCategory(bundle: ApiPricingBundle, category: string, hidden: Set<string>): ApiOptionGroup[] {
+  return bundle.groups.filter(g => g.category === category && !hidden.has(g.code))
 }
 
 export function OptionPanel({
   bundle,
   selections,
   disabledGroupCodes,
+  hiddenGroupCodes,
+  hiddenValueCodes,
+  priceDelta,
   onSelect,
   onSave,
   isSaving,
@@ -71,25 +77,31 @@ export function OptionPanel({
       <div style={styles.scroll}>
         {activeTab === 'vehicle' && (
           <VehicleOptionsTab
-            groups={groupsByCategory(bundle, '차량옵션')}
+            groups={groupsByCategory(bundle, '차량옵션', hiddenGroupCodes)}
             selections={selections}
             onSelect={onSelect}
+            hiddenValueCodes={hiddenValueCodes}
+            priceDelta={priceDelta}
           />
         )}
         {activeTab === 'body' && (
           <BodyOptionsTab
-            groups={groupsByCategory(bundle, '특장')}
+            groups={groupsByCategory(bundle, '특장', hiddenGroupCodes)}
             selections={selections}
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
+            hiddenValueCodes={hiddenValueCodes}
+            priceDelta={priceDelta}
           />
         )}
         {activeTab === 'interior' && (
           <InteriorOptionsTab
-            groups={groupsByCategory(bundle, '옵션')}
+            groups={groupsByCategory(bundle, '옵션', hiddenGroupCodes)}
             selections={selections}
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
+            hiddenValueCodes={hiddenValueCodes}
+            priceDelta={priceDelta}
           />
         )}
       </div>
