@@ -59,7 +59,7 @@ npm cache clean --force >/dev/null 2>&1 || true
 chmod -R a+rX frontend/dist
 
 pm2 delete "$pm2_name" >/dev/null 2>&1 || true
-PORT="$port" NODE_ENV=production pm2 start ./node_modules/.bin/tsx --name "$pm2_name" -- backend/src/server.ts
+DOC_STORAGE_DIR="$APP_BASE_DIR/shared/documents" PORT="$port" NODE_ENV=production pm2 start ./node_modules/.bin/tsx --name "$pm2_name" -- backend/src/server.ts
 
 ok=0
 for _ in $(seq 1 30); do

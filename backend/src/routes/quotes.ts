@@ -304,7 +304,7 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confi
 
 // ── DELETE /quotes/:id — 견적 삭제 ───────────────────────────────────────
 // draft:     SALES=본인, ADMIN=전체 삭제 가능
-// confirmed: is_master만 삭제 가능 (연결된 order·order_option·document 트랜잭션 cascade)
+// confirmed/ordered: is_master만 삭제 가능 (연결된 order·order_option·document 트랜잭션 cascade)
 // 그 외:     삭제 불가
 
 quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
@@ -335,10 +335,10 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       return;
     }
 
-    if (quote.status === 'confirmed') {
-      // confirmed는 is_master만
+    if (quote.status === 'confirmed' || quote.status === 'ordered') {
+      // 확정·주문 전환된 견적은 is_master만
       if (!req.auth!.is_master) {
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정 견적은 마스터 관리자만 삭제 가능' } });
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정·주문 견적은 마스터 관리자만 삭제 가능' } });
         return;
       }
       // 연결된 order → order_option + document + generated_document → order → quote 트랜잭션 cascade 삭제
@@ -360,7 +360,7 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       return;
     }
 
-    // ordered/expired 등 — 삭제 불가
+    // expired 등 — 삭제 불가
     res.status(409).json({ error: { code: 'CONFLICT', message: '이 상태의 견적은 삭제할 수 없습니다' } });
   } catch (e) {
     console.error('[DELETE /quotes/:id]', e);

@@ -543,8 +543,8 @@ function QuotesTab() {
   }
 
   async function handleDelete(id: number, status: string) {
-    if (status === 'confirmed') {
-      if (!window.confirm(`견적 #${id}\n\n확정 견적과 연결된 주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`)) return
+    if (status === 'confirmed' || status === 'ordered') {
+      if (!window.confirm(`견적 #${id}\n\n연결된 주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`)) return
     } else {
       if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
     }
@@ -630,9 +630,9 @@ function QuotesTab() {
                 {q.status === 'draft' && (
                   <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                 )}
-                {(q.status === 'draft' || (q.status === 'confirmed' && isMaster)) && (
+                {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'ordered'))) && (
                   <button
-                    style={{ ...(deletingId === q.id ? qt.deleteBtnDisabled : (q.status === 'confirmed' ? qt.deleteBtnStrong : qt.deleteBtn)), flex: 1, minHeight: 44 }}
+                    style={{ ...(deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)), flex: 1, minHeight: 44 }}
                     disabled={deletingId === q.id}
                     onClick={() => handleDelete(q.id, q.status)}
                   >{deletingId === q.id ? '…' : '삭제'}</button>
@@ -686,12 +686,12 @@ function QuotesTab() {
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
                       )}
-                      {(q.status === 'draft' || (q.status === 'confirmed' && isMaster)) && (
+                      {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'ordered'))) && (
                         <button
-                          style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status === 'confirmed' ? qt.deleteBtnStrong : qt.deleteBtn)}
+                          style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)}
                           disabled={deletingId === q.id}
                           onClick={() => handleDelete(q.id, q.status)}
-                          title={q.status === 'confirmed' ? '확정 견적 삭제 — 연결 주문·서류도 함께 삭제됩니다' : '견적 삭제'}
+                          title={q.status !== 'draft' ? '견적 삭제 — 연결 주문·서류도 함께 삭제됩니다' : '견적 삭제'}
                         >
                           {deletingId === q.id ? '…' : '삭제'}
                         </button>
