@@ -15,7 +15,8 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
   const [regions, setRegions] = useState<string[]>([])
   const [region, setRegion] = useState('')
   const [isSmallBiz, setIsSmallBiz] = useState(false)
-  const [isScrapped, setIsScrapped] = useState(false)
+  const [hasTransportLicense, setHasTransportLicense] = useState(false)
+  const [isDieselConversion, setIsDieselConversion] = useState(false)
 
   useEffect(() => {
     fetchRegions().then(list => {
@@ -32,7 +33,8 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
       business_type: businessType,
       region_code: region,
       is_small_business: isSmallBiz,
-      is_old_vehicle_scrapped: isScrapped,
+      has_transport_license: hasTransportLicense,
+      is_diesel_conversion: isDieselConversion,
     })
   }
 
@@ -98,8 +100,12 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
           소상공인 (국고 30% 추가 할인)
         </label>
         <label style={styles.check}>
-          <input type="checkbox" checked={isScrapped} onChange={e => setIsScrapped(e.target.checked)} style={styles.checkbox} />
-          경유차 폐차
+          <input type="checkbox" checked={hasTransportLicense} onChange={e => setHasTransportLicense(e.target.checked)} style={styles.checkbox} />
+          화물자동차 운송사업허가증 (개인사업자 택배 국고 10% 추가)
+        </label>
+        <label style={styles.check}>
+          <input type="checkbox" checked={isDieselConversion} onChange={e => setIsDieselConversion(e.target.checked)} style={styles.checkbox} />
+          경유차 유지 후 전기차 전환 (법인 −50만)
         </label>
 
         <div style={styles.btnRow}>

@@ -12,7 +12,8 @@ export interface SaveQuoteRequest {
     biz_type: 'individual' | 'corporation' | 'simplified'
     is_sosang: boolean
     region?: string
-    scrap_diesel?: boolean
+    has_transport_license?: boolean
+    diesel_conversion?: boolean
   }
 }
 

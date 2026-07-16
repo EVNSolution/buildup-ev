@@ -11,6 +11,8 @@ export type {
 
 import type { PricingParams, PricingResult } from './types.js';
 
+export { assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from './assemble.js';
+
 /**
  * 영업 견적 실구매가 계산 코어 — STEGO-K1 견적서_Ver1.21 로직 재현.
  *
