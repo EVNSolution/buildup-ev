@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, confirmQuote, deleteQuote } from '../api/quotes'
+import { fetchQuotes, confirmQuote, assignQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -23,13 +23,14 @@ function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[
     .sort((a, b) => a.sort_order - b.sort_order)
 }
 const QUOTE_STATUS_LABELS: Record<string, string> = {
-  draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
+  draft: '임시저장', confirmed: '확정', assigned: '배정', ordered: '주문', expired: '만료',
 }
 
 const QUOTE_STATUS_FLOW = [
   { key: 'draft',     label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed', label: '확정',     desc: '특장사 배정 · 주문 생성' },
-  { key: 'ordered',   label: '주문',     desc: '특장사 제작 진행 중' },
+  { key: 'confirmed', label: '확정',     desc: '계약·전자서명 완료' },
+  { key: 'assigned',  label: '배정',     desc: '특장사 배정 · 주문 생성' },
+  { key: 'ordered',   label: '주문',     desc: '특장사 수락 · 제작 진행' },
 ] as const
 
 function quoteStatusTip(status: string): React.ReactNode {
@@ -80,8 +81,8 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
   return (
     <div style={modal.overlay} onClick={onClose}>
       <div style={modal.box} onClick={e => e.stopPropagation()}>
-        <div style={modal.title}>견적 #{quoteId} 확정 — 특장사 배정</div>
-        <div style={modal.desc}>배정할 특장사를 선택하세요. 선택 후 주문이 즉시 생성됩니다.</div>
+        <div style={modal.title}>견적 #{quoteId} — 특장사 배정</div>
+        <div style={modal.desc}>배정할 특장사를 선택하세요. 배정하면 주문이 생성되고 특장사 수락 대기 상태가 됩니다.</div>
         <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
           <option value="">— 특장사 선택 (필수) —</option>
           {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
@@ -90,7 +91,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
           <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
-            {loading ? '처리 중…' : '확정 + 배정'}
+            {loading ? '처리 중…' : '배정'}
           </button>
         </div>
       </div>
@@ -529,21 +530,32 @@ function QuotesTab() {
     fetchMakerOrgs().then(setMakerOrgs).catch(() => setMakerOrgs([])).finally(() => setMakerOrgsLoading(false))
   }
 
-  async function handleConfirm(makerOrgId: string) {
+  // 확정 (임시저장→확정) — 모달 없이 즉시
+  async function handleConfirm(id: number) {
+    setErr('')
+    try {
+      await confirmQuote(id); load()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '확정 실패')
+    }
+  }
+
+  // 배정 (확정→배정) — 특장사 선택 모달
+  async function handleAssign(makerOrgId: string) {
     if (!confirmingId) return
     setConfirmLoading(true); setConfirmError('')
     try {
-      await confirmQuote(confirmingId, makerOrgId)
+      await assignQuote(confirmingId, makerOrgId)
       setConfirmingId(null); load()
     } catch (e: unknown) {
-      setConfirmError(e instanceof Error ? e.message : '확정 실패')
+      setConfirmError(e instanceof Error ? e.message : '배정 실패')
     } finally {
       setConfirmLoading(false)
     }
   }
 
   async function handleDelete(id: number, status: string) {
-    if (status === 'confirmed' || status === 'ordered') {
+    if (status === 'confirmed' || status === 'assigned' || status === 'ordered') {
       if (!window.confirm(`견적 #${id}\n\n연결된 주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`)) return
     } else {
       if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
@@ -572,6 +584,7 @@ function QuotesTab() {
           <option value="">전체 상태</option>
           <option value="draft">임시저장</option>
           <option value="confirmed">확정</option>
+          <option value="assigned">배정</option>
           <option value="ordered">주문</option>
           <option value="expired">만료</option>
         </select>
@@ -628,9 +641,12 @@ function QuotesTab() {
                   onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
                 >발송</button>
                 {q.status === 'draft' && (
-                  <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>확정</button>
+                  <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
-                {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'ordered'))) && (
+                {q.status === 'confirmed' && (
+                  <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                )}
+                {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered'))) && (
                   <button
                     style={{ ...(deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)), flex: 1, minHeight: 44 }}
                     disabled={deletingId === q.id}
@@ -684,9 +700,12 @@ function QuotesTab() {
                         onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
                       >발송</button>
                       {q.status === 'draft' && (
-                        <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>확정</button>
+                        <button style={qt.confirmBtn} onClick={() => handleConfirm(q.id)}>확정</button>
                       )}
-                      {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'ordered'))) && (
+                      {q.status === 'confirmed' && (
+                        <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                      )}
+                      {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered'))) && (
                         <button
                           style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)}
                           disabled={deletingId === q.id}
@@ -711,7 +730,7 @@ function QuotesTab() {
           makerOrgs={makerOrgs}
           loading={confirmLoading || makerOrgsLoading}
           error={confirmError}
-          onConfirm={handleConfirm}
+          onConfirm={handleAssign}
           onClose={() => { setConfirmingId(null); setConfirmError('') }}
         />
       )}

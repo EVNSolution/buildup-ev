@@ -244,9 +244,44 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   res.status(201).json({ data: { quote_id: quote.id, pricing: result } });
 });
 
-// ── PATCH /quotes/:id/confirm — 관리자 확정 + 특장사 배정 + 주문 생성 ────
+// ── PATCH /quotes/:id/confirm — 확정 (draft→confirmed) ────────────────────
+// 파이프라인 1단계 전환. 특장사 배정·주문은 별도 단계.
+// (임시: 관리자 수동. 최종: 전자서명 완료 시 자동 — 모듈3에서 교체)
 
 quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+
+  const quote = await prisma.quote.findUnique({ where: { id } });
+  if (!quote) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+    return;
+  }
+  if (quote.status !== 'draft') {
+    res.status(409).json({ error: { code: 'CONFLICT', message: `임시저장 상태에서만 확정할 수 있습니다 (현재 ${quote.status})` } });
+    return;
+  }
+
+  try {
+    const updatedQuote = await prisma.quote.update({ where: { id }, data: { status: 'confirmed' } });
+    res.json({ data: { quote: updatedQuote } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/confirm]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 확정 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── PATCH /quotes/:id/assign — 배정 (confirmed→assigned + 특장사 배정 + 주문 생성) ──
+// 관리자가 제작 특장사를 선정. Order 생성(status='제작착수', 특장사 수락 대기).
+
+quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -272,8 +307,8 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confi
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
     return;
   }
-  if (quote.status !== 'draft') {
-    res.status(409).json({ error: { code: 'CONFLICT', message: `이미 ${quote.status} 상태입니다` } });
+  if (quote.status !== 'confirmed') {
+    res.status(409).json({ error: { code: 'CONFLICT', message: `확정 상태에서만 배정할 수 있습니다 (현재 ${quote.status})` } });
     return;
   }
   if (!makerOrg || makerOrg.type !== 'MAKER') {
@@ -283,7 +318,7 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confi
 
   try {
     const [updatedQuote, order] = await prisma.$transaction([
-      prisma.quote.update({ where: { id }, data: { status: 'confirmed' } }),
+      prisma.quote.update({ where: { id }, data: { status: 'assigned' } }),
       prisma.order.create({
         data: {
           quote_id:    id,
@@ -293,11 +328,10 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confi
         },
       }),
     ]);
-    // TODO 2단계: order 생성 후 필요 서류 목록 자동생성 (Document rows insert)
     res.json({ data: { quote: updatedQuote, order } });
   } catch (e) {
-    console.error('[PATCH /quotes/:id/confirm]', e);
-    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 확정 중 오류가 발생했습니다.' } });
+    console.error('[PATCH /quotes/:id/assign]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '특장사 배정 중 오류가 발생했습니다.' } });
   }
 });
 
@@ -334,8 +368,8 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       return;
     }
 
-    if (quote.status === 'confirmed' || quote.status === 'ordered') {
-      // 확정·주문 전환된 견적은 is_master만
+    if (quote.status === 'confirmed' || quote.status === 'assigned' || quote.status === 'ordered') {
+      // 확정·배정·주문 견적은 is_master만
       if (!req.auth!.is_master) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정·주문 견적은 마스터 관리자만 삭제 가능' } });
         return;

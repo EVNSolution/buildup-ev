@@ -291,6 +291,7 @@ model Customer {
 enum QuoteStatus {
   draft
   confirmed
+  assigned
   ordered
   expired
 }

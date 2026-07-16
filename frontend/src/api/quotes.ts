@@ -45,8 +45,21 @@ export async function fetchQuotes(params: { status?: string; from?: string; to?:
   return body.data
 }
 
-export async function confirmQuote(quoteId: number, makerOrgId: string): Promise<void> {
+/** 확정 (임시저장→확정) */
+export async function confirmQuote(quoteId: number): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/confirm`, {
+    method: 'PATCH',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `확정 실패: ${res.status}`)
+  }
+}
+
+/** 배정 (확정→배정, 특장사 선정 + 주문 생성) */
+export async function assignQuote(quoteId: number, makerOrgId: string): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/assign`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -54,7 +67,7 @@ export async function confirmQuote(quoteId: number, makerOrgId: string): Promise
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(body.error?.message ?? `확정 실패: ${res.status}`)
+    throw new Error(body.error?.message ?? `배정 실패: ${res.status}`)
   }
 }
 

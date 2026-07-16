@@ -52,13 +52,14 @@ function sanitizeSelections(sel: Record<string, string>, bundle: ApiPricingBundl
 
 // ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
 const QUOTE_STATUS_KO: Record<string, string> = {
-  draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
+  draft: '임시저장', confirmed: '확정', assigned: '배정', ordered: '주문', expired: '만료',
 }
 
 const QUOTE_STATUS_FLOW = [
   { key: 'draft',     label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed', label: '확정',     desc: '특장사 배정 · 주문 생성' },
-  { key: 'ordered',   label: '주문',     desc: '특장사 제작 진행 중' },
+  { key: 'confirmed', label: '확정',     desc: '계약·전자서명 완료' },
+  { key: 'assigned',  label: '배정',     desc: '특장사 배정 · 주문 생성' },
+  { key: 'ordered',   label: '주문',     desc: '특장사 수락 · 제작 진행' },
 ] as const
 
 function quoteStatusTip(status: string): React.ReactNode {
@@ -145,7 +146,7 @@ function MyListView() {
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
                         <Tooltip text={quoteStatusTip(q.status)} placement="below">
-                          <span style={q.status === 'draft' ? lv.badgeDraft : q.status === 'confirmed' || q.status === 'ordered' ? lv.badgeActive : lv.badgeMuted}>
+                          <span style={q.status === 'draft' ? lv.badgeDraft : (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered') ? lv.badgeActive : lv.badgeMuted}>
                             {QUOTE_STATUS_KO[q.status] ?? q.status}
                           </span>
                         </Tooltip>

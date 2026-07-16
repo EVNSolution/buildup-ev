@@ -27,6 +27,18 @@ export async function updateOrderStatus(orderId: number, status: string): Promis
   }
 }
 
+/** 특장사 주문 수락 (배정→주문, 제작 착수) */
+export async function acceptOrder(orderId: number): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/accept`, {
+    method: 'PATCH',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `주문 수락 실패: ${res.status}`)
+  }
+}
+
 export async function fetchOrderDetail(id: number): Promise<ApiOrderMakerDetail> {
   const res = await fetch(`/api/v1/orders/${id}`, { credentials: 'include' })
   if (!res.ok) throw new Error(`주문 상세 로드 실패: ${res.status}`)
