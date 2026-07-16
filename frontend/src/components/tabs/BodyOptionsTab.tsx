@@ -58,6 +58,6 @@ export function BodyOptionsTab({ groups, selections, onSelect, disabledGroupCode
 }
 
 const styles = {
-  toggleRow: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' as const },
-  toggleCell: { flex: '0 1 160px', minWidth: 140 },
+  toggleRow: { display: 'flex', gap: 8, marginBottom: 14 },
+  toggleCell: { flex: 1 },
 }
