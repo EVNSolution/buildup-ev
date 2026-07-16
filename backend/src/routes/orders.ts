@@ -233,6 +233,41 @@ ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), requirePermission('ord
   }
 });
 
+// ── PATCH /orders/:id/accept — 특장사 주문 수락 (배정→주문, 제작 착수) ──────
+// 배정된 특장사가 주문을 수락하면 견적 상태 assigned→ordered. 주문 현황은 제작착수부터.
+
+ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } });
+    return;
+  }
+  try {
+    const order = await prisma.order.findUnique({ where: { id }, include: { quote: { select: { id: true, status: true } } } });
+    if (!order) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
+      return;
+    }
+    if (req.auth!.role === 'MAKER' && order.maker_org_id !== req.auth!.org_code) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 수락할 수 있습니다' } });
+      return;
+    }
+    if (order.quote.status !== 'assigned') {
+      res.status(409).json({ error: { code: 'CONFLICT', message: `배정 상태에서만 수락할 수 있습니다 (현재 ${order.quote.status})` } });
+      return;
+    }
+    const updated = await prisma.quote.update({ where: { id: order.quote.id }, data: { status: 'ordered' } });
+    res.json({ data: { quote: updated } });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/accept]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '주문 수락 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── GET /orders/:orderId/documents ────────────────────────────────────────
 
 ordersRouter.get('/:orderId/documents', rbac('ADMIN', 'MAKER'), requirePermission('doc.view'), async (req: Request, res): Promise<void> => {
