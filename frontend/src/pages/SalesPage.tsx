@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice } from '@shared/pricing/core'
+import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
 import { saveQuote, fetchLocalSubsidy, fetchQuotes } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
@@ -223,34 +223,30 @@ export function SalesPage() {
     return disabled
   }, [bundle, selections])
 
-  // 실시간 계산
+  // 실시간 계산 (조립 로직은 백엔드 라우트와 shared 공용)
   const liveCalc = useMemo<PricingResult | null>(() => {
     if (!bundle || Object.keys(selections).length === 0) return null
 
-    const topCode = selections['TOP'] ?? ''
-    const doorTypeCode = selections['DOORTYPE'] ?? ''
-    const topName = bundle.groups.find(g => g.code === 'TOP')?.values.find(v => v.code === topCode)?.name ?? ''
-    const doorTypeName = bundle.groups.find(g => g.code === 'DOORTYPE')?.values.find(v => v.code === doorTypeCode)?.name ?? ''
-    const baseSwing = bundle.door_unit_prices.find(d => d.top === topName && d.doortype === '여닫이')?.unit_price ?? 0
-    const selectedDoor = bundle.door_unit_prices.find(d => d.top === topName && d.doortype === doorTypeName)?.unit_price ?? 0
+    const price = (code: string) => bundle.option_prices[code] ?? 0
+    const { trim_price, option_sum } = assembleOptionSum(selections, price)
+    const useCustomer = !skipped && customer
 
     return calcPrice({
-      bodytype_code: selections['BODYTYPE'] ?? '',
-      trim_code: selections['TRIM'] ?? '',
-      selected_value_codes: Object.values(selections),
-      door: {
-        base_swing_price: baseSwing,
-        selected_price: selectedDoor,
-        has_extra: selections['DOORADD'] === 'ADD_DRIVER',
+      trim_price,
+      option_sum,
+      subsidy: {
+        national:          bundle.subsidy_national?.amount ?? 0,
+        local:             useCustomer ? subsidyLocal : 0,
+        sosang_rate:       bundle.subsidy_national?.sosang_rate ?? 0.3,
+        takbae_rate:       TAKBAE_RATE,
+        diesel_conversion: DIESEL_CONVERSION_SUBSIDY,
       },
-      option_prices: bundle.option_prices,
-      subsidy_national: bundle.subsidy_national?.amount ?? 0,
-      subsidy_sosang_rate: bundle.subsidy_national?.sosang_rate ?? 0,
-      subsidy_local: !skipped && customer ? subsidyLocal : 0,
       tax: bundle.tax,
       customer: {
-        biz_type: mapBizType(customer?.business_type),
-        is_sosang: !skipped && (customer?.is_small_business ?? false),
+        biz_type:  mapBizType(customer?.business_type),
+        is_sosang: !!useCustomer && customer.is_small_business,
+        has_transport_license: !!useCustomer && customer.has_transport_license,
+        diesel_conversion:     !!useCustomer && customer.is_diesel_conversion,
       },
     })
   }, [bundle, selections, subsidyLocal, customer, skipped])
@@ -308,7 +304,8 @@ export function SalesPage() {
           biz_type: mapBizType(customer.business_type),
           is_sosang: customer.is_small_business,
           region: customer.region_code,
-          scrap_diesel: customer.is_old_vehicle_scrapped,
+          has_transport_license: customer.has_transport_license,
+          diesel_conversion: customer.is_diesel_conversion,
         } : undefined,
       }
       const result = await saveQuote(req)

@@ -1,7 +1,8 @@
 export type {
   BizType,
-  DoorPrices,
   TaxConfig,
+  SubsidyConfig,
+  CustomerInfo,
   PricingParams,
   PricingOk,
   PricingUnsupported,
@@ -10,79 +11,70 @@ export type {
 
 import type { PricingParams, PricingResult } from './types.js';
 
+export { assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from './assemble.js';
+
 /**
- * 영업 견적 실구매가 계산 코어.
+ * 영업 견적 실구매가 계산 코어 — STEGO-K1 견적서_Ver1.21 로직 재현.
  *
- * 순수 함수 — DB 쿼리 없음. 호출자(API 라우트)가 DB에서 단가·보조금·세율을 읽어 주입.
- * 회귀: TRIM_PLUS+저상+슬라이딩+온도O+그물망+소상공인+경기남양주 = ₩46,471,818
+ * 순수 함수 — DB 쿼리 없음. 호출자(API 라우트)가 옵션DB 기준 단가·보조금·세율을 조립해 주입.
+ * 회귀(범석환): 베이직+냉동저상+울릉군+소상공인+택배 = ₩32,013,860.
+ *
+ * 견적서 대응:
+ *   공급가액 D24 = trim + option_sum
+ *   부가세   D25 = 간이과세자 0, 아니면 공급/10
+ *   차량가격 D26 = D24 + D25
+ *   보조금   D27~D31 → D32
+ *   보조금적용① D33 = D26 − D32,  부가세환급후② D34 = D33 − D25
+ *   차량취득세 H13 = ROUNDDOWN((trim + 탁송료)/1.1 × 세율, 10원)
+ *   특장취득세 H16 = option_sum × 특장세율
+ *   총등록비 ③ = 취득세 + 감면 + 특장취득세 + 증지대 + 번호판대 + 등록대행료
+ *   총기타 ④ = 탁송료 + 등록부가수수료
+ *   실구매가 = ② + ③ + ④
  */
 export function calcPrice(p: PricingParams): PricingResult {
-  if (p.bodytype_code !== 'BODY_REEFER') {
-    return { status: 'unsupported', reason: '내장탑 가격 미정(TBD)' };
-  }
+  const { customer: c, tax: t, subsidy: s } = p;
 
-  // 공급가액 = Σ선택옵션 단가 + 도어가
-  const option_sum = p.selected_value_codes.reduce(
-    (s, c) => s + (p.option_prices[c] ?? 0), 0,
-  );
-  const door_price =
-    (p.door.selected_price - p.door.base_swing_price) +
-    (p.door.has_extra ? p.door.selected_price : 0);
-  const supply_price = option_sum + door_price;
-
-  // 부가세 · 차량가
-  const vat = p.customer.biz_type === 'simplified'
-    ? 0
-    : Math.floor(supply_price * 0.1);
+  // 공급가액 → 부가세 → 차량가격
+  const supply_price = p.trim_price + p.option_sum;
+  const vat = c.biz_type === 'simplified' ? 0 : Math.round(supply_price / 10);
   const vehicle_price = supply_price + vat;
 
-  // 보조금
-  const sub_national = p.subsidy_national;
-  const sub_local = p.customer.biz_type === 'corporation' ? 0 : p.subsidy_local;
-  const sub_sosang = p.customer.is_sosang
-    ? Math.floor(sub_national * p.subsidy_sosang_rate)
-    : 0;
-  const sub_scrap = 0;
-  const sub_total = sub_national + sub_local + sub_sosang + sub_scrap;
-  const applied_price = vehicle_price - sub_total;
+  // 보조금 (국고 / 지방 / 소상공인 / 경유차전환 / 택배)
+  const subsidy_national = s.national;
+  const subsidy_local = c.biz_type === 'corporation' ? 0 : s.local;
+  const subsidy_sosang = c.is_sosang ? Math.floor(subsidy_national * s.sosang_rate) : 0;
+  const subsidy_diesel =
+    c.biz_type === 'corporation' && c.diesel_conversion ? s.diesel_conversion : 0;
+  const subsidy_takbae =
+    c.has_transport_license && c.biz_type === 'individual'
+      ? Math.floor(subsidy_national * s.takbae_rate)
+      : 0;
+  const subsidy_total =
+    subsidy_national + subsidy_local + subsidy_sosang + subsidy_diesel + subsidy_takbae;
+
+  const applied_price = vehicle_price - subsidy_total;
   const vat_refunded_price = applied_price - vat;
 
-  // 등록비
-  const trim_price = p.option_prices[p.trim_code] ?? 0;
-  const delivery_excl = Math.floor(p.tax.delivery_fee * 10 / 11);
-  const reg_acq_tax = Math.floor((trim_price + delivery_excl) * p.tax.acq_tax_rate);
-  const reg_acq_tax_relief = -Math.min(reg_acq_tax, p.tax.acq_tax_relief_cap);
-  const reg_special_acq_tax = Math.floor(
-    (supply_price - trim_price) * p.tax.special_acq_tax_rate,
-  );
+  // 등록비 ③ (의무보험료는 현재 합산 제외)
+  const reg_acq_tax =
+    Math.floor(((p.trim_price + t.delivery_fee) / 1.1) * t.acq_tax_rate / 10) * 10;
+  const reg_acq_tax_relief = -Math.min(reg_acq_tax, t.acq_tax_relief_cap);
+  const reg_special_acq_tax = Math.floor(p.option_sum * t.special_acq_tax_rate);
   const reg_cost =
-    reg_acq_tax + reg_acq_tax_relief + reg_special_acq_tax +
-    p.tax.stamp + p.tax.plate + p.tax.reg_agency;
+    reg_acq_tax + reg_acq_tax_relief + reg_special_acq_tax + t.stamp + t.plate + t.reg_agency;
 
-  // 기타 · 실구매가
-  const etc_cost = p.tax.delivery_fee + p.tax.etc_fee;
+  // 기타비 ④ · 실구매가
+  const etc_cost = t.delivery_fee + t.etc_fee;
   const real_price = vat_refunded_price + reg_cost + etc_cost;
 
   return {
     status: 'ok',
     supply_price, vat, vehicle_price,
-    subsidy_national: sub_national,
-    subsidy_local: sub_local,
-    subsidy_sosang: sub_sosang,
-    subsidy_scrap: sub_scrap,
-    subsidy_total: sub_total,
-    applied_price,
-    vat_refunded_price,
-    reg_acq_tax,
-    reg_acq_tax_relief,
-    reg_special_acq_tax,
-    reg_stamp: p.tax.stamp,
-    reg_plate: p.tax.plate,
-    reg_agency: p.tax.reg_agency,
-    reg_cost,
-    delivery_fee: p.tax.delivery_fee,
-    etc_fee: p.tax.etc_fee,
-    etc_cost,
+    subsidy_national, subsidy_local, subsidy_sosang, subsidy_takbae, subsidy_diesel, subsidy_total,
+    applied_price, vat_refunded_price,
+    reg_acq_tax, reg_acq_tax_relief, reg_special_acq_tax,
+    reg_stamp: t.stamp, reg_plate: t.plate, reg_agency: t.reg_agency, reg_cost,
+    delivery_fee: t.delivery_fee, etc_fee: t.etc_fee, etc_cost,
     real_price,
   };
 }

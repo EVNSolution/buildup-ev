@@ -50,8 +50,9 @@ export interface CustomerInfo {
   phone?: string;
   business_type: BusinessType;
   region_code: string;
-  is_small_business: boolean;
-  is_old_vehicle_scrapped: boolean;
+  is_small_business: boolean;          // 소상공인
+  has_transport_license: boolean;      // 화물자동차 운송사업허가증
+  is_diesel_conversion: boolean;       // 경유차 유지 후 전기차 전환
 }
 
 // ── 견적 계산 ──────────────────────────────────────────────────────────

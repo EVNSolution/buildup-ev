@@ -183,7 +183,9 @@ async function main() {
     memo:        opt(r['memo']),
   }));
   if (rules.length) {
-    await prisma.optionRule.createMany({ data: rules, skipDuplicates: true });
+    for (const rl of rules) {
+      await prisma.optionRule.upsert({ where: { code: rl.code }, update: rl, create: rl });
+    }
     console.log(`  option_rule: ${rules.length}`);
   }
 
@@ -195,7 +197,12 @@ async function main() {
     memo:         opt(r['memo']),
   }));
   if (optPrices.length) {
-    await prisma.optionPrice.createMany({ data: optPrices, skipDuplicates: true });
+    for (const op of optPrices) {
+      await prisma.optionPrice.upsert({
+        where: { model_code_value_code: { model_code: op.model_code, value_code: op.value_code } },
+        update: op, create: op,
+      });
+    }
     console.log(`  option_price: ${optPrices.length}`);
   }
 
@@ -218,7 +225,9 @@ async function main() {
     sigungu: r['sigungu']!,
   }));
   if (regions.length) {
-    await prisma.region.createMany({ data: regions, skipDuplicates: true });
+    for (const rg of regions) {
+      await prisma.region.upsert({ where: { name: rg.name }, update: rg, create: rg });
+    }
     console.log(`  region: ${regions.length}`);
   }
 
@@ -230,7 +239,12 @@ async function main() {
     sosang_rate: dec(r['sosang_rate']),
   }));
   if (snats.length) {
-    await prisma.subsidyNational.createMany({ data: snats, skipDuplicates: true });
+    for (const sn of snats) {
+      await prisma.subsidyNational.upsert({
+        where: { model_code_year: { model_code: sn.model_code, year: sn.year } },
+        update: sn, create: sn,
+      });
+    }
     console.log(`  subsidy_national: ${snats.length}`);
   }
 
@@ -244,7 +258,12 @@ async function main() {
     as_of:           opt(r['as_of']),
   }));
   if (slocs.length) {
-    await prisma.subsidyLocal.createMany({ data: slocs, skipDuplicates: true });
+    for (const sl of slocs) {
+      await prisma.subsidyLocal.upsert({
+        where: { region_year: { region: sl.region, year: sl.year } },
+        update: sl, create: sl,
+      });
+    }
     console.log(`  subsidy_local: ${slocs.length}`);
   }
 
@@ -256,7 +275,9 @@ async function main() {
     memo:      opt(r['memo']),
   }));
   if (taxes.length) {
-    await prisma.taxConfig.createMany({ data: taxes, skipDuplicates: true });
+    for (const tx of taxes) {
+      await prisma.taxConfig.upsert({ where: { param_key: tx.param_key }, update: tx, create: tx });
+    }
     console.log(`  tax_config: ${taxes.length}`);
   }
 
