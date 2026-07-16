@@ -266,13 +266,6 @@ export function SalesPage() {
     return { hiddenGroupCodes: groups, hiddenValueCodes: values }
   }, [bundle, selections])
 
-  const priceDelta = useMemo(() => (groupCode: string, valueCode: string): number => {
-    if (!bundle) return 0
-    const price = (c: string) => bundle.option_prices[c] ?? 0
-    const cur  = assembleOptionSum(selections, price)
-    const next = assembleOptionSum({ ...selections, [groupCode]: valueCode }, price)
-    return (next.trim_price + next.option_sum) - (cur.trim_price + cur.option_sum)
-  }, [bundle, selections])
 
   // 실시간 계산 (조립 로직은 백엔드 라우트와 shared 공용)
   const liveCalc = useMemo<PricingResult | null>(() => {
@@ -438,6 +431,7 @@ export function SalesPage() {
           <PriceBar
             calc={displayCalc}
             hasCustomer={!!customer && !skipped}
+            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0) : null}
           />
         </section>
 
@@ -447,7 +441,7 @@ export function SalesPage() {
           disabledGroupCodes={disabledGroupCodes}
           hiddenGroupCodes={hiddenGroupCodes}
           hiddenValueCodes={hiddenValueCodes}
-          priceDelta={priceDelta}
+          optionPrices={bundle.option_prices}
           onSelect={handleSelect}
           onSave={handleSave}
           isSaving={isSaving}
