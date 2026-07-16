@@ -429,13 +429,23 @@ export async function listGeneratedDocs(orderId: number) {
   });
 }
 
-/** 주문 삭제 캐스케이드에서 호출 — DB 행 삭제는 호출자가 트랜잭션으로 처리하고,
- *  이 함수는 실제 파일만 정리한다(고아 파일 방지). */
-export async function deleteGeneratedDocFiles(orderId: number): Promise<void> {
-  if (!prisma) return;
+/**
+ * 주문의 생성서류 PDF 실제 경로 목록.
+ * ⚠️ 삭제 캐스케이드에서는 반드시 **DB 행을 지우기 전에** 호출해야 한다 —
+ * generatedDocument 행이 file_path 의 유일한 출처라, 행을 먼저 지우면 경로를
+ * 못 찾아 파일이 고아로 남는다(issue #17 ②).
+ */
+export async function collectGeneratedDocPaths(orderId: number): Promise<string[]> {
+  if (!prisma) return [];
   const docs = await prisma.generatedDocument.findMany({
     where: { order_id: orderId },
     select: { file_path: true },
   });
-  await Promise.all(docs.map(d => rm(d.file_path, { force: true }).catch(() => {})));
+  return docs.map(d => d.file_path);
+}
+
+/** collectGeneratedDocPaths 로 미리 확보한 경로의 실제 PDF 파일 정리. DB 행 삭제는 호출자 트랜잭션 담당.
+ *  파일 삭제 실패는 무시(로그만) — 트랜잭션은 이미 커밋됐으므로 되돌리지 않는다. */
+export async function deleteGeneratedDocFilesByPaths(paths: string[]): Promise<void> {
+  await Promise.all(paths.map(p => rm(p, { force: true }).catch(() => {})));
 }
