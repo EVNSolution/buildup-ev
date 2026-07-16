@@ -7,8 +7,8 @@ DOORADD,특장,도어추가,single,N,5,Y
 TEMP,옵션,온도기록계,single,N,6,Y
 PARTITION,옵션,격벽,single,N,7,Y
 SPOILER,옵션,스포일러,single,N,8,Y
-DECAL,옵션,데칼,single,N,9,Y
-TINT,옵션,썬팅,single,N,10,Y
-BLACKBOX,옵션,블랙박스,single,N,11,Y
-SUPPLYKIT,옵션,지급품 키트,single,N,12,Y
+DECAL,옵션,데칼,single,N,9,N
+TINT,옵션,썬팅,single,N,10,N
+BLACKBOX,옵션,블랙박스,single,N,11,N
+SUPPLYKIT,옵션,지급품 키트,single,N,12,N
 _PRICEKEY,내부,가격키(내부),single,N,99,N

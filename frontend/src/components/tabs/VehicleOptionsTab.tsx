@@ -4,9 +4,16 @@ interface Props {
   groups: ApiOptionGroup[]
   selections: Record<string, string>
   onSelect: (groupCode: string, valueCode: string) => void
+  hiddenValueCodes: Set<string>
+  priceDelta: (groupCode: string, valueCode: string) => number
 }
 
-export function VehicleOptionsTab({ groups, selections, onSelect }: Props) {
+function fmtDelta(d: number): string {
+  if (!d) return ''
+  return d > 0 ? `+${d.toLocaleString()}` : `−${Math.abs(d).toLocaleString()}`
+}
+
+export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCodes, priceDelta }: Props) {
   return (
     <div>
       <div style={styles.row}>
@@ -21,8 +28,9 @@ export function VehicleOptionsTab({ groups, selections, onSelect }: Props) {
         <div key={group.code} style={styles.row}>
           <label style={styles.label}>{group.name}</label>
           <div style={styles.cardGrid}>
-            {group.values.map(v => {
+            {group.values.filter(v => !hiddenValueCodes.has(v.code)).map(v => {
               const selected = selections[group.code] === v.code
+              const delta = selected ? '' : fmtDelta(priceDelta(group.code, v.code))
               return (
                 <div
                   key={v.code}
@@ -31,7 +39,9 @@ export function VehicleOptionsTab({ groups, selections, onSelect }: Props) {
                 >
                   <div style={styles.cardImg}>이미지</div>
                   <div style={styles.cardName}>{v.name}</div>
-                  <div style={styles.cardCode}>{v.code}</div>
+                  {delta
+                    ? <div style={styles.cardDelta}>{delta}</div>
+                    : <div style={styles.cardCode}>{v.code}</div>}
                 </div>
               )
             })}
@@ -74,4 +84,5 @@ const styles = {
   },
   cardName: { fontWeight: 700, fontSize: 14, marginTop: 9, color: 'var(--dark)' },
   cardCode: { fontSize: 10, color: 'var(--muted)', marginTop: 2 },
+  cardDelta: { fontSize: 11, color: 'var(--muted)', marginTop: 2, fontWeight: 600 },
 }

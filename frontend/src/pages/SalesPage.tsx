@@ -21,6 +21,34 @@ function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual'
   return 'individual'
 }
 
+/** option_rule(effect=hide) → 현재 선택 기준 숨길 그룹/값 코드 */
+function computeHidden(sel: Record<string, string>, bundle: ApiPricingBundle) {
+  const groups = new Set<string>()
+  const values = new Set<string>()
+  const selected = new Set(Object.values(sel))
+  for (const rule of bundle.rules) {
+    if (rule.effect !== 'hide' || !selected.has(rule.when_value)) continue
+    if (rule.target_type === 'group') groups.add(rule.target_code)
+    else if (rule.target_type === 'value') values.add(rule.target_code)
+  }
+  return { groups, values }
+}
+
+/** 숨겨진 그룹 선택 제거 + 숨겨진 값 선택 시 첫 노출값으로 대체 */
+function sanitizeSelections(sel: Record<string, string>, bundle: ApiPricingBundle): Record<string, string> {
+  const { groups, values } = computeHidden(sel, bundle)
+  const out = { ...sel }
+  for (const g of bundle.groups) {
+    if (groups.has(g.code)) { delete out[g.code]; continue }
+    if (out[g.code] && values.has(out[g.code])) {
+      const firstVisible = g.values.find(v => !values.has(v.code))
+      if (firstVisible) out[g.code] = firstVisible.code
+      else delete out[g.code]
+    }
+  }
+  return out
+}
+
 // ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
 const QUOTE_STATUS_KO: Record<string, string> = {
   draft: '임시저장', confirmed: '확정', ordered: '주문', expired: '만료',
@@ -192,7 +220,11 @@ export function SalesPage() {
         for (const g of data.groups) {
           if (g.values.length > 0) defaults[g.code] = g.values[0]!.code
         }
-        setSelections(defaults)
+        // 트림 기본값 = 플러스 (있으면)
+        if (data.groups.some(g => g.code === 'TRIM' && g.values.some(v => v.code === 'TRIM_PLUS'))) {
+          defaults['TRIM'] = 'TRIM_PLUS'
+        }
+        setSelections(sanitizeSelections(defaults, data))
       })
       .catch(e => console.error('pricing-bundle 로드 실패', e))
       .finally(() => setBundleLoading(false))
@@ -221,6 +253,21 @@ export function SalesPage() {
       }
     }
     return disabled
+  }, [bundle, selections])
+
+  // option_rule(effect=hide) 기준 숨김 그룹/값 + 옵션별 증감액
+  const { hiddenGroupCodes, hiddenValueCodes } = useMemo(() => {
+    if (!bundle) return { hiddenGroupCodes: new Set<string>(), hiddenValueCodes: new Set<string>() }
+    const { groups, values } = computeHidden(selections, bundle)
+    return { hiddenGroupCodes: groups, hiddenValueCodes: values }
+  }, [bundle, selections])
+
+  const priceDelta = useMemo(() => (groupCode: string, valueCode: string): number => {
+    if (!bundle) return 0
+    const price = (c: string) => bundle.option_prices[c] ?? 0
+    const cur  = assembleOptionSum(selections, price)
+    const next = assembleOptionSum({ ...selections, [groupCode]: valueCode }, price)
+    return (next.trim_price + next.option_sum) - (cur.trim_price + cur.option_sum)
   }, [bundle, selections])
 
   // 실시간 계산 (조립 로직은 백엔드 라우트와 shared 공용)
@@ -263,7 +310,8 @@ export function SalesPage() {
           }
         }
       }
-      return next
+      // 숨김 규칙: 숨겨진 그룹/값 선택 정리 (예: 냉동↔내장 전환 시 도어·온도·격벽)
+      return sanitizeSelections(next, bundle)
     })
     setSavedQuote(null)
     setSaveError('')
@@ -393,6 +441,9 @@ export function SalesPage() {
           bundle={bundle}
           selections={selections}
           disabledGroupCodes={disabledGroupCodes}
+          hiddenGroupCodes={hiddenGroupCodes}
+          hiddenValueCodes={hiddenValueCodes}
+          priceDelta={priceDelta}
           onSelect={handleSelect}
           onSave={handleSave}
           isSaving={isSaving}
