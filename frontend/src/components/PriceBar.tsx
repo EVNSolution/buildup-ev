@@ -114,25 +114,25 @@ function Line({ k, v, bold, note }: { k: string; v: string; bold?: boolean; note
   )
 }
 
-const cellBase = { background: 'var(--card)', borderRadius: 10, padding: '9px 11px', minWidth: 84 }
+const cellBase = { background: 'var(--card)', borderRadius: 10, padding: '9px 13px', flex: 1, minWidth: 0 }
 
 const styles: Record<string, React.CSSProperties> = {
   bar: { flexShrink: 0, borderTop: '1px solid var(--line)', background: '#fff', padding: '12px 16px' },
   warn: { background: 'var(--warnbg)', border: '1px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
   warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
-  flow: { display: 'flex', gap: 6, alignItems: 'center', overflowX: 'auto' },
-  op: { fontSize: 16, color: 'var(--muted)', fontWeight: 700, flexShrink: 0 },
-  first: { ...cellBase, background: '#eef2e6', border: '1px solid #d5e0bf', flexShrink: 0 },
+  flow: { display: 'flex', gap: 6, alignItems: 'stretch', width: '100%' },
+  op: { fontSize: 16, color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
+  first: { ...cellBase, flex: 1.3, background: '#eef2e6', border: '1px solid #d5e0bf' },
   firstLabel: { fontSize: 11, color: '#5a6b3a', fontWeight: 700 },
   firstValue: { fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
-  firstSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2 },
-  block: { ...cellBase, position: 'relative', flexShrink: 0 },
+  firstSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+  block: { ...cellBase, position: 'relative' },
   clickable: { cursor: 'pointer', border: '1px dashed var(--line)' },
   blockLabel: { fontSize: 11, color: 'var(--muted)' },
-  blockValue: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
+  blockValue: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginTop: 2, whiteSpace: 'nowrap' as const },
   negVal: { color: '#c0392b' },
-  mutedVal: { color: '#bfc4cb', fontSize: 13 },
-  hero: { background: 'var(--dark)', borderRadius: 10, padding: '9px 14px', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' },
+  mutedVal: { color: '#bfc4cb' },
+  hero: { ...cellBase, flex: 1.3, background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
   heroLabel: { fontSize: 12, color: 'var(--lime)', fontWeight: 700 },
   heroValue: { fontSize: 22, fontWeight: 700, color: '#fff', marginTop: 2 },
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
