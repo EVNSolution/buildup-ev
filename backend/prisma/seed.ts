@@ -182,10 +182,10 @@ async function main() {
     target_code: r['target_code']!,
     memo:        opt(r['memo']),
   }));
+  // 규칙은 CSV와 정확히 일치해야 하므로 전체 교체(삭제 후 삽입). FK 없음.
+  await prisma.optionRule.deleteMany({});
   if (rules.length) {
-    for (const rl of rules) {
-      await prisma.optionRule.upsert({ where: { code: rl.code }, update: rl, create: rl });
-    }
+    await prisma.optionRule.createMany({ data: rules });
     console.log(`  option_rule: ${rules.length}`);
   }
 
