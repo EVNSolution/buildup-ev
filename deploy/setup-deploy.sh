@@ -85,11 +85,44 @@ require_docgen_deps() {
   fi
 }
 
+install_korean_fonts() {
+  # docgen: LibreOffice 가 한글을 렌더하려면 한글 폰트 필요 — 없으면 서류 한글이 □(tofu)로 깨진다.
+  # ⚠️ 비치명(best-effort): 실패해도 배포는 계속. 폰트는 기본 repo 에 있어 대개 성공.
+  if ! fc-list 2>/dev/null | grep -qiE 'noto sans cjk kr|nanum'; then
+    install_pkg google-noto-sans-cjk-ttc-fonts \
+      || install_pkg google-noto-sans-cjk-fonts \
+      || install_pkg fonts-noto-cjk \
+      || install_pkg nanum-gothic-fonts \
+      || install_pkg fonts-nanum \
+      || true
+  fi
+  # 생성기가 요청하는 "맑은 고딕"/"Malgun Gothic"(윈도우 폰트, 서버에 없음) → 설치된 한글 폰트로 치환.
+  # 픽셀-고정된 gen_*.py 를 수정하지 않고 서버 fontconfig 레벨에서 해결.
+  mkdir -p /etc/fonts/conf.d
+  cat >/etc/fonts/conf.d/99-buildup-ev-korean.conf <<'EOF_FONTCONF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="pattern"><test name="family"><string>Malgun Gothic</string></test>
+    <edit name="family" mode="assign" binding="strong"><string>Noto Sans CJK KR</string></edit></match>
+  <match target="pattern"><test name="family"><string>맑은 고딕</string></test>
+    <edit name="family" mode="assign" binding="strong"><string>Noto Sans CJK KR</string></edit></match>
+</fontconfig>
+EOF_FONTCONF
+  fc-cache -f >/dev/null 2>&1 || true
+  if fc-list 2>/dev/null | grep -qiE 'noto sans cjk kr|nanum'; then
+    echo 'docgen fonts: Korean font present'
+  else
+    echo 'WARN: 한글 폰트 미설치 — 서류 한글이 □로 깨질 수 있음. 서버에 noto-cjk 또는 nanum 폰트 수동 설치 필요.' >&2
+  fi
+}
+
 install_pkg ca-certificates git openssl unzip
 if ! need_cmd curl; then install_pkg curl; fi
 install_caddy
 disable_legacy_caddy_container
 require_docgen_deps
+install_korean_fonts
 
 if ! swapon --show=NAME | grep -qx '/swapfile'; then
   fallocate -l 2G /swapfile
