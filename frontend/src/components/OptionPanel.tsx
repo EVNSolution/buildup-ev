@@ -24,7 +24,7 @@ interface Props {
 }
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'vehicle', label: '차량옵션' },
+  { key: 'vehicle', label: '차량 트림' },
   { key: 'body', label: '특장' },
   { key: 'interior', label: '옵션' },
 ]

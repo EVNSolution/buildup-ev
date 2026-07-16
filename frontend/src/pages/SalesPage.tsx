@@ -9,6 +9,7 @@ import { fetchOrders } from '../api/orders'
 import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
+import { offValueCode } from '../components/OptionToggle'
 import { CustomerModal } from '../components/CustomerModal'
 import { PdfModal } from '../components/PdfModal'
 import { Tooltip } from '../components/Tooltip'
@@ -218,7 +219,9 @@ export function SalesPage() {
         setBundle(data)
         const defaults: Record<string, string> = {}
         for (const g of data.groups) {
-          if (g.values.length > 0) defaults[g.code] = g.values[0]!.code
+          if (g.values.length === 0) continue
+          // 토글형 옵션(온도기록계·스포일러·격벽·도어추가)은 기본 '없음'
+          defaults[g.code] = offValueCode(g) ?? g.values[0]!.code
         }
         // 트림 기본값 = 플러스 (있으면)
         if (data.groups.some(g => g.code === 'TRIM' && g.values.some(v => v.code === 'TRIM_PLUS'))) {

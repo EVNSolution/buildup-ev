@@ -49,7 +49,7 @@ const base = {
 
 const styles = {
   off: { ...base, border: '1px solid var(--line)', color: 'var(--body)' },
-  on:  { ...base, border: '2px solid var(--dark)', color: 'var(--dark)', fontWeight: 700, background: '#f6f8f2' },
+  on:  { ...base, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
   disabled: { opacity: 0.4, cursor: 'not-allowed' },
   delta: { fontSize: 10, color: 'var(--muted)', fontWeight: 500 },
 }

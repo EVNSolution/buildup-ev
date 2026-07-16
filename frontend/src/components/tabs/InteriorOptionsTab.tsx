@@ -17,7 +17,10 @@ interface Props {
 export function InteriorOptionsTab({ groups, selections, onSelect, disabledGroupCodes, hiddenValueCodes, priceDelta }: Props) {
   const cells: { key: string; groupCode: string; offCode: string; valueCode: string; label: string; disabled: boolean }[] = []
 
-  for (const g of groups) {
+  // 격벽(그물망·이동식)을 항상 최상단에 나란히
+  const ordered = [...groups].sort((a, b) => (a.code === 'PARTITION' ? 0 : 1) - (b.code === 'PARTITION' ? 0 : 1))
+
+  for (const g of ordered) {
     const off = offValueCode(g)
     if (!off) continue
     const fullPositives = g.values.filter(v => v.code !== off)

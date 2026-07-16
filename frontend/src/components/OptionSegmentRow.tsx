@@ -68,7 +68,7 @@ const styles = {
   disabledBadge: { fontSize: 10, color: 'var(--warn)', marginLeft: 4 },
   seg: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
   segBtn: btnBase,
-  segBtnOn: { ...btnBase, borderColor: 'var(--dark)', background: 'var(--dark)', color: '#fff', fontWeight: 600 },
+  segBtnOn: { ...btnBase, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
   delta: { fontSize: 10, color: 'var(--muted)', fontWeight: 500 },
-  deltaOn: { fontSize: 10, color: '#cfe8d0', fontWeight: 500 },
+  deltaOn: { fontSize: 10, color: 'var(--muted)', fontWeight: 500 },
 }
