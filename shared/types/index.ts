@@ -217,7 +217,7 @@ export interface ApiPricingBundle {
 
 // ── 견적 / 주문 API 응답 타입 ──────────────────────────────────────────────
 
-export type QuoteStatus = 'draft' | 'confirmed' | 'ordered' | 'expired';
+export type QuoteStatus = 'draft' | 'confirmed' | 'assigned' | 'ordered' | 'expired';
 
 export interface ApiQuote {
   id: number;
