@@ -201,8 +201,8 @@ async function buildLoadCalcJson(orderId: number) {
   const bedDim  = spec['적재함_내측_mm'] as Record<string, number>;
   const r1 = (v: number) => Math.round(v * 10) / 10;
 
-  // "후" 치수(전장/전폭/전고/하대*)는 VIVAR 연동 전까지 확정 불가 — CLAUDE.md 참조.
-  // 전장/전폭만 변경 없다고 가정(현재 스펙 범위), 나머지는 빈 값(gen_load_calc.py 표기상 공란).
+  // "후" 치수(전장/전폭/전고/하대*)는 VIVAR 치수 API 개발 중 → 확정 전까지 변경전 값으로 채운다(잠정).
+  // 실제 구조변경 서류 답지 확보 시 그 값으로 교체 — CLAUDE.md 참조.
   const json = {
     before: {
       type: '화물차특수용도형',
@@ -223,8 +223,8 @@ async function buildLoadCalcJson(orderId: number) {
       gvw: Math.round(after.gvw_kg),
       wheelbase: vm.wheelbase_mm,
       offset: spec['하대옵셋트_mm'],
-      length: bodyDim['길이'], width: bodyDim['너비'], height: '',
-      bed_len: '', bed_wid: '', bed_hgt: '',
+      length: bodyDim['길이'], width: bodyDim['너비'], height: bodyDim['높이'],
+      bed_len: bedDim['길이'], bed_wid: bedDim['너비'], bed_hgt: bedDim['높이'],
       tread2f: 0, tread2r: 0,
       steer_ratio: r1(after.steering_axle_ratio_pct),
     },
@@ -309,9 +309,10 @@ async function buildSpecTableJson(orderId: number) {
       front_ratio: [r1(before.steering_axle_ratio_pct), r1(after.steering_axle_ratio_pct)],
       drivetrain: [spec['구동방식'], spec['구동방식']],
     },
-    // 변경후 치수: VIVAR 미연동 → 길이·너비만 잠정 동일, 높이·하대는 공란
-    body: { len: [bodyDim['길이'], bodyDim['길이']], wid: [bodyDim['너비'], bodyDim['너비']], hgt: [bodyDim['높이'], ''] },
-    bed:  { len: [bedDim['길이'], ''], wid: [bedDim['너비'], ''], hgt: [bedDim['높이'], ''] },
+    // 변경후 치수: VIVAR 치수 API 개발 중 → 실측 답지 확정 전까지 변경전 값으로 채운다(잠정).
+    // 실제 구조변경 서류 답지가 확보되면 그 값으로 교체.
+    body: { len: [bodyDim['길이'], bodyDim['길이']], wid: [bodyDim['너비'], bodyDim['너비']], hgt: [bodyDim['높이'], bodyDim['높이']] },
+    bed:  { len: [bedDim['길이'], bedDim['길이']], wid: [bedDim['너비'], bedDim['너비']], hgt: [bedDim['높이'], bedDim['높이']] },
     empty:  { ff: [Math.round(before.curb.front_kg), Math.round(after.curb.front_kg)], fr: [0, 0],
               rf: [Math.round(before.curb.rear_kg), Math.round(after.curb.rear_kg)], rm: [0, 0], rr: [0, 0] },
     loaded: { ff: [Math.round(before.loaded.front_kg), Math.round(after.loaded.front_kg)], fr: [0, 0],
@@ -429,13 +430,23 @@ export async function listGeneratedDocs(orderId: number) {
   });
 }
 
-/** 주문 삭제 캐스케이드에서 호출 — DB 행 삭제는 호출자가 트랜잭션으로 처리하고,
- *  이 함수는 실제 파일만 정리한다(고아 파일 방지). */
-export async function deleteGeneratedDocFiles(orderId: number): Promise<void> {
-  if (!prisma) return;
+/**
+ * 주문의 생성서류 PDF 실제 경로 목록.
+ * ⚠️ 삭제 캐스케이드에서는 반드시 **DB 행을 지우기 전에** 호출해야 한다 —
+ * generatedDocument 행이 file_path 의 유일한 출처라, 행을 먼저 지우면 경로를
+ * 못 찾아 파일이 고아로 남는다(issue #17 ②).
+ */
+export async function collectGeneratedDocPaths(orderId: number): Promise<string[]> {
+  if (!prisma) return [];
   const docs = await prisma.generatedDocument.findMany({
     where: { order_id: orderId },
     select: { file_path: true },
   });
-  await Promise.all(docs.map(d => rm(d.file_path, { force: true }).catch(() => {})));
+  return docs.map(d => d.file_path);
+}
+
+/** collectGeneratedDocPaths 로 미리 확보한 경로의 실제 PDF 파일 정리. DB 행 삭제는 호출자 트랜잭션 담당.
+ *  파일 삭제 실패는 무시(로그만) — 트랜잭션은 이미 커밋됐으므로 되돌리지 않는다. */
+export async function deleteGeneratedDocFilesByPaths(paths: string[]): Promise<void> {
+  await Promise.all(paths.map(p => rm(p, { force: true }).catch(() => {})));
 }

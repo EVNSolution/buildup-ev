@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
-import { deleteGeneratedDocFiles } from '../services/docgen.js';
+import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { calcPrice, type PricingParams } from '@buildup-ev/shared/pricing';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 
@@ -343,6 +343,9 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       }
       // 연결된 order → order_option + document + generated_document → order → quote 트랜잭션 cascade 삭제
       const order = await prisma.order.findUnique({ where: { quote_id: id } });
+      // ⚠️ PDF 경로는 반드시 트랜잭션(행 삭제) '전에' 확보 — 행을 먼저 지우면 file_path 를
+      //    못 찾아 파일이 고아로 남는다(issue #17 ②).
+      const docPaths = order ? await collectGeneratedDocPaths(order.id) : [];
       await prisma.$transaction(async (tx) => {
         if (order) {
           await tx.document.deleteMany({ where: { order_id: order.id } });
@@ -352,9 +355,9 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
         }
         await tx.quote.delete({ where: { id } });
       });
-      // DB 커밋 성공 후 실제 PDF 파일 정리(고아 파일 방지). 파일 삭제 실패는 무시(로그만).
-      if (order) {
-        await deleteGeneratedDocFiles(order.id).catch(e => console.error('[DELETE /quotes/:id] 서류 파일 정리 실패', e));
+      // DB 커밋 성공 후 미리 확보한 경로로 실제 PDF 파일 정리. 파일 삭제 실패는 무시(로그만).
+      if (docPaths.length) {
+        await deleteGeneratedDocFilesByPaths(docPaths).catch(e => console.error('[DELETE /quotes/:id] 서류 파일 정리 실패', e));
       }
       res.json({ data: { ok: true } });
       return;
