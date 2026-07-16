@@ -9,8 +9,12 @@ SERVER_NAME="${SERVER_NAME:?SERVER_NAME required}"
 SSM_APP_ENV_PARAM="${SSM_APP_ENV_PARAM:-/buildup-ev/app-env}"
 API_PORT_BLUE="${API_PORT_BLUE:-3101}"
 API_PORT_GREEN="${API_PORT_GREEN:-3102}"
+SETUP_MARKER="$APP_BASE_DIR/.setup-complete"
 
-/tmp/buildup-ev-setup.sh
+if [ ! -f "$SETUP_MARKER" ]; then
+  APP_BASE_DIR="$APP_BASE_DIR" /tmp/buildup-ev-setup.sh
+fi
+test -f "$SETUP_MARKER"
 
 get_param() {
   aws ssm get-parameter --name "$1" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || true
@@ -51,9 +55,6 @@ fi
 
 npm ci
 npm exec --workspace=backend -- prisma generate
-if grep -q '^RUN_DB_PUSH=1$' .env; then npm run --workspace=backend db:push; fi
-if grep -q '^RUN_DB_SEED=1$' .env; then npm run --workspace=backend db:seed; fi
-if grep -q '^BOOTSTRAP_ADMIN_EMAIL=.' .env; then npm run --workspace=backend bootstrap; fi
 npm run --workspace=frontend build
 npm cache clean --force >/dev/null 2>&1 || true
 chmod -R a+rX frontend/dist

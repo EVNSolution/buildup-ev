@@ -17,7 +17,6 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
   EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-  APP_ENV: ${{ secrets.APP_ENV }}
   SERVER_NAME: ${{ secrets.SERVER_NAME }}
   SSM_APP_ENV_PARAM: /buildup-ev/app-env
   APP_BASE_DIR: /opt/buildup-ev
@@ -47,17 +46,6 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Sync app environment
-        run: |
-          set -euo pipefail
-          if [ -n "$APP_ENV" ]; then
-            aws ssm put-parameter \
-              --name "$SSM_APP_ENV_PARAM" \
-              --type SecureString \
-              --value "$APP_ENV" \
-              --overwrite >/dev/null
-          fi
 
       - name: Send SSM deploy command
         id: ssm

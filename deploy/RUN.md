@@ -1,51 +1,155 @@
-# 운영 배포 절차
+# buildup-ev 운영 명령
 
-## 서버 정보
-- SSH: `ec2-user@43.201.61.182`
-- PEM: repo 루트 `./BUILDUP-EV-key.pem` (chmod 400, **커밋 금지**)
-- 앱 경로: `/srv/buildup-ev`
-- Node: `/opt/node/bin`
-- 도메인: `https://buildup-ev.cleversystem.ai`
+배포 구조와 각 단계의 의미는 [`README.md`](./README.md)를 먼저 확인한다. 아래 `<프로필명>`은 각 사용자가 `aws configure --profile`에서 정한 로컬 이름이다.
 
-## 컨테이너
-- Postgres: `buildup-ev-postgres`
-- Caddy: `buildup-ev-caddy`
+## 1. 도구와 계정 확인
 
-## 배포 순서
-
-### 1. 소스 rsync (로컬 → 서버)
 ```bash
-rsync -avz --delete-after \
-  --exclude=.git --exclude=node_modules --exclude=.env \
-  --exclude=BUILDUP-EV-key.pem \
-  --exclude=frontend/dist --exclude=backend/dist \
-  -e "ssh -i ./BUILDUP-EV-key.pem" \
-  ./ ec2-user@43.201.61.182:/srv/buildup-ev/
+aws --version
+session-manager-plugin --version
+aws sts get-caller-identity --profile <프로필명>
 ```
 
-### 2. 서버 작업 (ssh 접속 후)
-```bash
-cd /srv/buildup-ev
-PATH=/opt/node/bin:$PATH npm ci                                             # devDeps 포함 (ignore-scripts 쓰지 말 것)
-PATH=/opt/node/bin:$PATH npm run --workspace=backend db:push                # 스키마 변경 시
-PATH=/opt/node/bin:$PATH npx tsx backend/prisma/backfill-quote-no.ts       # 견적번호 backfill (1회성, 필요 시)
-PATH=/opt/node/bin:$PATH npm run --workspace=frontend build                 # 프론트 빌드 (서버에서)
+jackey 계정이라면 마지막 ARN은 다음 사용자여야 한다.
+
+```text
+arn:aws:iam::902837199612:user/jackeydu@evnsolution.com
 ```
 
-### 3. 재시작
+AWS CLI와 plugin이 없다면 [AWS CLI v2 설치](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), [Session Manager plugin 설치](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)를 따른다.
+
+## 2. 정상 배포
+
+권장 방법은 PR을 검토·병합하여 `main`에 반영하는 것이다. AWS 계정은 필요하지 않고 저장소 write 권한만 필요하다.
+
+현재 `main`을 수동으로 재배포할 때만 다음을 사용한다.
+
 ```bash
-sudo systemctl restart buildup-ev
-sudo docker restart buildup-ev-caddy
+gh workflow run deploy-ssm.yml --ref main
+gh run watch
 ```
 
-### 4. 검증
+완료 후 공개 경로를 확인한다.
+
 ```bash
-curl -I https://buildup-ev.cleversystem.ai/login          # 200 OK
-curl -i https://buildup-ev.cleversystem.ai/api/v1/auth/me # 401/403 JSON
+curl -fsS -o /dev/null -w 'frontend=%{http_code}\n' https://buildup-ev.cleversystem.ai/
+curl -sS -o /dev/null -w 'api=%{http_code}\n' https://buildup-ev.cleversystem.ai/api/v1/auth/me
 ```
 
-## 주의
-- 서버 `.env` 절대 수정 금지
-- `.env`, `BUILDUP-EV-key.pem`, `DATABASE_URL` 커밋·출력 금지
-- `npm ci`에 `--ignore-scripts` 쓰지 말 것 (prisma generate, bcrypt 빌드 필요)
-- 빌드는 서버에서 (`npm run --workspace=frontend build`) — 로컬 dist rsync 방식 쓰지 말 것
+정상값은 frontend `200`, 인증 없는 API `403` 또는 `200`이다.
+
+## 3. 서버 접속과 상태 확인
+
+```bash
+aws ssm start-session \
+  --profile <프로필명> \
+  --region ap-northeast-2 \
+  --target i-007f16861a396a936
+```
+
+접속 후:
+
+```bash
+sudo cat /opt/buildup-ev/active-slot
+sudo pm2 ls
+sudo systemctl status caddy --no-pager
+sudo docker ps --filter name=buildup-ev-postgres
+python3 -c 'import openpyxl; print(openpyxl.__version__)'
+soffice --version
+```
+
+## 4. PostgreSQL 로컬 터널
+
+```bash
+aws ssm start-session \
+  --profile <프로필명> \
+  --region ap-northeast-2 \
+  --target i-007f16861a396a936 \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["5432"],"localPortNumber":["15432"]}'
+```
+
+터널이 열린 동안 로컬에서는 `127.0.0.1:15432`를 사용한다. DB 사용자·비밀번호·DB명은 `/buildup-ev/app-env`에서 확인하되 화면이나 로그에 출력하지 않는다.
+
+## 5. 운영 환경값 조회·수정
+
+환경값을 로컬 임시 파일로 내려받는다.
+
+```bash
+ENV_FILE="$(mktemp)"
+chmod 600 "$ENV_FILE"
+aws ssm get-parameter \
+  --profile <프로필명> \
+  --region ap-northeast-2 \
+  --name /buildup-ev/app-env \
+  --with-decryption \
+  --query 'Parameter.Value' \
+  --output text > "$ENV_FILE"
+```
+
+필수값 이름만 확인한 뒤 편집한다. 값은 출력하지 않는다.
+
+```bash
+grep -q '^DATABASE_URL=.' "$ENV_FILE"
+grep -q '^JWT_SECRET=.' "$ENV_FILE"
+${EDITOR:-vi} "$ENV_FILE"
+```
+
+변경 전 버전을 기록하고 같은 SecureString에 덮어쓴다.
+
+```bash
+aws ssm get-parameter \
+  --profile <프로필명> \
+  --region ap-northeast-2 \
+  --name /buildup-ev/app-env \
+  --query 'Parameter.Version' \
+  --output text
+
+aws ssm put-parameter \
+  --profile <프로필명> \
+  --region ap-northeast-2 \
+  --name /buildup-ev/app-env \
+  --type SecureString \
+  --overwrite \
+  --value "file://$ENV_FILE"
+
+rm -f "$ENV_FILE"
+```
+
+환경값은 다음 정상 배포부터 적용된다. GitHub Secret의 `APP_ENV`는 사용하지 않는다.
+
+## 6. 스키마 변경이 반드시 필요할 때
+
+일반 배포에서는 실행하지 않는다. 먼저 3번으로 서버에 접속하고 DB dump를 만든다.
+
+```bash
+sudo -s
+mkdir -p /opt/buildup-ev/shared/backups
+chmod 700 /opt/buildup-ev/shared/backups
+docker exec buildup-ev-postgres pg_dump -U buildup -d buildup_ev -Fc > "/opt/buildup-ev/shared/backups/buildup_ev_$(date +%Y%m%d-%H%M%S).dump"
+```
+
+현재 active 슬롯에서 명시적으로 한 번 실행한다.
+
+```bash
+slot="$(cat /opt/buildup-ev/active-slot)"
+cd "/opt/buildup-ev/releases/$slot"
+DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' .env)" npm run --workspace=backend db:push
+exit
+```
+
+`db:seed`는 권한 기준 테이블을 재생성하므로 별도 검토와 백업 없이는 실행하지 않는다. `RUN_DB_PUSH`, `RUN_DB_SEED` 환경변수로 배포와 묶지 않는다.
+
+## 7. 장애 복구
+
+- 배포 도중 실패: 기존 active 슬롯이 유지되므로 Actions 로그의 첫 실패 원인만 수정한다.
+- 배포 후 코드 장애: 문제 커밋을 `git revert`하여 `main`에 반영하고 정상 배포를 다시 실행한다.
+- 환경값 문제: Parameter Store의 직전 내용을 복원한 뒤 정상 배포를 다시 실행한다.
+- DB 문제: 자동 롤백이 없으므로 스키마 작업 전에 만든 dump를 기준으로 판단한다.
+
+## 금지 사항
+
+- PEM/SSH, rsync, `/srv/buildup-ev`, Docker Caddy 절차를 사용하지 않는다.
+- 운영 `.env`, `DATABASE_URL`, JWT 비밀값, DB 비밀번호를 커밋하거나 터미널에 출력하지 않는다.
+- 정상 배포에서 `db:push`, `db:seed`, `bootstrap`, OS 패키지 설치를 실행하지 않는다.
+- 개인 관리자 권한이 있어야만 실행되는 명령을 일반 운영 절차로 추가하지 않는다.

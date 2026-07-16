@@ -2,6 +2,7 @@
 set -euo pipefail
 
 APP_BASE_DIR="${APP_BASE_DIR:-/opt/buildup-ev}"
+SETUP_MARKER="$APP_BASE_DIR/.setup-complete"
 
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
 install_pkg() {
@@ -74,26 +75,13 @@ disable_legacy_caddy_container() {
   docker stop "$cid" >/dev/null 2>&1 || true
 }
 
-install_docgen_deps() {
-  # 구조변경 서류 자동생성(docgen): python3 + openpyxl + LibreOffice(headless).
-  # ⚠️ 비치명(best-effort): 실패해도 배포는 계속 — 서류 기능만 503로 degrade되고
-  #    사이트 전체를 막지 않는다. distro별 패키지명 차이도 폴백으로 흡수.
-  {
-    need_cmd python3 || install_pkg python3 || true
-    if ! need_cmd soffice && ! need_cmd libreoffice; then
-      install_pkg libreoffice-calc || install_pkg libreoffice || true
-    fi
-    if ! python3 -c 'import openpyxl' >/dev/null 2>&1; then
-      python3 -m pip install --quiet --upgrade openpyxl 2>/dev/null \
-        || install_pkg python3-openpyxl \
-        || { install_pkg python3-pip && python3 -m pip install --quiet openpyxl; } \
-        || true
-    fi
-  } || true
-  if need_cmd soffice || need_cmd libreoffice; then
-    echo 'docgen deps: LibreOffice present'
-  else
-    echo 'WARN: LibreOffice 미설치 — 서류(docgen) 기능 비활성(503). 서버에서 수동 설치 필요.' >&2
+require_docgen_deps() {
+  need_cmd python3 || { echo 'Missing docgen dependency: python3' >&2; exit 1; }
+  python3 -c 'import openpyxl' >/dev/null 2>&1 \
+    || { echo 'Missing docgen dependency: openpyxl' >&2; exit 1; }
+  if ! need_cmd soffice && ! need_cmd libreoffice; then
+    echo 'Missing docgen dependency: LibreOffice' >&2
+    exit 1
   fi
 }
 
@@ -101,7 +89,7 @@ install_pkg ca-certificates git openssl unzip
 if ! need_cmd curl; then install_pkg curl; fi
 install_caddy
 disable_legacy_caddy_container
-install_docgen_deps
+require_docgen_deps
 
 if ! swapon --show=NAME | grep -qx '/swapfile'; then
   fallocate -l 2G /swapfile
@@ -143,3 +131,4 @@ mkdir -p "$APP_BASE_DIR/releases" "$APP_BASE_DIR/shared" /etc/caddy/Caddyfile.d
 touch /etc/caddy/Caddyfile
 grep -q 'Caddyfile.d/\*.caddy' /etc/caddy/Caddyfile || printf '\nimport /etc/caddy/Caddyfile.d/*.caddy\n' >> /etc/caddy/Caddyfile
 systemctl enable caddy >/dev/null
+touch "$SETUP_MARKER"
