@@ -13,7 +13,7 @@ interface Props {
   disabledGroupCodes: Set<string>
   hiddenGroupCodes: Set<string>
   hiddenValueCodes: Set<string>
-  priceDelta: (groupCode: string, valueCode: string) => number
+  optionPrices: Record<string, number>
   onSelect: (groupCode: string, valueCode: string) => void
   onSave: () => void
   isSaving: boolean
@@ -39,7 +39,7 @@ export function OptionPanel({
   disabledGroupCodes,
   hiddenGroupCodes,
   hiddenValueCodes,
-  priceDelta,
+  optionPrices,
   onSelect,
   onSave,
   isSaving,
@@ -81,7 +81,7 @@ export function OptionPanel({
             selections={selections}
             onSelect={onSelect}
             hiddenValueCodes={hiddenValueCodes}
-            priceDelta={priceDelta}
+            optionPrices={optionPrices}
           />
         )}
         {activeTab === 'body' && (
@@ -91,7 +91,7 @@ export function OptionPanel({
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
             hiddenValueCodes={hiddenValueCodes}
-            priceDelta={priceDelta}
+            optionPrices={optionPrices}
           />
         )}
         {activeTab === 'interior' && (
@@ -101,7 +101,7 @@ export function OptionPanel({
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
             hiddenValueCodes={hiddenValueCodes}
-            priceDelta={priceDelta}
+            optionPrices={optionPrices}
           />
         )}
       </div>

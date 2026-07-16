@@ -1,5 +1,7 @@
 import type { ApiOptionGroup } from '@shared/types/index'
-import { OptionToggleButton, offValueCode, fmtDelta } from '../OptionToggle'
+import { valueUnitPrice } from '@shared/pricing/core'
+import { offValueCode } from '../OptionToggle'
+import { OptRow, PriceBtn } from '../OptionRow'
 
 interface Props {
   groups: ApiOptionGroup[]
@@ -7,59 +9,48 @@ interface Props {
   onSelect: (groupCode: string, valueCode: string) => void
   disabledGroupCodes: Set<string>
   hiddenValueCodes: Set<string>
-  priceDelta: (groupCode: string, valueCode: string) => number
+  optionPrices: Record<string, number>
 }
 
 /**
- * 내부 옵션 = 2열 토글 그리드. 각 옵션(스포일러·온도기록계 등)은 단일 토글 버튼.
- * 격벽처럼 종류가 여러 개인 그룹은 종류별 토글이 상호배타(한 그룹당 1개만 선택).
+ * 내부 옵션 = 격벽·온도기록계·스포일러 라벨 줄. 격벽은 종류(그물망·이동식) 상호배타 토글,
+ * 온도기록계·스포일러는 '추가' 토글. 각 버튼에 부가세 포함 절대가격 표시.
  */
-export function InteriorOptionsTab({ groups, selections, onSelect, disabledGroupCodes, hiddenValueCodes, priceDelta }: Props) {
-  const cells: { key: string; groupCode: string; offCode: string; valueCode: string; label: string; disabled: boolean }[] = []
-
-  // 격벽(그물망·이동식)을 항상 최상단에 나란히
+export function InteriorOptionsTab({ groups, selections, onSelect, disabledGroupCodes, hiddenValueCodes, optionPrices }: Props) {
+  const price = (c: string) => optionPrices[c] ?? 0
+  // 격벽 먼저
   const ordered = [...groups].sort((a, b) => (a.code === 'PARTITION' ? 0 : 1) - (b.code === 'PARTITION' ? 0 : 1))
 
-  for (const g of ordered) {
-    const off = offValueCode(g)
-    if (!off) continue
-    const fullPositives = g.values.filter(v => v.code !== off)
-    const positives = fullPositives.filter(v => !hiddenValueCodes.has(v.code))
-    for (const v of positives) {
-      cells.push({
-        key: v.code,
-        groupCode: g.code,
-        offCode: off,
-        valueCode: v.code,
-        // 종류가 하나면 그룹명(스포일러), 여럿이면 종류명(그물망/이동식)
-        label: fullPositives.length === 1 ? g.name : v.name,
-        disabled: disabledGroupCodes.has(g.code),
-      })
-    }
-  }
-
-  if (cells.length === 0) return <div style={styles.empty}>선택 가능한 옵션이 없습니다.</div>
-
   return (
-    <div style={styles.grid}>
-      {cells.map(c => {
-        const selected = selections[c.groupCode] === c.valueCode
+    <div>
+      {ordered.map(group => {
+        const off = offValueCode(group)
+        if (!off) return null
+        const disabled = disabledGroupCodes.has(group.code)
+        const fullPos = group.values.filter(v => v.code !== off)
+        const positives = fullPos.filter(v => !hiddenValueCodes.has(v.code))
+        if (positives.length === 0) return null
+
         return (
-          <OptionToggleButton
-            key={c.key}
-            label={c.label}
-            selected={selected}
-            delta={selected ? '' : fmtDelta(priceDelta(c.groupCode, c.valueCode))}
-            disabled={c.disabled}
-            onClick={() => onSelect(c.groupCode, selected ? c.offCode : c.valueCode)}
-          />
+          <OptRow key={group.code} label={group.name} required={group.required}>
+            {positives.map(v => {
+              const selected = selections[group.code] === v.code
+              // 종류가 하나면 '추가'(온도·스포일러), 여럿이면 종류명(그물망·이동식)
+              const label = fullPos.length === 1 ? '추가' : v.name
+              return (
+                <PriceBtn
+                  key={v.code}
+                  label={label}
+                  price={valueUnitPrice(group.code, v.code, selections, price)}
+                  selected={selected}
+                  disabled={disabled}
+                  onClick={() => onSelect(group.code, selected ? off : v.code)}
+                />
+              )
+            })}
+          </OptRow>
         )
       })}
     </div>
   )
-}
-
-const styles = {
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
-  empty: { fontSize: 12.5, color: 'var(--muted)', padding: '8px 2px' },
 }

@@ -16,6 +16,37 @@ const DOOR: Record<string, string> = {
 };
 const PART: Record<string, string> = { PART_NET: 'NET', PART_REEFER: 'MOVE' };
 
+/**
+ * 개별 옵션값의 '자체 공급단가'(부가세 별도). 표시용 — ×1.1 하면 부가세 포함가.
+ * 탑 높이 종속 옵션은 현재 선택(body/top)을 반영해 복합코드로 조회.
+ */
+export function valueUnitPrice(
+  groupCode: string, valueCode: string,
+  sel: Record<string, string>, price: (code: string) => number,
+): number {
+  const body = BODY[sel['BODYTYPE'] ?? ''] ?? '';
+  const top  = TOP[sel['TOP'] ?? ''] ?? '';
+  switch (groupCode) {
+    case 'TRIM': return price(valueCode);
+    case 'TOP': { const t = TOP[valueCode] ?? ''; return body && t ? price(`TOP_${body}_${t}`) : 0; }
+    case 'DOORTYPE': { const d = DOOR[valueCode] ?? ''; return body && top && d ? price(`DOPT_${body}_${top}_${d}`) : 0; }
+    case 'SPOILER': return valueCode === 'SPOILER_O' && top ? price(`SPL_${top}`) : 0;
+    case 'PARTITION': { const k = PART[valueCode] ?? ''; return k && top ? price(`PART_${top}_${k}`) : 0; }
+    case 'TEMP': return valueCode === 'TEMP_O' ? price('TEMP_O') : 0;
+    default: return 0;
+  }
+}
+
+/** 도어추가(운전석측) 단가 — 도어종류별. 부가세 별도. */
+export function doorAddUnitPrice(
+  doorTypeCode: string, sel: Record<string, string>, price: (code: string) => number,
+): number {
+  const body = BODY[sel['BODYTYPE'] ?? ''] ?? '';
+  const top  = TOP[sel['TOP'] ?? ''] ?? '';
+  const d = DOOR[doorTypeCode] ?? '';
+  return body && top && d ? price(`DADD_${body}_${top}_${d}`) : 0;
+}
+
 /** selections + 가격조회함수 → { trim_price, option_sum } (견적서 D13, D15:D20) */
 export function assembleOptionSum(
   sel: Record<string, string>,

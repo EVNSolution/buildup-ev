@@ -1,19 +1,17 @@
 import type { ApiOptionGroup } from '@shared/types/index'
+import { valueUnitPrice } from '@shared/pricing/core'
+import { fmtWonVat } from '../OptionRow'
 
 interface Props {
   groups: ApiOptionGroup[]
   selections: Record<string, string>
   onSelect: (groupCode: string, valueCode: string) => void
   hiddenValueCodes: Set<string>
-  priceDelta: (groupCode: string, valueCode: string) => number
+  optionPrices: Record<string, number>
 }
 
-function fmtDelta(d: number): string {
-  if (!d) return ''
-  return d > 0 ? `+${d.toLocaleString()}` : `−${Math.abs(d).toLocaleString()}`
-}
-
-export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCodes, priceDelta }: Props) {
+export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCodes, optionPrices }: Props) {
+  const price = (c: string) => optionPrices[c] ?? 0
   return (
     <div>
       <div style={styles.row}>
@@ -30,7 +28,6 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
           <div style={styles.cardGrid}>
             {group.values.filter(v => !hiddenValueCodes.has(v.code)).map(v => {
               const selected = selections[group.code] === v.code
-              const delta = selected ? '' : fmtDelta(priceDelta(group.code, v.code))
               return (
                 <div
                   key={v.code}
@@ -39,9 +36,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
                 >
                   <div style={styles.cardImg}>이미지</div>
                   <div style={styles.cardName}>{v.name}</div>
-                  {delta
-                    ? <div style={styles.cardDelta}>{delta}</div>
-                    : <div style={styles.cardCode}>{v.code}</div>}
+                  <div style={styles.cardDelta}>{fmtWonVat(valueUnitPrice(group.code, v.code, selections, price))}</div>
                 </div>
               )
             })}
