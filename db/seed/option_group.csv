@@ -11,3 +11,4 @@ DECAL,옵션,데칼,single,N,9,Y
 TINT,옵션,썬팅,single,N,10,Y
 BLACKBOX,옵션,블랙박스,single,N,11,Y
 SUPPLYKIT,옵션,지급품 키트,single,N,12,Y
+_PRICEKEY,내부,가격키(내부),single,N,99,N

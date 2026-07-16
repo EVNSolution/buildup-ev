@@ -23,8 +23,12 @@ type CustomerInput = {
   biz_type?: string;
   is_sosang?: boolean;
   region?: string;
-  scrap_diesel?: boolean;
+  has_transport_license?: boolean;  // 화물자동차 운송사업허가증
+  diesel_conversion?: boolean;      // 경유차 유지 후 전기차 전환
 };
+
+const DIESEL_CONVERSION_SUBSIDY = -500_000;  // 견적서 D30
+const TAKBAE_RATE_DEFAULT = 0.1;             // 택배업 보조금율 (국고 대비)
 
 // ── 연도별 순차 견적번호 생성 (YY-NNNN) ─────────────────────────────────────
 async function genQuoteNo(prismaClient: NonNullable<typeof prisma>, year: number): Promise<string> {
@@ -46,58 +50,68 @@ async function buildParams(
 ): Promise<PricingParams> {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
 
-  const topCode      = selections['TOP']      ?? '';
-  const doorTypeCode = selections['DOORTYPE'] ?? '';
+  const trimCode = selections['TRIM'] ?? '';
 
-  const [optionPrices, doorPrices, optionValues, subsidyNat, subsidyLoc, taxRows] =
-    await Promise.all([
-      prisma.optionPrice.findMany({ where: { model_code } }),
-      prisma.doorUnitPrice.findMany({ where: { model_code } }),
-      prisma.optionValue.findMany({ where: { code: { in: [topCode, doorTypeCode] } } }),
-      prisma.subsidyNational.findFirst({ where: { model_code, year: calcYear } }),
-      customer?.region
-        ? prisma.subsidyLocal.findFirst({ where: { region: customer.region, year: calcYear } })
-        : Promise.resolve(null),
-      prisma.taxConfig.findMany(),
-    ]);
+  const [optionPrices, subsidyNat, subsidyLoc, taxRows] = await Promise.all([
+    prisma.optionPrice.findMany({ where: { model_code } }),
+    prisma.subsidyNational.findFirst({ where: { model_code, year: calcYear } }),
+    customer?.region
+      ? prisma.subsidyLocal.findFirst({ where: { region: customer.region, year: calcYear } })
+      : Promise.resolve(null),
+    prisma.taxConfig.findMany(),
+  ]);
 
   const priceMap: Record<string, number> = {};
   for (const op of optionPrices) priceMap[op.value_code] = op.supply_price;
-
-  const topName      = optionValues.find(v => v.code === topCode)?.name      ?? '';
-  const doorTypeName = optionValues.find(v => v.code === doorTypeCode)?.name ?? '';
-  const baseSwing    = doorPrices.find(d => d.top === topName && d.doortype === '여닫이')?.unit_price   ?? 0;
-  const selectedDoor = doorPrices.find(d => d.top === topName && d.doortype === doorTypeName)?.unit_price ?? 0;
+  const price = (code: string) => priceMap[code] ?? 0;
 
   const taxMap: Record<string, number> = {};
   for (const t of taxRows) taxMap[t.param_key] = Number(t.value);
 
+  // ── 특장 옵션 합계 = 옵션DB 복합키(탑 높이 종속) 단가 합 (견적서 D15:D20).
+  //   사용자 선택값 → 복합 가격코드 조립 후 option_price 조회.
+  //   쿠팡→슬라이딩, 스포일러 저상 불가→0 은 시드 단계에서 반영됨.
+  const body = ({ BODY_REEFER: 'REEFER', BODY_DRY: 'DRY' } as Record<string, string>)[selections['BODYTYPE'] ?? ''] ?? '';
+  const top  = ({ TOP_LOW: 'LOW', TOP_STD: 'STD' } as Record<string, string>)[selections['TOP'] ?? ''] ?? '';
+  const door = ({ DOOR_SWING: 'SWING', DOOR_SLIDE: 'SLIDE', DOOR_EVSLIDE: 'EVSLIDE', DOOR_COUPANG: 'COUPANG' } as Record<string, string>)[selections['DOORTYPE'] ?? ''] ?? '';
+  const partKind = ({ PART_NET: 'NET', PART_REEFER: 'MOVE' } as Record<string, string>)[selections['PARTITION'] ?? ''] ?? '';
+
+  const topPrice  = body && top ? price(`TOP_${body}_${top}`) : 0;                            // 탑 D15
+  const doorOpt   = body && top && door ? price(`DOPT_${body}_${top}_${door}`) : 0;           // 도어옵션 D17
+  const doorAdd   = selections['DOORADD'] === 'ADD_DRIVER' && body && top && door
+    ? price(`DADD_${body}_${top}_${door}`) : 0;                                               // 도어추가 D18
+  const spoiler   = selections['SPOILER'] === 'SPOILER_O' && top ? price(`SPL_${top}`) : 0;   // 스포일러 D16
+  const partition = partKind && top ? price(`PART_${top}_${partKind}`) : 0;                   // 격벽 D20
+  const temp      = selections['TEMP'] === 'TEMP_O' ? price('TEMP_O') : 0;                     // 온도기록계 D19
+  const option_sum = topPrice + doorOpt + doorAdd + spoiler + partition + temp;
+
+  const bizType = (customer?.biz_type ?? 'individual') as 'individual' | 'corporation' | 'simplified';
+
   return {
-    bodytype_code:        selections['BODYTYPE'] ?? '',
-    trim_code:            selections['TRIM']     ?? '',
-    selected_value_codes: Object.values(selections),
-    door: {
-      base_swing_price: baseSwing,
-      selected_price:   selectedDoor,
-      has_extra:        selections['DOORADD'] === 'ADD_DRIVER',
+    trim_price: priceMap[trimCode] ?? 0,
+    option_sum,
+    subsidy: {
+      national:          subsidyNat?.amount ?? 0,
+      local:             subsidyLoc?.amount ?? 0,
+      sosang_rate:       subsidyNat?.sosang_rate ? Number(subsidyNat.sosang_rate) : 0.3,
+      takbae_rate:       TAKBAE_RATE_DEFAULT,
+      diesel_conversion: DIESEL_CONVERSION_SUBSIDY,
     },
-    option_prices:        priceMap,
-    subsidy_national:     subsidyNat?.amount        ?? 0,
-    subsidy_sosang_rate:  subsidyNat?.sosang_rate   ? Number(subsidyNat.sosang_rate) : 0,
-    subsidy_local:        subsidyLoc?.amount        ?? 0,
     tax: {
       acq_tax_rate:         taxMap['acq_tax_rate']         ?? 0.05,
       special_acq_tax_rate: taxMap['special_acq_tax_rate'] ?? 0.02,
       acq_tax_relief_cap:   taxMap['acq_tax_relief_cap']   ?? 1_400_000,
-      stamp:        taxMap['stamp']        ?? 2_500,
-      plate:        taxMap['plate']        ?? 25_000,
-      reg_agency:   taxMap['reg_agency']   ?? 50_000,
+      stamp:        taxMap['stamp']        ?? 2_000,
+      plate:        taxMap['plate']        ?? 28_000,
+      reg_agency:   taxMap['reg_agency']   ?? 30_000,
       delivery_fee: taxMap['delivery_fee'] ?? 179_000,
       etc_fee:      taxMap['etc_fee']      ?? 50_000,
     },
     customer: {
-      biz_type:  (customer?.biz_type ?? 'individual') as 'individual' | 'corporation' | 'simplified',
+      biz_type:  bizType,
       is_sosang: customer?.is_sosang ?? false,
+      has_transport_license: customer?.has_transport_license ?? false,
+      diesel_conversion:     customer?.diesel_conversion ?? false,
     },
   };
 }
