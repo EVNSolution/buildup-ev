@@ -9,8 +9,7 @@ interface Props {
 }
 
 function fmt(n: number) {
-  const s = Math.round(Math.abs(n)).toLocaleString('ko-KR')
-  return (n < 0 ? '−₩' : '₩') + s
+  return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
 export function PriceBar({ calc, hasCustomer, breakdown }: Props) {
@@ -41,15 +40,15 @@ export function PriceBar({ calc, hasCustomer, breakdown }: Props) {
         </div>
 
         <Op>−</Op>
-        <Block label="보조금" value={ok ? -ok.subsidy_total : 0} show={!!ok} muted={!hasCustomer} negative />
+        <Block label="보조금" value={ok ? ok.subsidy_total : 0} show={!!ok} muted={!hasCustomer} negative />
         <Op>−</Op>
-        <Block label="부가세 환급" value={ok ? -ok.vat : 0} show={!!ok} negative />
+        <Block label="부가세 환급" value={ok ? ok.vat : 0} show={!!ok} negative />
         <Op>+</Op>
 
         {/* ④ 등록·기타 (클릭 → 상세) */}
         <div style={{ ...styles.block, ...styles.clickable }} onClick={() => ok && setShowReg(v => !v)}>
           <div style={styles.blockLabel}>등록·기타 ▸</div>
-          <div style={styles.blockValue}>{ok ? '+' + fmt(regEtc) : '—'}</div>
+          <div style={styles.blockValue}>{ok ? fmt(regEtc) : '—'}</div>
           {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
         </div>
 
@@ -87,7 +86,7 @@ function RegPopup({ ok, onClose }: { ok: PricingOk; onClose: () => void }) {
         <div style={styles.popTitle}>등록 비용 ③</div>
         <Line k="차량 취득세율" v="5%" />
         <Line k="차량 취득세" v={fmt(ok.reg_acq_tax)} />
-        <Line k="차량 취득세 감면" v={fmt(ok.reg_acq_tax_relief)} />
+        <Line k="차량 취득세 감면" v={'−' + fmt(ok.reg_acq_tax_relief)} />
         <Line k="특장 취득세율" v="2%" />
         <Line k="특장 취득세" v={fmt(ok.reg_special_acq_tax)} />
         <Line k="증지대" v={fmt(ok.reg_stamp)} />
