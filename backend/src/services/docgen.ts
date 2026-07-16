@@ -201,8 +201,8 @@ async function buildLoadCalcJson(orderId: number) {
   const bedDim  = spec['적재함_내측_mm'] as Record<string, number>;
   const r1 = (v: number) => Math.round(v * 10) / 10;
 
-  // "후" 치수(전장/전폭/전고/하대*)는 VIVAR 연동 전까지 확정 불가 — CLAUDE.md 참조.
-  // 전장/전폭만 변경 없다고 가정(현재 스펙 범위), 나머지는 빈 값(gen_load_calc.py 표기상 공란).
+  // "후" 치수(전장/전폭/전고/하대*)는 VIVAR 치수 API 개발 중 → 확정 전까지 변경전 값으로 채운다(잠정).
+  // 실제 구조변경 서류 답지 확보 시 그 값으로 교체 — CLAUDE.md 참조.
   const json = {
     before: {
       type: '화물차특수용도형',
@@ -223,8 +223,8 @@ async function buildLoadCalcJson(orderId: number) {
       gvw: Math.round(after.gvw_kg),
       wheelbase: vm.wheelbase_mm,
       offset: spec['하대옵셋트_mm'],
-      length: bodyDim['길이'], width: bodyDim['너비'], height: '',
-      bed_len: '', bed_wid: '', bed_hgt: '',
+      length: bodyDim['길이'], width: bodyDim['너비'], height: bodyDim['높이'],
+      bed_len: bedDim['길이'], bed_wid: bedDim['너비'], bed_hgt: bedDim['높이'],
       tread2f: 0, tread2r: 0,
       steer_ratio: r1(after.steering_axle_ratio_pct),
     },
@@ -309,9 +309,10 @@ async function buildSpecTableJson(orderId: number) {
       front_ratio: [r1(before.steering_axle_ratio_pct), r1(after.steering_axle_ratio_pct)],
       drivetrain: [spec['구동방식'], spec['구동방식']],
     },
-    // 변경후 치수: VIVAR 미연동 → 길이·너비만 잠정 동일, 높이·하대는 공란
-    body: { len: [bodyDim['길이'], bodyDim['길이']], wid: [bodyDim['너비'], bodyDim['너비']], hgt: [bodyDim['높이'], ''] },
-    bed:  { len: [bedDim['길이'], ''], wid: [bedDim['너비'], ''], hgt: [bedDim['높이'], ''] },
+    // 변경후 치수: VIVAR 치수 API 개발 중 → 실측 답지 확정 전까지 변경전 값으로 채운다(잠정).
+    // 실제 구조변경 서류 답지가 확보되면 그 값으로 교체.
+    body: { len: [bodyDim['길이'], bodyDim['길이']], wid: [bodyDim['너비'], bodyDim['너비']], hgt: [bodyDim['높이'], bodyDim['높이']] },
+    bed:  { len: [bedDim['길이'], bedDim['길이']], wid: [bedDim['너비'], bedDim['너비']], hgt: [bedDim['높이'], bedDim['높이']] },
     empty:  { ff: [Math.round(before.curb.front_kg), Math.round(after.curb.front_kg)], fr: [0, 0],
               rf: [Math.round(before.curb.rear_kg), Math.round(after.curb.rear_kg)], rm: [0, 0], rr: [0, 0] },
     loaded: { ff: [Math.round(before.loaded.front_kg), Math.round(after.loaded.front_kg)], fr: [0, 0],
