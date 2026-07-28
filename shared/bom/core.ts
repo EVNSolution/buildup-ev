@@ -12,6 +12,10 @@ import BOM_SOURCE_JSON from '../../doc-templates/option-weights-real.json';
 import type { WeightItem } from '../load-calc/types.js';
 import type { BomResult } from './types.js';
 
+// 치수 기반 탑 무게 수식 (VIVAR 외측 L·W·H 연동 시 사용) — 재수출
+export { calcTopWeightKg } from './top-weight.js';
+export type { BodyKind, DoorKind } from './top-weight.js';
+
 const WHEELBASE_MM = 2995;
 const CURB_BASE_KG = 1905;
 
