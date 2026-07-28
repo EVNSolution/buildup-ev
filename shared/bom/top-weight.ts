@@ -5,7 +5,7 @@
  *  - 벽/천장/바닥 패널 = 면적 × 면적밀도(kg/m²)
  *  - 가드 = 모서리 길이 × 선밀도(kg/m)
  *  - 후문·사이드도어 = 개구부 면적 기반, 냉동기·부대비 = 상수
- *  - 프레임 = 길이·폭 선형(파이프 부재: L방향 11.70 + W방향 13.98 kg/m, 시트 총합 65 배율 보정)
+ *  - 프레임 = 파이프 부재 3개 [단중×수량×(치수−여백)/1000] + 하드웨어 9.3kg (셀 수식 그대로)
  * 검증: 냉동/내장 × 저상/표준 × 여닫이/슬라이딩 × 기본/4도어 16조합 재현, 오차 ≤ 0.05kg.
  * (top-weight.test.ts)
  *
@@ -16,8 +16,15 @@ export type BodyKind = 'reefer' | 'dry'; // 냉동 / 내장
 export type DoorKind = 'swing' | 'slide'; // 여닫이 / 슬라이딩
 
 const DL = 0.06, DW = 0.12;      // 바닥 내측 여백(외측 대비, m)
-const FRAME_L = 13.479;          // 프레임 길이(L) 계수 kg/m
-const FRAME_W = 16.106;          // 프레임 폭(W) 계수 kg/m  (명목 2.54×1.91 → 65kg)
+const FRAME_HARDWARE = 9.3;      // 프레임 미기재 하드웨어 상수 (시트 K2=65 − 부재합 55.7)
+
+/** 프레임 중량(kg) — 파이프 부재 3개(단중×수량×(치수−여백)/1000) + 하드웨어. 치수 mm. */
+function frameKg(L_mm: number, W_mm: number): number {
+  return 5.14 * 2 * (L_mm - 10) / 1000   // Main Frame (Steel Pipe), 길이 L−10
+       + 2.33 * 6 * (W_mm - 40) / 1000   // Sub Bracket_1 (AL Pipe), 폭 W−40
+       + 0.71 * 2 * (L_mm - 45) / 1000   // Sub Bracket_2 (AL Pipe), 길이 L−45
+       + FRAME_HARDWARE;
+}
 
 interface Coef {
   panelWall: number;              // front/side/top 면적밀도 kg/m²
@@ -76,8 +83,8 @@ export function calcTopWeightKg(
   // 가드 (모서리)
   const g = c.guard;
   const guards = 2 * L * g.lowSide + W * g.lowFront + 2 * H * g.side + 2 * L * g.topSide + W * g.topFront;
-  // 프레임 (길이·폭 선형 — 파이프 부재)
-  const frame = FRAME_L * L + FRAME_W * W;
+  // 프레임 (부재 수식 + 하드웨어)
+  const frame = frameKg(L_mm, W_mm);
   // 후문 (항상)
   let rear = c.rearParts;
   for (const [dens, m] of c.rear) rear += (W - m) * (H - m) * dens;
