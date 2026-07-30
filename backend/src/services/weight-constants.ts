@@ -20,12 +20,20 @@ export async function loadWeightConstants(): Promise<WeightConstants> {
   if (cache) return cache;
   if (!prisma) return DEFAULT_WEIGHT_CONSTANTS;
 
-  const rows = await prisma.weightConstant.findMany();
-  if (rows.length === 0) {
-    cache = DEFAULT_WEIGHT_CONSTANTS; // 미시드 상태 — 기본값 사용
-    return cache;
+  let rows;
+  try {
+    rows = await prisma.weightConstant.findMany();
+  } catch (e) {
+    // 테이블 미생성(마이그레이션 전)·DB 일시오류 → 기본값(=코드 seed 동일값)으로 폴백.
+    // 캐시하지 않아 테이블 생성/시드 후 자동으로 DB 값을 다시 집는다.
+    console.warn('[weight-constants] DB 조회 실패 — 기본값 사용:', e instanceof Error ? e.message : e);
+    return DEFAULT_WEIGHT_CONSTANTS;
   }
 
+  // 미시드(빈 테이블)도 캐시하지 않고 기본값 — 시드 직후 재조회에서 자동 반영.
+  if (rows.length === 0) return DEFAULT_WEIGHT_CONSTANTS;
+
+  // 행이 있는데 필수 키가 빠졌으면 buildWeightConstants 가 throw(설정오류를 조용히 넘기지 않음).
   cache = buildWeightConstants(
     rows.map((r) => ({
       key: r.key,
