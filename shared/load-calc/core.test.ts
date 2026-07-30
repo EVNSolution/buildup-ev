@@ -206,12 +206,12 @@ describe("calcLoad — DB 시드 데이터 기반 (vehicle_model + tire CSV)", (
 // ── pv5-spec.json 기준입력 정답지 검증 ────────────────────────────────────────
 /**
  * doc-templates/pv5-spec.json 하중계산_기준입력 을 실제로 읽어 계산.
- * 정원 위치 2995 mm(= 전축, 축간거리) 기준이며 정답지와 일치해야 함.
+ * 정원 위치 1850 mm(후축까지, 설계문서 §6 정정 — 기존 2995 는 오기) 기준.
  *
- * 기대값 (정답지):
+ * 기대값 (설계문서 §6 정정 정답지, 오픈베드):
  *   공차 전/후축   1105 / 800 kg
- *   적차 전/후축   1245 / 1390 kg   (ceil5(7.01+130)=140 → 1105+140=1245)
- *   타이어 부하율  73.7/53.3% (공차) / 83.0/92.7% (적차)  [750 kg × 2]
+ *   적차 전/후축   1195 / 1440 kg   (ceil5(600·35/2995 + 130·1850/2995)=ceil5(87.3)=90 → 1105+90)
+ *   타이어 부하율  73.7/53.3% (공차) / 79.7/96.0% (적차)  [750 kg × 2]
  */
 describe("calcLoad — pv5-spec.json 하중계산_기준입력 기준 (정답지 검증)", () => {
   let pv5: VehicleModel;
@@ -252,18 +252,18 @@ describe("calcLoad — pv5-spec.json 하중계산_기준입력 기준 (정답지
     });
   });
 
-  it("pv5-spec.json 정원 위치 2995 mm (전축)", () => expect(defs.crewDist).toBe(2995));
+  it("pv5-spec.json 정원 위치 1850 mm (후축까지, §6 정정)", () => expect(defs.crewDist).toBe(1850));
   it("적재량 자동계산 600 kg", () => expect(cargoKg).toBe(600));
 
   it("공차 전축 1105 kg", () => expect(result.curb.front_kg).toBe(1105));
   it("공차 후축 800 kg",  () => expect(result.curb.rear_kg).toBe(800));
-  it("적차 전축 1245 kg", () => expect(result.loaded.front_kg).toBe(1245));
-  it("적차 후축 1390 kg", () => expect(result.loaded.rear_kg).toBe(1390));
+  it("적차 전축 1195 kg", () => expect(result.loaded.front_kg).toBe(1195));
+  it("적차 후축 1440 kg", () => expect(result.loaded.rear_kg).toBe(1440));
   it("차량총중량 2635 kg", () => expect(result.gvw_kg).toBe(2635));
 
   it("공차 전축 부하율 73.7 %", () => expect(result.tire_load_rate.curb_front_pct).toBe(73.7));
   it("공차 후축 부하율 53.3 %", () => expect(result.tire_load_rate.curb_rear_pct).toBe(53.3));
-  it("적차 전축 부하율 83.0 %", () => expect(result.tire_load_rate.loaded_front_pct).toBe(83.0));
-  it("적차 후축 부하율 92.7 %", () => expect(result.tire_load_rate.loaded_rear_pct).toBe(92.7));
+  it("적차 전축 부하율 79.7 %", () => expect(result.tire_load_rate.loaded_front_pct).toBe(79.7));
+  it("적차 후축 부하율 96.0 %", () => expect(result.tire_load_rate.loaded_rear_pct).toBe(96.0));
   it("GVW 적합 (2635 ≤ 2680)",  () => expect(result.legal.within_gvw).toBe(true));
 });
