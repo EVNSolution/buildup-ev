@@ -11,13 +11,18 @@
 import BOM_SOURCE_JSON from '../../doc-templates/option-weights-real.json';
 import type { WeightItem } from '../load-calc/types.js';
 import type { BomResult } from './types.js';
+import { DEFAULT_WEIGHT_CONSTANTS, maxPayloadKg } from './weight-constants.js';
 
 // 치수 기반 탑 무게 수식 (VIVAR 외측 L·W·H 연동 시 사용) — 재수출
 export { calcTopWeightKg } from './top-weight.js';
 export type { BodyKind, DoorKind } from './top-weight.js';
+export * from './weight-constants.js';
 
-const WHEELBASE_MM = 2995;
-const CURB_BASE_KG = 1905;
+// 차종 기준 상수 — weight_constant(DB) 이관분. 프론트 번들은 seed 기반 기본값,
+// 백엔드 docgen 은 DB rows 로 override(추후 VIVAR 치수 연동 시 calcBom 에 주입).
+const WC = DEFAULT_WEIGHT_CONSTANTS;
+const WHEELBASE_MM = WC.wheelbase_mm;
+const CURB_BASE_KG = WC.curb_base_kg;
 
 function cgxToRear(cg_x: number): number {
   return WHEELBASE_MM - cg_x;
@@ -124,9 +129,7 @@ export function calcBom(selections: Record<string, string>): BomResult | null {
 
   const topCgX = topCategory.CG_x_전축기준_mm;
 
-  // 탈거: 기본_탈거[0](오픈베드 데크) — topType(저상/표준)별 무게 선택
-  // TODO(정확도): 무게_저상/무게_표준(252kg)은 역산 추정값(option-weights-real.json 기본_탈거._주 참조).
-  //   실측 무게 확보 전까지 '구조변경 후' 계산 결과를 최종 서류로 신뢰하지 말 것.
+  // 탈거: 기본_탈거[0](오픈베드 데크) — topType(저상/표준)별 무게 선택 (실측 300kg 확정)
   const deck = SRC.기본_탈거[0]!;
   const deckWeight = topType === '저상' ? deck.무게_저상 : deck.무게_표준;
   const removeItems = [
@@ -157,6 +160,9 @@ export function calcBom(selections: Record<string, string>): BomResult | null {
 
   const removeTotal  = removeItems.reduce((s, i) => s + i.weight_kg, 0);
   const installTotal = installItems.reduce((s, i) => s + i.weight_kg, 0);
+  const curbAfter    = CURB_BASE_KG - removeTotal + installTotal;
+  // 최대적재량 = §4 수식(floor((제작허용총중량−차량중량_후−정원)/단위)×단위). JSON 값 대신 계산.
+  const maxPayload   = maxPayloadKg(curbAfter, WC);
 
   const toWeightItem = (i: { weight_kg: number; cg_x_mm: number }): WeightItem => ({
     weight_kg:            i.weight_kg,
@@ -173,8 +179,8 @@ export function calcBom(selections: Record<string, string>): BomResult | null {
     remove_items:          removeItems,
     install_items:         installItems,
     extra_option_labels:   extraLabels,
-    curb_weight_after_kg:  CURB_BASE_KG - removeTotal + installTotal,
-    max_payload_kg:        topEntry.최대적재량_kg,
+    curb_weight_after_kg:  curbAfter,
+    max_payload_kg:        maxPayload,
     tuning_summary:        tuning,
     remove_weight_items:   removeItems.map(toWeightItem),
     install_weight_items:  installItems.map(toWeightItem),
