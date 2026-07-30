@@ -4,6 +4,7 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote, assignQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
+import { fetchWeightConstants, upsertWeightConstant, type WeightConstant } from '../api/weight-constants'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
@@ -60,7 +61,7 @@ const MODULE_DESC: Record<string, string> = {
   'admin.modules': '기능 모듈 ON/OFF 제어',
   'document.generate': '구조변경 서류 자동 생성',
 }
-type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts'
+type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts' | 'weights'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -810,6 +811,7 @@ export function AdminPage() {
     { key: 'kanban',   label: '주문 칸반' },
     { key: 'toggles',  label: '기능모듈' },
     { key: 'accounts', label: '계정 관리' },
+    { key: 'weights',  label: '무게상수' },
   ]
 
   return (
@@ -889,9 +891,128 @@ export function AdminPage() {
         )}
 
         {activeTab === 'accounts' && <AccountsTab />}
+        {activeTab === 'weights' && <WeightConstantsTab />}
       </div>
     </div>
   )
+}
+
+// ── 무게상수 탭 (weight_constant CRUD — 관리자 전용) ─────────────────────────
+const WC_CATS: [string, string][] = [
+  ['vehicle', '차종 기준값'],
+  ['item', '항목 무게·위치'],
+  ['tire', '타이어'],
+  ['topframe', '탑무게 — 프레임(공통)'],
+  ['topreefer', '탑무게 — 냉동'],
+  ['topdry', '탑무게 — 내장'],
+]
+
+function WeightConstantsTab() {
+  const [rows, setRows] = useState<WeightConstant[]>([])
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+
+  function load() {
+    setLoading(true); setErr('')
+    fetchWeightConstants()
+      .then(rs => { setRows(rs); setDraft(Object.fromEntries(rs.map(r => [r.key, String(r.value)]))) })
+      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { load() }, [])
+
+  async function save(row: WeightConstant) {
+    const raw = (draft[row.key] ?? '').trim()
+    const value = Number(raw)
+    if (!raw || !Number.isFinite(value)) { setErr(`${row.key}: 숫자를 입력하세요`); return }
+    setSaving(row.key); setErr('')
+    try {
+      await upsertWeightConstant({ ...row, value })
+      setRows(prev => prev.map(r => r.key === row.key ? { ...r, value } : r))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '저장 실패')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  if (loading) return <div style={styles.content}>불러오는 중…</div>
+
+  return (
+    <div style={styles.content}>
+      <div style={wc.note}>
+        하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 <b>다음 서류생성부터 재계산</b>에 반영됩니다. (영업 화면 미노출)
+      </div>
+      {err && <div style={wc.err}>{err}</div>}
+      {WC_CATS.map(([cat, label]) => {
+        const list = rows.filter(r => r.category === cat)
+        if (!list.length) return null
+        return (
+          <div key={cat} style={wc.group}>
+            <div style={wc.groupLabel}>{label}</div>
+            <table style={wc.table}>
+              <thead>
+                <tr>
+                  <th style={wc.th}>키</th>
+                  <th style={wc.th}>설명</th>
+                  <th style={{ ...wc.th, textAlign: 'right', width: 120 }}>값</th>
+                  <th style={{ ...wc.th, width: 60 }}>단위</th>
+                  <th style={{ ...wc.th, width: 70 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(r => {
+                  const dirty = (draft[r.key] ?? '') !== String(r.value)
+                  return (
+                    <tr key={r.key}>
+                      <td style={wc.tdKey}>{r.key}</td>
+                      <td style={wc.tdDesc}>{r.description}</td>
+                      <td style={wc.tdVal}>
+                        <input
+                          style={wc.input}
+                          inputMode="decimal"
+                          value={draft[r.key] ?? ''}
+                          onChange={e => setDraft(d => ({ ...d, [r.key]: e.target.value }))}
+                        />
+                      </td>
+                      <td style={wc.tdUnit}>{r.unit}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          style={dirty ? wc.btnOn : wc.btnOff}
+                          disabled={!dirty || saving === r.key}
+                          onClick={() => save(r)}
+                        >
+                          {saving === r.key ? '저장중' : '저장'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const wc: Record<string, React.CSSProperties> = {
+  note: { background: '#fef6e6', border: '1px solid #f0d9a8', color: '#7a5b17', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 14 },
+  err: { background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 12 },
+  group: { marginBottom: 20 },
+  groupLabel: { fontSize: 13, fontWeight: 700, color: '#333', margin: '0 0 6px 2px' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
+  th: { textAlign: 'left', color: '#888', fontWeight: 600, fontSize: 11.5, padding: '4px 8px', borderBottom: '1px solid #e5e5e5' },
+  tdKey: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', fontFamily: 'monospace', color: '#444', whiteSpace: 'nowrap' },
+  tdDesc: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', color: '#666' },
+  tdVal: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' },
+  tdUnit: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', color: '#888', whiteSpace: 'nowrap' },
+  input: { width: 100, textAlign: 'right', padding: '4px 6px', border: '1px solid #ccc', borderRadius: 6, fontSize: 12.5 },
+  btnOn: { padding: '4px 12px', border: 'none', borderRadius: 6, background: '#2e7d32', color: '#fff', fontSize: 12, cursor: 'pointer' },
+  btnOff: { padding: '4px 12px', border: '1px solid #ddd', borderRadius: 6, background: '#f5f5f5', color: '#bbb', fontSize: 12, cursor: 'default' },
 }
 
 // ── 스타일 ────────────────────────────────────────────────────────────────
