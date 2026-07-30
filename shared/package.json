@@ -8,7 +8,8 @@
     "./load-calc": "./load-calc/core.ts",
     "./load-calc/pv5-defaults": "./load-calc/pv5-defaults.ts",
     "./pricing": "./pricing/core.ts",
-    "./bom": "./bom/core.ts"
+    "./bom": "./bom/core.ts",
+    "./bom/weight-constants": "./bom/weight-constants.ts"
   },
   "scripts": {
     "test": "vitest run",
