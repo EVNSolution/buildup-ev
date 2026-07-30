@@ -9,6 +9,7 @@ import { docsRouter } from './routes/docs.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
+import { weightConstantsRouter } from './routes/weight-constants.js';
 import { featureModulesRouter } from './routes/feature-modules.js';
 import { subsidyRouter } from './routes/subsidy.js';
 import { orgsRouter } from './routes/orgs.js';
@@ -25,6 +26,7 @@ export function createApp() {
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', usersRouter);
   app.use('/api/v1/access-control', accessControlRouter);
+  app.use('/api/v1/weight-constants', weightConstantsRouter);
   app.use('/api/v1/feature-modules', featureModulesRouter);
   app.use('/api/v1/models', modelsRouter);
   app.use('/api/v1/quotes', quotesRouter);
