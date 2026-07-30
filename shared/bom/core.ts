@@ -11,21 +11,18 @@
 import BOM_SOURCE_JSON from '../../doc-templates/option-weights-real.json';
 import type { WeightItem } from '../load-calc/types.js';
 import type { BomResult } from './types.js';
-import { DEFAULT_WEIGHT_CONSTANTS, maxPayloadKg } from './weight-constants.js';
+import { DEFAULT_WEIGHT_CONSTANTS, maxPayloadKg, type WeightConstants } from './weight-constants.js';
 
 // 치수 기반 탑 무게 수식 (VIVAR 외측 L·W·H 연동 시 사용) — 재수출
 export { calcTopWeightKg } from './top-weight.js';
 export type { BodyKind, DoorKind } from './top-weight.js';
 export * from './weight-constants.js';
 
-// 차종 기준 상수 — weight_constant(DB) 이관분. 프론트 번들은 seed 기반 기본값,
-// 백엔드 docgen 은 DB rows 로 override(추후 VIVAR 치수 연동 시 calcBom 에 주입).
-const WC = DEFAULT_WEIGHT_CONSTANTS;
-const WHEELBASE_MM = WC.wheelbase_mm;
-const CURB_BASE_KG = WC.curb_base_kg;
+// 차종 기준 상수는 weight_constant(DB) 이관분 — calcBom 에 주입(C). 미주입 시 seed 기반 기본값.
+// 프론트 번들은 기본값, 백엔드 docgen 은 DB rows(buildWeightConstants) 를 주입해 override.
 
-function cgxToRear(cg_x: number): number {
-  return WHEELBASE_MM - cg_x;
+function cgxToRear(cg_x: number, wheelbase_mm: number): number {
+  return wheelbase_mm - cg_x;
 }
 
 // ── option-weights-real.json 단일소스 로드 ────────────────────────────────────
@@ -103,8 +100,12 @@ const DOOR_CONFIG_MAP: Record<string, string> = {
  * 주문 옵션 선택값(groupCode → valueCode)으로 BOM 자동 산출.
  * BODYTYPE·TOP·DOORTYPE 미선택이거나 유효하지 않은 조합(예: 냉동탑+양문미닫이)이면 null 반환.
  * option-weights-real.json 구조 자체가 깨져있으면(무게계산_포함=true인데 CG_x 누락 등) throw.
+ * C = 무게상수(weight_constant DB 이관분). 미주입 시 seed 기반 기본값.
  */
-export function calcBom(selections: Record<string, string>): BomResult | null {
+export function calcBom(
+  selections: Record<string, string>,
+  C: WeightConstants = DEFAULT_WEIGHT_CONSTANTS,
+): BomResult | null {
   const bodyCode = selections['BODYTYPE'];
   const topCode  = selections['TOP'];
   const doorCode = selections['DOORTYPE'];
@@ -160,13 +161,13 @@ export function calcBom(selections: Record<string, string>): BomResult | null {
 
   const removeTotal  = removeItems.reduce((s, i) => s + i.weight_kg, 0);
   const installTotal = installItems.reduce((s, i) => s + i.weight_kg, 0);
-  const curbAfter    = CURB_BASE_KG - removeTotal + installTotal;
+  const curbAfter    = C.curb_base_kg - removeTotal + installTotal;
   // 최대적재량 = §4 수식(floor((제작허용총중량−차량중량_후−정원)/단위)×단위). JSON 값 대신 계산.
-  const maxPayload   = maxPayloadKg(curbAfter, WC);
+  const maxPayload   = maxPayloadKg(curbAfter, C);
 
   const toWeightItem = (i: { weight_kg: number; cg_x_mm: number }): WeightItem => ({
     weight_kg:            i.weight_kg,
-    dist_to_rear_axle_mm: cgxToRear(i.cg_x_mm),
+    dist_to_rear_axle_mm: cgxToRear(i.cg_x_mm, C.wheelbase_mm),
   });
 
   const extraStr = extraLabels.length ? `, ${extraLabels.join('·')} 추가` : '';

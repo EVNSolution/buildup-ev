@@ -13,9 +13,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
-import { calcBom } from '@buildup-ev/shared/bom';
+import { calcBom, maxPayloadKg } from '@buildup-ev/shared/bom';
 import { calcLoad } from '@buildup-ev/shared/load-calc';
-import { loadPV5LoadCalcDefaults } from '@buildup-ev/shared/load-calc/pv5-defaults';
+import { loadWeightConstants } from './weight-constants.js';
 import type { GeneratedDocType } from '@prisma/client';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -155,16 +155,16 @@ async function loadVehicleAndTire(modelCode: string) {
 async function assembleContext(orderId: number) {
   const order = await loadOrder(orderId);
   const { vm, tireFront, tireRear } = await loadVehicleAndTire(order.quote.model_code);
-  const defs = loadPV5LoadCalcDefaults();
+  const C = await loadWeightConstants(); // weight_constant(DB) → 계산에 주입
   const spec = readPV5Spec();
 
-  const bom = calcBom(order.quote.selections as Record<string, string>);
+  const bom = calcBom(order.quote.selections as Record<string, string>, C);
   if (!bom) {
     throw new DocGenInputError('BODYTYPE·TOP·DOORTYPE 옵션 조합이 불완전하거나 유효하지 않습니다');
   }
 
   const tireCfg = (t: { allowable_load_kg: number }) => ({ allowable_load_kg: t.allowable_load_kg, wheels: 2 });
-  const basePayloadKg = spec['최대적재량_kg'] as number;
+  const basePayloadKg = maxPayloadKg(C.curb_base_kg, C); // 오픈베드(구조변경 전) 최대적재량 = §4 수식
 
   const before = calcLoad({
     wheelbase_mm: vm.wheelbase_mm!,
@@ -173,8 +173,8 @@ async function assembleContext(orderId: number) {
     gvw_limit_kg: vm.gvw_limit_kg!,
     tire_front: tireCfg(tireFront),
     tire_rear: tireCfg(tireRear),
-    cargo: { weight_kg: basePayloadKg, dist_to_rear_axle_mm: defs.cargoDist },
-    crew_items: [{ weight_kg: defs.crewWeight, dist_to_rear_axle_mm: defs.crewDist }],
+    cargo: { weight_kg: basePayloadKg, dist_to_rear_axle_mm: C.cargo_d_mm },
+    crew_items: [{ weight_kg: C.crew_w_kg, dist_to_rear_axle_mm: C.crew_d_mm }],
   });
 
   const after = calcLoad({
@@ -186,16 +186,16 @@ async function assembleContext(orderId: number) {
     tire_rear: tireCfg(tireRear),
     install_items: bom.install_weight_items,
     remove_items: bom.remove_weight_items,
-    cargo: { weight_kg: bom.max_payload_kg, dist_to_rear_axle_mm: defs.cargoDist },
-    crew_items: [{ weight_kg: defs.crewWeight, dist_to_rear_axle_mm: defs.crewDist }],
+    cargo: { weight_kg: bom.max_payload_kg, dist_to_rear_axle_mm: C.cargo_d_mm },
+    crew_items: [{ weight_kg: C.crew_w_kg, dist_to_rear_axle_mm: C.crew_d_mm }],
   });
 
-  return { order, vm, tireFront, tireRear, defs, spec, bom, before, after, basePayloadKg };
+  return { order, vm, tireFront, tireRear, C, spec, bom, before, after, basePayloadKg };
 }
 
 /** gen_load_calc.py 에 넣을 JSON 조립. calcBom/calcLoad 결과만 사용 — 값 하드코딩 금지. */
 async function buildLoadCalcJson(orderId: number) {
-  const { vm, tireFront, tireRear, defs, spec, bom, before, after, basePayloadKg } = await assembleContext(orderId);
+  const { vm, tireFront, tireRear, C, spec, bom, before, after, basePayloadKg } = await assembleContext(orderId);
 
   const bodyDim = spec['차체제원_mm'] as Record<string, number>;
   const bedDim  = spec['적재함_내측_mm'] as Record<string, number>;
@@ -255,7 +255,7 @@ async function buildLoadCalcJson(orderId: number) {
     remove_items: bom.remove_items.map(i => ({
       name: i.label, weight: i.weight_kg, dist: vm.wheelbase_mm! - i.cg_x_mm,
     })),
-    crew: { name: '전방 1열', persons: spec['승차정원'], weight: defs.crewWeight, dist: defs.crewDist },
+    crew: { name: '전방 1열', persons: spec['승차정원'], weight: C.crew_w_kg, dist: C.crew_d_mm },
   };
 
   return { json, legal: after.legal, bom };
