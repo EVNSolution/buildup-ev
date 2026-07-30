@@ -261,6 +261,19 @@ model TaxConfig {
   @@map("tax_config")
 }
 
+// 무게계산 상수 (차종기준·항목무게/위치·타이어·탑무게 수식계수). 관리자 CRUD, 숫자만 바꾸면 재계산.
+// 단일소스 = shared/bom/weight-constants.ts WEIGHT_CONSTANT_SEED. 계산은 순수함수에 주입(값 없으면 throw).
+model WeightConstant {
+  key         String  @id @db.VarChar(60)
+  category    String  @db.VarChar(20)
+  value       Decimal @db.Decimal(14, 6)
+  unit        String? @db.VarChar(20)
+  description String?
+  updated_at  DateTime @default(now()) @updatedAt
+
+  @@map("weight_constant")
+}
+
 // ─── D1: 타이어 ───────────────────────────────────────────────────────────
 
 model Tire {

@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { WEIGHT_CONSTANT_SEED } from '@buildup-ev/shared/bom/weight-constants';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SEED = resolve(__dirname, '../../db/seed');
@@ -294,6 +295,13 @@ async function main() {
     }
     console.log(`  tire: ${tires.length}`);
   }
+
+  // ── weight_constant (무게계산 상수 — 단일소스 shared/bom/weight-constants.ts) ──
+  for (const c of WEIGHT_CONSTANT_SEED) {
+    const row = { key: c.key, category: c.category, value: c.value, unit: c.unit, description: c.description };
+    await prisma.weightConstant.upsert({ where: { key: c.key }, update: row, create: row });
+  }
+  console.log(`  weight_constant: ${WEIGHT_CONSTANT_SEED.length}`);
 
   console.log('✅ seed 완료');
 }
