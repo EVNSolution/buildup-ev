@@ -41,3 +41,6 @@ button {
   font-family: inherit;
   cursor: pointer;
 }
+
+/* PDF 모달 로딩 스피너 */
+@keyframes wcspin { to { transform: rotate(360deg); } }

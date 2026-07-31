@@ -111,8 +111,10 @@ function MyListView() {
     <>
     {pdfQuote && (
       <PdfModal
-        quoteId={pdfQuote.id}
-        customerName={pdfQuote.customerName}
+        previewUrl={`/api/v1/quotes/${pdfQuote.id}/pdf`}
+        downloadUrl={`/api/v1/quotes/${pdfQuote.id}/pdf?download=1`}
+        title="견적서"
+        subtitle={pdfQuote.customerName}
         onClose={() => setPdfQuote(null)}
       />
     )}
