@@ -7,6 +7,7 @@ import { fetchModelSpec, type ModelSpec } from '../api/models'
 import { saveVehicleInfo } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { PdfModal } from './PdfModal'
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
@@ -222,6 +223,7 @@ function DocsTab({
   const [info, setInfo] = useState<OrderVehicleInfo>(initInfo ?? {})
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const [docPreview, setDocPreview] = useState<{ url: string; title: string } | null>(null)
 
   // BOM 사전 체크 — BODYTYPE·TOP·DOORTYPE 미선택 시 PDF 버튼 비활성
   const bomOk = useMemo(() => {
@@ -321,14 +323,13 @@ function DocsTab({
           ].map(({ label, type, desc, ready }) => (
             <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
               {ready ? (
-                <a
-                  href={pdfUrl(type)}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => setDocPreview({ url: pdfUrl(type), title: label })}
                   style={det.pdfBtn}
                 >
-                  {label} PDF →
-                </a>
+                  {label} 미리보기
+                </button>
               ) : (
                 <span style={{ ...det.pdfBtn, opacity: 0.45, cursor: 'not-allowed' }} aria-disabled="true">
                   {label} (준비 중)
@@ -342,6 +343,14 @@ function DocsTab({
           ※ 차량정보(등록번호 등)를 먼저 저장하면 서류에 자동 반영됩니다.
         </div>
       </div>
+      {docPreview && (
+        <PdfModal
+          previewUrl={docPreview.url}
+          downloadUrl={docPreview.url}
+          title={docPreview.title}
+          onClose={() => setDocPreview(null)}
+        />
+      )}
     </div>
   )
 }
@@ -528,9 +537,9 @@ const det: Record<string, React.CSSProperties> = {
     fontWeight: 700, color: 'var(--dark)', minHeight: 40,
   },
   pdfBtn: {
-    display: 'inline-block', padding: '8px 16px', borderRadius: 8,
-    background: '#1a1a1a', color: '#fff', textDecoration: 'none',
-    fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' as const,
+    display: 'inline-block', padding: '8px 16px', borderRadius: 8, border: 'none',
+    background: '#1a1a1a', color: '#fff', textDecoration: 'none', cursor: 'pointer',
+    fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' as const, fontFamily: 'inherit',
   },
   bomWarn: {
     fontSize: 12, color: '#92400e', background: '#fffbeb',
