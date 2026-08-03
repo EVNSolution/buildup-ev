@@ -10,6 +10,8 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
 import { weightConstantsRouter } from './routes/weight-constants.js';
+import { contractsRouter } from './routes/contracts.js';
+import { webhooksRouter } from './routes/webhooks.js';
 import { featureModulesRouter } from './routes/feature-modules.js';
 import { subsidyRouter } from './routes/subsidy.js';
 import { orgsRouter } from './routes/orgs.js';
@@ -33,6 +35,8 @@ export function createApp() {
   app.use('/api/v1/load-calc', loadCalcRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/orders', docsRouter);
+  app.use('/api/v1/orders', contractsRouter);
+  app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/subsidy', subsidyRouter);
   app.use('/api/v1/orgs', orgsRouter);
   app.use('/api/v1/regions', regionsRouter);

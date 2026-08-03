@@ -347,6 +347,7 @@ model Order {
   options   OrderOption[]
   documents Document[]
   generated_documents GeneratedDocument[]
+  contracts PurchaseContract[]
 
   @@map("order")
 }
@@ -401,6 +402,49 @@ model GeneratedDocument {
 
   @@unique([order_id, type, version])
   @@map("generated_document")
+}
+
+// ─── F: 전자서명(모두싸인) 구매계약 ─────────────────────────────────────────
+// 상태: DRAFT→SENT→VIEWED→SIGNING→COMPLETED, 분기 REJECTED/CANCELED.
+// 재발송 허용 → order 당 여러 행 누적(최신=현재 계약). 서명본은 DOC_STORAGE_DIR 하위 저장.
+enum ContractStatus {
+  DRAFT
+  SENT
+  VIEWED
+  SIGNING
+  COMPLETED
+  REJECTED
+  CANCELED
+}
+
+model PurchaseContract {
+  id                   Int            @id @default(autoincrement())
+  order_id             Int
+  modusign_document_id String?        @unique @db.VarChar(80)
+  signing_method       String         @db.VarChar(10) // EMAIL | KAKAO
+  status               ContractStatus @default(DRAFT)
+  customer_snapshot    Json           // 발송시점 고객 스냅샷(이름/연락처)
+  signed_pdf_path      String?        @db.VarChar(500)
+  sent_at              DateTime?
+  completed_at         DateTime?
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @default(now()) @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id])
+
+  @@index([order_id])
+  @@map("purchase_contract")
+}
+
+// webhook 멱등 dedup. (document_id, event_type) 유일 — 같은 이벤트 재수신 무시.
+model ModusignWebhookEvent {
+  id          Int      @id @default(autoincrement())
+  document_id String   @db.VarChar(80)
+  event_type  String   @db.VarChar(60)
+  received_at DateTime @default(now())
+
+  @@unique([document_id, event_type])
+  @@map("modusign_webhook_event")
 }
 
 // ─── C, D2 보류 — TODO 2단계 ───────────────────────────────────────────────
