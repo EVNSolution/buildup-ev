@@ -137,10 +137,19 @@ export function calcBom(
     { label: deck.명칭, weight_kg: deckWeight, cg_x_mm: deck.CG_x_전축기준_mm },
   ];
 
-  // 설치: 탑 완성무게 (개별 옵션은 전부 무게계산_포함=false → 아래에서 서류표기 라벨만 추가)
+  // 설치: 탑 완성 + (냉동탑이면) 냉동기 별도 항목.
+  // JSON 탑 완성무게(topEntry.무게)에는 냉동기가 섞여 있으므로, 냉동탑은 그만큼 빼서
+  // 순수 탑으로 표기하고 냉동기(무게·위치=DB 상수)를 후축 뒤쪽 별도 설치항목으로 추가.
+  // → 총 설치중량은 보존(이중계상 없음), 냉동기 무게가 실제 위치(-300)에 반영돼 축분포는 더 정확.
+  const isReefer = bodyCode === 'BODY_REEFER';
+  const reeferKg = isReefer ? C.reefer_w_kg : 0;
   const installItems = [
-    { label: `${bodyType}(${topType}) 완성`, weight_kg: topEntry.무게, cg_x_mm: topCgX },
+    { label: `${bodyType}(${topType}) 완성`, weight_kg: topEntry.무게 - reeferKg, cg_x_mm: topCgX },
   ];
+  if (isReefer) {
+    // dist_to_rear = reefer_d(-300) 가 되도록 cg_x = 축간거리 - reefer_d
+    installItems.push({ label: '냉동기', weight_kg: C.reefer_w_kg, cg_x_mm: C.wheelbase_mm - C.reefer_d_mm });
+  }
 
   // 개별 옵션: 무게계산_포함=true 인 것만 install에 반영, false는 서류 표기용 라벨만
   const selectedValues = new Set(Object.values(selections));
