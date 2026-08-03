@@ -43,16 +43,48 @@ export async function buildContractInput(quoteId: number): Promise<{ input: Cont
   const selections = (quote.selections ?? {}) as Record<string, string>;
   const supply = quote.supply_price ?? 0;
   const total = quote.final_price ?? supply;
+  const d = quote.created_at ?? new Date();
+  const contractDate = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+
+  // 특장 사양: 선택 값코드 → 옵션 라벨 해결(quote-pdf 와 동일 패턴)
+  const valueCodes = Object.values(selections).filter(Boolean);
+  const optVals = valueCodes.length
+    ? await db().optionValue.findMany({ where: { code: { in: valueCodes } } })
+    : [];
+  const nameOf = new Map(optVals.map((v) => [v.code, v.name]));
+  const label = (group: string): string => {
+    const code = selections[group];
+    if (!code) return '';
+    // O/X 그룹은 '적용/미적용' 으로 표기
+    if (group === 'SPOILER' || group === 'TEMP') {
+      if (code.endsWith('_O')) return '적용';
+      if (code.endsWith('_X')) return '미적용';
+    }
+    return nameOf.get(code) ?? '';
+  };
+  const spec: Record<string, string> = {
+    탑종류: label('BODYTYPE'),   // 냉동/내장
+    탑높이: label('TOP'),        // 저상/표준
+    도어옵션: label('DOORTYPE'), // 여닫이/슬라이딩/…
+    스포일러: label('SPOILER'),  // 적용/미적용
+    도어추가: label('DOORADD'),  // 추가없음/운전석측추가
+    온도기록계: label('TEMP'),   // 적용/미적용
+    격벽: label('PARTITION'),    // 없음/그물망/이동식
+  };
+
   const input: ContractInput = {
-    order_id: String(quote.id), // placeholder 표기용(견적 기준)
+    order_id: String(quote.id), // 계약번호 표기용(견적 기준)
+    contract_date: contractDate,
     customer: {
       name: customer.name,
       email: customer.email ?? undefined,
       phone: customer.phone ?? undefined,
+      address: customer.address ?? undefined,
       biz_no: customer.reg_no ?? undefined,
     },
     vehicle: { model: quote.model_code, options: Object.values(selections) },
-    // ⚠️ placeholder 가격(공급가+10% 부가세). 실양식 확정 시 정식 산출 결과로 교체.
+    spec,
+    // ⚠️ 특장가격(VAT포함) 매핑은 잠정 = final_price. 계약금/잔금 분할은 시스템 미보유(수기).
     price: { supply, vat: Math.round(supply * 0.1), total },
     terms: {},
   };

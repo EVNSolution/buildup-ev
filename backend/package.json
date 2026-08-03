@@ -19,10 +19,12 @@
     "@prisma/client": "^5.22.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
+    "docxtemplater": "^3.69.3",
     "express": "^4.21.2",
     "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^9.0.3",
+    "pizzip": "^3.2.0",
     "puppeteer": "^25.2.0"
   },
   "devDependencies": {

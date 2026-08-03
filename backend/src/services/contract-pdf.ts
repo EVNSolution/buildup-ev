@@ -1,15 +1,19 @@
 /**
- * 구매계약서 PDF 생성 — ⚠️ 지금은 placeholder.
- * 실계약서 양식(법무 검토본)이 확정되면 이 파일의 buildContractHtml 만 교체한다.
- * generateContractPdf 의 시그니처(ContractInput → PDF)와 anchor 텍스트 규약은 유지 →
+ * 특장 매매 및 구조변경 계약서 PDF 생성.
+ * 양식: doc-templates/contract/특장매매계약서_template.docx (원본 .docx 그대로 + {태그}·서명앵커·Noto폰트).
+ *   - 템플릿 재생성: python3 doc-templates/builders/gen_contract_template.py <원본.docx> <template.docx>
+ *   - 양식이 바뀌면 원본 .docx 교체 후 위 스크립트로 템플릿만 다시 생성(코드 불변).
+ * generateContractPdf 시그니처(ContractInput → PDF)와 anchor 규약은 유지 →
  * 발송기(modusign)·상태모델·webhook·UI 는 손대지 않아도 된다.
  *
- * 서명 필드는 좌표가 아니라 anchor 텍스트로 잡는다. 실양식에도 아래 3개 텍스트만 포함시키면 됨:
- *   [고객서명]  → SIGNATURE
- *   [서명일자]  → SIGNING_DATE
- *   [고객성명]  → TEXT(성명 확인)
+ * 서명 앵커(템플릿 하단 매수인 서명란에 각 1회): [고객성명]=TEXT, [고객서명]=SIGNATURE, [서명일자]=SIGNING_DATE.
  */
-import { htmlToPdf } from '../lib/soffice.js';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
+import { docxToPdf } from '../lib/soffice.js';
 
 export const CONTRACT_ANCHORS = {
   SIGNATURE: '[고객서명]',
@@ -18,76 +22,64 @@ export const CONTRACT_ANCHORS = {
 } as const;
 
 export interface ContractInput {
-  order_id: string;
-  customer: { name: string; email?: string; phone?: string; biz_no?: string };
+  order_id: string;              // 계약번호 표기용(견적 id)
+  contract_date?: string;        // 계약일자 (예: "2026년 8월 3일")
+  customer: {
+    name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    biz_no?: string;             // 생년월일(사업자번호)
+  };
   vehicle: { model: string; options: string[] };
+  /** 특장 사양(계약서 필드명→표시 라벨). buildContractInput 에서 옵션코드→라벨로 해결. */
+  spec?: Record<string, string>;
   price: { supply: number; vat: number; total: number };
-  terms: Record<string, string | number>; // 납기·특약 등 가변
+  terms: Record<string, string | number>;
 }
 
-function esc(v: unknown): string {
-  return String(v ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] ?? c));
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TEMPLATE_PATH = path.resolve(__dirname, '../../..', 'doc-templates/contract/특장매매계약서_template.docx');
+
 function won(n: number): string {
-  return '₩' + Math.round(n || 0).toLocaleString('ko-KR');
+  return (Math.round(n || 0)).toLocaleString('ko-KR');
 }
 
-/** ⚠️ placeholder 레이아웃. 실양식 확정 시 교체. anchor 텍스트는 반드시 유지. */
-function buildContractHtml(input: ContractInput): string {
-  const { customer, vehicle, price, terms } = input;
-  const optRows = vehicle.options.map((o) => `<li>${esc(o)}</li>`).join('') || '<li>-</li>';
-  const termRows = Object.entries(terms)
-    .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`)
-    .join('') || '<tr><td colspan="2">-</td></tr>';
-
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-    body{font-family:'Noto Sans CJK KR','맑은 고딕',sans-serif;font-size:12px;color:#000;padding:24px;}
-    h1{font-size:20px;text-align:center;margin-bottom:20px;}
-    table{width:100%;border-collapse:collapse;margin:8px 0;}
-    th,td{border:1px solid #000;padding:6px 8px;text-align:left;vertical-align:top;}
-    th{width:130px;background:#f0f0f0;}
-    .sign{margin-top:36px;}
-    .sign td{border:none;padding:10px 8px;}
-    .note{color:#666;font-size:10px;margin-top:24px;}
-  </style></head><body>
-    <h1>전기특장차 구매계약서 (예시본)</h1>
-    <p>⚠️ 본 문서는 연동 테스트용 placeholder 이며, 실제 계약 효력이 없습니다. 실계약서 양식 확정 시 교체됩니다.</p>
-
-    <table>
-      <tr><th>주문번호</th><td>${esc(input.order_id)}</td></tr>
-      <tr><th>차종</th><td>${esc(vehicle.model)}</td></tr>
-      <tr><th>선택옵션</th><td><ul style="margin:0;padding-left:16px;">${optRows}</ul></td></tr>
-    </table>
-
-    <table>
-      <tr><th>공급가액</th><td>${won(price.supply)}</td></tr>
-      <tr><th>부가세</th><td>${won(price.vat)}</td></tr>
-      <tr><th>합계</th><td><b>${won(price.total)}</b></td></tr>
-    </table>
-
-    <table>${termRows}</table>
-
-    <table>
-      <tr><th>매수인(고객)</th><td>${esc(customer.name)}</td></tr>
-      <tr><th>연락처</th><td>${esc(customer.email || customer.phone || '')}</td></tr>
-      ${customer.biz_no ? `<tr><th>사업자번호</th><td>${esc(customer.biz_no)}</td></tr>` : ''}
-    </table>
-
-    <table class="sign">
-      <tr>
-        <td>성명 확인: ${CONTRACT_ANCHORS.CUSTOMER_NAME}</td>
-        <td>서명일자: ${CONTRACT_ANCHORS.SIGNING_DATE}</td>
-      </tr>
-      <tr>
-        <td colspan="2" style="padding-top:24px;">고객 서명: ${CONTRACT_ANCHORS.SIGNATURE}</td>
-      </tr>
-    </table>
-
-    <div class="note">anchor: 서명=${CONTRACT_ANCHORS.SIGNATURE}, 일자=${CONTRACT_ANCHORS.SIGNING_DATE}, 성명=${CONTRACT_ANCHORS.CUSTOMER_NAME}</div>
-  </body></html>`;
+/** ContractInput → 템플릿 {태그} 데이터. 없는 값은 빈 문자열(수기 기입). */
+function tagData(input: ContractInput): Record<string, string> {
+  const spec = input.spec ?? {};
+  return {
+    계약번호: input.order_id ?? '',
+    계약일자: input.contract_date ?? '',
+    성명: input.customer.name ?? '',
+    사업자번호: input.customer.biz_no ?? '',
+    주소: input.customer.address ?? '',
+    휴대폰: input.customer.phone ?? '',
+    이메일: input.customer.email ?? '',
+    // 특장 사양(옵션코드→라벨은 buildContractInput 에서 해결)
+    탑종류: spec['탑종류'] ?? '',
+    탑높이: spec['탑높이'] ?? '',
+    도어옵션: spec['도어옵션'] ?? '',
+    스포일러: spec['스포일러'] ?? '',
+    도어추가: spec['도어추가'] ?? '',
+    온도기록계: spec['온도기록계'] ?? '',
+    격벽: spec['격벽'] ?? '',
+    특장가격: won(input.price.total),
+    계약금: '', // 시스템 미보유(수기)
+    잔금: '',   // 시스템 미보유(수기)
+  };
 }
 
-/** 계약서 PDF(Buffer). 실양식 확정 전까지 placeholder. */
+/** 특장매매계약서 PDF(Buffer). 템플릿 docx 를 docxtemplater 로 채운 뒤 soffice 로 PDF 변환. */
 export async function generateContractPdf(input: ContractInput): Promise<Buffer> {
-  return htmlToPdf(buildContractHtml(input));
+  const templateBuf = await readFile(TEMPLATE_PATH);
+  const zip = new PizZip(templateBuf);
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+    nullGetter: () => '', // 미제공 태그는 공란
+  });
+  doc.render(tagData(input));
+  const filled = doc.getZip().generate({ type: 'nodebuffer' }) as Buffer;
+  return docxToPdf(filled);
 }
