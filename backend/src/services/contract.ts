@@ -1,0 +1,165 @@
+/**
+ * 구매계약 전자서명 오케스트레이션.
+ * 발송: 계약서 PDF 생성 → 모두싸인 업로드 → purchase_contract(DRAFT→SENT).
+ * webhook: 멱등 dedup → 실상태 재조회(위조 방어) → 상태갱신 → 완료 시 서명본 저장.
+ * 양식은 generateContractPdf 뒤에 격리 — 여기 로직은 양식과 무관.
+ */
+import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import type { ContractStatus, PurchaseContract } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
+import { docStorageDir } from '../lib/soffice.js';
+import { generateContractPdf, type ContractInput } from './contract-pdf.js';
+import * as modusign from './modusign.js';
+import type { SigningMethod } from './modusign.js';
+
+export class ContractError extends Error {
+  constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' = 'NOT_FOUND') {
+    super(message);
+  }
+}
+
+function db() {
+  if (!prisma) throw new ContractError('DB 사용 불가', 'DB_UNAVAILABLE');
+  return prisma;
+}
+
+/** 최신(현재) 계약 행. 재발송 이력은 누적되므로 created_at 최신이 현재. */
+export async function getLatestContract(orderId: number): Promise<PurchaseContract | null> {
+  return db().purchaseContract.findFirst({
+    where: { order_id: orderId },
+    orderBy: { created_at: 'desc' },
+  });
+}
+
+/** 계약서 발송. 주문 확정 후 1회 발송이 원칙(견적 단계 발송 금지 — 호출부에서 게이트). */
+export async function sendContract(orderId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
+  const p = db();
+  const order = await p.order.findUnique({
+    where: { id: orderId },
+    include: { quote: { include: { customer: true } } },
+  });
+  if (!order) throw new ContractError('주문을 찾을 수 없습니다', 'NOT_FOUND');
+
+  const customer = order.quote.customer;
+  if (!customer) throw new ContractError('주문에 고객 정보가 없습니다', 'NO_CUSTOMER');
+  const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
+  if (!contact) {
+    throw new ContractError(signingMethod === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
+  }
+
+  const selections = (order.quote.selections ?? {}) as Record<string, string>;
+  const supply = order.quote.supply_price ?? 0;
+  const total = order.quote.final_price ?? supply;
+  const input: ContractInput = {
+    order_id: String(order.id),
+    customer: {
+      name: customer.name,
+      email: customer.email ?? undefined,
+      phone: customer.phone ?? undefined,
+      biz_no: customer.reg_no ?? undefined,
+    },
+    vehicle: { model: order.quote.model_code, options: Object.values(selections) },
+    // ⚠️ placeholder 가격(공급가+10% 부가세). 실양식 확정 시 정식 산출 결과로 교체.
+    price: { supply, vat: Math.round(supply * 0.1), total },
+    terms: {},
+  };
+
+  const pdf = await generateContractPdf(input);
+
+  // 발송시점 고객 스냅샷 고정 + DRAFT 행 선생성
+  const contract = await p.purchaseContract.create({
+    data: {
+      order_id: orderId,
+      signing_method: signingMethod,
+      status: 'DRAFT',
+      customer_snapshot: { name: customer.name, email: customer.email, phone: customer.phone, reg_no: customer.reg_no },
+    },
+  });
+
+  const { documentId } = await modusign.sendDocument({
+    title: `구매계약서_주문${order.id}`,
+    fileName: `contract_order${order.id}.pdf`,
+    pdfBase64: pdf.toString('base64'),
+    participant: { name: customer.name, email: customer.email ?? undefined, phone: customer.phone ?? undefined, signingMethod },
+  });
+
+  return p.purchaseContract.update({
+    where: { id: contract.id },
+    data: { modusign_document_id: documentId, status: 'SENT', sent_at: new Date() },
+  });
+}
+
+// ── webhook 처리 ────────────────────────────────────────────────────────────
+
+/**
+ * 모두싸인 이벤트타입 → 내부 상태. ⚠️ 이벤트 문자열은 실 webhook 로 확정 필요(초안).
+ * 실제 값 확인되면 이 매핑만 보정.
+ */
+export function mapEventToStatus(eventType: string): ContractStatus | null {
+  const e = eventType.toLowerCase();
+  if (e.includes('all_signed') || e.includes('completed')) return 'COMPLETED';
+  if (e.includes('reject')) return 'REJECTED';
+  if (e.includes('cancel')) return 'CANCELED';
+  if (e.includes('signing') || e.includes('signed')) return 'SIGNING';
+  if (e.includes('viewed') || e.includes('opened')) return 'VIEWED';
+  if (e.includes('started') || e.includes('sent') || e.includes('requested')) return 'SENT';
+  return null;
+}
+
+const TERMINAL: ContractStatus[] = ['COMPLETED', 'REJECTED', 'CANCELED'];
+
+/**
+ * webhook 이벤트 반영. 멱등(dedup) + 실상태 재조회(위조 방어) + 상태갱신 + 완료 시 서명본 저장.
+ * 라우트에서 즉시 2xx 응답 후 호출(비동기). 예외는 호출부에서 로깅.
+ */
+export async function handleModusignEvent(documentId: string, eventType: string): Promise<void> {
+  const p = db();
+
+  // 멱등: (document_id, event_type) 유일 제약. 중복이면 여기서 조용히 종료.
+  try {
+    await p.modusignWebhookEvent.create({ data: { document_id: documentId, event_type: eventType } });
+  } catch {
+    return; // 이미 처리한 이벤트
+  }
+
+  const contract = await p.purchaseContract.findUnique({ where: { modusign_document_id: documentId } });
+  if (!contract) return; // 우리 계약이 아님
+  if (TERMINAL.includes(contract.status)) return; // 이미 종료상태 — 되돌리지 않음
+
+  // 위조 방어: webhook 서명검증 secret 미확정 → API 로 실제 상태 재조회해 교차검증.
+  let mapped = mapEventToStatus(eventType);
+  try {
+    const doc = await modusign.getDocument(documentId);
+    if (doc.status) {
+      const fromApi = mapEventToStatus(doc.status);
+      if (fromApi) mapped = fromApi; // API 실상태 우선
+    }
+  } catch {
+    // 재조회 실패 시 이벤트 매핑값으로 진행(로그는 호출부)
+  }
+  if (!mapped) return;
+
+  const data: { status: ContractStatus; signed_pdf_path?: string; completed_at?: Date } = { status: mapped };
+
+  if (mapped === 'COMPLETED') {
+    const pdf = await modusign.downloadSignedPdf(documentId);
+    const dir = path.join(docStorageDir(), 'orders', String(contract.order_id));
+    await mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, `contract_signed_${contract.id}.pdf`);
+    await writeFile(filePath, pdf);
+    data.signed_pdf_path = filePath;
+    data.completed_at = new Date();
+  }
+
+  await p.purchaseContract.update({ where: { id: contract.id }, data });
+}
+
+/** 모두싸인 webhook body 에서 문서id·이벤트타입 추출(스키마 초안 — 실 webhook 로 확정). */
+export function extractWebhookEvent(body: unknown): { documentId: string; eventType: string } | null {
+  const b = (body ?? {}) as Record<string, any>;
+  const documentId = b.documentId ?? b.document_id ?? b.document?.id ?? b.data?.documentId ?? b.data?.document?.id;
+  const eventType = b.event ?? b.eventType ?? b.event_type ?? b.type ?? b.data?.event;
+  if (!documentId || !eventType) return null;
+  return { documentId: String(documentId), eventType: String(eventType) };
+}
