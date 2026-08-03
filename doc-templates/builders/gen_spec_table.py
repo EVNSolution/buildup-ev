@@ -27,6 +27,22 @@ NC, NR = len(X) - 1, len(Y) - 1
 def rb(y1, y2):   # y 픽셀구간 → (엑셀 시작행, 끝행) 1-base
     return IDX[y1] + 1, IDX[y2]
 
+def colw(c):   # 1-base 열의 엑셀 너비단위 (아래 열너비 설정식과 동일 소스)
+    i = c - 1
+    return max(0.3, (X[i+1] - X[i] + 1.6) / 23.51)
+
+def fit_sz(txt, c1, c2, sz):
+    """LibreOffice가 shrink_to_fit(특히 병합셀)을 무시 → 파이썬에서 폰트를 셀폭에 맞춰 축소.
+    가로 텍스트 전용. 한글/기호=2, ascii=1 폭(11pt 기준) 근사로 넘칠 때만 줄인다(키우진 않음)."""
+    s = str(txt)
+    if not s:
+        return sz
+    avail = sum(colw(c) for c in range(c1, c2 + 1)) * 0.92
+    # 줄바꿈(\n) 포함 시 가장 긴 줄 기준 — 미리 줄바꿈된 라벨을 과도축소하지 않게.
+    units = max(sum(2.0 if ord(ch) > 0x2000 else 1.0 for ch in ln) for ln in s.split("\n"))
+    need = units * sz / 11.0
+    return sz if need <= avail else max(5.0, round(sz * avail / need, 1))
+
 wb = Workbook(); ws = wb.active; ws.title = "주요제원대비표"
 FN = "맑은 고딕"; t = Side(style="thin", color="000000"); BD = Border(t, t, t, t)
 F = lambda s, b=False: Font(name=FN, size=s, bold=b, color="000000")
@@ -42,6 +58,8 @@ def P(r1, c1, r2, c2, txt="", sz=8, b=False, rot=0, ha="center", wrap=False, box
             for cc in range(c1, c2 + 1):
                 ws.cell(rr, cc).border = BD
     x = ws.cell(r1, c1); x.value = txt if txt != "" else None
+    if rot == 0 and txt != "":
+        sz = fit_sz(txt, c1, c2, sz)   # 셀폭 초과 시 폰트 자동 축소(가로 텍스트)
     x.font = F(sz, b)
     a = AL(rot, wrap);
     if ha != "center": a = Alignment(horizontal=ha, vertical="center", shrink_to_fit=not wrap, wrap_text=wrap, text_rotation=rot)

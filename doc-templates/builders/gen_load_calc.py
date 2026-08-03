@@ -25,6 +25,18 @@ DROW = 59                      # 하단(탈거/설치/정원) 1행 높이 px
 Y = Y + [2168 + DROW*(i+1) for i in range(NROW)]     # 헤더(2094-2168) 뒤로 가변 행 추가
 NC, NR = len(X)-1, len(Y)-1
 
+def colw(c):   # 1-base 열 엑셀 너비단위 (아래 열너비 설정식과 동일)
+    i=c-1
+    return max(0.3,(X[i+1]-X[i]+1.6)/23.51)
+def fit_sz(txt,c1,c2,sz):
+    """LibreOffice가 shrink_to_fit(병합셀)을 무시 → 셀폭에 맞춰 폰트 자동 축소(넘칠 때만)."""
+    s=str(txt)
+    if not s: return sz
+    avail=sum(colw(c) for c in range(c1,c2+1))*0.92
+    units=max(sum(2.0 if ord(ch)>0x2000 else 1.0 for ch in ln) for ln in s.split("\n"))
+    need=units*sz/11.0
+    return sz if need<=avail else max(5.0,round(sz*avail/need,1))
+
 wb=Workbook(); ws=wb.active; ws.title="하중계산"
 FN="맑은 고딕"; t=Side(style="thin",color="000000"); BD=Border(t,t,t,t)
 F=lambda s,b=False: Font(name=FN,size=s,bold=b,color="000000")
@@ -35,7 +47,9 @@ def P(r,c1,c2,txt="",sz=11,b=False,r2=None,box=True):
     if box:
         for rr in range(r,r2+1):
             for cc in range(c1,c2+1): ws.cell(rr,cc).border=BD
-    x=ws.cell(r,c1); x.value=txt if txt!="" else None; x.font=F(sz,b); x.alignment=AC()
+    x=ws.cell(r,c1); x.value=txt if txt!="" else None
+    if txt!="": sz=fit_sz(txt,c1,c2,sz)   # 셀폭 초과 시 폰트 자동 축소
+    x.font=F(sz,b); x.alignment=AC()
 
 # ── 제목 / 제원 ────────────────────────────────────────────
 P(1,1,NC,"하 중 계 산",sz=26,b=True)
