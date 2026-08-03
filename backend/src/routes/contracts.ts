@@ -1,6 +1,6 @@
 /**
- * 구매계약 전자서명 라우트 — /api/v1/orders/:id/contract*
- * 발송·조회 = ADMIN/SALES. (서명은 고객이 모두싸인 링크로.) API KEY 는 서버 env 에만.
+ * 구매계약 전자서명 라우트 — /api/v1/quotes/:id/contract*
+ * 계약은 견적(확정 시점)에 연결. 발송·조회 = ADMIN/SALES. API KEY 는 서버 env 에만.
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
@@ -14,15 +14,15 @@ import { SofficeUnavailableError } from '../lib/soffice.js';
 
 export const contractsRouter = Router();
 
-function orderId(req: Request): number | null {
+function quoteId(req: Request): number | null {
   const id = Number(req.params['id']);
   return Number.isInteger(id) ? id : null;
 }
 
 // ── POST /:id/contract/send — 계약서 발송 ────────────────────────────────────
 contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
-  const id = orderId(req);
-  if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 주문 id' } }); return; }
+  const id = quoteId(req);
+  if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
 
   const method = (req.body as { signing_method?: string }).signing_method;
   if (method !== 'EMAIL' && method !== 'KAKAO') {
@@ -49,7 +49,7 @@ contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), async (req: R
 
 // ── GET /:id/contract — 현재 계약 상태 ───────────────────────────────────────
 contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
-  const id = orderId(req);
+  const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
   try {
     const c = await getLatestContract(id);
@@ -67,7 +67,7 @@ contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES', 'MAKER'), async (req
 
 // ── GET /:id/contract/signed — 완료 서명본 다운로드 ──────────────────────────
 contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
-  const id = orderId(req);
+  const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
   try {
     const c = await getLatestContract(id);
@@ -76,7 +76,7 @@ contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES', 'MAKER'), asy
       return;
     }
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`구매계약서_서명본_주문${id}.pdf`)}`);
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`구매계약서_서명본_견적${id}.pdf`)}`);
     createReadStream(c.signed_pdf_path).pipe(res);
   } catch (e) {
     console.error('[GET contract/signed]', e);
