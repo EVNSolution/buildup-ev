@@ -10,6 +10,7 @@ import type { ContractStatus, PurchaseContract } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { docStorageDir } from '../lib/soffice.js';
 import { generateContractPdf, type ContractInput } from './contract-pdf.js';
+import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
 
@@ -25,52 +26,54 @@ function db() {
 }
 
 /** 최신(현재) 계약 행. 재발송 이력은 누적되므로 created_at 최신이 현재. */
-export async function getLatestContract(orderId: number): Promise<PurchaseContract | null> {
+export async function getLatestContract(quoteId: number): Promise<PurchaseContract | null> {
   return db().purchaseContract.findFirst({
-    where: { order_id: orderId },
+    where: { quote_id: quoteId },
     orderBy: { created_at: 'desc' },
   });
 }
 
-/** 계약서 발송. 주문 확정 후 1회 발송이 원칙(견적 단계 발송 금지 — 호출부에서 게이트). */
-export async function sendContract(orderId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
+/**
+ * 계약서 발송. 계약은 견적(확정 시점)에 연결 — 주문 생성 전에도 영업이 발송 가능.
+ * 전자서명용 계약서(placeholder) + 견적서 동봉(영업 프로세스)을 함께 보낸다.
+ */
+export async function sendContract(quoteId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
   const p = db();
-  const order = await p.order.findUnique({
-    where: { id: orderId },
-    include: { quote: { include: { customer: true } } },
-  });
-  if (!order) throw new ContractError('주문을 찾을 수 없습니다', 'NOT_FOUND');
+  const quote = await p.quote.findUnique({ where: { id: quoteId }, include: { customer: true } });
+  if (!quote) throw new ContractError('견적을 찾을 수 없습니다', 'NOT_FOUND');
 
-  const customer = order.quote.customer;
-  if (!customer) throw new ContractError('주문에 고객 정보가 없습니다', 'NO_CUSTOMER');
+  const customer = quote.customer;
+  if (!customer) throw new ContractError('견적에 고객 정보가 없습니다', 'NO_CUSTOMER');
   const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
   if (!contact) {
     throw new ContractError(signingMethod === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
   }
 
-  const selections = (order.quote.selections ?? {}) as Record<string, string>;
-  const supply = order.quote.supply_price ?? 0;
-  const total = order.quote.final_price ?? supply;
+  const selections = (quote.selections ?? {}) as Record<string, string>;
+  const supply = quote.supply_price ?? 0;
+  const total = quote.final_price ?? supply;
   const input: ContractInput = {
-    order_id: String(order.id),
+    order_id: String(quote.id), // placeholder 표기용(견적 기준)
     customer: {
       name: customer.name,
       email: customer.email ?? undefined,
       phone: customer.phone ?? undefined,
       biz_no: customer.reg_no ?? undefined,
     },
-    vehicle: { model: order.quote.model_code, options: Object.values(selections) },
+    vehicle: { model: quote.model_code, options: Object.values(selections) },
     // ⚠️ placeholder 가격(공급가+10% 부가세). 실양식 확정 시 정식 산출 결과로 교체.
     price: { supply, vat: Math.round(supply * 0.1), total },
     terms: {},
   };
 
-  const pdf = await generateContractPdf(input);
+  // 계약서(서명대상) + 견적서(동봉) 생성
+  const contractPdf = await generateContractPdf(input);
+  const quotePdf = await generateQuotePdf(quoteId);
 
   // 발송시점 고객 스냅샷 고정 + DRAFT 행 선생성
   const contract = await p.purchaseContract.create({
     data: {
-      order_id: orderId,
+      quote_id: quoteId,
       signing_method: signingMethod,
       status: 'DRAFT',
       customer_snapshot: { name: customer.name, email: customer.email, phone: customer.phone, reg_no: customer.reg_no },
@@ -78,10 +81,11 @@ export async function sendContract(orderId: number, signingMethod: SigningMethod
   });
 
   const { documentId } = await modusign.sendDocument({
-    title: `구매계약서_주문${order.id}`,
-    fileName: `contract_order${order.id}.pdf`,
-    pdfBase64: pdf.toString('base64'),
+    title: `특장매매계약서_견적${quote.id}`,
+    fileName: `contract_quote${quote.id}.pdf`,
+    pdfBase64: contractPdf.toString('base64'),
     participant: { name: customer.name, email: customer.email ?? undefined, phone: customer.phone ?? undefined, signingMethod },
+    attachments: [{ fileName: quotePdf.filename, base64: quotePdf.pdf.toString('base64') }], // 견적서 동봉
   });
 
   return p.purchaseContract.update({
@@ -144,7 +148,7 @@ export async function handleModusignEvent(documentId: string, eventType: string)
 
   if (mapped === 'COMPLETED') {
     const pdf = await modusign.downloadSignedPdf(documentId);
-    const dir = path.join(docStorageDir(), 'orders', String(contract.order_id));
+    const dir = path.join(docStorageDir(), 'quotes', String(contract.quote_id));
     await mkdir(dir, { recursive: true });
     const filePath = path.join(dir, `contract_signed_${contract.id}.pdf`);
     await writeFile(filePath, pdf);

@@ -43,14 +43,16 @@ async function req(method: string, path_: string, body?: unknown): Promise<unkno
 
 export interface SendParams {
   title: string;
-  pdfBase64: string;
+  pdfBase64: string;         // 서명 대상 문서(계약서)
   fileName: string;
   participant: { name: string; email?: string; phone?: string; signingMethod: SigningMethod };
+  // 서명 불필요 첨부(예: 견적서 동봉). 실 API 의 첨부 스키마는 E2E 시 확정.
+  attachments?: { fileName: string; base64: string }[];
 }
 
 /**
- * 계약서 발송. POST /documents — PDF(base64) + 고객 1인 participant + anchor 필드.
- * 반환: 모두싸인 문서 id.
+ * 계약서 발송. POST /documents — 서명대상 PDF(계약서) + 고객 1인 participant + anchor 필드.
+ * attachments 는 서명 없이 함께 전달(견적서 동봉). 반환: 모두싸인 문서 id.
  */
 export async function sendDocument(p: SendParams): Promise<{ documentId: string }> {
   const contact = p.participant.signingMethod === 'EMAIL' ? p.participant.email : p.participant.phone;
@@ -58,6 +60,8 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
   const body = {
     title: p.title,
     file: { name: p.fileName, base64: p.pdfBase64 },
+    // 견적서 등 서명불필요 첨부. (모두싸인 첨부 필드명은 실 API 확인 필요.)
+    attachments: (p.attachments ?? []).map((a) => ({ name: a.fileName, base64: a.base64 })),
     participants: [
       {
         role: '고객',

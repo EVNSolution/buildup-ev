@@ -327,6 +327,7 @@ model Quote {
   sales_user User?        @relation("QuoteSales", fields: [sales_user_id], references: [email])
   org        Org?         @relation("QuoteOrg", fields: [org_id], references: [code])
   order      Order?
+  contracts  PurchaseContract[]
 
   @@map("quote")
 }
@@ -347,7 +348,6 @@ model Order {
   options   OrderOption[]
   documents Document[]
   generated_documents GeneratedDocument[]
-  contracts PurchaseContract[]
 
   @@map("order")
 }
@@ -419,7 +419,7 @@ enum ContractStatus {
 
 model PurchaseContract {
   id                   Int            @id @default(autoincrement())
-  order_id             Int
+  quote_id             Int            // 계약은 견적(확정 시점)에 연결. 주문 생성 전에도 발송 가능.
   modusign_document_id String?        @unique @db.VarChar(80)
   signing_method       String         @db.VarChar(10) // EMAIL | KAKAO
   status               ContractStatus @default(DRAFT)
@@ -430,9 +430,9 @@ model PurchaseContract {
   created_at           DateTime       @default(now())
   updated_at           DateTime       @default(now()) @updatedAt
 
-  order Order @relation(fields: [order_id], references: [id])
+  quote Quote @relation(fields: [quote_id], references: [id])
 
-  @@index([order_id])
+  @@index([quote_id])
   @@map("purchase_contract")
 }
 

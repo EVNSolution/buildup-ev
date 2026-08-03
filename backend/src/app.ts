@@ -35,7 +35,7 @@ export function createApp() {
   app.use('/api/v1/load-calc', loadCalcRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/orders', docsRouter);
-  app.use('/api/v1/orders', contractsRouter);
+  app.use('/api/v1/quotes', contractsRouter); // 계약은 견적 기준
   app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/subsidy', subsidyRouter);
   app.use('/api/v1/orgs', orgsRouter);

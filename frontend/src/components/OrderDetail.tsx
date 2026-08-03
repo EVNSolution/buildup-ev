@@ -8,7 +8,6 @@ import { saveVehicleInfo } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
-import { fetchContract, sendContract, contractSignedUrl, type ContractInfo } from '../api/contracts'
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
@@ -369,12 +368,11 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [tab, setTab] = useState<'spec' | 'docs' | 'load' | 'contract'>('spec')
+  const [tab, setTab] = useState<'spec' | 'docs' | 'load'>('spec')
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
   const canViewLoadDocs = role === 'ADMIN' || role === 'MAKER'
-  const canContract = role === 'ADMIN' || role === 'SALES'
 
   useEffect(() => {
     setLoading(true); setErr('')
@@ -435,11 +433,6 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
             </button>
           </>
         )}
-        {canContract && (
-          <button style={tab === 'contract' ? det.tabActive : det.tabBtn} onClick={() => setTab('contract')}>
-            계약
-          </button>
-        )}
       </div>
 
       {/* 사양 탭 */}
@@ -496,125 +489,8 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
         </div>
       )}
 
-      {/* 계약 탭 */}
-      {tab === 'contract' && canContract && (
-        <div style={det.section}>
-          <ContractTab orderId={detail.id} customerName={detail.customer_name ?? undefined} />
-        </div>
-      )}
     </div>
   )
-}
-
-// ── 계약(전자서명) 탭 ───────────────────────────────────────────────────────
-const CONTRACT_LABEL: Record<ContractInfo['status'], string> = {
-  DRAFT: '초안', SENT: '발송됨', VIEWED: '열람', SIGNING: '서명중',
-  COMPLETED: '완료', REJECTED: '거절', CANCELED: '취소',
-}
-const CONTRACT_COLOR: Record<ContractInfo['status'], React.CSSProperties> = {
-  DRAFT: { background: '#eee', color: '#555' },
-  SENT: { background: '#e3f2fd', color: '#1565c0' },
-  VIEWED: { background: '#e3f2fd', color: '#1565c0' },
-  SIGNING: { background: '#fff3e0', color: '#e65100' },
-  COMPLETED: { background: '#e8f5e9', color: '#2e7d32' },
-  REJECTED: { background: '#fdecec', color: '#c0392b' },
-  CANCELED: { background: '#f5f5f5', color: '#888' },
-}
-
-function ContractTab({ orderId, customerName }: { orderId: number; customerName?: string }) {
-  const [contract, setContract] = useState<ContractInfo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [method, setMethod] = useState<'EMAIL' | 'KAKAO'>('EMAIL')
-  const [sending, setSending] = useState(false)
-  const [err, setErr] = useState('')
-  const [preview, setPreview] = useState(false)
-
-  function load() {
-    setLoading(true); setErr('')
-    fetchContract(orderId)
-      .then(setContract)
-      .catch(e => setErr(e instanceof Error ? e.message : '계약 상태 로드 실패'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(() => { load() }, [orderId])
-
-  async function handleSend() {
-    setSending(true); setErr('')
-    try {
-      const c = await sendContract(orderId, method)
-      setContract(c)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : '발송 실패')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  if (loading) return <div style={ct.muted}>불러오는 중…</div>
-
-  const inProgress = contract && ['SENT', 'VIEWED', 'SIGNING'].includes(contract.status)
-  const resendable = !contract || ['REJECTED', 'CANCELED'].includes(contract.status)
-
-  return (
-    <div>
-      {contract && (
-        <div style={ct.statusRow}>
-          <span style={{ ...ct.badge, ...CONTRACT_COLOR[contract.status] }}>{CONTRACT_LABEL[contract.status]}</span>
-          <span style={ct.meta}>
-            {contract.signing_method === 'EMAIL' ? '이메일' : '카카오'}
-            {contract.sent_at ? ` · 발송 ${contract.sent_at.slice(0, 16).replace('T', ' ')}` : ''}
-          </span>
-        </div>
-      )}
-
-      {contract?.status === 'COMPLETED' && contract.has_signed && (
-        <button style={ct.primary} onClick={() => setPreview(true)}>서명본 보기 / 다운로드</button>
-      )}
-
-      {inProgress && (
-        <div style={ct.muted}>고객이 서명을 진행 중입니다. 완료되면 서명본이 저장됩니다.</div>
-      )}
-
-      {resendable && (
-        <div style={ct.sendBox}>
-          {contract && <div style={ct.muted}>이전 계약이 {CONTRACT_LABEL[contract.status]} 상태입니다. 재발송할 수 있습니다.</div>}
-          <div style={ct.methodRow}>
-            <label style={ct.radio}><input type="radio" checked={method === 'EMAIL'} onChange={() => setMethod('EMAIL')} /> 이메일</label>
-            <label style={ct.radio}><input type="radio" checked={method === 'KAKAO'} onChange={() => setMethod('KAKAO')} /> 카카오 알림톡</label>
-          </div>
-          <button style={ct.primary} onClick={handleSend} disabled={sending}>
-            {sending ? '발송 중…' : (contract ? '계약서 재발송' : `계약서 발송${customerName ? ` (${customerName})` : ''}`)}
-          </button>
-          <div style={ct.note}>※ 고객 연락처는 주문에 저장된 정보를 사용합니다. 주문 확정 후 발송하세요.</div>
-        </div>
-      )}
-
-      {err && <div style={ct.err}>{err}</div>}
-
-      {preview && (
-        <PdfModal
-          previewUrl={contractSignedUrl(orderId)}
-          downloadUrl={contractSignedUrl(orderId)}
-          title="구매계약서 서명본"
-          subtitle={customerName}
-          onClose={() => setPreview(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-const ct: Record<string, React.CSSProperties> = {
-  muted: { color: 'var(--muted)', fontSize: 13, padding: '6px 0' },
-  statusRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
-  badge: { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
-  meta: { fontSize: 12, color: 'var(--muted)' },
-  sendBox: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, maxWidth: 360 },
-  methodRow: { display: 'flex', gap: 16 },
-  radio: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' },
-  primary: { padding: '9px 16px', border: 'none', borderRadius: 8, background: '#1a1a1a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
-  note: { fontSize: 11, color: 'var(--muted)' },
-  err: { marginTop: 10, background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 },
 }
 
 // ── 스타일 ────────────────────────────────────────────────────────────────────
