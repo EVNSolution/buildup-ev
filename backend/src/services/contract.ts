@@ -6,7 +6,7 @@
  */
 import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
-import type { ContractStatus, PurchaseContract } from '@prisma/client';
+import type { ContractStatus, PurchaseContract, Customer } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { docStorageDir } from '../lib/soffice.js';
 import { generateContractPdf, type ContractInput } from './contract-pdf.js';
@@ -33,21 +33,12 @@ export async function getLatestContract(quoteId: number): Promise<PurchaseContra
   });
 }
 
-/**
- * 계약서 발송. 계약은 견적(확정 시점)에 연결 — 주문 생성 전에도 영업이 발송 가능.
- * 전자서명용 계약서(placeholder) + 견적서 동봉(영업 프로세스)을 함께 보낸다.
- */
-export async function sendContract(quoteId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
-  const p = db();
-  const quote = await p.quote.findUnique({ where: { id: quoteId }, include: { customer: true } });
+/** 견적 → 계약서 입력(ContractInput) + 고객. 계약 발송·이메일 발송이 공유(계약서 PDF 생성용). */
+export async function buildContractInput(quoteId: number): Promise<{ input: ContractInput; customer: Customer }> {
+  const quote = await db().quote.findUnique({ where: { id: quoteId }, include: { customer: true } });
   if (!quote) throw new ContractError('견적을 찾을 수 없습니다', 'NOT_FOUND');
-
   const customer = quote.customer;
   if (!customer) throw new ContractError('견적에 고객 정보가 없습니다', 'NO_CUSTOMER');
-  const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
-  if (!contact) {
-    throw new ContractError(signingMethod === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
-  }
 
   const selections = (quote.selections ?? {}) as Record<string, string>;
   const supply = quote.supply_price ?? 0;
@@ -65,6 +56,20 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
     price: { supply, vat: Math.round(supply * 0.1), total },
     terms: {},
   };
+  return { input, customer };
+}
+
+/**
+ * 계약서 발송. 계약은 견적(확정 시점)에 연결 — 주문 생성 전에도 영업이 발송 가능.
+ * 전자서명용 계약서(placeholder) + 견적서 동봉(영업 프로세스)을 함께 보낸다.
+ */
+export async function sendContract(quoteId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
+  const p = db();
+  const { input, customer } = await buildContractInput(quoteId);
+  const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
+  if (!contact) {
+    throw new ContractError(signingMethod === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
+  }
 
   // 계약서(서명대상) + 견적서(동봉) 생성
   const contractPdf = await generateContractPdf(input);
@@ -81,8 +86,8 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
   });
 
   const { documentId } = await modusign.sendDocument({
-    title: `특장매매계약서_견적${quote.id}`,
-    fileName: `contract_quote${quote.id}.pdf`,
+    title: `특장매매계약서_견적${quoteId}`,
+    fileName: `contract_quote${quoteId}.pdf`,
     pdfBase64: contractPdf.toString('base64'),
     participant: { name: customer.name, email: customer.email ?? undefined, phone: customer.phone ?? undefined, signingMethod },
     attachments: [{ fileName: quotePdf.filename, base64: quotePdf.pdf.toString('base64') }], // 견적서 동봉

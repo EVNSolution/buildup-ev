@@ -13,6 +13,7 @@ import { offValueCode } from '../components/OptionToggle'
 import { CustomerModal } from '../components/CustomerModal'
 import { PdfModal } from '../components/PdfModal'
 import { ContractPanel } from '../components/ContractPanel'
+import { EmailSendModal } from '../components/EmailSendModal'
 import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
@@ -94,6 +95,7 @@ function MyListView() {
   const [err, setErr]         = useState('')
   const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
 
   useEffect(() => {
     setLoading(true); setErr('')
@@ -133,6 +135,13 @@ function MyListView() {
           <ContractPanel quoteId={contractQuote.id} customerName={contractQuote.customerName} />
         </div>
       </div>
+    )}
+    {emailQuote && (
+      <EmailSendModal
+        quoteId={emailQuote.id}
+        customerName={emailQuote.customerName}
+        onClose={() => setEmailQuote(null)}
+      />
     )}
     <div style={lv.root}>
       <div style={lv.section}>
@@ -183,6 +192,11 @@ function MyListView() {
                             style={lv.pdfBtn}
                             onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                           >견적서</button>
+                          <button
+                            style={lv.pdfBtn}
+                            title="견적서·계약서 PDF 를 고객 이메일로 발송"
+                            onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                          >이메일</button>
                           <button
                             style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft'}
