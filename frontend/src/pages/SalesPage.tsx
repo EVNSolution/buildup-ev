@@ -12,6 +12,7 @@ import { OptionPanel } from '../components/OptionPanel'
 import { offValueCode } from '../components/OptionToggle'
 import { CustomerModal } from '../components/CustomerModal'
 import { PdfModal } from '../components/PdfModal'
+import { ContractPanel } from '../components/ContractPanel'
 import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
@@ -92,6 +93,7 @@ function MyListView() {
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
   const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
 
   useEffect(() => {
     setLoading(true); setErr('')
@@ -117,6 +119,20 @@ function MyListView() {
         subtitle={pdfQuote.customerName}
         onClose={() => setPdfQuote(null)}
       />
+    )}
+    {contractQuote && (
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+        onClick={(e) => { if (e.target === e.currentTarget) setContractQuote(null) }}
+      >
+        <div style={{ width: 'min(460px, 94vw)', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>계약 · 전자서명{contractQuote.customerName ? ` — ${contractQuote.customerName}` : ''}</span>
+            <button style={{ border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 }} onClick={() => setContractQuote(null)}>✕</button>
+          </div>
+          <ContractPanel quoteId={contractQuote.id} customerName={contractQuote.customerName} />
+        </div>
+      </div>
     )}
     <div style={lv.root}>
       <div style={lv.section}>
@@ -168,9 +184,11 @@ function MyListView() {
                             onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                           >견적서</button>
                           <button
-                            style={lv.sendBtn}
-                            onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
-                          >발송</button>
+                            style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
+                            disabled={q.status === 'draft'}
+                            title={q.status === 'draft' ? '견적 확정 후 계약서를 발송할 수 있습니다' : '계약서(전자서명)와 견적서를 함께 발송'}
+                            onClick={() => setContractQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                          >계약발송</button>
                         </div>
                       </td>
                     </tr>

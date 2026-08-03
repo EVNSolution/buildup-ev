@@ -1,3 +1,4 @@
+// 계약은 견적(quote) 기준 — 영업이 견적 확정 시점에 계약서(+견적서 동봉) 발송
 export interface ContractInfo {
   id: number
   status: 'DRAFT' | 'SENT' | 'VIEWED' | 'SIGNING' | 'COMPLETED' | 'REJECTED' | 'CANCELED'
@@ -21,15 +22,15 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return json.data
 }
 
-export async function fetchContract(orderId: number): Promise<ContractInfo | null> {
-  return apiFetch(`/api/v1/orders/${orderId}/contract`)
+export async function fetchContract(quoteId: number): Promise<ContractInfo | null> {
+  return apiFetch(`/api/v1/quotes/${quoteId}/contract`)
 }
 
-export async function sendContract(orderId: number, method: 'EMAIL' | 'KAKAO'): Promise<ContractInfo> {
-  return apiFetch(`/api/v1/orders/${orderId}/contract/send`, {
+export async function sendContract(quoteId: number, method: 'EMAIL' | 'KAKAO'): Promise<ContractInfo> {
+  return apiFetch(`/api/v1/quotes/${quoteId}/contract/send`, {
     method: 'POST',
     body: JSON.stringify({ signing_method: method }),
   })
 }
 
-export const contractSignedUrl = (orderId: number) => `/api/v1/orders/${orderId}/contract/signed`
+export const contractSignedUrl = (quoteId: number) => `/api/v1/quotes/${quoteId}/contract/signed`
