@@ -67,3 +67,25 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
     await rm(profileDir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+/**
+ * docx(Buffer) → PDF(Buffer). docxtemplater 로 채운 계약서 등을 변환.
+ * htmlToPdf 와 동일하게 매 호출 임시 프로필 분리. 한글은 서버 CJK 폰트로 임베딩.
+ */
+export async function docxToPdf(docx: Buffer): Promise<Buffer> {
+  const work = await mkdtemp(path.join(tmpdir(), 'soffice_'));
+  const profileDir = path.join(tmpdir(), `sofficeprofile_${randomUUID()}`);
+  try {
+    const inPath = path.join(work, 'in.docx');
+    await writeFile(inPath, docx);
+    await run('soffice', [
+      '--headless', '--nologo', '--nofirststartwizard',
+      `-env:UserInstallation=file://${profileDir}`,
+      '--convert-to', 'pdf', '--outdir', work, inPath,
+    ], SOFFICE_TIMEOUT_MS);
+    return await readFile(path.join(work, 'in.pdf'));
+  } finally {
+    await rm(work, { recursive: true, force: true }).catch(() => {});
+    await rm(profileDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
