@@ -174,7 +174,7 @@ P(r[0],8,r[1],9, S(d.get("model_year")))
 r26 = rb(1029, 2076)
 P(r26[0], 10, r26[1], 10, "26\n원동기", sz=8, b=LB, rot=90)
 eng = "engine"
-def erow(ya, yb, lbl, key, big=None, big_span=None, big_col=(11,12), lblcol=(13,17)):
+def erow(ya, yb, lbl, key, big=None, big_span=None, big_col=(11,15), lblcol=(16,17)):
     r = rb(ya, yb)
     if big and big_span:
         rbig = rb(*big_span)
@@ -183,7 +183,7 @@ def erow(ya, yb, lbl, key, big=None, big_span=None, big_col=(11,12), lblcol=(13,
     P(r[0], 18, r[1], 19, bi(eng, key, 0)); P(r[0], 20, r[1], 21, bi(eng, key, 1))
 
 # 사용연료 (라벨 c13-17 → 실제 사용연료는 중+소 병합; 대라벨칸 c11-12 비움)
-r = rb(1029, 1106); P(r[0],11,r[1],12,"", b=False); P(r[0],13,r[1],17,"사용연료", sz=7, b=LB)
+r = rb(1029, 1106); P(r[0],11,r[1],17,"사용연료", sz=7, b=LB)
 P(r[0],18,r[1],19, bi("val","fuel",0)); P(r[0],20,r[1],21, bi("val","fuel",1))
 # 내연기관 (대라벨 세로 c11-12, 3행)
 erow(1106,1182,"형식","ice_form", big="내연기관", big_span=(1106,1365))
@@ -202,20 +202,20 @@ erow(1783,1859,"형식","fc_form", big="연료전지", big_span=(1783,2010))
 erow(1859,1935,"개수","fc_cnt")
 erow(1935,2010,"최고출력(KW)","fc_power")
 # 하이브리드 시스템 (중+소 병합)
-r = rb(2010,2076); P(r[0],11,r[1],12,"", b=True); P(r[0],13,r[1],17,"하이브리드 시스템", sz=7, b=LB)
+r = rb(2010,2076); P(r[0],11,r[1],17,"하이브리드 시스템", sz=7, b=LB)
 P(r[0],18,r[1],19, bi(eng,"hybrid",0)); P(r[0],20,r[1],21, bi(eng,"hybrid",1))
 
 # ── 우: 27 연료소비율 (2076-2274, 항목\모드 사선 + 복합 c18 / 시가지 c19-20 / 고속 c21)
 r27 = rb(2076, 2274)
 P(r27[0], 10, r27[1], 10, "27", sz=8)
-P(r27[0], 11, r27[1], 12, "연료\n소비율", sz=7, b=LB, rot=90, wrap=True)
+P(r27[0], 11, r27[1], 15, "연료\n소비율", sz=7, b=LB, rot=90, wrap=True)
 r = rb(2076, 2141)   # 헤더행: 항목\모드
-P(r[0],13,r[1],17,"항목＼모드", sz=7, b=LB)
+P(r[0],16,r[1],17,"항목＼모드", sz=7, b=LB)
 P(r[0],18,r[1],18,"복합", sz=7, b=LB); P(r[0],19,r[1],20,"시가지", sz=7, b=LB); P(r[0],21,r[1],21,"고속", sz=7, b=LB)
 econ = d.get("econ", {})
 def econrow(ya, yb, lbl, key):
     r = rb(ya, yb); v = econ.get(key, ["","",""])
-    P(r[0],13,r[1],17,lbl, sz=6, b=LB, wrap=True)
+    P(r[0],16,r[1],17,lbl, sz=6, b=LB, wrap=True)
     P(r[0],18,r[1],18,S(v[0])); P(r[0],19,r[1],20,S(v[1])); P(r[0],21,r[1],21,S(v[2]))
 econrow(2141,2206,"연비(㎞/ℓ,㎞/kwh,km/kg)","eff")
 econrow(2206,2274,"1회충전주행거리(㎞)","range")
@@ -224,9 +224,9 @@ econrow(2206,2274,"1회충전주행거리(㎞)","range")
 def rrow2(y1, ymid, y2, num, lbl, k1lbl, k1, k2lbl, k2, sec="misc"):
     """2행 그룹: 라벨 세로병합, 소라벨 c13-17, 값 c18-19/c20-21"""
     rt = rb(y1, y2)
-    P(rt[0],10,rt[1],10,num); P(rt[0],11,rt[1],12,lbl, sz=7, b=LB, rot=90, wrap=True)
+    P(rt[0],10,rt[1],10,num); P(rt[0],11,rt[1],15,lbl, sz=7, b=LB, rot=90, wrap=True)
     for (ya,yb,sl,kk) in [(y1,ymid,k1lbl,k1),(ymid,y2,k2lbl,k2)]:
-        r = rb(ya,yb); P(r[0],13,r[1],17,sl, sz=7, b=LB)
+        r = rb(ya,yb); P(r[0],16,r[1],17,sl, sz=7, b=LB)
         P(r[0],18,r[1],19, bi(sec,kk,0)); P(r[0],20,r[1],21, bi(sec,kk,1))
 
 rrow2(2274,2351,2416,"28","윤간거리(㎜)","전","tread_f","후","tread_r","misc")
