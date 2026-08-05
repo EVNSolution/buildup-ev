@@ -261,6 +261,23 @@ model TaxConfig {
   @@map("tax_config")
 }
 
+/// 옵션DB(기준데이터) 변경 이력 — 관리자 수정 시 필드별 이전값→새값·수정자·수정일시 기록.
+model OptionDbChangeLog {
+  id         Int      @id @default(autoincrement())
+  table_name String   @db.VarChar(40) // option_price · tax_config · subsidy_local …
+  row_key    String   @db.VarChar(160) // PK 조합 (예: PV5_OPENBED|TOP_REEFER_LOW)
+  field      String   @db.VarChar(40)
+  old_value  String?  @db.VarChar(200)
+  new_value  String?  @db.VarChar(200)
+  action     String   @db.VarChar(10) // create | update | delete
+  changed_by String   @db.VarChar(120) // 수정자 이메일
+  changed_at DateTime @default(now())
+
+  @@index([table_name, row_key])
+  @@index([changed_at])
+  @@map("option_db_change_log")
+}
+
 /// 할부개월수별 연이율 (총견적서 옵션DB AF/AG). months=0 → 일시불(이율 0).
 model InstallmentRate {
   months Int     @id // 할부개월수 (0=일시불, 36, 48, 60 …)
