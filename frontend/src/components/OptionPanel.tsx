@@ -27,6 +27,9 @@ interface Props {
   onMemoChange: (v: string) => void
   promotionZeroed: Set<string>
   onTogglePromotion: (groupCode: string) => void
+  // 지방보조금 소진 시 이 견적에만 미적용(영업 재량)
+  localSubsidyOff: boolean
+  onToggleLocalSubsidy: (v: boolean) => void
 }
 
 const wonVat = (supply: number) => '₩' + Math.round(supply * 1.1).toLocaleString('ko-KR')
@@ -59,6 +62,8 @@ export function OptionPanel({
   onMemoChange,
   promotionZeroed,
   onTogglePromotion,
+  localSubsidyOff,
+  onToggleLocalSubsidy,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
   const [showPromo, setShowPromo] = useState(false)
@@ -130,6 +135,16 @@ export function OptionPanel({
       </div>
 
       <div style={styles.extra}>
+        <label style={styles.promoToggle}>
+          <input
+            type="checkbox"
+            checked={localSubsidyOff}
+            onChange={(e) => onToggleLocalSubsidy(e.target.checked)}
+            style={styles.cbox}
+          />
+          지방보조금 미적용 <span style={styles.hint}>(예산 소진 시 — 이 견적에만 적용)</span>
+        </label>
+
         <label style={styles.extraLabel}>메모 / 안내문 <span style={styles.hint}>(견적서에 그대로 표기)</span></label>
         <textarea
           style={styles.memo}

@@ -5,23 +5,26 @@ import { fetchRegions } from '../api/quotes'
 interface Props {
   onComplete: (info: CustomerInfo) => void
   onSkip: () => void
+  /** 이미 입력한 고객정보 — 다시 열었을 때 기존 값이 남아있게 한다. */
+  initial?: CustomerInfo | null
 }
 
-export function CustomerModal({ onComplete, onSkip }: Props) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
-  const [businessType, setBusinessType] = useState<CustomerInfo['business_type']>('individual')
+export function CustomerModal({ onComplete, onSkip, initial }: Props) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [email, setEmail] = useState(initial?.email ?? '')
+  const [phone, setPhone] = useState(initial?.phone ?? '')
+  const [businessType, setBusinessType] = useState<CustomerInfo['business_type']>(initial?.business_type ?? 'individual')
   const [regions, setRegions] = useState<string[]>([])
-  const [region, setRegion] = useState('')
-  const [isSmallBiz, setIsSmallBiz] = useState(false)
-  const [hasTransportLicense, setHasTransportLicense] = useState(false)
-  const [isDieselConversion, setIsDieselConversion] = useState(false)
+  const [region, setRegion] = useState(initial?.region_code ?? '')
+  const [isSmallBiz, setIsSmallBiz] = useState(initial?.is_small_business ?? false)
+  const [hasTransportLicense, setHasTransportLicense] = useState(initial?.has_transport_license ?? false)
+  const [isDieselConversion, setIsDieselConversion] = useState(initial?.is_diesel_conversion ?? false)
 
   useEffect(() => {
     fetchRegions().then(list => {
       setRegions(list)
-      if (list.length > 0) setRegion(list[0]!)
+      // 기존 선택 지역이 있으면 유지, 없을 때만 첫 항목
+      setRegion(prev => (prev && list.includes(prev) ? prev : (list[0] ?? '')))
     })
   }, [])
 
@@ -79,6 +82,7 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
             <option value="individual">개인사업자</option>
             <option value="corporate">법인사업자</option>
             <option value="simplified">간이과세자</option>
+            <option value="consumer">일반구매자 (부가세 환급 불가)</option>
           </select>
         </div>
 

@@ -42,7 +42,8 @@ export interface ModelOptionsResponse {
 
 // ── 고객 정보 ──────────────────────────────────────────────────────────
 
-export type BusinessType = 'individual' | 'corporate' | 'simplified';
+/** individual=개인사업자 · corporate=법인사업자 · simplified=간이과세자 · consumer=일반구매자(부가세 환급 불가) */
+export type BusinessType = 'individual' | 'corporate' | 'simplified' | 'consumer';
 
 export interface CustomerInfo {
   name: string;
