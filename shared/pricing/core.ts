@@ -12,9 +12,12 @@ export type {
 import type { PricingParams, PricingResult } from './types.js';
 
 export {
-  assembleOptionSum, valueUnitPrice, doorAddUnitPrice,
+  assembleOptionSum, optionBreakdown, valueUnitPrice, doorAddUnitPrice,
   TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
 } from './assemble.js';
+
+export { calcQuote, pmt } from './quote.js';
+export type { QuoteParams, QuoteResult } from './quote.js';
 
 /**
  * 영업 견적 실구매가 계산 코어 — STEGO-K1 견적서_Ver1.21 로직 재현.

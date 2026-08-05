@@ -1,9 +1,17 @@
 param_key,value,unit,memo
-acq_tax_rate,0.05,비율,차량 취득세율
+acq_tax_rate,0.05,비율,차량 취득세율(일반)
+acq_tax_rate_biz,0.04,비율,차량 취득세율(영업용 번호판)
 special_acq_tax_rate,0.02,비율,특장 취득세율
 acq_tax_relief_cap,1400000,원,취득세 감면 상한
 stamp,2000,원,증지대
 plate,28000,원,번호판대
 reg_agency,30000,원,등록대행료
-delivery_fee,179000,원,탁송료
+delivery_fee,188000,원,탁송료
 etc_fee,50000,원,등록부가수수료
+insurance,2800,원,의무보험료
+commercial_discount,700000,원,현대커머셜 할인
+partnership_rate,0.01,비율,공식 파트너십 할인율
+car_deposit,100000,원,차량 계약금
+body_deposit,400000,원,특장 계약금
+bond_discount,31648,원,공채할인액(서울+일반인)
+diesel_deduction,500000,원,경유차 전환 국고 차감액

@@ -5,25 +5,15 @@ import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import {
-  calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
+  calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
+import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 
 export const quotesRouter = Router();
 
 // ── 내부 헬퍼: DB 조회 → PricingParams 빌드 ─────────────────────────────
-
-type CustomerInput = {
-  name?: string;
-  email?: string;
-  phone?: string;
-  biz_type?: string;
-  is_sosang?: boolean;
-  region?: string;
-  has_transport_license?: boolean;  // 화물자동차 운송사업허가증
-  diesel_conversion?: boolean;      // 경유차 유지 후 전기차 전환
-};
 
 
 // ── 연도별 순차 견적번호 생성 (YY-NNNN) ─────────────────────────────────────
@@ -96,6 +86,7 @@ async function buildParams(
   };
 }
 
+
 // ── GET /quotes — 목록 (ADMIN=전체, SALES=자기 소유) ───────────────────────
 
 quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
@@ -161,6 +152,123 @@ quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promis
   }
 });
 
+// ── POST /quotes/calculate-total — 총견적서(차량/특장 분리·구매혜택·할부) 미저장 계산 ──
+
+quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed } = req.body as {
+    model_code?: string; year?: number;
+    selections?: Record<string, string>; customer?: CustomerInput;
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[];
+  };
+  if (!model_code || !selections) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
+    return;
+  }
+  try {
+    const params = await buildQuoteParams(
+      model_code, selections, customer,
+      { down_payment_rate, installment_months, promotion_zeroed },
+      year ?? new Date().getFullYear(),
+    );
+    res.json({ data: calcQuote(params) });
+  } catch (e) {
+    console.error('[POST /quotes/calculate-total]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '총견적 계산 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── GET /quotes/:id/total — 저장된 입력으로 총견적서 재계산 ──────────────
+
+quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id }, include: { customer: true } });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+    }
+    const inp = (quote.inputs ?? {}) as Record<string, unknown>;
+    const customer: CustomerInput = {
+      name: quote.customer?.name,
+      biz_type: inp['biz_type'] as string | undefined,
+      is_sosang: inp['is_sosang'] as boolean | undefined,
+      region: inp['region'] as string | undefined,
+      has_transport_license: inp['has_transport_license'] as boolean | undefined,
+      diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
+      has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
+      tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
+    };
+    const params = await buildQuoteParams(
+      quote.model_code, (quote.selections ?? {}) as Record<string, string>, customer,
+      {
+        down_payment_rate: inp['down_payment_rate'] as number | undefined,
+        installment_months: inp['installment_months'] as number | undefined,
+        promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+      },
+      quote.created_at.getFullYear(),
+    );
+    res.json({ data: {
+      quote_id: quote.id,
+      customer_name: quote.customer?.name ?? null,
+      memo: (inp['memo'] as string | undefined) ?? '',
+      total: calcQuote(params),
+    } });
+  } catch (e) {
+    console.error('[GET /quotes/:id/total]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '총견적 재계산 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── GET /quotes/installment-rates — 할부 이율표(확정 팝업 드롭다운용) ──────
+
+quotesRouter.get('/installment-rates', rbac('SALES', 'ADMIN'), async (_req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const rows = await prisma.installmentRate.findMany({ where: { active: true }, orderBy: { months: 'asc' } });
+  res.json({ data: rows.map((r) => ({ months: r.months, rate: Number(r.rate), label: r.label })) });
+});
+
+// ── PATCH /quotes/:id/inputs — 총견적서 입력 부분저장(임시저장) ───────────
+
+quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true, inputs: true } });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+    }
+    // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
+    const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo'];
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    for (const k of ALLOWED) if (k in body) patch[k] = body[k];
+    const merged = { ...((quote.inputs ?? {}) as Record<string, unknown>), ...patch };
+    await prisma.quote.update({ where: { id }, data: { inputs: merged as unknown as Prisma.InputJsonValue } });
+    res.json({ data: { ok: true } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/inputs]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '입력 저장 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── POST /quotes — 서버 재계산 + 스냅샷 저장 ─────────────────────────────
 
 quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> => {
@@ -168,9 +276,10 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, memo } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; memo?: string;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
@@ -180,6 +289,21 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   const calcYear = year ?? new Date().getFullYear();
   const params = await buildParams(model_code, selections, customer, calcYear);
   const result = calcPrice(params);
+
+  // 총견적서 입력시트 스냅샷(견적별 입력값 — 나중에 총견적서 재출력·재계산용)
+  const inputsSnapshot = {
+    biz_type: customer?.biz_type,
+    is_sosang: customer?.is_sosang,
+    region: customer?.region,
+    has_transport_license: customer?.has_transport_license,
+    diesel_conversion: customer?.diesel_conversion,
+    has_biz_plate: customer?.has_biz_plate,
+    tax_exempt_type: customer?.tax_exempt_type,
+    down_payment_rate,
+    installment_months,
+    promotion_zeroed: promotion_zeroed ?? [],  // 재량할인(0원 처리 특장옵션 그룹)
+    memo: memo ?? '',                          // 메모/안내문
+  };
 
   if (result.status === 'unsupported') {
     res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
@@ -207,6 +331,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   const baseData = {
     model_code,
     selections:    selections as unknown as Prisma.InputJsonValue,
+    inputs:        inputsSnapshot as unknown as Prisma.InputJsonValue,
     supply_price:  result.supply_price,
     final_price:   result.real_price,
     status:        'draft' as const,

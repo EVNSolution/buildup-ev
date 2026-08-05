@@ -261,6 +261,16 @@ model TaxConfig {
   @@map("tax_config")
 }
 
+/// 할부개월수별 연이율 (총견적서 옵션DB AF/AG). months=0 → 일시불(이율 0).
+model InstallmentRate {
+  months Int     @id // 할부개월수 (0=일시불, 36, 48, 60 …)
+  rate   Decimal @db.Decimal(6, 4) // 연이율 (예: 0.0660)
+  label  String? @db.VarChar(40) // 표시명(예: 일시불)
+  active Boolean @default(true)
+
+  @@map("installment_rate")
+}
+
 // 무게계산 상수 (차종기준·항목무게/위치·타이어·탑무게 수식계수). 관리자 CRUD, 숫자만 바꾸면 재계산.
 // 단일소스 = shared/bom/weight-constants.ts WEIGHT_CONSTANT_SEED. 계산은 순수함수에 주입(값 없으면 throw).
 model WeightConstant {
@@ -315,6 +325,7 @@ model Quote {
   customer_id   Int?
   model_code    String      @db.VarChar(30)
   selections    Json        @default("{}")
+  inputs        Json        @default("{}") // 총견적서 입력시트 스냅샷(구분·소상공인·지역·면세·선수금비율·할부개월수·영업용번호판 등)
   supply_price  Int?
   final_price   Int?
   status        QuoteStatus @default(draft)

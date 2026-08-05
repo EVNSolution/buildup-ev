@@ -53,6 +53,8 @@ export interface CustomerInfo {
   is_small_business: boolean;          // 소상공인
   has_transport_license: boolean;      // 화물자동차 운송사업허가증
   is_diesel_conversion: boolean;       // 경유차 유지 후 전기차 전환
+  has_biz_plate?: boolean;             // 영업용 번호판 보유 → 취득세 4% (총견적서)
+  tax_exempt_type?: string;            // 면세구분('일반인' 등) — 공채할인 판정 (총견적서)
 }
 
 // ── 견적 계산 ──────────────────────────────────────────────────────────
