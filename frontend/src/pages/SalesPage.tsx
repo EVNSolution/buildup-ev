@@ -14,6 +14,7 @@ import { CustomerModal } from '../components/CustomerModal'
 import { PdfModal } from '../components/PdfModal'
 import { ContractPanel } from '../components/ContractPanel'
 import { EmailSendModal } from '../components/EmailSendModal'
+import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
 import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
@@ -96,14 +97,18 @@ function MyListView() {
   const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [confirmQuoteModal, setConfirmQuoteModal] = useState<
+    { id: number; customerName?: string; status: string; inputs?: Record<string, unknown> } | null
+  >(null)
 
-  useEffect(() => {
+  function load() {
     setLoading(true); setErr('')
     Promise.all([fetchQuotes({}), fetchOrders({})])
       .then(([q, o]) => { setQuotes(q); setOrders(o) })
       .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
       .finally(() => setLoading(false))
-  }, [])
+  }
+  useEffect(() => { load() }, [])
 
   // order_id 빠른 조회용 (quote_id → order)
   const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
@@ -141,6 +146,16 @@ function MyListView() {
         quoteId={emailQuote.id}
         customerName={emailQuote.customerName}
         onClose={() => setEmailQuote(null)}
+      />
+    )}
+    {confirmQuoteModal && (
+      <ConfirmQuoteModal
+        quoteId={confirmQuoteModal.id}
+        customerName={confirmQuoteModal.customerName}
+        status={confirmQuoteModal.status}
+        initialInputs={confirmQuoteModal.inputs}
+        onClose={() => setConfirmQuoteModal(null)}
+        onDone={load}
       />
     )}
     <div style={lv.root}>
@@ -188,6 +203,19 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
                         <div style={{ display: 'flex', gap: 6 }}>
+                          {q.status === 'draft' ? (
+                            <button
+                              style={lv.confirmBtn}
+                              title="선수금·할부·면세 등 입력 후 견적서 확정"
+                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })}
+                            >확정</button>
+                          ) : (
+                            <button
+                              style={lv.pdfBtn}
+                              title="확정 입력값(선수금·할부·면세 등) 수정"
+                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })}
+                            >수정</button>
+                          )}
                           <button
                             style={lv.pdfBtn}
                             onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
@@ -236,6 +264,15 @@ export function SalesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [savedQuote, setSavedQuote] = useState<{ quote_id: number; pricing: PricingOk } | null>(null)
   const [saveError, setSaveError] = useState('')
+
+  // 메모/안내문 + 재량할인(0원 처리 특장옵션 그룹)
+  const [memo, setMemo] = useState('')
+  const [promotionZeroed, setPromotionZeroed] = useState<Set<string>>(new Set())
+  const togglePromotion = (group: string) => setPromotionZeroed(prev => {
+    const next = new Set(prev)
+    next.has(group) ? next.delete(group) : next.add(group)
+    return next
+  })
 
   const vivarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [vivarState, setVivarState] = useState<'loading' | 'ok' | 'fail'>('loading')
@@ -376,6 +413,8 @@ export function SalesPage() {
         model_code: 'PV5_OPENBED',
         year: new Date().getFullYear(),
         selections,
+        memo: memo || undefined,
+        promotion_zeroed: promotionZeroed.size ? [...promotionZeroed] : undefined,
         customer: customer && !skipped ? {
           name: customer.name,
           email: customer.email,
@@ -483,6 +522,10 @@ export function SalesPage() {
           saveError={saveError}
           isUnsupported={isUnsupported}
           canConvert={canConvert}
+          memo={memo}
+          onMemoChange={setMemo}
+          promotionZeroed={promotionZeroed}
+          onTogglePromotion={togglePromotion}
         />
       </div>
     </div>
@@ -596,4 +639,5 @@ const lv: Record<string, React.CSSProperties> = {
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
   pdfBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
   sendBtn: { padding: '4px 10px', border: '1px solid #b8c9e0', borderRadius: 6, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 11 },
+  confirmBtn: { padding: '4px 10px', border: '1px solid #1a1a1a', borderRadius: 6, cursor: 'pointer', background: '#1a1a1a', color: '#fff', fontWeight: 700, fontSize: 11 },
 }
