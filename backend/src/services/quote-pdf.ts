@@ -184,8 +184,10 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     footerNote: '',
   };
 
-  // 렌더: each → pad → tokens
-  let html = TEMPLATE;
+  // 렌더: (설명주석 제거) → each → pad → tokens
+  // ※ 템플릿 head 의 설명 주석에는 <!-- each:NAME --> 예시가 들어있어 그 '-->' 가 바깥 주석을
+  //    조기 종료시킨다(HTML 주석 중첩 불가) → 본문에 설명문이 새어 나오므로 렌더 전 통째로 제거.
+  let html = TEMPLATE.replace(/<!--\s*\n\s*STEGO-K1 견적서 양식[\s\S]*?\n-->/, '');
   html = renderEach(html, 'benefitRows', benefitRows);
   html = renderEach(html, 'subsidyRows', subsidyRows);
   html = renderEach(html, 'topOptions', topOptions);
