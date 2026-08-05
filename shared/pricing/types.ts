@@ -1,4 +1,5 @@
-export type BizType = 'individual' | 'corporation' | 'simplified';
+/** individual=개인사업자 · corporation=법인사업자 · simplified=간이과세자 · consumer=일반구매자(부가세 환급 불가) */
+export type BizType = 'individual' | 'corporation' | 'simplified' | 'consumer';
 
 /** 등록비·기타비 상수 (tax_config) */
 export interface TaxConfig {

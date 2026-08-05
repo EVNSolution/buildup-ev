@@ -34,6 +34,8 @@ export interface QuoteParams {
   diesel_deduction: number;     // 경유차 전환 시 국고 차감액 (500,000)
   subsidy_local: number;        // N 지역 지방보조금
   is_corporation: boolean;      // 법인사업자 → 지방보조금 0
+  local_subsidy_off?: boolean;  // 지방보조금 소진/미적용(관리자 DB 토글 또는 견적별 영업 토글) → 0
+  no_vat_refund?: boolean;      // 일반구매자(비사업자) → 부가세 환급 0원
   is_sosang: boolean;           // C4 소상공인
   sosang_rate: number;          // D17 소상공인 할인율 (국고 대비, 0.3)
   is_individual: boolean;       // 개인사업자
@@ -116,7 +118,7 @@ export function calcQuote(p: QuoteParams): QuoteResult {
   const partnership_discount = (p.car_price - p.commercial_discount) * p.partnership_rate; // D13
   const purchase_benefit = -(p.commercial_discount + partnership_discount);                // D14
   const subsidy_national = p.diesel_conversion ? p.subsidy_national - p.diesel_deduction : p.subsidy_national; // D15
-  const subsidy_local = p.is_corporation ? 0 : p.subsidy_local;                            // D16
+  const subsidy_local = p.is_corporation || p.local_subsidy_off ? 0 : p.subsidy_local;      // D16
   const subsidy_sosang = p.is_sosang ? subsidy_national * p.sosang_rate : 0;               // D17
   const subsidy_takbae = p.is_individual && p.has_transport_license ? subsidy_national * p.takbae_rate : 0; // D18
   const subsidy_total = -(subsidy_national + subsidy_local + subsidy_sosang + subsidy_takbae); // D19
@@ -147,7 +149,8 @@ export function calcQuote(p: QuoteParams): QuoteResult {
   const total_installment = car_installment + body_installment;                              // L19
   const monthly_payment = pmt(p.installment_rate / 12, p.installment_months, total_installment); // M24
   const installment_interest = monthly_payment * p.installment_months - total_installment;    // M22
-  const vat_refund_price = floor10(((car_payment + body_payment) / 11) * 10);                // M26
+  // M26 부가세 환급 시 가격 — 일반구매자(비사업자)는 환급 불가 → 0원 표기
+  const vat_refund_price = p.no_vat_refund ? 0 : floor10(((car_payment + body_payment) / 11) * 10);
 
   return {
     car_price: p.car_price, delivery_fee: p.delivery_fee, commercial_discount: p.commercial_discount,

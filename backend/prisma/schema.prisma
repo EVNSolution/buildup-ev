@@ -245,6 +245,7 @@ model SubsidyLocal {
   extra           Int?
   remaining_quota Int?
   as_of           String? @db.VarChar(20)
+  active          Boolean @default(true) // 예산 소진 시 관리자가 off → 견적에 지방보조금 미적용
 
   region_ref Region @relation(fields: [region], references: [name])
 

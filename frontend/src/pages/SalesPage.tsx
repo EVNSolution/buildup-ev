@@ -19,9 +19,10 @@ import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
-function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual' | 'corporation' | 'simplified' {
+function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual' | 'corporation' | 'simplified' | 'consumer' {
   if (bt === 'corporate') return 'corporation'
   if (bt === 'simplified') return 'simplified'
+  if (bt === 'consumer') return 'consumer'   // 일반구매자(비사업자) — 부가세 환급 불가
   return 'individual'
 }
 
@@ -266,6 +267,7 @@ export function SalesPage() {
   // 메모/안내문 + 재량할인(0원 처리 특장옵션 그룹)
   const [memo, setMemo] = useState('')
   const [promotionZeroed, setPromotionZeroed] = useState<Set<string>>(new Set())
+  const [localSubsidyOff, setLocalSubsidyOff] = useState(false)  // 지방보조금 소진 시 견적별 미적용
   const togglePromotion = (group: string) => setPromotionZeroed(prev => {
     const next = new Set(prev)
     next.has(group) ? next.delete(group) : next.add(group)
@@ -341,7 +343,8 @@ export function SalesPage() {
     if (!bundle || Object.keys(selections).length === 0) return null
 
     const price = (code: string) => bundle.option_prices[code] ?? 0
-    const { trim_price, option_sum } = assembleOptionSum(selections, price)
+    // 재량할인(프로모션) 0원 처리를 조립 단계에 반영 → 화면 가격이 실제 견적과 일치
+    const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
     const useCustomer = !skipped && customer
 
     return calcPrice({
@@ -349,7 +352,7 @@ export function SalesPage() {
       option_sum,
       subsidy: {
         national:          bundle.subsidy_national?.amount ?? 0,
-        local:             useCustomer ? subsidyLocal : 0,
+        local:             useCustomer && !localSubsidyOff ? subsidyLocal : 0,
         sosang_rate:       bundle.subsidy_national?.sosang_rate ?? 0.3,
         takbae_rate:       TAKBAE_RATE,
         diesel_conversion: DIESEL_CONVERSION_SUBSIDY,
@@ -362,7 +365,7 @@ export function SalesPage() {
         diesel_conversion:     !!useCustomer && customer.is_diesel_conversion,
       },
     })
-  }, [bundle, selections, subsidyLocal, customer, skipped])
+  }, [bundle, selections, subsidyLocal, customer, skipped, promotionZeroed, localSubsidyOff])
 
   function handleSelect(groupCode: string, valueCode: string) {
     setSelections(prev => {
@@ -413,6 +416,7 @@ export function SalesPage() {
         selections,
         memo: memo || undefined,
         promotion_zeroed: promotionZeroed.size ? [...promotionZeroed] : undefined,
+        local_subsidy_off: localSubsidyOff || undefined,
         customer: customer && !skipped ? {
           name: customer.name,
           email: customer.email,
@@ -442,7 +446,7 @@ export function SalesPage() {
   return (
     <div style={styles.root}>
       {showModal && (
-        <CustomerModal onComplete={handleCustomerComplete} onSkip={handleSkip} />
+        <CustomerModal onComplete={handleCustomerComplete} onSkip={handleSkip} initial={customer} />
       )}
 
       <Header customer={customer} onOpenCustomerModal={() => setShowModal(true)} />
@@ -502,7 +506,7 @@ export function SalesPage() {
           <PriceBar
             calc={displayCalc}
             hasCustomer={!!customer && !skipped}
-            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0) : null}
+            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
           />
         </section>
 
@@ -524,6 +528,8 @@ export function SalesPage() {
           onMemoChange={setMemo}
           promotionZeroed={promotionZeroed}
           onTogglePromotion={togglePromotion}
+          localSubsidyOff={localSubsidyOff}
+          onToggleLocalSubsidy={setLocalSubsidyOff}
         />
       </div>
     </div>

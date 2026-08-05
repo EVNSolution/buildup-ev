@@ -60,7 +60,7 @@ const TABLES: Record<string, TableDef> = {
     }),
   },
   subsidy_local: {
-    pk: ['region', 'year'], fields: ['amount', 'extra', 'remaining_quota', 'as_of'], numeric: ['amount', 'extra', 'remaining_quota'],
+    pk: ['region', 'year'], fields: ['amount', 'active', 'extra', 'remaining_quota', 'as_of'], numeric: ['amount', 'extra', 'remaining_quota'],
     list: async (q) => db().subsidyLocal.findMany({
       where: q ? { region: { contains: q, mode: 'insensitive' } } : undefined,
       orderBy: [{ year: 'desc' }, { region: 'asc' }],
@@ -68,8 +68,8 @@ const TABLES: Record<string, TableDef> = {
     find: async (k) => db().subsidyLocal.findUnique({ where: { region_year: { region: String(k['region']), year: Number(k['year']) } } }),
     upsert: async (k, d) => db().subsidyLocal.upsert({
       where: { region_year: { region: String(k['region']), year: Number(k['year']) } },
-      update: { amount: Number(d['amount']), extra: num(d['extra']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
-      create: { region: String(k['region']), year: Number(k['year']), amount: Number(d['amount']), extra: num(d['extra']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
+      update: { amount: Number(d['amount']), active: d['active'] !== false && d['active'] !== 'false', extra: num(d['extra']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
+      create: { region: String(k['region']), year: Number(k['year']), amount: Number(d['amount']), active: d['active'] !== false && d['active'] !== 'false', extra: num(d['extra']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
     }),
   },
   subsidy_national: {

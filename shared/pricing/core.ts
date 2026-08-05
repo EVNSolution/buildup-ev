@@ -59,7 +59,8 @@ export function calcPrice(p: PricingParams): PricingResult {
     subsidy_national + subsidy_local + subsidy_sosang + subsidy_diesel + subsidy_takbae;
 
   const applied_price = vehicle_price - subsidy_total;
-  const vat_refunded_price = applied_price - vat;
+  // 일반구매자(비사업자)는 부가세 환급 불가 → 환급액 0 (차감하지 않음)
+  const vat_refunded_price = c.biz_type === 'consumer' ? applied_price : applied_price - vat;
 
   // 등록비 ③ (의무보험료는 현재 합산 제외)
   const reg_acq_tax =

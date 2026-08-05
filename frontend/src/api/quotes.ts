@@ -7,11 +7,12 @@ export interface SaveQuoteRequest {
   selections: Record<string, string>
   memo?: string                     // 메모/안내문
   promotion_zeroed?: string[]       // 재량할인: 0원 처리 특장옵션 그룹코드
+  local_subsidy_off?: boolean       // 지방보조금 미적용(예산 소진 — 이 견적에만)
   customer?: {
     name?: string
     email?: string
     phone?: string
-    biz_type: 'individual' | 'corporation' | 'simplified'
+    biz_type: 'individual' | 'corporation' | 'simplified' | 'consumer'
     is_sosang: boolean
     region?: string
     has_transport_license?: boolean

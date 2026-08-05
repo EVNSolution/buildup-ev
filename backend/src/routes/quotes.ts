@@ -33,6 +33,7 @@ async function buildParams(
   selections: Record<string, string>,
   customer: CustomerInput | undefined,
   calcYear: number,
+  extra?: { promotion_zeroed?: string[]; local_subsidy_off?: boolean },
 ): Promise<PricingParams> {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
 
@@ -53,16 +54,20 @@ async function buildParams(
   for (const t of taxRows) taxMap[t.param_key] = Number(t.value);
 
   // 특장 옵션 합계 = 옵션DB 복합키(탑 높이 종속) 단가 합 (견적서 D13, D15:D20). 조립은 shared 공용.
-  const { trim_price, option_sum } = assembleOptionSum(selections, price);
+  // 재량할인(프로모션)은 조립 단계에서 0원 처리 → 공급가·부가세·취득세·실구매가에 모두 반영된다.
+  const { trim_price, option_sum } = assembleOptionSum(selections, price, extra?.promotion_zeroed ?? []);
 
-  const bizType = (customer?.biz_type ?? 'individual') as 'individual' | 'corporation' | 'simplified';
+  const bizType = (customer?.biz_type ?? 'individual') as
+    'individual' | 'corporation' | 'simplified' | 'consumer';
+  // 지방보조금 미적용: 관리자 DB 토글(active=false) 또는 견적별 영업 토글
+  const localOff = extra?.local_subsidy_off === true || subsidyLoc?.active === false;
 
   return {
     trim_price,
     option_sum,
     subsidy: {
       national:          subsidyNat?.amount ?? 0,
-      local:             subsidyLoc?.amount ?? 0,
+      local:             localOff ? 0 : (subsidyLoc?.amount ?? 0),
       sosang_rate:       subsidyNat?.sosang_rate ? Number(subsidyNat.sosang_rate) : 0.3,
       takbae_rate:       TAKBAE_RATE,
       diesel_conversion: DIESEL_CONVERSION_SUBSIDY,
@@ -130,16 +135,17 @@ quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promis
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer } = req.body as {
+  const { model_code, year, selections, customer, promotion_zeroed, local_subsidy_off } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
+    promotion_zeroed?: string[]; local_subsidy_off?: boolean;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
   try {
-    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear());
+    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear(), { promotion_zeroed, local_subsidy_off });
     const result = calcPrice(params);
     if (result.status === 'unsupported') {
       res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
@@ -159,10 +165,10 @@ quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Reques
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, local_subsidy_off } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
-    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[];
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; local_subsidy_off?: boolean;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
@@ -171,7 +177,7 @@ quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Reques
   try {
     const params = await buildQuoteParams(
       model_code, selections, customer,
-      { down_payment_rate, installment_months, promotion_zeroed },
+      { down_payment_rate, installment_months, promotion_zeroed, local_subsidy_off },
       year ?? new Date().getFullYear(),
     );
     res.json({ data: calcQuote(params) });
@@ -213,6 +219,7 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
         down_payment_rate: inp['down_payment_rate'] as number | undefined,
         installment_months: inp['installment_months'] as number | undefined,
         promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+        local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
       },
       quote.created_at.getFullYear(),
     );
@@ -256,7 +263,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
-      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo'];
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off'];
     const body = (req.body ?? {}) as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
     for (const k of ALLOWED) if (k in body) patch[k] = body[k];
@@ -276,10 +283,10 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, memo } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, memo, local_subsidy_off } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
-    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; memo?: string;
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; memo?: string; local_subsidy_off?: boolean;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
@@ -287,7 +294,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   }
 
   const calcYear = year ?? new Date().getFullYear();
-  const params = await buildParams(model_code, selections, customer, calcYear);
+  const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, local_subsidy_off });
   const result = calcPrice(params);
 
   // 총견적서 입력시트 스냅샷(견적별 입력값 — 나중에 총견적서 재출력·재계산용)
@@ -302,6 +309,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     down_payment_rate,
     installment_months,
     promotion_zeroed: promotion_zeroed ?? [],  // 재량할인(0원 처리 특장옵션 그룹)
+    local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)
     memo: memo ?? '',                          // 메모/안내문
   };
 

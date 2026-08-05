@@ -5,7 +5,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import {
-  assembleOptionSum, optionBreakdown, TAKBAE_RATE, type QuoteParams,
+  assembleOptionSum, TAKBAE_RATE, type QuoteParams,
 } from '@buildup-ev/shared/pricing';
 
 export type CustomerInput = {
@@ -26,6 +26,7 @@ export type QuoteExtraInput = {
   down_payment_rate?: number;    // 선수금 비율 (0~1)
   installment_months?: number;   // 할부개월수 (0=일시불)
   promotion_zeroed?: string[];   // 영업 재량할인: 0원 처리할 특장옵션 그룹코드(TOP/DOORTYPE/…)
+  local_subsidy_off?: boolean;   // 견적별 지방보조금 미적용(영업 토글)
 };
 
 export async function buildQuoteParams(
@@ -54,13 +55,14 @@ export async function buildQuoteParams(
   const taxMap: Record<string, number> = {};
   for (const t of taxRows) taxMap[t.param_key] = Number(t.value);
 
-  const { trim_price, option_sum } = assembleOptionSum(selections, price);
-  const bizType = (customer?.biz_type ?? 'individual') as 'individual' | 'corporation' | 'simplified';
+  // 재량할인(프로모션)은 단가 조립 단계에서 0원 처리 — 특장가격·취득세·총액이 모두 자동 반영된다.
+  const zeroed = extra?.promotion_zeroed ?? [];
+  const { trim_price, option_sum } = assembleOptionSum(selections, price, zeroed);
+  const bizType = (customer?.biz_type ?? 'individual') as
+    'individual' | 'corporation' | 'simplified' | 'consumer';
 
-  // 재량할인(프로모션): 0원 처리 특장옵션 그룹의 공급단가 합 → VAT포함 = 프로모션(I18)
-  const breakdown = optionBreakdown(selections, price);
-  const promoSupply = (extra?.promotion_zeroed ?? [])
-    .reduce((sum, group) => sum + (breakdown[group] ?? 0), 0);
+  // 지방보조금 미적용: 관리자 DB 토글(subsidy_local.active=false) 또는 견적별 영업 토글
+  const localOff = extra?.local_subsidy_off === true || subsidyLoc?.active === false;
 
   return {
     car_price: Math.round(trim_price * 1.1),   // D10 VAT포함
@@ -72,13 +74,15 @@ export async function buildQuoteParams(
     diesel_deduction: taxMap['diesel_deduction'] ?? 500_000,
     subsidy_local: subsidyLoc?.amount ?? 0,
     is_corporation: bizType === 'corporation',
+    local_subsidy_off: localOff,
+    no_vat_refund: bizType === 'consumer',
     is_sosang: customer?.is_sosang ?? false,
     sosang_rate: subsidyNat?.sosang_rate ? Number(subsidyNat.sosang_rate) : 0.3,
     is_individual: bizType === 'individual',
     has_transport_license: customer?.has_transport_license ?? false,
     takbae_rate: TAKBAE_RATE,
-    body_price: Math.round(option_sum * 1.1),  // I16 VAT포함
-    promotion: Math.round(promoSupply * 1.1),  // I18 재량할인(0원 처리 항목 합, VAT포함)
+    body_price: Math.round(option_sum * 1.1),  // I16 VAT포함(재량할인 반영된 합계)
+    promotion: 0,                              // I18 — 할인은 옵션 단가 0원으로 이미 반영됨
     car_deposit: taxMap['car_deposit'] ?? 100_000,
     body_deposit: taxMap['body_deposit'] ?? 400_000,
     down_payment_rate: extra?.down_payment_rate ?? 0,

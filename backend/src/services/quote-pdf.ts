@@ -27,7 +27,7 @@ const BODYTYPE_DISP: Record<string, string> = { BODY_REEFER: '냉장/냉동', BO
 const TOP_DISP: Record<string, string> = { TOP_LOW: '저상', TOP_STD: '표준' };
 const DOOR_DISP: Record<string, string> = { DOOR_SWING: '여닫이', DOOR_SLIDE: '슬라이딩', DOOR_EVSLIDE: 'EV미닫이', DOOR_COUPANG: '미닫이', DOOR_FOLD: '양문미닫이' };
 const PART_DISP: Record<string, string> = { PART_NET: '그물망', PART_REEFER: '냉장/냉동 이동식', PART_NONE: 'X' };
-const BIZ_DISP: Record<string, string> = { individual: '개인사업자', corporation: '법인사업자', simplified: '간이과세자' };
+const BIZ_DISP: Record<string, string> = { individual: '개인사업자', corporation: '법인사업자', simplified: '간이과세자', consumer: '일반구매자' };
 const ox = (on: boolean) => (on ? 'O' : 'X');
 
 // ── 포맷 ──
@@ -109,11 +109,14 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     down_payment_rate: inp['down_payment_rate'] as number | undefined,
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+    local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
   }, quote.created_at.getFullYear());
   const r = calcQuote(params);
 
   // 특장옵션 행(라벨=표기매핑, 금액=옵션별 VAT포함)
-  const bd = optionBreakdown(selections, (c) => priceMap.get(c) ?? 0);
+  // 재량할인(프로모션)으로 0원 처리된 옵션은 견적서 개별 행도 0원으로 표기된다.
+  const zeroed = (inp['promotion_zeroed'] as string[] | undefined) ?? [];
+  const bd = optionBreakdown(selections, (c) => priceMap.get(c) ?? 0, zeroed);
   const vatInc = (supply: number) => Math.round(supply * 1.1);
   const bodyDisp = BODYTYPE_DISP[selections['BODYTYPE'] ?? ''] ?? '';
   const topDisp = TOP_DISP[selections['TOP'] ?? ''] ?? '';

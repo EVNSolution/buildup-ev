@@ -55,13 +55,14 @@ export function doorAddUnitPrice(
 export function optionBreakdown(
   sel: Record<string, string>,
   price: (code: string) => number,
+  zeroed?: readonly string[],
 ): Record<string, number> {
   const body = BODY[sel['BODYTYPE'] ?? ''] ?? '';
   const top  = TOP[sel['TOP'] ?? ''] ?? '';
   const door = DOOR[sel['DOORTYPE'] ?? ''] ?? '';
   const partKind = PART[sel['PARTITION'] ?? ''] ?? '';
 
-  return {
+  const bd: Record<string, number> = {
     TOP:       body && top ? price(`TOP_${body}_${top}`) : 0,                    // 탑 D15
     SPOILER:   sel['SPOILER'] === 'SPOILER_O' && top ? price(`SPL_${top}`) : 0,  // 스포일러 D16
     DOORTYPE:  body && top && door ? price(`DOPT_${body}_${top}_${door}`) : 0,   // 도어옵션 D17
@@ -70,14 +71,21 @@ export function optionBreakdown(
     TEMP:      sel['TEMP'] === 'TEMP_O' ? price('TEMP_O') : 0,                   // 온도기록계 D19
     PARTITION: partKind && top ? price(`PART_${top}_${partKind}`) : 0,          // 격벽 D20
   };
+  // 영업 재량할인(프로모션): 선택은 유지하되 가격만 0 — 모든 계산·표시 경로가 이 결과를 공유한다.
+  for (const g of zeroed ?? []) if (g in bd) bd[g] = 0;
+  return bd;
 }
 
-/** selections + 가격조회함수 → { trim_price, option_sum } (견적서 D13, D15:D20) */
+/**
+ * selections + 가격조회함수 → { trim_price, option_sum } (견적서 D13, D15:D20)
+ * zeroed = 재량할인으로 0원 처리할 옵션그룹코드(TOP/DOORTYPE/…).
+ */
 export function assembleOptionSum(
   sel: Record<string, string>,
   price: (code: string) => number,
+  zeroed?: readonly string[],
 ): { trim_price: number; option_sum: number } {
-  const bd = optionBreakdown(sel, price);
+  const bd = optionBreakdown(sel, price, zeroed);
   return {
     trim_price: price(sel['TRIM'] ?? ''),
     option_sum: Object.values(bd).reduce((a, b) => a + b, 0),
