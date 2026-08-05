@@ -325,6 +325,7 @@ model Quote {
   customer_id   Int?
   model_code    String      @db.VarChar(30)
   selections    Json        @default("{}")
+  inputs        Json        @default("{}") // 총견적서 입력시트 스냅샷(구분·소상공인·지역·면세·선수금비율·할부개월수·영업용번호판 등)
   supply_price  Int?
   final_price   Int?
   status        QuoteStatus @default(draft)
