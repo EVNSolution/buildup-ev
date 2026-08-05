@@ -68,15 +68,16 @@ export function OptionPanel({
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
   const [showPromo, setShowPromo] = useState(false)
 
-  // 재량할인 대상: 가격이 있는 특장옵션(그룹별 단가 분해). label = 그룹명 + 선택값명.
+  // 재량할인 대상: 가격이 있는 **선택 옵션**만(필수 옵션은 제외 — 탑/도어 등 기본 사양).
   const breakdown = optionBreakdown(selections, (c) => optionPrices[c] ?? 0)
   const zeroable = (Object.entries(breakdown) as [string, number][])
     .filter(([, v]) => v > 0)
     .map(([group, supply]) => {
       const g = bundle.groups.find((x) => x.code === group)
       const val = g?.values.find((v) => v.code === selections[group])
-      return { group, supply, label: g?.name ?? group, value: val?.name ?? '' }
+      return { group, supply, required: g?.required ?? false, label: g?.name ?? group, value: val?.name ?? '' }
     })
+    .filter((z) => !z.required)
 
   const btnLabel = isSaving
     ? '저장 중…'
@@ -156,12 +157,12 @@ export function OptionPanel({
 
         <label style={styles.promoToggle}>
           <input type="checkbox" checked={showPromo} onChange={(e) => setShowPromo(e.target.checked)} style={styles.cbox} />
-          프로모션 (영업 재량할인 — 선택 옵션 0원 처리)
+          프로모션 (영업 재량할인 — 선택 옵션 0원 처리, 필수 사양 제외)
         </label>
         {showPromo && (
           <div style={styles.promoList}>
             {zeroable.length === 0
-              ? <div style={styles.promoEmpty}>가격이 있는 특장옵션이 없습니다.</div>
+              ? <div style={styles.promoEmpty}>할인 가능한 선택 옵션이 없습니다. (필수 사양은 제외)</div>
               : zeroable.map((z) => (
                 <label key={z.group} style={styles.promoItem}>
                   <input
