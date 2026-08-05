@@ -50,7 +50,6 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
           <label style={styles.label}>고객명</label>
           <input
             type="text"
-            placeholder="예: 범석환"
             value={name}
             onChange={e => setName(e.target.value)}
           />
@@ -60,7 +59,6 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
           <label style={styles.label}>이메일 <span style={styles.optional}>(선택 · 견적서 발송 시 사용)</span></label>
           <input
             type="email"
-            placeholder="customer@example.com"
             value={email}
             onChange={e => setEmail(e.target.value)}
           />
@@ -70,7 +68,6 @@ export function CustomerModal({ onComplete, onSkip }: Props) {
           <label style={styles.label}>연락처 <span style={styles.optional}>(선택)</span></label>
           <input
             type="tel"
-            placeholder="010-0000-0000"
             value={phone}
             onChange={e => setPhone(e.target.value)}
           />

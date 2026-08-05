@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, type InstallmentRateOption } from '../api/quotes'
 
 /**
- * 견적서 확정 팝업 — 총견적서 입력시트의 추가 입력(선수금비율·할부개월수·면세구분·영업용번호판).
- * 임시저장(입력만 저장, 상태 유지) / 확정(입력 저장 + draft→confirmed + 견적서 생성).
- * 확정 이후(수정 모드)엔 '저장'만 노출.
+ * 견적서 생성 팝업 — 총견적서 입력시트의 추가 입력(선수금비율·할부개월수·면세구분·영업용번호판).
+ * '견적서 생성' = 입력 저장 + draft→confirmed → 이후 '견적서' 버튼에서 PDF 조회 가능.
+ * 생성 이후(수정 모드)엔 '저장'만 노출.
  */
 interface Props {
   quoteId: number
@@ -28,7 +28,6 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
   const [bizPlate, setBizPlate] = useState<boolean>((init['has_biz_plate'] as boolean) ?? false)
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
 
   useEffect(() => { fetchInstallmentRates().then(setRates).catch(() => {}) }, [])
@@ -42,20 +41,13 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
     }
   }
 
-  async function handleTempSave() {
-    setBusy(true); setErr(''); setMsg('')
-    try { await saveQuoteInputs(quoteId, payload()); setMsg('임시저장되었습니다.'); onDone() }
-    catch (e) { setErr(e instanceof Error ? e.message : '저장 실패') }
-    finally { setBusy(false) }
-  }
-
   async function handleConfirm() {
-    setBusy(true); setErr(''); setMsg('')
+    setBusy(true); setErr('')
     try {
       await saveQuoteInputs(quoteId, payload())
       if (!isConfirmed) await confirmQuote(quoteId)
       onDone(); onClose()
-    } catch (e) { setErr(e instanceof Error ? e.message : '확정 실패') }
+    } catch (e) { setErr(e instanceof Error ? e.message : '견적서 생성 실패') }
     finally { setBusy(false) }
   }
 
@@ -63,14 +55,14 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
     <div style={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div style={s.box}>
         <div style={s.head}>
-          <span style={s.title}>{isConfirmed ? '견적 입력 수정' : '견적서 확정'}{customerName ? ` — ${customerName}` : ''}</span>
+          <span style={s.title}>{isConfirmed ? '견적 입력 수정' : '견적서 생성'}{customerName ? ` — ${customerName}` : ''}</span>
           <button style={s.close} onClick={onClose}>✕</button>
         </div>
 
         <div style={s.form}>
           <label style={s.label}>선수금 비율 <span style={s.unit}>(%)</span></label>
           <input style={s.input} type="number" min={0} max={100} step={1} value={downPct}
-            onChange={(e) => setDownPct(e.target.value)} placeholder="예: 30" />
+            onChange={(e) => setDownPct(e.target.value)} />
 
           <label style={s.label}>할부 개월수 <span style={s.unit}>(개월 · 이율)</span></label>
           <select style={s.input} value={months} onChange={(e) => setMonths(Number(e.target.value))}>
@@ -94,16 +86,16 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
             영업용 번호판 보유 <span style={s.unit}>(취득세 4% 적용)</span>
           </label>
 
-          <div style={s.note}>※ 확정 시 견적서가 생성됩니다. 확정 후에도 '수정'으로 값을 변경할 수 있습니다.</div>
-          {msg && <div style={s.ok}>✓ {msg}</div>}
+          <div style={s.note}>
+            {isConfirmed
+              ? '※ 저장하면 견적서에 즉시 반영됩니다.'
+              : '※ 생성하면 이후 «견적서» 버튼에서 바로 열람할 수 있습니다. 생성 후에도 «수정»으로 값을 변경할 수 있습니다.'}
+          </div>
           {err && <div style={s.err}>{err}</div>}
 
           <div style={s.btnRow}>
-            {!isConfirmed && (
-              <button style={s.secondary} onClick={handleTempSave} disabled={busy}>임시저장</button>
-            )}
             <button style={s.primary} onClick={handleConfirm} disabled={busy}>
-              {busy ? '처리 중…' : isConfirmed ? '저장' : '확정 (견적서 생성)'}
+              {busy ? '처리 중…' : isConfirmed ? '저장' : '견적서 생성'}
             </button>
           </div>
         </div>

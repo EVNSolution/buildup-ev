@@ -17,8 +17,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
       <div style={styles.row}>
         <label style={styles.label}>차종</label>
         <select>
-          <option>PV5 오픈베드</option>
-          <option disabled>STEGO-K (예정)</option>
+          <option>STEGO-K</option>
         </select>
       </div>
 

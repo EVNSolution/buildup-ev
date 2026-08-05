@@ -203,22 +203,20 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          {q.status === 'draft' ? (
-                            <button
-                              style={lv.confirmBtn}
-                              title="선수금·할부·면세 등 입력 후 견적서 확정"
-                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })}
-                            >확정</button>
-                          ) : (
+                          {/* 견적서 생성 전(draft) = 견적서 버튼 → 입력 팝업 / 생성 후 = PDF 열람 + 수정 버튼 */}
+                          {q.status !== 'draft' && (
                             <button
                               style={lv.pdfBtn}
-                              title="확정 입력값(선수금·할부·면세 등) 수정"
+                              title="견적서 입력값(선수금·할부·면세 등) 수정"
                               onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })}
                             >수정</button>
                           )}
                           <button
-                            style={lv.pdfBtn}
-                            onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                            style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
+                            title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
+                            onClick={() => q.status === 'draft'
+                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
+                              : setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                           >견적서</button>
                           <button
                             style={lv.pdfBtn}
