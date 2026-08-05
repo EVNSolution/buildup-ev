@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import {
-  calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
+  calcPrice, calcQuote, assembleOptionSum, optionBreakdown, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   type PricingParams, type QuoteParams,
 } from '@buildup-ev/shared/pricing';
 import type { Prisma, QuoteStatus } from '@prisma/client';
@@ -27,10 +27,11 @@ type CustomerInput = {
   tax_exempt_type?: string;         // 면세구분 ('일반인' 등) — 공채할인 판정
 };
 
-/** 총견적서 견적단위 입력(선수금 비율·할부개월수). */
+/** 총견적서 견적단위 입력(선수금 비율·할부개월수·재량할인). */
 type QuoteExtraInput = {
-  down_payment_rate?: number;   // 선수금 비율 (0~1)
-  installment_months?: number;  // 할부개월수 (0=일시불)
+  down_payment_rate?: number;    // 선수금 비율 (0~1)
+  installment_months?: number;   // 할부개월수 (0=일시불)
+  promotion_zeroed?: string[];   // 영업 재량할인: 0원 처리할 특장옵션 그룹코드(TOP/DOORTYPE/…)
 };
 
 
@@ -137,6 +138,11 @@ async function buildQuoteParams(
   const { trim_price, option_sum } = assembleOptionSum(selections, price);
   const bizType = (customer?.biz_type ?? 'individual') as 'individual' | 'corporation' | 'simplified';
 
+  // 재량할인(프로모션): 0원 처리 특장옵션 그룹의 공급단가 합 → VAT포함 = 프로모션(I18)
+  const breakdown = optionBreakdown(selections, price);
+  const promoSupply = (extra?.promotion_zeroed ?? [])
+    .reduce((sum, group) => sum + (breakdown[group] ?? 0), 0);
+
   return {
     car_price: Math.round(trim_price * 1.1),   // D10 VAT포함
     delivery_fee: taxMap['delivery_fee'] ?? 188_000,
@@ -153,7 +159,7 @@ async function buildQuoteParams(
     has_transport_license: customer?.has_transport_license ?? false,
     takbae_rate: TAKBAE_RATE,
     body_price: Math.round(option_sum * 1.1),  // I16 VAT포함
-    promotion: 0,
+    promotion: Math.round(promoSupply * 1.1),  // I18 재량할인(0원 처리 항목 합, VAT포함)
     car_deposit: taxMap['car_deposit'] ?? 100_000,
     body_deposit: taxMap['body_deposit'] ?? 400_000,
     down_payment_rate: extra?.down_payment_rate ?? 0,
@@ -246,10 +252,10 @@ quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Reques
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
-    down_payment_rate?: number; installment_months?: number;
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[];
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
@@ -258,7 +264,7 @@ quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Reques
   try {
     const params = await buildQuoteParams(
       model_code, selections, customer,
-      { down_payment_rate, installment_months },
+      { down_payment_rate, installment_months, promotion_zeroed },
       year ?? new Date().getFullYear(),
     );
     res.json({ data: calcQuote(params) });
@@ -296,13 +302,63 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
     };
     const params = await buildQuoteParams(
       quote.model_code, (quote.selections ?? {}) as Record<string, string>, customer,
-      { down_payment_rate: inp['down_payment_rate'] as number | undefined, installment_months: inp['installment_months'] as number | undefined },
+      {
+        down_payment_rate: inp['down_payment_rate'] as number | undefined,
+        installment_months: inp['installment_months'] as number | undefined,
+        promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+      },
       quote.created_at.getFullYear(),
     );
-    res.json({ data: { quote_id: quote.id, customer_name: quote.customer?.name ?? null, total: calcQuote(params) } });
+    res.json({ data: {
+      quote_id: quote.id,
+      customer_name: quote.customer?.name ?? null,
+      memo: (inp['memo'] as string | undefined) ?? '',
+      total: calcQuote(params),
+    } });
   } catch (e) {
     console.error('[GET /quotes/:id/total]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '총견적 재계산 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── GET /quotes/installment-rates — 할부 이율표(확정 팝업 드롭다운용) ──────
+
+quotesRouter.get('/installment-rates', rbac('SALES', 'ADMIN'), async (_req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const rows = await prisma.installmentRate.findMany({ where: { active: true }, orderBy: { months: 'asc' } });
+  res.json({ data: rows.map((r) => ({ months: r.months, rate: Number(r.rate), label: r.label })) });
+});
+
+// ── PATCH /quotes/:id/inputs — 총견적서 입력 부분저장(임시저장) ───────────
+
+quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true, inputs: true } });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+    }
+    // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
+    const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo'];
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    for (const k of ALLOWED) if (k in body) patch[k] = body[k];
+    const merged = { ...((quote.inputs ?? {}) as Record<string, unknown>), ...patch };
+    await prisma.quote.update({ where: { id }, data: { inputs: merged as unknown as Prisma.InputJsonValue } });
+    res.json({ data: { ok: true } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/inputs]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '입력 저장 중 오류가 발생했습니다.' } });
   }
 });
 
@@ -313,10 +369,10 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, memo } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
-    down_payment_rate?: number; installment_months?: number;
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; memo?: string;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
@@ -338,6 +394,8 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     tax_exempt_type: customer?.tax_exempt_type,
     down_payment_rate,
     installment_months,
+    promotion_zeroed: promotion_zeroed ?? [],  // 재량할인(0원 처리 특장옵션 그룹)
+    memo: memo ?? '',                          // 메모/안내문
   };
 
   if (result.status === 'unsupported') {

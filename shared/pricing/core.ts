@@ -12,7 +12,7 @@ export type {
 import type { PricingParams, PricingResult } from './types.js';
 
 export {
-  assembleOptionSum, valueUnitPrice, doorAddUnitPrice,
+  assembleOptionSum, optionBreakdown, valueUnitPrice, doorAddUnitPrice,
   TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
 } from './assemble.js';
 

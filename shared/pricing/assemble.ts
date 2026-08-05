@@ -47,26 +47,39 @@ export function doorAddUnitPrice(
   return body && top && d ? price(`DADD_${body}_${top}_${d}`) : 0;
 }
 
-/** selections + 가격조회함수 → { trim_price, option_sum } (견적서 D13, D15:D20) */
-export function assembleOptionSum(
+/**
+ * 특장 옵션 그룹별 '자체 공급단가' 분해 (견적서 D15:D20). 부가세 별도.
+ * assembleOptionSum(합계) + 프로모션(0원 처리 항목) 계산이 공유.
+ * key = 옵션그룹코드(TOP/SPOILER/DOORTYPE/DOORADD/TEMP/PARTITION).
+ */
+export function optionBreakdown(
   sel: Record<string, string>,
   price: (code: string) => number,
-): { trim_price: number; option_sum: number } {
+): Record<string, number> {
   const body = BODY[sel['BODYTYPE'] ?? ''] ?? '';
   const top  = TOP[sel['TOP'] ?? ''] ?? '';
   const door = DOOR[sel['DOORTYPE'] ?? ''] ?? '';
   const partKind = PART[sel['PARTITION'] ?? ''] ?? '';
 
-  const topPrice  = body && top ? price(`TOP_${body}_${top}`) : 0;                  // 탑 D15
-  const doorOpt   = body && top && door ? price(`DOPT_${body}_${top}_${door}`) : 0; // 도어옵션 D17
-  const doorAdd   = sel['DOORADD'] === 'ADD_DRIVER' && body && top && door
-    ? price(`DADD_${body}_${top}_${door}`) : 0;                                     // 도어추가 D18
-  const spoiler   = sel['SPOILER'] === 'SPOILER_O' && top ? price(`SPL_${top}`) : 0; // 스포일러 D16
-  const partition = partKind && top ? price(`PART_${top}_${partKind}`) : 0;         // 격벽 D20
-  const temp      = sel['TEMP'] === 'TEMP_O' ? price('TEMP_O') : 0;                  // 온도기록계 D19
+  return {
+    TOP:       body && top ? price(`TOP_${body}_${top}`) : 0,                    // 탑 D15
+    SPOILER:   sel['SPOILER'] === 'SPOILER_O' && top ? price(`SPL_${top}`) : 0,  // 스포일러 D16
+    DOORTYPE:  body && top && door ? price(`DOPT_${body}_${top}_${door}`) : 0,   // 도어옵션 D17
+    DOORADD:   sel['DOORADD'] === 'ADD_DRIVER' && body && top && door
+      ? price(`DADD_${body}_${top}_${door}`) : 0,                               // 도어추가 D18
+    TEMP:      sel['TEMP'] === 'TEMP_O' ? price('TEMP_O') : 0,                   // 온도기록계 D19
+    PARTITION: partKind && top ? price(`PART_${top}_${partKind}`) : 0,          // 격벽 D20
+  };
+}
 
+/** selections + 가격조회함수 → { trim_price, option_sum } (견적서 D13, D15:D20) */
+export function assembleOptionSum(
+  sel: Record<string, string>,
+  price: (code: string) => number,
+): { trim_price: number; option_sum: number } {
+  const bd = optionBreakdown(sel, price);
   return {
     trim_price: price(sel['TRIM'] ?? ''),
-    option_sum: topPrice + doorOpt + doorAdd + spoiler + partition + temp,
+    option_sum: Object.values(bd).reduce((a, b) => a + b, 0),
   };
 }
