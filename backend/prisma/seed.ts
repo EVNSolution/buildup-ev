@@ -282,6 +282,20 @@ async function main() {
     console.log(`  tax_config: ${taxes.length}`);
   }
 
+  // ── installment_rate (할부개월수별 이율 — 총견적서 옵션DB AF/AG) ──────────
+  const irs = csv('installment_rate.csv').map(r => ({
+    months: num(r['months']) ?? 0,
+    rate:   r['rate']!,
+    label:  opt(r['label']),
+    active: r['active'] !== 'N',
+  }));
+  if (irs.length) {
+    for (const ir of irs) {
+      await prisma.installmentRate.upsert({ where: { months: ir.months }, update: ir, create: ir });
+    }
+    console.log(`  installment_rate: ${irs.length}`);
+  }
+
   // ── tire (2,356행 — createMany bulk) ─────────────────────────────────
   const tires = csv('tire.csv').map(r => ({
     spec:              r['spec']!,
