@@ -73,7 +73,14 @@ function renderTokens(tpl: string, data: Record<string, unknown>): string {
 export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult> {
   if (!prisma) throw new QuotePdfError('DB 연결 필요', 'DB_UNAVAILABLE');
 
-  const quote = await prisma.quote.findUnique({ where: { id: quoteId }, include: { customer: true } });
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: {
+      customer: true,
+      model: { select: { name: true } },
+      sales_user: { select: { name: true, email: true } },
+    },
+  });
   if (!quote) throw new QuotePdfError('견적을 찾을 수 없습니다', 'NOT_FOUND');
 
   const selections = (quote.selections ?? {}) as Record<string, string>;
@@ -146,12 +153,18 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     `도어옵션 = ${doorDisp}`, `도어추가 = ${ox(doorAddOn)}`, `온도기록계 = ${ox(tempOn)}`, `격벽 = ${partDisp}`,
   ].join(' · ');
 
+  // 차종명은 DB(vehicle_model.name) 기준 — 하드코딩 금지. 견적담당 = 계정 이름 + 이메일.
+  const modelName = quote.model?.name ?? quote.model_code;
+  const salesRep = quote.sales_user
+    ? `${quote.sales_user.name} (${quote.sales_user.email})`
+    : (quote.sales_user_id ?? '');
+
   const data = {
-    vehicleModel: 'STEGO-K1',
+    vehicleModel: modelName,
     workDate: quote.created_at.toISOString().slice(0, 10),
-    salesRep: quote.sales_user_id ?? '',
+    salesRep,
     customerName: quote.customer?.name ?? '',
-    modelSubtitle: `STEGO-K1 : PV5 ${trimName} ${bodyDisp}탑차 – ${topDisp}`,
+    modelSubtitle: `${modelName} : PV5 ${trimName} ${bodyDisp}탑차 – ${topDisp}`,
     optionSummary,
     car: {
       price: won(r.car_price), deliveryFee: won(r.delivery_fee),
