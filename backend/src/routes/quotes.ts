@@ -491,7 +491,11 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
         return;
       }
-      await prisma.quote.delete({ where: { id } });
+      // 계약(purchase_contract)이 견적을 FK 참조 → 먼저 지워야 quote 삭제가 가능
+      await prisma.$transaction(async (tx) => {
+        await tx.purchaseContract.deleteMany({ where: { quote_id: id } });
+        await tx.quote.delete({ where: { id } });
+      });
       res.json({ data: { ok: true } });
       return;
     }
@@ -514,6 +518,8 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
           await tx.orderOption.deleteMany({ where: { order_id: order.id } });
           await tx.order.delete({ where: { id: order.id } });
         }
+        // 계약(purchase_contract)도 견적을 FK 참조 → quote 삭제 전에 정리
+        await tx.purchaseContract.deleteMany({ where: { quote_id: id } });
         await tx.quote.delete({ where: { id } });
       });
       // DB 커밋 성공 후 미리 확보한 경로로 실제 PDF 파일 정리. 파일 삭제 실패는 무시(로그만).
