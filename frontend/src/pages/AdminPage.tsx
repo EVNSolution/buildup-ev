@@ -9,6 +9,7 @@ import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { PdfModal } from '../components/PdfModal'
+import { OptionDbTab } from '../components/OptionDbTab'
 import { Tooltip } from '../components/Tooltip'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -61,7 +62,7 @@ const MODULE_DESC: Record<string, string> = {
   'admin.modules': '기능 모듈 ON/OFF 제어',
   'document.generate': '구조변경 서류 자동 생성',
 }
-type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts' | 'weights'
+type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -814,6 +815,7 @@ export function AdminPage() {
     { key: 'toggles',  label: '기능모듈' },
     { key: 'accounts', label: '계정 관리' },
     { key: 'weights',  label: '무게상수' },
+    { key: 'optiondb', label: '옵션DB' },
   ]
 
   return (
@@ -894,6 +896,7 @@ export function AdminPage() {
 
         {activeTab === 'accounts' && <AccountsTab />}
         {activeTab === 'weights' && <WeightConstantsTab />}
+        {activeTab === 'optiondb' && <OptionDbTab />}
       </div>
     </div>
   )
