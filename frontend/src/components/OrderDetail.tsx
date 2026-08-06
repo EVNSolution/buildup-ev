@@ -385,9 +385,15 @@ interface Props {
   orderId: number
   onBack: () => void
   backLabel?: string
+  /**
+   * 특장사 화면 여부. true 면 계약서 영역을 **role 과 무관하게** 렌더하지 않는다.
+   * 특장사가 볼 수 있는 서류는 구조변경 관련 서류뿐 — 관리자 계정으로 특장사
+   * 화면을 열어도 계약서가 보이면 안 되므로 role 게이트만으로는 부족하다.
+   */
+  makerView?: boolean
 }
 
-export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }: Props) {
+export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false }: Props) {
   const { session } = useAuth()
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -397,7 +403,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
 
   const role = session?.user.role ?? 'SALES'
   const canViewLoadDocs = role === 'ADMIN' || role === 'MAKER'   // 구조변경 서류(하중·제원)
-  const canViewContract = role === 'ADMIN' || role === 'SALES'   // 계약서(영업 업무)
+  const canViewContract = !makerView && (role === 'ADMIN' || role === 'SALES')  // 계약서(영업 업무)
   const canViewDocsTab = canViewLoadDocs || canViewContract
 
   useEffect(() => {

@@ -54,7 +54,7 @@ export function MakerPage() {
 
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         {selectedId !== null ? (
-          <OrderDetail orderId={selectedId} onBack={() => setSelectedId(null)} />
+          <OrderDetail orderId={selectedId} onBack={() => setSelectedId(null)} makerView />
         ) : (
           <>
             <div style={{ ...styles.titleBar, flexWrap: 'wrap' }}>
