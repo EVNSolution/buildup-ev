@@ -15,6 +15,7 @@ export interface SaveQuoteRequest {
     biz_type: 'individual' | 'corporation' | 'simplified' | 'consumer'
     is_sosang: boolean
     region?: string
+    address?: string
     has_transport_license?: boolean
     diesel_conversion?: boolean
     has_biz_plate?: boolean

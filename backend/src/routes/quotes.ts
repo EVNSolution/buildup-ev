@@ -323,12 +323,12 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   if (customer?.name) {
     try {
       const cust = await prisma.customer.create({
-        data: { name: customer.name, email: customer.email, phone: customer.phone, created_by: req.auth?.email },
+        data: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address, created_by: req.auth?.email },
       });
       customerId = cust.id;
     } catch (e: unknown) {
       if ((e as { code?: string }).code === 'P2003') {
-        const cust = await prisma.customer.create({ data: { name: customer.name, email: customer.email, phone: customer.phone } });
+        const cust = await prisma.customer.create({ data: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address } });
         customerId = cust.id;
       } else {
         throw e;

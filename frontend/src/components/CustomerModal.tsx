@@ -16,6 +16,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
   const [businessType, setBusinessType] = useState<CustomerInfo['business_type']>(initial?.business_type ?? 'individual')
   const [regions, setRegions] = useState<string[]>([])
   const [region, setRegion] = useState(initial?.region_code ?? '')
+  const [address, setAddress] = useState(initial?.address ?? '')
   const [isSmallBiz, setIsSmallBiz] = useState(initial?.is_small_business ?? false)
   const [hasTransportLicense, setHasTransportLicense] = useState(initial?.has_transport_license ?? false)
   const [isDieselConversion, setIsDieselConversion] = useState(initial?.is_diesel_conversion ?? false)
@@ -35,6 +36,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
       phone: phone || undefined,
       business_type: businessType,
       region_code: region,
+      address: address.trim() || undefined,
       is_small_business: isSmallBiz,
       has_transport_license: hasTransportLicense,
       is_diesel_conversion: isDieselConversion,
@@ -87,8 +89,17 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         </div>
 
         <div style={styles.row}>
-          <label style={styles.label}>지역 (보조금 산정)</label>
+          <label style={styles.label}>지역</label>
           <RegionPicker regions={regions} value={region} onChange={setRegion} />
+        </div>
+
+        <div style={styles.row}>
+          <label style={styles.label}>세부주소</label>
+          <input
+            type="text"
+            value={address}
+            onChange={e => setAddress(e.target.value)}
+          />
         </div>
 
         <label style={styles.check}>
