@@ -1,6 +1,8 @@
 subject_type,subject_ref,module_code,enabled,memo
 role,SALES,quote.create,Y,
+role,SALES,quote.confirm,Y,
 role,SALES,order.view,Y,
+role,ADMIN,quote.confirm,Y,
 role,ADMIN,order.confirm,Y,
 role,ADMIN,view.all,Y,
 role,ADMIN,order.view,Y,
