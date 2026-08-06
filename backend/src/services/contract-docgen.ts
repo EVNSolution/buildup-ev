@@ -28,7 +28,7 @@ const REPO_ROOT = path.resolve(__dirname, '../../..');
 const TEMPLATE_PATH = path.join(REPO_ROOT, 'doc-templates/contract-template.docx');
 
 const SOFFICE_TIMEOUT_MS = 30_000;
-const EXPECTED_PAGES = 4;
+const EXPECTED_PAGES = 3;
 /**
  * 특약사항 권장 길이(경고선). 실측(Noto CJK 기준): 340자까지 4p 유지, 400자에서 5p 로 밀림.
  * 여유를 둬 300자 초과 시 경고하고, 실제 밀림은 아래 페이지 수 검증이 하드 게이트로 막는다.
