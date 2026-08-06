@@ -43,6 +43,8 @@ export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
           )}
         </div>
 
+        <Op>+</Op>
+        <Block label="탁송료" value={ok ? ok.delivery_fee : 0} show={!!ok} />
         <Op>−</Op>
         <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative />
         <Op>−</Op>
@@ -105,7 +107,7 @@ function RegPopup({ ok, onClose }: { ok: QuoteResult; onClose: () => void }) {
         <Line k="특장 등록/부대비용 ⑩" v={fmt(ok.body_reg_cost)} bold />
         <div style={{ height: 8 }} />
         <div style={styles.popTitle}>참고</div>
-        <Line k="탁송료 (차량 결제금액에 포함)" v={fmt(ok.delivery_fee)} />
+        <Line k="탁송료 (위 흐름에 별도 표시)" v={fmt(ok.delivery_fee)} />
       </div>
     </>
   )
