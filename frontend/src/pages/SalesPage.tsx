@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
+import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
+import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
 import { saveQuote, fetchLocalSubsidy, fetchQuotes } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
@@ -367,6 +368,57 @@ export function SalesPage() {
     })
   }, [bundle, selections, subsidyLocal, customer, skipped, promotionZeroed, localSubsidyOff])
 
+  /**
+   * 화면 표시 금액의 단일 소스 — **총견적서 기준**(견적서 PDF 와 동일 규칙).
+   * 취득세 base·특장취득세 기준액·공채할인·의무보험이 Ver1.21(calcPrice)과 달라
+   * 화면과 견적서가 어긋나던 문제를 이걸로 통일한다.
+   */
+  const liveTotal = useMemo<QuoteResult | null>(() => {
+    if (!bundle || Object.keys(selections).length === 0) return null
+    const price = (code: string) => bundle.option_prices[code] ?? 0
+    const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
+    const t = bundle.tax_all ?? {}
+    const useCustomer = !skipped && customer
+    const biz = mapBizType(customer?.business_type)
+    return calcQuote({
+      car_price: Math.round(trim_price * 1.1),
+      delivery_fee: t['delivery_fee'] ?? bundle.tax.delivery_fee,
+      commercial_discount: t['commercial_discount'] ?? 0,
+      partnership_rate: t['partnership_rate'] ?? 0.01,
+      subsidy_national: bundle.subsidy_national?.amount ?? 0,
+      diesel_conversion: !!useCustomer && customer.is_diesel_conversion,
+      diesel_deduction: t['diesel_deduction'] ?? 500_000,
+      subsidy_local: useCustomer ? subsidyLocal : 0,
+      is_corporation: biz === 'corporation',
+      local_subsidy_off: localSubsidyOff,
+      no_vat_refund: biz === 'consumer',
+      is_sosang: !!useCustomer && customer.is_small_business,
+      sosang_rate: bundle.subsidy_national?.sosang_rate ?? 0.3,
+      is_individual: biz === 'individual',
+      has_transport_license: !!useCustomer && customer.has_transport_license,
+      takbae_rate: TAKBAE_RATE,
+      body_price: Math.round(option_sum * 1.1),
+      promotion: 0,
+      car_deposit: t['car_deposit'] ?? 100_000,
+      body_deposit: t['body_deposit'] ?? 400_000,
+      down_payment_rate: 0,     // 선수금·할부는 견적서 생성 단계 입력
+      installment_months: 0,
+      installment_rate: 0,
+      has_biz_plate: !!customer?.has_biz_plate,
+      acq_tax_rate_biz: t['acq_tax_rate_biz'] ?? 0.04,
+      acq_tax_rate_normal: t['acq_tax_rate'] ?? bundle.tax.acq_tax_rate,
+      acq_tax_relief: t['acq_tax_relief_cap'] ?? bundle.tax.acq_tax_relief_cap,
+      special_acq_tax_rate: t['special_acq_tax_rate'] ?? bundle.tax.special_acq_tax_rate,
+      is_seoul_normal: customer?.tax_exempt_type === '일반인' && customer?.region_code === '서울특별시',
+      bond_discount: t['bond_discount'] ?? 0,
+      plate: t['plate'] ?? bundle.tax.plate,
+      stamp: t['stamp'] ?? bundle.tax.stamp,
+      insurance: t['insurance'] ?? 2_800,
+      reg_agency: t['reg_agency'] ?? bundle.tax.reg_agency,
+      etc_fee: t['etc_fee'] ?? bundle.tax.etc_fee,
+    })
+  }, [bundle, selections, subsidyLocal, customer, skipped, promotionZeroed, localSubsidyOff])
+
   function handleSelect(groupCode: string, valueCode: string) {
     setSelections(prev => {
       const next = { ...prev, [groupCode]: valueCode }
@@ -506,6 +558,7 @@ export function SalesPage() {
 
           <PriceBar
             calc={displayCalc}
+            total={liveTotal}
             hasCustomer={!!customer && !skipped}
             breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
           />

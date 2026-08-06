@@ -110,6 +110,13 @@ export interface QuoteResult {
   monthly_payment: number;      // M24 월 납입금
   installment_interest: number; // M22 할부이자
   vat_refund_price: number;     // M26 부가세 환급 시 가격
+  /**
+   * 실구매가 — 총견적서엔 없는 항목이라 Ver1.21 의 정의(②부가세환급후 + ③등록비 + ④기타)를
+   * 총견적서 축으로 옮겨 정의한다: 부가세 환급 시 가격 + 차량 등록/부대 + 특장 등록/부대.
+   * (탁송료·구매혜택·보조금은 이미 차량 결제금액에 반영되어 있다)
+   * 화면 가격바와 견적 목록이 견적서 PDF 와 같은 규칙을 쓰도록 하는 단일 소스.
+   */
+  real_price: number;
 }
 
 /** 총견적서 계산 — 차량견적서 시트 수식 재현. */
@@ -150,7 +157,13 @@ export function calcQuote(p: QuoteParams): QuoteResult {
   const monthly_payment = pmt(p.installment_rate / 12, p.installment_months, total_installment); // M24
   const installment_interest = monthly_payment * p.installment_months - total_installment;    // M22
   // M26 부가세 환급 시 가격 — 일반구매자(비사업자)는 환급 불가 → 0원 표기
-  const vat_refund_price = p.no_vat_refund ? 0 : floor10(((car_payment + body_payment) / 11) * 10);
+  const refunded = floor10(((car_payment + body_payment) / 11) * 10);
+  const vat_refund_price = p.no_vat_refund ? 0 : refunded;
+
+  // 실구매가 = 실제 부담액 + 등록/부대비용.
+  // 일반구매자는 환급을 못 받으므로 결제금액(VAT 포함) 그대로가 부담액이 된다.
+  const paid = p.no_vat_refund ? car_payment + body_payment : refunded;
+  const real_price = paid + car_reg_cost + body_reg_cost;
 
   return {
     car_price: p.car_price, delivery_fee: p.delivery_fee, commercial_discount: p.commercial_discount,
@@ -163,6 +176,6 @@ export function calcQuote(p: QuoteParams): QuoteResult {
     body_acq_tax, etc_fee: p.etc_fee, body_reg_cost, body_initial,
     car_installment, body_installment, total_installment,
     installment_rate: p.installment_rate, installment_months: p.installment_months,
-    monthly_payment, installment_interest, vat_refund_price,
+    monthly_payment, installment_interest, vat_refund_price, real_price,
   };
 }

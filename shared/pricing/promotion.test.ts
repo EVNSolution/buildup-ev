@@ -169,3 +169,21 @@ describe('복합 시나리오 (할인 + 토글 + 일반구매자)', () => {
     expect(r.vat_refund_price).toBe(45_070_450);
   });
 });
+
+describe('실구매가(real_price) — 총견적서 기준 단일 소스', () => {
+  it('= 부가세 환급 시 가격 + 차량 등록/부대 + 특장 등록/부대', () => {
+    const r = calcQuote(QUOTE_PARAMS);
+    expect(r.real_price).toBe(r.vat_refund_price + r.car_reg_cost + r.body_reg_cost);
+  });
+
+  it('일반구매자는 환급 못 받으므로 결제금액(VAT포함) 기준 — 환급가 0에 끌려가지 않는다', () => {
+    const normal = calcQuote(QUOTE_PARAMS);
+    const consumer = calcQuote({ ...QUOTE_PARAMS, no_vat_refund: true });
+    expect(consumer.vat_refund_price).toBe(0);
+    // 환급분(부가세)만큼 더 부담 → 일반구매자가 더 비싸다
+    expect(consumer.real_price).toBeGreaterThan(normal.real_price);
+    expect(consumer.real_price).toBe(
+      consumer.car_payment + consumer.body_payment + consumer.car_reg_cost + consumer.body_reg_cost,
+    );
+  });
+});

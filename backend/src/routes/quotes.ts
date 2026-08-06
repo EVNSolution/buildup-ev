@@ -297,6 +297,12 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, local_subsidy_off });
   const result = calcPrice(params);
 
+  // 저장되는 실구매가는 **총견적서 기준**(견적서 PDF·화면과 동일 규칙).
+  // calcPrice(Ver1.21)는 공급가액 산출과 하위호환 응답용으로만 유지한다.
+  const totalParams = await buildQuoteParams(model_code, selections, customer,
+    { down_payment_rate, installment_months, promotion_zeroed, local_subsidy_off }, calcYear);
+  const total = calcQuote(totalParams);
+
   // 총견적서 입력시트 스냅샷(견적별 입력값 — 나중에 총견적서 재출력·재계산용)
   const inputsSnapshot = {
     biz_type: customer?.biz_type,
@@ -341,7 +347,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     selections:    selections as unknown as Prisma.InputJsonValue,
     inputs:        inputsSnapshot as unknown as Prisma.InputJsonValue,
     supply_price:  result.supply_price,
-    final_price:   result.real_price,
+    final_price:   total.real_price,   // 총견적서 기준 실구매가
     status:        'draft' as const,
     customer_id:   customerId,
     sales_user_id: req.auth?.email,
