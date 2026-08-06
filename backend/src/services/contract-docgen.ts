@@ -160,7 +160,8 @@ export async function buildContractTokens(orderId: number): Promise<ContractToke
     buyer_agent: String(inp['buyer_agent'] ?? ''),
     buyer_relation: String(inp['buyer_relation'] ?? ''),
     buyer_regno: String(inp['buyer_regno'] ?? customer?.reg_no ?? ''),
-    buyer_address: customer?.address ?? '',
+    // 주소 = 지역(시/도·시군구) + 세부주소 — 계약서엔 전체 주소가 필요
+    buyer_address: [inp['region'], customer?.address].filter(Boolean).join(' ').trim(),
     buyer_tel: String(inp['buyer_tel'] ?? ''),
     buyer_mobile: customer?.phone ?? '',
     buyer_email: customer?.email ?? '',
