@@ -376,7 +376,9 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
 // 파이프라인 1단계 전환. 특장사 배정·주문은 별도 단계.
 // (임시: 관리자 수동. 최종: 전자서명 완료 시 자동 — 모듈3에서 교체)
 
-quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
+// 견적 확정(= 견적서 생성)은 **영업**의 업무(CLAUDE.md 주문흐름: 견적확정/주문전환(영업) → 관리자 검증).
+// 관리자 게이트는 다음 단계인 배정(/assign, order.confirm)에서 걸린다.
+quotesRouter.patch('/:id/confirm', rbac('SALES', 'ADMIN'), requirePermission('quote.confirm'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -390,6 +392,11 @@ quotesRouter.patch('/:id/confirm', rbac('ADMIN'), requirePermission('order.confi
   const quote = await prisma.quote.findUnique({ where: { id } });
   if (!quote) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+    return;
+  }
+  // SALES 는 본인 견적만 확정 가능(ADMIN 은 전체)
+  if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 확정할 수 있습니다' } });
     return;
   }
   if (quote.status !== 'draft') {

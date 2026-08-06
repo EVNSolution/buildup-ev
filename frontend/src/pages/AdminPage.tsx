@@ -54,7 +54,8 @@ function quoteStatusTip(status: string): React.ReactNode {
 
 const MODULE_DESC: Record<string, string> = {
   'quote.create': '견적 작성 및 저장',
-  'quote.confirm': '견적 확정 및 특장사 배정',
+  'quote.confirm': '견적서 확정·생성 (영업)',
+  'order.confirm': '주문 전환·특장사 배정 (관리자)',
   'order.view': '주문 현황 조회',
   'kanban.view': '주문 칸반 보드 조회',
   'kanban.control': '주문 단계 직접 변경',
