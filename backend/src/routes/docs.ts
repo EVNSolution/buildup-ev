@@ -154,13 +154,22 @@ const contractHandler = async (req: Request, res: Response): Promise<void> => {
 docsRouter.post('/:id/docs/contract', rbac('ADMIN', 'SALES'), contractHandler);
 docsRouter.get('/:id/docs/contract', rbac('ADMIN', 'SALES'), contractHandler);
 
+/**
+ * 특장사(MAKER)가 볼 수 있는 서류는 **구조변경 관련 서류뿐**이다.
+ * 계약서는 영업·관리 문서이므로 목록에도 노출하지 않고 다운로드도 막는다.
+ */
+const MAKER_HIDDEN_DOC_TYPES = new Set(['contract']);
+
 docsRouter.get('/:id/docs', rbac('ADMIN', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
   const order = await loadOrderScoped(req, res);
   if (!order) return;
 
   try {
     const docs = await listGeneratedDocs(order.id);
-    res.json({ data: docs.map(d => ({ id: d.id, type: d.type, version: d.version, generated_at: d.generated_at })) });
+    const visible = req.auth?.role === 'MAKER'
+      ? docs.filter(d => !MAKER_HIDDEN_DOC_TYPES.has(d.type))
+      : docs;
+    res.json({ data: visible.map(d => ({ id: d.id, type: d.type, version: d.version, generated_at: d.generated_at })) });
   } catch (e) {
     handleDocGenError(e, res, 'GET docs');
   }
@@ -180,6 +189,11 @@ docsRouter.get('/:id/docs/:docId/download', rbac('ADMIN', 'MAKER'), async (req: 
   }
   const doc = await prisma.generatedDocument.findUnique({ where: { id: docId } });
   if (!doc || doc.order_id !== order.id) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: '서류를 찾을 수 없습니다' } });
+    return;
+  }
+  // 특장사는 구조변경 서류만 — 계약서 id 를 직접 넣어도 내려주지 않는다(목록 필터만으론 못 막음)
+  if (req.auth?.role === 'MAKER' && MAKER_HIDDEN_DOC_TYPES.has(doc.type)) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '서류를 찾을 수 없습니다' } });
     return;
   }
