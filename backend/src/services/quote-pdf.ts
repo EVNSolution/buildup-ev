@@ -89,7 +89,9 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
 
   const [optionValues, optionPrices] = await Promise.all([
     prisma.optionValue.findMany({ where: { code: { in: valueCodes } } }),
-    prisma.optionPrice.findMany({ where: { model_code: quote.model_code, value_code: { in: valueCodes } } }),
+    // ⚠️ value_code 로 좁히면 안 된다 — 단가는 **복합코드**(TOP_{body}_{top}, DOPT_/DADD_{body}_{top}_{door},
+    //    SPL_{top}, PART_{top}_{kind})로 저장돼 있어 선택값 코드로 필터하면 전부 미스 → 개별 옵션이 0원이 된다.
+    prisma.optionPrice.findMany({ where: { model_code: quote.model_code } }),
   ]);
   const valueName = new Map(optionValues.map((v) => [v.code, v.name]));
   const priceMap = new Map(optionPrices.map((p) => [p.value_code, p.supply_price]));
