@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
+import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
 import { saveQuote, fetchLocalSubsidy, fetchQuotes } from '../api/quotes'
@@ -409,7 +409,7 @@ export function SalesPage() {
       acq_tax_rate_normal: t['acq_tax_rate'] ?? bundle.tax.acq_tax_rate,
       acq_tax_relief: t['acq_tax_relief_cap'] ?? bundle.tax.acq_tax_relief_cap,
       special_acq_tax_rate: t['special_acq_tax_rate'] ?? bundle.tax.special_acq_tax_rate,
-      is_seoul_normal: customer?.tax_exempt_type === '일반인' && customer?.region_code === '서울특별시',
+      is_seoul_normal: (customer?.tax_exempt_type ?? DEFAULT_TAX_EXEMPT_TYPE) === '일반인' && customer?.region_code === '서울특별시',
       bond_discount: t['bond_discount'] ?? 0,
       plate: t['plate'] ?? bundle.tax.plate,
       stamp: t['stamp'] ?? bundle.tax.stamp,

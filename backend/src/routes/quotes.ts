@@ -269,6 +269,37 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     for (const k of ALLOWED) if (k in body) patch[k] = body[k];
     const merged = { ...((quote.inputs ?? {}) as Record<string, unknown>), ...patch };
     await prisma.quote.update({ where: { id }, data: { inputs: merged as unknown as Prisma.InputJsonValue } });
+
+    // 입력(면세구분·영업용번호판·선수금·할부·재량할인 등)이 바뀌면 실구매가도 달라진다.
+    // 목록에 보이는 금액과 견적서 PDF 가 어긋나지 않도록 final_price 를 다시 계산해 저장.
+    try {
+      const full = await prisma.quote.findUnique({ where: { id }, include: { customer: true } });
+      if (full) {
+        const params = await buildQuoteParams(
+          full.model_code, (full.selections ?? {}) as Record<string, string>,
+          {
+            biz_type: merged['biz_type'] as string | undefined,
+            is_sosang: merged['is_sosang'] as boolean | undefined,
+            region: merged['region'] as string | undefined,
+            has_transport_license: merged['has_transport_license'] as boolean | undefined,
+            diesel_conversion: merged['diesel_conversion'] as boolean | undefined,
+            has_biz_plate: merged['has_biz_plate'] as boolean | undefined,
+            tax_exempt_type: merged['tax_exempt_type'] as string | undefined,
+          },
+          {
+            down_payment_rate: merged['down_payment_rate'] as number | undefined,
+            installment_months: merged['installment_months'] as number | undefined,
+            promotion_zeroed: merged['promotion_zeroed'] as string[] | undefined,
+            local_subsidy_off: merged['local_subsidy_off'] as boolean | undefined,
+          },
+          full.created_at.getFullYear(),
+        );
+        await prisma.quote.update({ where: { id }, data: { final_price: calcQuote(params).real_price } });
+      }
+    } catch (e) {
+      console.error('[PATCH /quotes/:id/inputs] final_price 재계산 실패(입력 저장은 완료)', e);
+    }
+
     res.json({ data: { ok: true } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/inputs]', e);
