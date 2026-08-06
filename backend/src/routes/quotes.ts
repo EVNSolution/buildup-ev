@@ -4,6 +4,7 @@ import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
+import { renderContractPdfForQuote, ContractDocError } from '../services/contract-docgen.js';
 import {
   calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   type PricingParams,
@@ -263,7 +264,9 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
-      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off'];
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off',
+      // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
+      'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel'];
     const body = (req.body ?? {}) as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
     for (const k of ALLOWED) if (k in body) patch[k] = body[k];
@@ -624,6 +627,54 @@ quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): 
     }
     console.error('[GET /quotes/:id/pdf]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: 'PDF 생성 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── GET /quotes/:id/contract-pdf — 특장 매매계약서 PDF (견적 기준, 즉석 렌더) ──
+//
+// 계약서는 주문 전환 전 **영업 단계**에서 견적서와 나란히 만들어진다.
+// 저장본(GeneratedDocument)은 주문 확정 후 별도 생성되며, 여기선 견적서와 동일하게 즉석 렌더한다.
+
+quotesRouter.get('/:id/contract-pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+  try {
+    const own = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true } });
+    if (!own) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
+      return;
+    }
+    if (req.auth!.role === 'SALES' && own.sales_user_id !== req.auth!.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 출력할 수 있습니다' } });
+      return;
+    }
+
+    const { pdf, filename, warnings } = await renderContractPdfForQuote(id);
+    if (warnings.length) console.warn(`[GET /quotes/${id}/contract-pdf]`, warnings.join(' / '));
+    const isDownload = req.query['download'] === '1';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      isDownload
+        ? `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+        : `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    );
+    res.end(pdf);
+  } catch (e) {
+    if (e instanceof ContractDocError) {
+      const status = e.code === 'NOT_FOUND' ? 404 : e.code === 'DB_UNAVAILABLE' ? 503 : 500;
+      res.status(status).json({ error: { code: e.code, message: e.message } });
+      return;
+    }
+    console.error('[GET /quotes/:id/contract-pdf]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '계약서 생성 중 오류가 발생했습니다.' } });
   }
 });
 

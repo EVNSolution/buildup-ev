@@ -97,6 +97,7 @@ function MyListView() {
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
   const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [contractPdf, setContractPdf] = useState<{ id: number; customerName?: string } | null>(null)
   const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
@@ -127,6 +128,15 @@ function MyListView() {
         title="견적서"
         subtitle={pdfQuote.customerName}
         onClose={() => setPdfQuote(null)}
+      />
+    )}
+    {contractPdf && (
+      <PdfModal
+        previewUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf`}
+        downloadUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf?download=1`}
+        title="특장 매매계약서"
+        subtitle={contractPdf.customerName}
+        onClose={() => setContractPdf(null)}
       />
     )}
     {contractQuote && (
@@ -220,6 +230,14 @@ function MyListView() {
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
                               : setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                           >견적서</button>
+                          {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
+                          <button
+                            style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
+                            title={q.status === 'draft' ? '견적서 생성 시 계약서도 함께 만들어집니다' : '특장 매매계약서 열람·다운로드'}
+                            onClick={() => q.status === 'draft'
+                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
+                              : setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                          >계약서</button>
                           <button
                             style={lv.pdfBtn}
                             title="견적서·계약서 PDF 를 고객 이메일로 발송"

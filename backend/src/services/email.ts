@@ -8,8 +8,7 @@
 import { createTransport } from 'nodemailer';
 import { prisma } from '../lib/prisma.js';
 import { generateQuotePdf } from './quote-pdf.js';
-import { generateContractPdf } from './contract-pdf.js';
-import { buildContractInput } from './contract.js';
+import { renderContractPdfForQuote } from './contract-docgen.js';
 
 export class EmailConfigError extends Error {}
 export class EmailError extends Error {}
@@ -51,9 +50,9 @@ export async function sendQuoteDocsEmail(quoteId: number, opts: SendDocsOpts): P
   const q = await generateQuotePdf(quoteId);
   attachments.push({ filename: q.filename, content: q.pdf });
   if (includeContract) {
-    const { input } = await buildContractInput(quoteId);
-    const cpdf = await generateContractPdf(input);
-    attachments.push({ filename: `특장매매계약서_견적${quoteId}.pdf`, content: cpdf });
+    // 영업페이지 미리보기와 **동일한 렌더 경로**(새 양식). 견적서와 계약서가 따로 첨부된다.
+    const c = await renderContractPdfForQuote(quoteId);
+    attachments.push({ filename: c.filename, content: c.pdf });
   }
 
   const fromName = process.env['MAIL_FROM_NAME'] || 'EV&Solution';
