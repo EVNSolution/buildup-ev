@@ -351,6 +351,11 @@ model Quote {
   org_id        String?     @db.VarChar(30)
   created_at    DateTime    @default(now())
 
+  // 참고용 메일 발송(견적서·계약서 PDF 첨부) 이력 — 전자서명(purchase_contract)과는 별개 채널.
+  // 관리자 견적 목록에서 '보냈는지/언제/누구에게' 를 확인하는 용도. 마지막 발송 기준.
+  docs_emailed_at DateTime?
+  docs_emailed_to String?   @db.VarChar(200)
+
   customer   Customer?    @relation(fields: [customer_id], references: [id])
   model      VehicleModel @relation(fields: [model_code], references: [code])
   sales_user User?        @relation("QuoteSales", fields: [sales_user_id], references: [email])

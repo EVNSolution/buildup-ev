@@ -75,5 +75,12 @@ export async function sendQuoteDocsEmail(quoteId: number, opts: SendDocsOpts): P
     throw new EmailError(`이메일 발송 실패: ${e instanceof Error ? e.message : String(e)}`);
   }
 
+  // 발송 이력 기록(관리자 견적 목록의 '참고용 발송' 표시). 실패해도 발송 자체는 성공이므로 삼킨다.
+  try {
+    await prisma.quote.update({ where: { id: quoteId }, data: { docs_emailed_at: new Date(), docs_emailed_to: to } });
+  } catch (e) {
+    console.error('[sendQuoteDocsEmail] 발송 이력 기록 실패(발송은 완료)', e);
+  }
+
   return { to, attachments: attachments.map((a) => a.filename) };
 }

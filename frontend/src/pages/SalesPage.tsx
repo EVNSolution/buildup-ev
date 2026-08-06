@@ -238,17 +238,18 @@ function MyListView() {
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
                               : setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
                           >계약서</button>
+                          {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           <button
                             style={lv.pdfBtn}
-                            title="견적서·계약서 PDF 를 고객 이메일로 발송"
+                            title="참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)"
                             onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
-                          >이메일</button>
+                          >메일 전달</button>
                           <button
                             style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft'}
-                            title={q.status === 'draft' ? '견적 확정 후 계약서를 발송할 수 있습니다' : '계약서(전자서명)와 견적서를 함께 발송'}
+                            title={q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
                             onClick={() => setContractQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
-                          >계약발송</button>
+                          >서명 요청</button>
                         </div>
                       </td>
                     </tr>

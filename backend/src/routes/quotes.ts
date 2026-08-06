@@ -120,9 +120,22 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
       include: {
         customer: { select: { id: true, name: true, email: true, phone: true } },
         order: { select: { maker_org: { select: { code: true, name: true } } } },
+        // 전자서명 현황 — 재발송 시 행이 누적되므로 최신 1건이 현재 상태.
+        contracts: {
+          orderBy: { created_at: 'desc' },
+          take: 1,
+          select: { status: true, sent_at: true, completed_at: true },
+        },
       },
     });
-    res.json({ data: quotes });
+    // 목록에서 쓰기 쉬운 형태로 평탄화(참고용 메일 발송 / 전자서명 발송 / 전자서명 완료)
+    const data = quotes.map(({ contracts, ...q }) => ({
+      ...q,
+      contract: contracts[0]
+        ? { status: contracts[0].status, sent_at: contracts[0].sent_at, completed_at: contracts[0].completed_at }
+        : null,
+    }));
+    res.json({ data });
   } catch (e) {
     console.error('[GET /quotes]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '견적 목록 조회 중 오류가 발생했습니다.' } });
