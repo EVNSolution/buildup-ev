@@ -1,16 +1,19 @@
 /**
- * 구조변경 서류 자동생성 API.
+ * 주문 서류 자동생성 API.
  * POST /orders/:id/docs/load-calc — 생성(python/openpyxl→xlsx→soffice→pdf) + 저장 + PDF 반환
  * GET  /orders/:id/docs           — 서류 목록(type별 최신본)
  * GET  /orders/:id/docs/:docId/download — 특정 이력 버전 다운로드
+ * POST /orders/:id/docs/contract  — 특장 매매계약서(docx 토큰치환→soffice→pdf)
  *
- * 영업(SALES) 화면 노출 금지 — rbac('ADMIN','MAKER')만 허용.
+ * 구조변경 서류(하중계산서·제원대비표)는 영업(SALES) 노출 금지 — rbac('ADMIN','MAKER').
+ * **계약서만 예외** — 계약은 영업 업무이므로 rbac('ADMIN','SALES').
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { generateContractDoc, ContractDocError } from '../services/contract-docgen.js';
 import {
   generateLoadCalcDoc,
   generateSpecTableDoc,
@@ -119,6 +122,37 @@ docsRouter.get('/:id/docs/spec-table', rbac('ADMIN', 'MAKER'), async (req: Reque
 });
 
 // ── GET /:id/docs — 목록(type별 최신본) ──────────────────────────────────────
+
+// ── 특장 매매계약서 — 영업·관리자 (구조변경 서류와 달리 SALES 허용) ─────────
+const contractHandler = async (req: Request, res: Response): Promise<void> => {
+  const order = await loadOrderScoped(req, res);
+  if (!order) return;
+
+  try {
+    const result = await generateContractDoc(order.id);
+    if (result.warnings.length) console.warn('[POST docs/contract]', result.warnings.join(' / '));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('X-Doc-Version', String(result.version));
+    if (result.warnings.length) res.setHeader('X-Doc-Warning', encodeURIComponent(result.warnings.join(' / ')));
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename*=UTF-8''${encodeURIComponent(`특장매매계약서_주문${order.id}_v${result.version}.pdf`)}`
+    );
+    res.send(result.pdf);
+  } catch (e) {
+    if (e instanceof ContractDocError) {
+      const status = e.code === 'UNAVAILABLE' ? 503 : e.code === 'NOT_FOUND' ? 404 : 422;
+      console.error('[POST docs/contract]', e.code, e.message);
+      res.status(status).json({ error: { code: `CONTRACT_${e.code}`, message: e.message } });
+      return;
+    }
+    console.error('[POST docs/contract]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '계약서 생성 중 오류가 발생했습니다.' } });
+  }
+};
+// POST=명시 생성, GET=미리보기(iframe) — 동일 핸들러(생성·저장·PDF 반환)
+docsRouter.post('/:id/docs/contract', rbac('ADMIN', 'SALES'), contractHandler);
+docsRouter.get('/:id/docs/contract', rbac('ADMIN', 'SALES'), contractHandler);
 
 docsRouter.get('/:id/docs', rbac('ADMIN', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
   const order = await loadOrderScoped(req, res);
