@@ -54,6 +54,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         <div style={styles.row}>
           <label style={styles.label}>고객명</label>
           <input
+            style={styles.field}
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
@@ -63,6 +64,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         <div style={styles.row}>
           <label style={styles.label}>이메일</label>
           <input
+            style={styles.field}
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
@@ -72,6 +74,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         <div style={styles.row}>
           <label style={styles.label}>연락처</label>
           <input
+            style={styles.field}
             type="tel"
             value={phone}
             onChange={e => setPhone(e.target.value)}
@@ -80,7 +83,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
 
         <div style={styles.row}>
           <label style={styles.label}>사업자 구분</label>
-          <select value={businessType} onChange={e => setBusinessType(e.target.value as CustomerInfo['business_type'])}>
+          <select style={styles.field} value={businessType} onChange={e => setBusinessType(e.target.value as CustomerInfo['business_type'])}>
             <option value="individual">개인사업자</option>
             <option value="corporate">법인사업자</option>
             <option value="simplified">간이과세자</option>
@@ -96,6 +99,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         <div style={styles.row}>
           <label style={styles.label}>세부주소</label>
           <input
+            style={styles.field}
             type="text"
             value={address}
             onChange={e => setAddress(e.target.value)}
@@ -201,7 +205,7 @@ function RegionPicker({ regions, value, onChange }: {
 
 const rp: Record<string, React.CSSProperties> = {
   wrap: { position: 'relative' },
-  input: { width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--line)', borderRadius: 7, fontSize: 13 },
+  input: { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', outline: 'none' },
   list: {
     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, marginTop: 3,
     background: '#fff', border: '1px solid var(--line)', borderRadius: 8,
@@ -236,6 +240,20 @@ const styles = {
   h2: { margin: '0 0 4px', fontSize: 18, color: 'var(--dark)' },
   desc: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)' },
   row: { marginBottom: 12 },
+  /** 모든 입력칸 공통 규격 — 너비·높이·테두리 통일 */
+  field: {
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    height: 38,
+    padding: '0 10px',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    color: 'var(--dark)',
+    border: '1px solid var(--line)',
+    borderRadius: 8,
+    background: '#fff',
+    outline: 'none',
+  } as React.CSSProperties,
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
   optional: { fontSize: 10.5, color: '#b0b7c0' },
   check: {
