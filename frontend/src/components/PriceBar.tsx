@@ -21,7 +21,10 @@ export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
   const tbd = isUnsupported ? (calc as { reason: string }).reason : null
   const ok = isUnsupported ? null : total
 
-  const regEtc = ok ? ok.car_reg_cost + ok.body_reg_cost : 0
+  // 등록·기타 = 차량 등록/부대 ⑥ + 특장 등록/부대 ⑩ + 탁송료
+  // (견적서는 탁송료를 ② 차량 결제금액에 넣지만, 화면은 블록을 줄이려 등록·기타로 묶는다.
+  //  이렇게 해야 위 흐름을 그대로 계산했을 때 실구매가와 정확히 맞는다.)
+  const regEtc = ok ? ok.car_reg_cost + ok.body_reg_cost + ok.delivery_fee : 0
   const vehicleVat = ok ? ok.car_price : (breakdown ? Math.round(breakdown.trim_price * 1.1) : 0)
   const optionVat  = ok ? ok.body_price : (breakdown ? Math.round(breakdown.option_sum * 1.1) : 0)
   const vatRefund  = ok ? (ok.car_payment + ok.body_payment) - ok.vat_refund_price : 0
@@ -43,8 +46,6 @@ export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
           )}
         </div>
 
-        <Op>+</Op>
-        <Block label="탁송료" value={ok ? ok.delivery_fee : 0} show={!!ok} />
         <Op>−</Op>
         <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative />
         <Op>−</Op>
@@ -106,8 +107,8 @@ function RegPopup({ ok, onClose }: { ok: QuoteResult; onClose: () => void }) {
         <Line k="등록부가수수료" v={fmt(ok.etc_fee)} />
         <Line k="특장 등록/부대비용 ⑩" v={fmt(ok.body_reg_cost)} bold />
         <div style={{ height: 8 }} />
-        <div style={styles.popTitle}>참고</div>
-        <Line k="탁송료 (위 흐름에 별도 표시)" v={fmt(ok.delivery_fee)} />
+        <Line k="탁송료" v={fmt(ok.delivery_fee)} />
+        <Line k="등록·기타 합계" v={fmt(ok.car_reg_cost + ok.body_reg_cost + ok.delivery_fee)} bold />
       </div>
     </>
   )
