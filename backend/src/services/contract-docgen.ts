@@ -12,7 +12,7 @@
  *   - 출력 PDF가 남아있으면 변환이 조용히 실패하고 옛 파일이 남음 → 변환 전 삭제 + 변환 후 존재/크기/mtime 확인
  */
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, mkdir, writeFile, readFile, copyFile, stat } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +20,8 @@ import { randomUUID } from 'node:crypto';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { prisma } from '../lib/prisma.js';
+import { calcQuote } from '@buildup-ev/shared/pricing';
+import { buildQuoteParams } from './quote-calc.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -119,20 +121,32 @@ export async function buildContractTokens(orderId: number): Promise<ContractToke
   const sel = (quote.selections ?? {}) as Record<string, string>;
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
 
-  const [taxRows, org] = await Promise.all([
-    prisma.taxConfig.findMany({ where: { param_key: { in: ['body_deposit'] } } }),
-    order.maker_org_id
-      ? prisma.org.findUnique({ where: { code: order.maker_org_id }, select: { name: true } })
-      : Promise.resolve(null),
-  ]);
-  const bodyDeposit = Number(taxRows.find((t) => t.param_key === 'body_deposit')?.value ?? 400_000);
+  const org = order.maker_org_id
+    ? await prisma.org.findUnique({ where: { code: order.maker_org_id }, select: { name: true } })
+    : null;
 
-  // 특장 가격(VAT 포함) — 견적의 특장 옵션 합계 기준. 계약금/잔금은 DB 상수 기준으로 분할.
-  const supply = quote.supply_price ?? 0;
-  const trimSupply = 0; // 특장 계약서이므로 차량 트림은 제외(특장 합계만)
-  const bodySupplyRaw = supply - trimSupply;
-  const priceTotal = Math.round(bodySupplyRaw * 1.1);
-  const priceDown = Math.min(bodyDeposit, priceTotal);
+  // 금액은 총견적서 엔진(calcQuote)의 **특장 축** 단일 소스를 그대로 쓴다.
+  // ⚠️ quote.supply_price 는 차량 트림까지 포함하므로 특장 계약서에 쓰면 안 된다.
+  //    재량할인(프로모션)·지방보조금 토글도 여기서 함께 반영된다.
+  const params = await buildQuoteParams(quote.model_code, sel, {
+    biz_type: inp['biz_type'] as string | undefined,
+    is_sosang: inp['is_sosang'] as boolean | undefined,
+    region: inp['region'] as string | undefined,
+    address: inp['address'] as string | undefined,
+    has_transport_license: inp['has_transport_license'] as boolean | undefined,
+    diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
+    has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
+    tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
+  }, {
+    down_payment_rate: inp['down_payment_rate'] as number | undefined,
+    installment_months: inp['installment_months'] as number | undefined,
+    promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+    local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
+  }, quote.created_at.getFullYear());
+  const q = calcQuote(params);
+
+  const priceTotal = q.body_payment;      // ⑦-⑧ 특장 결제 금액(VAT 포함)
+  const priceDown = Math.min(q.body_deposit, priceTotal);  // 계약금(DB 상수)
   const priceBalance = Math.max(priceTotal - priceDown, 0);
 
   const d = order.created_at ?? new Date();
