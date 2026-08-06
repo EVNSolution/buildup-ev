@@ -498,6 +498,54 @@ function AccountsTab() {
   )
 }
 
+// ── 발송 현황 배지 ────────────────────────────────────────────────────────
+//
+// 채널이 둘이고 성격이 다르다:
+//   참고용 메일 = 서류 전달(되돌리기 쉬움) / 전자서명 = 법적 서명 요청(이력이 남음)
+// 관리자는 '보냈는지 · 서명 요청했는지 · 서명 끝났는지' 세 가지를 한눈에 봐야 한다.
+const SIGN_DONE = 'COMPLETED'
+const SIGN_DEAD = ['REJECTED', 'CANCELED']
+
+function fmtWhen(v?: string | null): string {
+  if (!v) return ''
+  const d = new Date(v)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function SendStatus({ quote }: { quote: ApiQuote }) {
+  const mailed = !!quote.docs_emailed_at
+  const c = quote.contract ?? null
+  const signSent = !!c?.sent_at
+  const signDone = c?.status === SIGN_DONE
+  const signDead = !!c && SIGN_DEAD.includes(c.status)
+
+  const chip = (on: boolean, label: string, tip: string, tone: 'ok' | 'warn' | 'off' = 'ok') => (
+    <Tooltip text={tip} placement="below">
+      <span style={{
+        display: 'inline-block', padding: '2px 7px', borderRadius: 5, fontSize: 10.5, fontWeight: 700,
+        border: '1px solid',
+        ...(on
+          ? tone === 'warn'
+            ? { background: '#fdecec', borderColor: '#f0b8b8', color: '#a12d2d' }
+            : { background: '#eef7e9', borderColor: '#cfe4c2', color: '#3d6b28' }
+          : { background: '#f6f7f8', borderColor: 'var(--line)', color: '#9aa2ac' }),
+      }}>{label}</span>
+    </Tooltip>
+  )
+
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {chip(mailed, '메일',
+        mailed ? `참고용 메일 발송 ${fmtWhen(quote.docs_emailed_at)}${quote.docs_emailed_to ? ` → ${quote.docs_emailed_to}` : ''}` : '참고용 메일 미발송')}
+      {chip(signSent, '서명요청',
+        signSent ? `전자서명 요청 ${fmtWhen(c?.sent_at)}` : '전자서명 미요청')}
+      {signDead
+        ? chip(true, c!.status === 'REJECTED' ? '서명거절' : '서명취소', `전자서명 ${c!.status}`, 'warn')
+        : chip(signDone, '서명완료', signDone ? `전자서명 완료 ${fmtWhen(c?.completed_at)}` : '전자서명 미완료')}
+    </div>
+  )
+}
+
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
 function QuotesTab() {
   const { session } = useAuth()
@@ -517,6 +565,7 @@ function QuotesTab() {
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [contractPdf, setContractPdf] = useState<{ id: number; customerName?: string } | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -633,6 +682,10 @@ function QuotesTab() {
                   <span style={qtMob.label}>일시</span>
                   <span>{fmtDate(q.created_at)}</span>
                 </div>
+                <div style={qtMob.row}>
+                  <span style={qtMob.label}>발송현황</span>
+                  <SendStatus quote={q} />
+                </div>
               </div>
               <div style={qtMob.actions}>
                 <button
@@ -640,9 +693,10 @@ function QuotesTab() {
                   onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                 >견적서</button>
                 <button
-                  style={{ ...qt.sendBtn, flex: 1, minHeight: 44 }}
-                  onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
-                >발송</button>
+                  style={{ ...qt.pdfBtn, flex: 1, minHeight: 44, ...(q.status === 'draft' ? { opacity: 0.45 } : {}) }}
+                  disabled={q.status === 'draft'}
+                  onClick={() => setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                >계약서</button>
                 {q.status === 'draft' && (
                   <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
@@ -672,6 +726,7 @@ function QuotesTab() {
                 <th style={qt.th}>실구매가</th>
                 <th style={qt.th}>상태</th>
                 <th style={qt.th}>특장사</th>
+                <th style={qt.th}>발송현황</th>
                 <th style={qt.th}>일시</th>
                 <th style={qt.th}>액션</th>
               </tr>
@@ -691,6 +746,7 @@ function QuotesTab() {
                     </Tooltip>
                   </td>
                   <td style={qt.tdMuted}>{q.order?.maker_org?.name ?? '—'}</td>
+                  <td style={qt.td}><SendStatus quote={q} /></td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -698,10 +754,13 @@ function QuotesTab() {
                         style={qt.pdfBtn}
                         onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                       >견적서</button>
+                      {/* 계약서는 견적 확정(생성) 후에만 의미가 있다 — 발송은 영업 업무라 관리자엔 두지 않는다 */}
                       <button
-                        style={qt.sendBtn}
-                        onClick={() => alert('발송 기능 준비 중 (메일/문자 연동 예정)')}
-                      >발송</button>
+                        style={q.status === 'draft' ? { ...qt.pdfBtn, opacity: 0.45 } : qt.pdfBtn}
+                        disabled={q.status === 'draft'}
+                        title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
+                        onClick={() => setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                      >계약서</button>
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleConfirm(q.id)}>확정</button>
                       )}
@@ -744,6 +803,15 @@ function QuotesTab() {
           title="견적서"
           subtitle={pdfQuote.customerName}
           onClose={() => setPdfQuote(null)}
+        />
+      )}
+      {contractPdf && (
+        <PdfModal
+          previewUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf`}
+          downloadUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf?download=1`}
+          title="특장 매매계약서"
+          subtitle={contractPdf.customerName}
+          onClose={() => setContractPdf(null)}
         />
       )}
     </div>

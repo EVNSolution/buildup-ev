@@ -238,6 +238,11 @@ export interface ApiQuote {
   created_at: string;
   customer: { id: number; name: string; email?: string | null; phone?: string | null } | null;
   order: { maker_org: { code: string; name: string } | null } | null;
+  /** 참고용 메일(견적서·계약서 첨부) 마지막 발송 — 전자서명과는 별개 채널 */
+  docs_emailed_at?: string | null;
+  docs_emailed_to?: string | null;
+  /** 전자서명 현황(최신 1건). 미발송이면 null */
+  contract?: { status: string; sent_at: string | null; completed_at: string | null } | null;
 }
 
 export interface ApiOrder {
