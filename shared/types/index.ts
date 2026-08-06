@@ -51,6 +51,7 @@ export interface CustomerInfo {
   phone?: string;
   business_type: BusinessType;
   region_code: string;
+  address?: string;                    // 세부주소 — 계약서·견적서·구조변경 서류에 사용
   is_small_business: boolean;          // 소상공인
   has_transport_license: boolean;      // 화물자동차 운송사업허가증
   is_diesel_conversion: boolean;       // 경유차 유지 후 전기차 전환

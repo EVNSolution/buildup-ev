@@ -424,6 +424,7 @@ export function SalesPage() {
           biz_type: mapBizType(customer.business_type),
           is_sosang: customer.is_small_business,
           region: customer.region_code,
+          address: customer.address,
           has_transport_license: customer.has_transport_license,
           diesel_conversion: customer.is_diesel_conversion,
         } : undefined,

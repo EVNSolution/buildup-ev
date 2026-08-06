@@ -15,6 +15,7 @@ export type CustomerInput = {
   biz_type?: string;
   is_sosang?: boolean;
   region?: string;
+  address?: string;                  // 세부주소(계약서·서류용)
   has_transport_license?: boolean;  // 화물자동차 운송사업허가증
   diesel_conversion?: boolean;      // 경유차 유지 후 전기차 전환
   has_biz_plate?: boolean;          // 영업용 번호판 보유 → 취득세 4%
