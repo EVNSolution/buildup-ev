@@ -9,7 +9,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { ContractStatus, PurchaseContract, Customer } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { docStorageDir } from '../lib/soffice.js';
-import { generateContractPdf, type ContractInput } from './contract-pdf.js';
+import { type ContractInput } from './contract-pdf.js';
+import { renderContractPdfForQuote } from './contract-docgen.js';
 import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
@@ -97,14 +98,15 @@ export async function buildContractInput(quoteId: number): Promise<{ input: Cont
  */
 export async function sendContract(quoteId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
   const p = db();
-  const { input, customer } = await buildContractInput(quoteId);
+  const { customer } = await buildContractInput(quoteId);
   const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
   if (!contact) {
     throw new ContractError(signingMethod === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
   }
 
-  // 계약서(서명대상) + 견적서(동봉) 생성
-  const contractPdf = await generateContractPdf(input);
+  // 계약서(서명대상) + 견적서(동봉) 생성.
+  // 계약서는 영업페이지 미리보기·이메일과 **같은 렌더 경로**(새 양식) — 양식이 갈라지지 않게 한다.
+  const contractPdf = (await renderContractPdfForQuote(quoteId)).pdf;
   const quotePdf = await generateQuotePdf(quoteId);
 
   // 발송시점 고객 스냅샷 고정 + DRAFT 행 선생성

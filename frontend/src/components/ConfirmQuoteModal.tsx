@@ -27,6 +27,14 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
   const [months, setMonths] = useState<number>((init['installment_months'] as number) ?? 0)
   const [taxExempt, setTaxExempt] = useState<string>((init['tax_exempt_type'] as string) ?? DEFAULT_TAX_EXEMPT_TYPE)
   const [bizPlate, setBizPlate] = useState<boolean>((init['has_biz_plate'] as boolean) ?? false)
+
+  // 매매계약서 전용 입력 — 전부 선택. 비워두면 계약서에 공란으로 출력된다.
+  const [party, setParty] = useState<string>((init['contract_party'] as string) ?? '')
+  const [agent, setAgent] = useState<string>((init['buyer_agent'] as string) ?? '')
+  const [relation, setRelation] = useState<string>((init['buyer_relation'] as string) ?? '')
+  const [regno, setRegno] = useState<string>((init['buyer_regno'] as string) ?? '')
+  const [tel, setTel] = useState<string>((init['buyer_tel'] as string) ?? '')
+
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -39,6 +47,11 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
       installment_months: months,
       tax_exempt_type: taxExempt,
       has_biz_plate: bizPlate,
+      contract_party: party.trim(),
+      buyer_agent: agent.trim(),
+      buyer_relation: relation.trim(),
+      buyer_regno: regno.trim(),
+      buyer_tel: tel.trim(),
     }
   }
 
@@ -87,10 +100,30 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
             영업용 번호판 보유 <span style={s.unit}>(취득세 4% 적용)</span>
           </label>
 
+          <div style={s.divider}>
+            <span style={s.dividerText}>매매계약서 정보</span>
+            <span style={s.optional}>모두 선택 · 비워두면 계약서에 공란</span>
+          </div>
+
+          <label style={s.label}>계약처</label>
+          <input style={s.input} value={party} onChange={(e) => setParty(e.target.value)} />
+
+          <label style={s.label}>대리인 <span style={s.unit}>(위임장 필수)</span></label>
+          <input style={s.input} value={agent} onChange={(e) => setAgent(e.target.value)} />
+
+          <label style={s.label}>관계 <span style={s.unit}>(매수인과 대리인의 관계)</span></label>
+          <input style={s.input} value={relation} onChange={(e) => setRelation(e.target.value)} />
+
+          <label style={s.label}>생년월일 / 사업자번호</label>
+          <input style={s.input} value={regno} onChange={(e) => setRegno(e.target.value)} />
+
+          <label style={s.label}>전화번호 <span style={s.unit}>(유선)</span></label>
+          <input style={s.input} value={tel} onChange={(e) => setTel(e.target.value)} />
+
           <div style={s.note}>
             {isConfirmed
-              ? '※ 저장하면 견적서에 즉시 반영됩니다.'
-              : '※ 생성하면 이후 «견적서» 버튼에서 바로 열람할 수 있습니다. 생성 후에도 «수정»으로 값을 변경할 수 있습니다.'}
+              ? '※ 저장하면 견적서·계약서에 즉시 반영됩니다.'
+              : '※ 생성하면 견적서와 매매계약서가 각각 만들어지고, «견적서»·«계약서» 버튼에서 바로 열람할 수 있습니다. 생성 후에도 «수정»으로 값을 변경할 수 있습니다.'}
           </div>
           {err && <div style={s.err}>{err}</div>}
 
@@ -107,7 +140,10 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 
 const s: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
-  box: { width: 'min(420px, 94vw)', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' },
+  box: { width: 'min(420px, 94vw)', maxHeight: '88vh', overflowY: 'auto', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' },
+  divider: { display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--line)' },
+  dividerText: { fontSize: 12.5, fontWeight: 700, color: 'var(--dark)' },
+  optional: { fontSize: 10.5, color: '#8a929c' },
   head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   title: { fontSize: 15, fontWeight: 700 },
   close: { border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 },

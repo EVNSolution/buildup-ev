@@ -108,17 +108,29 @@ const PART_DISP: Record<string, string> = {
 const ox = (on: boolean) => (on ? 'O' : 'X');
 const won = (n: number) => Math.round(n || 0).toLocaleString('ko-KR');
 
-/** 주문 → 계약서 토큰. 옵션 선택값에서 자동 산출(하드코딩 금지). */
+/** 주문 → 계약서 토큰. 주문은 견적을 가리키는 껍데기이므로 견적 기준 함수로 위임. */
 export async function buildContractTokens(orderId: number): Promise<ContractTokens> {
   if (!prisma) throw new ContractDocError('DB 연결 필요', 'DB_UNAVAILABLE');
-
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { quote: { include: { customer: true, sales_user: { select: { name: true } } } } },
-  });
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { quote_id: true } });
   if (!order) throw new ContractDocError('주문을 찾을 수 없습니다', 'NOT_FOUND');
+  return buildContractTokensFromQuote(order.quote_id);
+}
 
-  const quote = order.quote;
+/**
+ * 견적 → 계약서 토큰. 옵션 선택값에서 자동 산출(하드코딩 금지).
+ *
+ * 계약서는 **주문 전환 전** 영업 단계(견적서 생성/확정)에서 함께 만들어지므로
+ * 주문이 아니라 견적이 기준이다. 팝업에서 입력한 계약 정보는 quote.inputs 에 저장된다.
+ */
+export async function buildContractTokensFromQuote(quoteId: number): Promise<ContractTokens> {
+  if (!prisma) throw new ContractDocError('DB 연결 필요', 'DB_UNAVAILABLE');
+
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: { customer: true, sales_user: { select: { name: true } } },
+  });
+  if (!quote) throw new ContractDocError('견적을 찾을 수 없습니다', 'NOT_FOUND');
+
   const customer = quote.customer;
   const sel = (quote.selections ?? {}) as Record<string, string>;
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
@@ -238,12 +250,8 @@ export interface ContractDocResult {
   pdf: Buffer; filePath: string; version: number; pages: number; warnings: string[];
 }
 
-/** 주문 → 계약서 PDF 생성·저장(GeneratedDocument type=contract, 버전 누적). */
-export async function generateContractDoc(orderId: number): Promise<ContractDocResult> {
-  if (!prisma) throw new ContractDocError('DB 연결 필요', 'DB_UNAVAILABLE');
-
-  const tokens = await buildContractTokens(orderId);
-
+/** 토큰 → PDF (검증 포함, 저장 없음). 주문 저장본과 견적 미리보기가 공유하는 렌더 경로. */
+async function renderFromTokens(tokens: ContractTokens): Promise<{ pdf: Buffer; pages: number; warnings: string[] }> {
   // 필수값 가드 — 빈 값은 docxtemplater 가 조용히 빈칸으로 치환하므로(토큰 잔존 검사로는 못 잡음)
   // 계약서로서 의미가 없는 공백 계약이 생성되지 않도록 여기서 막는다.
   const REQUIRED: (keyof ContractTokens)[] = ['contract_no', 'contract_date', 'buyer_name'];
@@ -261,11 +269,29 @@ export async function generateContractDoc(orderId: number): Promise<ContractDocR
   const filled = fillContractDocx(template, tokens);
   const pdf = await docxToPdf(filled);
 
-  // ── 검증 ── (미치환 토큰은 fillContractDocx 에서 docx XML 기준으로 이미 검사됨)
+  // 페이지 수는 **경고**로만 다룬다. 값 길이에 따라 밀릴 수 있는데, 여기서 throw 하면
+  // 계약서를 열어보지도 못한 채 막혀 원인 파악이 불가능해진다(미치환 토큰은 별도 하드 게이트).
   const pages = countPdfPages(pdf);
   if (pages !== EXPECTED_PAGES) {
-    throw new ContractDocError(`페이지 수가 ${pages}p 입니다(기대 ${EXPECTED_PAGES}p — 값이 길어 밀렸을 수 있음)`, 'RENDER_FAILED');
+    warnings.push(`페이지 수가 ${pages}p 입니다(기대 ${EXPECTED_PAGES}p — 입력값이 길어 밀렸을 수 있습니다).`);
   }
+  return { pdf, pages, warnings };
+}
+
+/** 견적 → 계약서 PDF (즉석 렌더, 저장 없음). 영업페이지 미리보기·이메일 첨부용. */
+export async function renderContractPdfForQuote(quoteId: number): Promise<{ pdf: Buffer; filename: string; pages: number; warnings: string[] }> {
+  const tokens = await buildContractTokensFromQuote(quoteId);
+  const { pdf, pages, warnings } = await renderFromTokens(tokens);
+  const who = tokens.buyer_name ? `_${tokens.buyer_name}` : '';
+  return { pdf, filename: `특장매매계약서_${tokens.contract_no}${who}.pdf`, pages, warnings };
+}
+
+/** 주문 → 계약서 PDF 생성·저장(GeneratedDocument type=contract, 버전 누적). */
+export async function generateContractDoc(orderId: number): Promise<ContractDocResult> {
+  if (!prisma) throw new ContractDocError('DB 연결 필요', 'DB_UNAVAILABLE');
+
+  const tokens = await buildContractTokens(orderId);
+  const { pdf, pages, warnings } = await renderFromTokens(tokens);
 
   // ── 저장(버전 누적) ──
   const last = await prisma.generatedDocument.findFirst({
