@@ -92,6 +92,8 @@ modelsRouter.get('/:modelCode/pricing-bundle', rbac('SALES', 'ADMIN'), async (re
       option_prices,
       door_unit_prices: doorPrices.map(d => ({ top: d.top, doortype: d.doortype, unit_price: d.unit_price })),
       tax,
+      // 총견적서 계산(calcQuote)에 필요한 전체 세율·부대비용 — 화면이 견적서와 같은 규칙을 쓰도록.
+      tax_all: taxMap,
       subsidy_national: subsidyNat
         ? { amount: subsidyNat.amount, sosang_rate: Number(subsidyNat.sosang_rate ?? 0) }
         : null,

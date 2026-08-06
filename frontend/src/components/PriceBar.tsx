@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import type { PricingResult, PricingOk } from '@shared/pricing/core'
+import type { PricingResult, QuoteResult } from '@shared/pricing/core'
 
 interface Props {
+  /** 지원여부 판정용(내장탑 미정 등) */
   calc: PricingResult | null
+  /** 표시 금액의 단일 소스 — 총견적서 기준(견적서 PDF 와 동일 규칙) */
+  total: QuoteResult | null
   hasCustomer: boolean
   /** 차량+특장 세부 (부가세 별도 단가) */
   breakdown: { trim_price: number; option_sum: number } | null
@@ -12,15 +15,16 @@ function fmt(n: number) {
   return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
-export function PriceBar({ calc, hasCustomer, breakdown }: Props) {
+export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
   const [showReg, setShowReg] = useState(false)
-  const ok = calc?.status === 'ok' ? calc : null
   const isUnsupported = calc?.status === 'unsupported'
   const tbd = isUnsupported ? (calc as { reason: string }).reason : null
+  const ok = isUnsupported ? null : total
 
-  const regEtc = ok ? ok.reg_cost + ok.etc_cost : 0
-  const vehicleVat = breakdown ? Math.round(breakdown.trim_price * 1.1) : (ok?.vehicle_price ?? 0)
-  const optionVat  = breakdown ? Math.round(breakdown.option_sum * 1.1) : 0
+  const regEtc = ok ? ok.car_reg_cost + ok.body_reg_cost : 0
+  const vehicleVat = ok ? ok.car_price : (breakdown ? Math.round(breakdown.trim_price * 1.1) : 0)
+  const optionVat  = ok ? ok.body_price : (breakdown ? Math.round(breakdown.option_sum * 1.1) : 0)
+  const vatRefund  = ok ? (ok.car_payment + ok.body_payment) - ok.vat_refund_price : 0
 
   return (
     <div style={styles.bar}>
@@ -33,16 +37,18 @@ export function PriceBar({ calc, hasCustomer, breakdown }: Props) {
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={styles.first}>
           <div style={styles.firstLabel}>차량 + 특장 (VAT 포함)</div>
-          <div style={styles.firstValue}>{ok ? fmt(ok.vehicle_price) : '—'}</div>
-          {ok && breakdown && (
+          <div style={styles.firstValue}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
+          {ok && (
             <div style={styles.firstSub}>차량 {fmt(vehicleVat)} · 특장 {fmt(optionVat)}</div>
           )}
         </div>
 
         <Op>−</Op>
+        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative />
+        <Op>−</Op>
         <Block label="보조금" value={ok ? ok.subsidy_total : 0} show={!!ok} muted={!hasCustomer} negative />
         <Op>−</Op>
-        <Block label="부가세 환급" value={ok ? ok.vat : 0} show={!!ok} negative />
+        <Block label="부가세 환급" value={vatRefund} show={!!ok} negative />
         <Op>+</Op>
 
         {/* ④ 등록·기타 (클릭 → 상세) */}
@@ -78,27 +84,28 @@ function Block({ label, value, show, muted, negative }: { label: string; value: 
   )
 }
 
-function RegPopup({ ok, onClose }: { ok: PricingOk; onClose: () => void }) {
+/** 견적서 PDF 의 ⑥ 차량 등록/부대 · ⑩ 특장 등록/부대 와 동일 항목 */
+function RegPopup({ ok, onClose }: { ok: QuoteResult; onClose: () => void }) {
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
       <div style={styles.popup} onClick={e => e.stopPropagation()}>
-        <div style={styles.popTitle}>등록 비용 ③</div>
-        <Line k="차량 취득세율" v="5%" />
-        <Line k="차량 취득세" v={fmt(ok.reg_acq_tax)} />
-        <Line k="차량 취득세 감면" v={'−' + fmt(ok.reg_acq_tax_relief)} />
-        <Line k="특장 취득세율" v="2%" />
-        <Line k="특장 취득세" v={fmt(ok.reg_special_acq_tax)} />
-        <Line k="증지대" v={fmt(ok.reg_stamp)} />
-        <Line k="번호판대" v={fmt(ok.reg_plate)} />
+        <div style={styles.popTitle}>차량 등록/부대비용 ⑥</div>
+        <Line k="차량 취득세 (감면 후)" v={fmt(ok.car_acq_tax)} />
+        <Line k="공채할인액" v={fmt(ok.bond_discount)} />
+        <Line k="번호판금액" v={fmt(ok.plate)} />
+        <Line k="증지대" v={fmt(ok.stamp)} />
+        <Line k="의무보험료" v={fmt(ok.insurance)} />
         <Line k="등록대행료" v={fmt(ok.reg_agency)} />
-        <Line k="의무보험료" v="₩2,800" note />
-        <Line k="총 등록 비용 ③" v={fmt(ok.reg_cost)} bold />
+        <Line k="차량 등록/부대비용 ⑥" v={fmt(ok.car_reg_cost)} bold />
         <div style={{ height: 8 }} />
-        <div style={styles.popTitle}>기타 비용 ④</div>
-        <Line k="탁송료" v={fmt(ok.delivery_fee)} />
+        <div style={styles.popTitle}>특장 등록/부대비용 ⑩</div>
+        <Line k="특장 취득세 (2.0%)" v={fmt(ok.body_acq_tax)} />
         <Line k="등록부가수수료" v={fmt(ok.etc_fee)} />
-        <Line k="총 기타 비용 ④" v={fmt(ok.etc_cost)} bold />
+        <Line k="특장 등록/부대비용 ⑩" v={fmt(ok.body_reg_cost)} bold />
+        <div style={{ height: 8 }} />
+        <div style={styles.popTitle}>참고</div>
+        <Line k="탁송료 (차량 결제금액에 포함)" v={fmt(ok.delivery_fee)} />
       </div>
     </>
   )

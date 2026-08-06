@@ -216,6 +216,8 @@ export interface ApiPricingBundle {
   option_prices: Record<string, number>;
   door_unit_prices: ApiDoorPrice[];
   tax: ApiTaxConfig;
+  /** tax_config 전체(param_key→value) — 총견적서 계산용(커머셜할인·공채·계약금·의무보험 등) */
+  tax_all?: Record<string, number>;
   subsidy_national: ApiSubsidyNational | null;
 }
 
