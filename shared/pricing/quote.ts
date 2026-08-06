@@ -9,6 +9,12 @@
  * 입력 단가는 **VAT 포함**(엑셀 옵션DB 정책). 공급가 기반 OptionPrice 는 라우트에서 ×1.1 하여 주입.
  */
 
+/**
+ * 면세구분 기본값 — 미입력 시 이 값으로 간주한다(공채할인 판정에 사용).
+ * 화면(컨피규레이터)·저장·견적서 생성 팝업이 모두 같은 기본값을 써야 금액이 어긋나지 않는다.
+ */
+export const DEFAULT_TAX_EXEMPT_TYPE = '일반인';
+
 /** 원리금균등상환 월 납입금 (엑셀 PMT 재현). r=월이율, n=개월수, principal=할부원금. */
 export function pmt(monthlyRate: number, months: number, principal: number): number {
   if (months <= 0) return 0;

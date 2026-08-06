@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, type InstallmentRateOption } from '../api/quotes'
+import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 
 /**
  * 견적서 생성 팝업 — 총견적서 입력시트의 추가 입력(선수금비율·할부개월수·면세구분·영업용번호판).
@@ -24,7 +25,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 
   const [downPct, setDownPct] = useState<string>(String(((init['down_payment_rate'] as number) ?? 0.3) * 100))
   const [months, setMonths] = useState<number>((init['installment_months'] as number) ?? 0)
-  const [taxExempt, setTaxExempt] = useState<string>((init['tax_exempt_type'] as string) ?? '일반인')
+  const [taxExempt, setTaxExempt] = useState<string>((init['tax_exempt_type'] as string) ?? DEFAULT_TAX_EXEMPT_TYPE)
   const [bizPlate, setBizPlate] = useState<boolean>((init['has_biz_plate'] as boolean) ?? false)
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
   const [busy, setBusy] = useState(false)

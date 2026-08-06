@@ -5,7 +5,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import {
-  assembleOptionSum, TAKBAE_RATE, type QuoteParams,
+  assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, type QuoteParams,
 } from '@buildup-ev/shared/pricing';
 
 export type CustomerInput = {
@@ -94,7 +94,7 @@ export async function buildQuoteParams(
     acq_tax_rate_normal: taxMap['acq_tax_rate'] ?? 0.05,
     acq_tax_relief: taxMap['acq_tax_relief_cap'] ?? 1_400_000,
     special_acq_tax_rate: taxMap['special_acq_tax_rate'] ?? 0.02,
-    is_seoul_normal: customer?.tax_exempt_type === '일반인' && customer?.region === '서울특별시',
+    is_seoul_normal: (customer?.tax_exempt_type ?? DEFAULT_TAX_EXEMPT_TYPE) === '일반인' && customer?.region === '서울특별시',
     bond_discount: taxMap['bond_discount'] ?? 0,
     plate: taxMap['plate'] ?? 28_000,
     stamp: taxMap['stamp'] ?? 2_000,

@@ -16,7 +16,7 @@ export {
   TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
 } from './assemble.js';
 
-export { calcQuote, pmt } from './quote.js';
+export { calcQuote, pmt, DEFAULT_TAX_EXEMPT_TYPE } from './quote.js';
 export type { QuoteParams, QuoteResult } from './quote.js';
 
 /**
