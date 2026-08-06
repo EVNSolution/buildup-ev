@@ -136,6 +136,14 @@ export function OptionPanel({
       </div>
 
       <div style={styles.extra}>
+        <label style={styles.extraLabel}>메모 / 안내문</label>
+        <textarea
+          style={styles.memo}
+          rows={3}
+          value={memo}
+          onChange={(e) => onMemoChange(e.target.value)}
+        />
+
         <label style={styles.promoToggle}>
           <input
             type="checkbox"
@@ -143,26 +151,17 @@ export function OptionPanel({
             onChange={(e) => onToggleLocalSubsidy(e.target.checked)}
             style={styles.cbox}
           />
-          지방보조금 미적용 <span style={styles.hint}>(예산 소진 시 — 이 견적에만 적용)</span>
+          지방보조금 소진
         </label>
-
-        <label style={styles.extraLabel}>메모 / 안내문 <span style={styles.hint}>(견적서에 그대로 표기)</span></label>
-        <textarea
-          style={styles.memo}
-          rows={3}
-          placeholder="예: 탁송료·보조금은 출고 시점에 따라 변경될 수 있습니다."
-          value={memo}
-          onChange={(e) => onMemoChange(e.target.value)}
-        />
 
         <label style={styles.promoToggle}>
           <input type="checkbox" checked={showPromo} onChange={(e) => setShowPromo(e.target.checked)} style={styles.cbox} />
-          프로모션 (영업 재량할인 — 선택 옵션 0원 처리, 필수 사양 제외)
+          프로모션
         </label>
         {showPromo && (
           <div style={styles.promoList}>
             {zeroable.length === 0
-              ? <div style={styles.promoEmpty}>할인 가능한 선택 옵션이 없습니다. (필수 사양은 제외)</div>
+              ? <div style={styles.promoEmpty}>할인 가능한 옵션이 없습니다.</div>
               : zeroable.map((z) => (
                 <label key={z.group} style={styles.promoItem}>
                   <input
