@@ -90,7 +90,9 @@ export interface ContractTokens {
   spec_body: string; spec_height: string; spec_spoiler: string; spec_temp: string;
   spec_door: string; spec_door_add: string; spec_partition: string;
   price_total: string; price_down: string; price_balance: string;
-  special_terms: string; receipt_year: string;
+  special_terms: string;
+  receipt_year: string; receipt_month: string; receipt_day: string;
+  receipt_amount: string; receipt_payee: string;
 }
 
 // 옵션 선택값 → 계약서 표기(데이터계약 §2 값 예시). 하드코딩 금지 원칙에 따라 코드→표기 매핑만 둔다.
@@ -112,7 +114,7 @@ export async function buildContractTokens(orderId: number): Promise<ContractToke
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { quote: { include: { customer: true } } },
+    include: { quote: { include: { customer: true, sales_user: { select: { name: true } } } } },
   });
   if (!order) throw new ContractDocError('주문을 찾을 수 없습니다', 'NOT_FOUND');
 
@@ -121,9 +123,6 @@ export async function buildContractTokens(orderId: number): Promise<ContractToke
   const sel = (quote.selections ?? {}) as Record<string, string>;
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
 
-  const org = order.maker_org_id
-    ? await prisma.org.findUnique({ where: { code: order.maker_org_id }, select: { name: true } })
-    : null;
 
   // 금액은 총견적서 엔진(calcQuote)의 **특장 축** 단일 소스를 그대로 쓴다.
   // ⚠️ quote.supply_price 는 차량 트림까지 포함하므로 특장 계약서에 쓰면 안 된다.
@@ -149,19 +148,20 @@ export async function buildContractTokens(orderId: number): Promise<ContractToke
   const priceDown = Math.min(q.body_deposit, priceTotal);  // 계약금(DB 상수)
   const priceBalance = Math.max(priceTotal - priceDown, 0);
 
-  const d = order.created_at ?? new Date();
+  // 계약서의 모든 날짜는 **견적서 생성 날짜**(견적 생성일) 기준 — 견적서와 어긋나지 않게.
+  const d = quote.created_at ?? new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
 
   return {
     contract_no: quote.quote_no ?? `Q-${quote.id}`,
     contract_date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    contract_party: org?.name ?? '',
+    contract_party: String(inp['contract_party'] ?? ''),   // 특장사 아님 — 팝업 입력
     buyer_name: customer?.name ?? '',
-    buyer_agent: '',
-    buyer_relation: '',
-    buyer_regno: customer?.reg_no ?? '',
+    buyer_agent: String(inp['buyer_agent'] ?? ''),
+    buyer_relation: String(inp['buyer_relation'] ?? ''),
+    buyer_regno: String(inp['buyer_regno'] ?? customer?.reg_no ?? ''),
     buyer_address: customer?.address ?? '',
-    buyer_tel: '',
+    buyer_tel: String(inp['buyer_tel'] ?? ''),
     buyer_mobile: customer?.phone ?? '',
     buyer_email: customer?.email ?? '',
     spec_body: BODY_DISP[sel['BODYTYPE'] ?? ''] ?? '',
@@ -176,6 +176,10 @@ export async function buildContractTokens(orderId: number): Promise<ContractToke
     price_balance: won(priceBalance),
     special_terms: String(inp['memo'] ?? '').replace(/\s*\n+\s*/g, ' ').trim(),
     receipt_year: String(d.getFullYear()),
+    receipt_month: String(d.getMonth() + 1),
+    receipt_day: String(d.getDate()),
+    receipt_amount: won(priceDown),                        // 영수증 = 계약금 금액
+    receipt_payee: quote.sales_user?.name ?? '',           // 영수인 = 견적 담당
   };
 }
 

@@ -16,7 +16,9 @@ const TOKENS: ContractTokens = {
   spec_body: '냉장/냉동', spec_height: '저상', spec_spoiler: 'X', spec_temp: 'O',
   spec_door: '슬라이딩', spec_door_add: 'O', spec_partition: '냉장/냉동 이동식',
   price_total: '21,619,000', price_down: '400,000', price_balance: '21,219,000',
-  special_terms: '서비스: 블랙박스, 썬팅', receipt_year: '2026',
+  special_terms: '서비스: 블랙박스, 썬팅',
+  receipt_year: '2026', receipt_month: '8', receipt_day: '6',
+  receipt_amount: '400,000', receipt_payee: '마스터관리자',
 };
 
 function docXml(buf: Buffer): string {
@@ -48,6 +50,17 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     const xml = docXml(fillContractDocx(template, { ...TOKENS, receipt_year: '2031' }));
     expect(xml).not.toContain('receipt_year');
     expect((xml.match(/2031/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('영수증에 계약금 금액·영수인이 들어간다', () => {
+    const xml = docXml(fillContractDocx(template, TOKENS));
+    expect(xml).toContain('400,000');
+    expect(xml).toContain('마스터관리자');
+  });
+
+  it('계약처는 비워둘 수 있다(특장사 자동기입 아님)', () => {
+    const xml = docXml(fillContractDocx(template, { ...TOKENS, contract_party: '' }));
+    expect(xml).not.toMatch(/\{\{\s*contract_party\s*\}\}/);
   });
 
   it('2단 섹션 구조(계약조항 2~4p)가 보존된다', () => {
