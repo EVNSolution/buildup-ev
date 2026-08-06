@@ -214,11 +214,17 @@ function DocsTab({
   documents,
   vehicleInfo: initInfo,
   options,
+  canViewContract,
+  canViewStructDocs,
 }: {
   orderId: number
   documents: ApiOrderMakerDetail['documents']
   vehicleInfo?: OrderVehicleInfo | null
   options: ApiOrderMakerDetail['options']
+  /** 계약서(영업·관리자) 노출 여부 */
+  canViewContract: boolean
+  /** 구조변경 서류(관리자·특장사) 노출 여부 */
+  canViewStructDocs: boolean
 }) {
   const [info, setInfo] = useState<OrderVehicleInfo>(initInfo ?? {})
   const [saving, setSaving] = useState(false)
@@ -309,12 +315,13 @@ function DocsTab({
       {/* PDF 생성 버튼 */}
       <div style={det.card}>
         <div style={det.cardTitle}>서류 자동 생성 (PDF)</div>
-        {!bomOk && (
+        {canViewStructDocs && !bomOk && (
           <div style={det.bomWarn}>
             차체형식(탑 종류·높이·도어)이 선택되지 않아 서류를 생성할 수 없습니다.
             영업 화면에서 BODYTYPE·TOP·DOORTYPE 옵션을 모두 선택한 뒤 다시 시도해 주세요.
           </div>
         )}
+        {canViewStructDocs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: bomOk ? 1 : 0.4, pointerEvents: bomOk ? 'auto' : 'none' }}>
           {[
             { label: '주요제원대비표',  type: 'spec-table',  desc: '별지 제33호의2서식 — 튜닝 전·후 제원 비교', ready: true },
@@ -339,9 +346,26 @@ function DocsTab({
             </div>
           ))}
         </div>
+        )}
+        {canViewStructDocs && (
         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 10 }}>
           ※ 차량정보(등록번호 등)를 먼저 저장하면 서류에 자동 반영됩니다.
         </div>
+        )}
+
+        {/* 계약서는 BOM(차체형식) 없이도 생성 가능 — 영업·관리자만 */}
+        {canViewContract && (
+          <div style={{ borderTop: canViewStructDocs ? '1px solid var(--line)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
+            <button
+              type="button"
+              onClick={() => setDocPreview({ url: pdfUrl('contract'), title: '특장 매매계약서' })}
+              style={det.pdfBtn}
+            >
+              특장 매매계약서 미리보기
+            </button>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>계약정보·매수인·특장사양·금액 자동 기입 (서명란은 수기)</span>
+          </div>
+        )}
       </div>
       {docPreview && (
         <PdfModal
@@ -372,7 +396,9 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
-  const canViewLoadDocs = role === 'ADMIN' || role === 'MAKER'
+  const canViewLoadDocs = role === 'ADMIN' || role === 'MAKER'   // 구조변경 서류(하중·제원)
+  const canViewContract = role === 'ADMIN' || role === 'SALES'   // 계약서(영업 업무)
+  const canViewDocsTab = canViewLoadDocs || canViewContract
 
   useEffect(() => {
     setLoading(true); setErr('')
@@ -423,14 +449,16 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
         <button style={tab === 'spec' ? det.tabActive : det.tabBtn} onClick={() => setTab('spec')}>
           사양
         </button>
-        {canViewLoadDocs && (
+        {canViewDocsTab && (
           <>
             <button style={tab === 'docs' ? det.tabActive : det.tabBtn} onClick={() => setTab('docs')}>
               서류 ({detail.documents.length})
             </button>
-            <button style={tab === 'load' ? det.tabActive : det.tabBtn} onClick={() => setTab('load')}>
-              하중·법규
-            </button>
+            {canViewLoadDocs && (
+              <button style={tab === 'load' ? det.tabActive : det.tabBtn} onClick={() => setTab('load')}>
+                하중·법규
+              </button>
+            )}
           </>
         )}
       </div>
@@ -471,13 +499,15 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문' }
       )}
 
       {/* 서류 탭 */}
-      {tab === 'docs' && canViewLoadDocs && (
+      {tab === 'docs' && canViewDocsTab && (
         <div style={det.section}>
           <DocsTab
             orderId={detail.id}
             documents={detail.documents}
             vehicleInfo={detail.vehicle_info}
             options={detail.options}
+            canViewContract={canViewContract}
+            canViewStructDocs={canViewLoadDocs}
           />
         </div>
       )}

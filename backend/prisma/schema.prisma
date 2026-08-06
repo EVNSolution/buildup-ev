@@ -417,6 +417,7 @@ enum GeneratedDocType {
   load_calc
   spec_table
   work_order
+  contract // 특장 매매 및 구조변경 계약서
 }
 
 model GeneratedDocument {
