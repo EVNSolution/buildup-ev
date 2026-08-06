@@ -59,7 +59,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         </div>
 
         <div style={styles.row}>
-          <label style={styles.label}>이메일 <span style={styles.optional}>(선택 · 견적서 발송 시 사용)</span></label>
+          <label style={styles.label}>이메일</label>
           <input
             type="email"
             value={email}
@@ -68,7 +68,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         </div>
 
         <div style={styles.row}>
-          <label style={styles.label}>연락처 <span style={styles.optional}>(선택)</span></label>
+          <label style={styles.label}>연락처</label>
           <input
             type="tel"
             value={phone}
@@ -82,7 +82,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
             <option value="individual">개인사업자</option>
             <option value="corporate">법인사업자</option>
             <option value="simplified">간이과세자</option>
-            <option value="consumer">일반구매자 (부가세 환급 불가)</option>
+            <option value="consumer">일반구매자</option>
           </select>
         </div>
 
