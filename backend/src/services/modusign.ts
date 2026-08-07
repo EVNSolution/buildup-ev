@@ -53,7 +53,14 @@ async function req(method: string, path_: string, body?: unknown): Promise<unkno
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new ModusignApiError(`모두싸인 ${method} ${path_} 실패 (${res.status}): ${text.slice(0, 500)}`, res.status);
+    // 검증 실패(400)는 어느 필드가 왜 틀렸는지가 전부다. 잘라내면 고칠 단서를 잃는다.
+    // 응답 본문에는 자격증명이 없으므로 서버 로그에는 **전문**을 남긴다.
+    console.error(`[modusign] ${method} ${path_} → ${res.status}\n${text}`);
+    // 화면에는 요약만(길면 UI 가 깨진다). 전문은 로그에서 확인.
+    throw new ModusignApiError(
+      `모두싸인 ${method} ${path_} 실패 (${res.status}): ${text.slice(0, 800)}${text.length > 800 ? ' …(전문은 서버 로그)' : ''}`,
+      res.status,
+    );
   }
   return res.json().catch(() => ({}));
 }
