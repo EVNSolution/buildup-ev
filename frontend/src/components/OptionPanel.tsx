@@ -66,6 +66,9 @@ export function OptionPanel({
   onToggleLocalSubsidy,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
+  // 견적 저장 전에 모든 단계를 확인하게 강제한다. 기본 화면인 트림(vehicle)은 이미 본 것으로 친다.
+  const [visited, setVisited] = useState<Set<TabKey>>(new Set<TabKey>(['vehicle']))
+  const unseen = TABS.filter((t) => !visited.has(t.key))
   const [showPromo, setShowPromo] = useState(false)
 
   // 재량할인 대상: 가격이 있는 **선택 옵션**만(필수 옵션은 제외 — 탑 등 기본 사양).
@@ -93,9 +96,11 @@ export function OptionPanel({
     ? `저장 완료 (#${savedQuote.quote_id})`
     : isUnsupported
     ? '내장탑 미정 — 확정 불가'
+    : unseen.length
+    ? `${unseen.map((t) => t.label).join('·')} 확인 필요`
     : '견적 저장'
 
-  const btnDisabled = isSaving || !!savedQuote || isUnsupported
+  const btnDisabled = isSaving || !!savedQuote || isUnsupported || unseen.length > 0
 
   return (
     <aside style={styles.panel}>
@@ -104,7 +109,7 @@ export function OptionPanel({
           <div
             key={tab.key}
             style={tab.key === activeTab ? styles.tabOn : styles.tab}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => { setActiveTab(tab.key); setVisited((v) => new Set(v).add(tab.key)) }}
           >
             {tab.label}
           </div>

@@ -99,7 +99,7 @@ function MyListView() {
   const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
-    { id: number; customerName?: string; status: string; inputs?: Record<string, unknown> } | null
+    { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
   >(null)
 
   function load() {
@@ -148,6 +148,7 @@ function MyListView() {
         customerName={confirmQuoteModal.customerName}
         status={confirmQuoteModal.status}
         initialInputs={confirmQuoteModal.inputs}
+        customer={confirmQuoteModal.customer}
         onClose={() => setConfirmQuoteModal(null)}
         onDone={load}
       />
@@ -202,14 +203,14 @@ function MyListView() {
                             <button
                               style={lv.pdfBtn}
                               title="견적서 입력값(선수금·할부·면세 등) 수정"
-                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })}
+                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs, customer: q.customer ?? undefined })}
                             >수정</button>
                           )}
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
                             title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
-                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
+                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                           >견적서</button>
                           {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
@@ -217,7 +218,7 @@ function MyListView() {
                             style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.status === 'draft' ? '견적서 생성 시 계약서도 함께 만들어집니다' : '특장 매매계약서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
-                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
+                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                           >계약서</button>
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}

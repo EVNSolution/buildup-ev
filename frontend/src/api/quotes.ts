@@ -135,3 +135,20 @@ export async function fetchLocalSubsidy(region: string, year: number): Promise<n
   const body = await res.json() as { data?: { amount?: number } }
   return body.data?.amount ?? 0
 }
+
+/** 견적에 연결된 고객정보 수정 — 견적서·계약서에 즉시 반영된다(새 고객이 생기지 않음). */
+export async function saveQuoteCustomer(
+  quoteId: number,
+  patch: { name?: string; phone?: string; email?: string; address?: string; reg_no?: string },
+): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/customer`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => null) as { error?: { message?: string } } | null
+    throw new Error(b?.error?.message ?? `고객정보 저장 실패: ${res.status}`)
+  }
+}
