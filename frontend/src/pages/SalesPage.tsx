@@ -90,7 +90,7 @@ const ORDER_STATUS_BADGE: React.CSSProperties = {
 
 // 전자서명 진행 상태 — 팝업을 열지 않아도 목록에서 바로 보이게 한다.
 const CONTRACT_LABEL: Record<string, string> = {
-  DRAFT: '준비', SENT: '서명 대기', VIEWED: '열람', SIGNING: '서명 중',
+  DRAFT: '발송 실패', SENT: '서명 대기', VIEWED: '열람', SIGNING: '서명 중',
   COMPLETED: '서명 완료', REJECTED: '거절', CANCELED: '취소',
 }
 const CONTRACT_TONE: Record<string, React.CSSProperties> = {
