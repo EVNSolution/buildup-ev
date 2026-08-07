@@ -7,10 +7,11 @@
  *   모두싸인은 못 찾으므로 추출기 차이로 보인다.
  *
  * 왜 좌표를 손으로 재지 않는가:
- *   템플릿의 서명란에 보이지 않는 마커(#SIGN1~3#)를 심어두고, 렌더된 PDF 에서 그 위치를
- *   읽는다. 양식을 고쳐도 마커가 따라 움직이므로 좌표를 다시 잴 필요가 없다.
- *   도장칸 '(인)' 은 마커와 **같은 줄에서 오른쪽**에 있는 것을 찾아 짝짓는다
- *   (표 구조가 달라 XML 로는 짝을 못 맞춘다).
+ *   렌더된 PDF 에서 **'서명' 라벨 자체의 위치**를 읽는다. 양식을 고쳐도 라벨이 따라
+ *   움직이므로 좌표를 다시 잴 필요가 없다. 도장칸 '(인)' 은 같은 줄에서 오른쪽에 있는
+ *   것을 찾아 짝짓는다(표 구조가 달라 XML 로는 짝을 못 맞춘다).
+ *   ※ 예전엔 보이지 않는 마커(#SIGN1~3#)를 심었으나, 그 글자가 라벨 정렬을 밀어
+ *     제거했다. 좌표만 쓰므로 마커는 필요 없다.
  */
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -81,8 +82,9 @@ export async function findSignPositions(pdf: Buffer): Promise<SignPosition[]> {
     const xml = await run('pdftotext', ['-bbox', p, '-']);
     const { words, pages } = parseBbox(xml);
 
+    // '서명' 라벨 = 서명칸. '자필성명' 은 '성명' 이라 걸리지 않는다.
     const markers = words
-      .filter((w) => /^#SIGN\d+#$/.test(w.text))
+      .filter((w) => w.text === '서명')
       .sort((a, b) => a.page - b.page || a.y0 - b.y0);
 
     const out: SignPosition[] = [];
@@ -100,7 +102,9 @@ export async function findSignPositions(pdf: Buffer): Promise<SignPosition[]> {
           && Math.abs((w.y0 + w.y1) / 2 - yc) < SAME_LINE_TOLERANCE
           && w.text.includes('인'))
         .sort((a, b) => a.x0 - b.x0)[0];
-      if (seal) out.push({ kind: 'STAMP', ...ratio(seal.x0, seal.y0), ...base });
+      // ⚠️ y 는 '서명' 라벨 것을 그대로 쓴다. 글자 크기가 달라 (인) 의 y 를 쓰면
+      //    두 칸 높이가 어긋나 보인다(실제로 어긋나 보였다).
+      if (seal) out.push({ kind: 'STAMP', ...ratio(seal.x0, m.y0), ...base });
     }
     return out;
   } finally {
