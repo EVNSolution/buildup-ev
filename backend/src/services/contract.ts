@@ -154,7 +154,7 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
   // 서명란 좌표를 계약서 PDF 에서 직접 찾는다(마커 #SIGN1~3# + 같은 줄의 '(인)').
   const signFields = await findSignPositions(contractPdf);
   console.info(`[contract] 견적 ${quoteId} 서명 필드 ${signFields.length}개 ` +
-    signFields.map((f) => `${f.kind}@${f.page}p(${Math.round(f.x)},${Math.round(f.y)})`).join(' '));
+    signFields.map((f) => `${f.kind}@${f.page}p(${f.x.toFixed(3)},${f.y.toFixed(3)})`).join(' '));
 
   let documentId: string;
   try {

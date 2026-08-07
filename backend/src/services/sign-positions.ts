@@ -20,10 +20,11 @@ import path from 'node:path';
 export interface SignPosition {
   kind: 'SIGN' | 'STAMP';
   page: number;          // 1-base
-  x: number;             // 좌상단 기준 pt
+  /** 페이지 대비 0~1 비율(좌상단 기준). 모두싸인이 비율로 받는다. */
+  x: number;
   y: number;
-  pageWidth: number;     // 좌표계 환산이 필요할 때를 위해 함께 전달
-  pageHeight: number;
+  /** 진단용 원본 pt 좌표 */
+  ptX: number; ptY: number; pageWidth: number; pageHeight: number;
 }
 
 interface Word { page: number; x0: number; y0: number; x1: number; y1: number; text: string }
@@ -87,8 +88,10 @@ export async function findSignPositions(pdf: Buffer): Promise<SignPosition[]> {
     const out: SignPosition[] = [];
     for (const m of markers) {
       const pg = pages[m.page - 1] ?? { w: 0, h: 0 };
+      if (!pg.w || !pg.h) continue;   // 페이지 크기를 모르면 비율을 낼 수 없다
       const base = { page: m.page, pageWidth: pg.w, pageHeight: pg.h };
-      out.push({ kind: 'SIGN', x: m.x0, y: m.y0, ...base });
+      const ratio = (x: number, y: number) => ({ x: x / pg.w, y: y / pg.h, ptX: x, ptY: y });
+      out.push({ kind: 'SIGN', ...ratio(m.x0, m.y0), ...base });
 
       // 같은 줄 · 마커보다 오른쪽에 있는 '(인)' = 도장칸
       const yc = (m.y0 + m.y1) / 2;
@@ -97,7 +100,7 @@ export async function findSignPositions(pdf: Buffer): Promise<SignPosition[]> {
           && Math.abs((w.y0 + w.y1) / 2 - yc) < SAME_LINE_TOLERANCE
           && w.text.includes('인'))
         .sort((a, b) => a.x0 - b.x0)[0];
-      if (seal) out.push({ kind: 'STAMP', x: seal.x0, y: seal.y0, ...base });
+      if (seal) out.push({ kind: 'STAMP', ...ratio(seal.x0, seal.y0), ...base });
     }
     return out;
   } finally {
