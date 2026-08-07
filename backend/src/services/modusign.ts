@@ -13,9 +13,16 @@
  * 매칭 개수만큼 필드가 자동 생성되고 dataLabel 이 자동 넘버링된다(3곳 모두 서명 대상).
  */
 export const CONTRACT_ANCHORS = {
-  CUSTOMER_NAME: '자필성명',
-  SIGNATURE: '서명',
-  SEAL: '(인)',
+  /**
+   * 서명 위치 마커 — 계약서 서명란 3곳(영수증·개인정보동의·매수인)에 각각 하나씩.
+   *
+   * 한글 '서명' 을 앵커로 쓰면 모두싸인이 "Anchor text not found in PDF" 를 냈다.
+   * PDF 에 텍스트로 분명히 있고 poppler 는 찾는데도 그렇다(추출기 차이 추정).
+   * 그래서 각 자리에 **고유한 영문 마커**를 넣고 그것을 앵커로 쓴다.
+   * 마커는 셀 배경색과 같은 글자색 + 6pt 라 화면·인쇄에 보이지 않는다.
+   * ⚠️ 템플릿에서 이 마커를 지우면 서명란이 안 잡힌다.
+   */
+  SIGN_SPOTS: ['#SIGN1#', '#SIGN2#', '#SIGN3#'] as const,
 } as const;
 
 export class ModusignConfigError extends Error {}
@@ -107,10 +114,9 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         //    "either (x,y,page) or anchor, not both or neither" — 둘 중 하나만.
         //  · TEXT 필드는 textStyle 이 필수라 규격을 모르면 400 이 난다.
         //    자필성명·서명 모두 손으로 쓰는 칸이므로 SIGNATURE 로 통일해 TEXT 를 쓰지 않는다.
-        fields: [
-          { type: 'SIGNATURE', signatureTypes: ['SIGN'], position: { anchor: { text: CONTRACT_ANCHORS.SIGNATURE } } },
-          { type: 'SIGNATURE', signatureTypes: ['SIGN'], position: { anchor: { text: CONTRACT_ANCHORS.CUSTOMER_NAME } } },
-        ],
+        fields: CONTRACT_ANCHORS.SIGN_SPOTS.map((text) => ({
+          type: 'SIGNATURE', signatureTypes: ['SIGN'], position: { anchor: { text } },
+        })),
       },
     ],
   };
