@@ -21,6 +21,45 @@ export function OptionDbTab() {
 
   const keyOf = (row: Record<string, unknown>, pk: string[]) => pk.map((f) => String(row[f] ?? '')).join('|')
 
+  // ── 단가 표시 단위 ────────────────────────────────────────────────────────
+  // 총견적서 '옵션DB' 시트는 전부 **VAT 포함**으로 관리한다. DB 는 공급가로 저장하므로
+  // (계산·견적서가 전부 공급가 기준) 화면에서만 ×1.1 해 보여주고, 저장 시 되돌린다.
+  // → 엑셀 숫자를 그대로 옮겨 적을 수 있고, 계산 로직은 한 줄도 바뀌지 않는다.
+  const VAT_FIELDS: Record<string, string[]> = {
+    option_price: ['supply_price'],
+    door_unit_price: ['supply_price'],
+  }
+  const isVatField = (f: string) => (VAT_FIELDS[table] ?? []).includes(f)
+  const toVat = (supply: number) => Math.round(supply * 1.1)
+  const toSupply = (vat: number) => Math.round(vat / 1.1)
+
+  // ── 구분(섹션) ────────────────────────────────────────────────────────────
+  // 엑셀 옵션DB 시트의 구분과 동일하게 나눈다. 한 덩어리로 모여 있으면 찾기 어렵다.
+  const SECTIONS: { label: string; prefixes: string[] }[] = [
+    { label: '차량 옵션 (트림)',        prefixes: ['TRIM'] },
+    { label: '특장 옵션 (적재함 사양)', prefixes: ['TOP'] },
+    { label: '특장 옵션 (도어 종류)',   prefixes: ['DOPT'] },
+    { label: '특장 옵션 (도어 추가)',   prefixes: ['DADD'] },
+    { label: '스포일러',                prefixes: ['SPL', 'SPOILER'] },
+    { label: '특장 옵션 (기타)',        prefixes: ['TEMP', 'PART'] },
+    { label: '부가 상품',               prefixes: ['BLACKBOX', 'TINT', 'DECAL', 'SUPPLYKIT'] },
+  ]
+  const sectionOf = (row: Record<string, unknown>): string => {
+    const pfx = String(row['value_code'] ?? '').split('_')[0]
+    return SECTIONS.find((s) => s.prefixes.includes(pfx))?.label ?? '기타'
+  }
+  /** 섹션 순서를 유지한 채 행을 묶는다. option_price 에만 적용. */
+  function grouped(rows: Record<string, unknown>[]): { label: string; rows: Record<string, unknown>[] }[] {
+    if (table !== 'option_price') return [{ label: '', rows }]
+    const order = [...SECTIONS.map((s) => s.label), '기타']
+    const map = new Map<string, Record<string, unknown>[]>()
+    for (const r of rows) {
+      const k = sectionOf(r)
+      map.set(k, [...(map.get(k) ?? []), r])
+    }
+    return order.filter((l) => map.has(l)).map((l) => ({ label: l, rows: map.get(l)! }))
+  }
+
   function load(t = table, query = q) {
     setLoading(true); setErr(''); setMsg(''); setEdits({})
     fetchOptionDbTable(t, query.trim() || undefined)
@@ -45,7 +84,12 @@ export function OptionDbTab() {
           const base: Record<string, unknown> = {}
           for (const f of data.pk) base[f] = r[f]
           for (const f of data.fields) base[f] = r[f]
-          return { ...base, ...edits[k] }
+          const merged = { ...base, ...edits[k] }
+          // 화면에 입력한 값은 VAT 포함 → 저장은 공급가로 되돌린다(편집한 칸만)
+          for (const f of Object.keys(edits[k] ?? {})) {
+            if (isVatField(f)) merged[f] = toSupply(Number(merged[f]) || 0)
+          }
+          return merged
         })
       const res = await saveOptionDbRows(table, rows)
       setMsg(`${res.rows}행 저장 · ${res.changed_fields}개 필드 변경(이력 기록됨)`)
@@ -99,12 +143,24 @@ export function OptionDbTab() {
             <thead>
               <tr>
                 {data.pk.map((f) => <th key={f} style={s.th}>{f}</th>)}
-                {data.fields.map((f) => <th key={f} style={s.th}>{f}{data.numeric.includes(f) ? ' (숫자)' : ''}</th>)}
+                {data.fields.map((f) => (
+                  <th key={f} style={s.th}>
+                    {isVatField(f) ? '단가 (VAT 포함)' : f}{data.numeric.includes(f) && !isVatField(f) ? ' (숫자)' : ''}
+                  </th>
+                ))}
                 <th style={s.th}></th>
               </tr>
             </thead>
-            <tbody>
-              {data.rows.map((r) => {
+            {grouped(data.rows).map((sec) => (
+            <tbody key={sec.label || 'all'}>
+              {sec.label && (
+                <tr>
+                  <td colSpan={data.pk.length + data.fields.length + 1} style={s.sectionRow}>
+                    {sec.label} <span style={s.sectionCount}>{sec.rows.length}</span>
+                  </td>
+                </tr>
+              )}
+              {sec.rows.map((r) => {
                 const k = keyOf(r, data.pk)
                 const e = edits[k] ?? {}
                 return (
@@ -119,12 +175,19 @@ export function OptionDbTab() {
                             onChange={(ev) => edit(k, f, ev.target.checked)}
                           />
                         ) : (
-                          <input
-                            style={s.input}
-                            type={data.numeric.includes(f) ? 'number' : 'text'}
-                            value={String((f in e ? e[f] : r[f]) ?? '')}
-                            onChange={(ev) => edit(k, f, ev.target.value)}
-                          />
+                          <>
+                            <input
+                              style={s.input}
+                              type={data.numeric.includes(f) ? 'number' : 'text'}
+                              value={String((f in e ? e[f] : (isVatField(f) ? toVat(Number(r[f]) || 0) : r[f])) ?? '')}
+                              onChange={(ev) => edit(k, f, ev.target.value)}
+                            />
+                            {isVatField(f) && (
+                              <div style={s.sub}>
+                                공급가 {toSupply(Number(f in e ? e[f] : toVat(Number(r[f]) || 0)) || 0).toLocaleString('ko-KR')}
+                              </div>
+                            )}
+                          </>
                         )}
                       </td>
                     ))}
@@ -135,6 +198,7 @@ export function OptionDbTab() {
                 )
               })}
             </tbody>
+            ))}
           </table>
           {data.rows.length === 0 && <div style={s.empty}>표시할 행이 없습니다.</div>}
           <div style={s.count}>{data.rows.length}행</div>
@@ -180,6 +244,9 @@ export function OptionDbTab() {
 }
 
 const s: Record<string, React.CSSProperties> = {
+  sectionRow: { background: '#eef2e6', color: '#42502a', fontWeight: 700, fontSize: 14, padding: '7px 10px', borderTop: '2px solid #d5e0bf' },
+  sectionCount: { fontSize: 12, color: '#7b8a5e', fontWeight: 400, marginLeft: 6 },
+  sub: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
   root: { padding: 16 },
   bar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
   select: { padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 7, fontSize: 13 },
