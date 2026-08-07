@@ -27,7 +27,6 @@ export function OptionDbTab() {
   // → 엑셀 숫자를 그대로 옮겨 적을 수 있고, 계산 로직은 한 줄도 바뀌지 않는다.
   const VAT_FIELDS: Record<string, string[]> = {
     option_price: ['supply_price'],
-    door_unit_price: ['supply_price'],
   }
   const isVatField = (f: string) => (VAT_FIELDS[table] ?? []).includes(f)
   const toVat = (supply: number) => Math.round(supply * 1.1)

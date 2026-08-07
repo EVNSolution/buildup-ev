@@ -40,8 +40,6 @@ describe.skipIf(shouldSkip)('GET /api/v1/models/:code/pricing-bundle', () => {
     expect(data.rules.length).toBeGreaterThanOrEqual(2);
     expect(typeof data.option_prices['TRIM_PLUS']).toBe('number');
     expect(data.option_prices['TRIM_PLUS']).toBe(45_136_364);
-    expect(Array.isArray(data.door_unit_prices)).toBe(true);
-    expect(data.door_unit_prices.length).toBe(4);
     expect(typeof data.tax.acq_tax_rate).toBe('number');
     expect(data.subsidy_national.amount).toBe(11_500_000);
     expect(Number(data.subsidy_national.sosang_rate)).toBeCloseTo(0.3);

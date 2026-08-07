@@ -188,12 +188,6 @@ export interface ApiOptionRule {
   memo?: string | null;
 }
 
-export interface ApiDoorPrice {
-  top: string;
-  doortype: string;
-  unit_price: number;
-}
-
 export interface ApiTaxConfig {
   acq_tax_rate: number;
   special_acq_tax_rate: number;
@@ -214,7 +208,6 @@ export interface ApiPricingBundle {
   groups: ApiOptionGroup[];
   rules: ApiOptionRule[];
   option_prices: Record<string, number>;
-  door_unit_prices: ApiDoorPrice[];
   tax: ApiTaxConfig;
   /** tax_config 전체(param_key→value) — 총견적서 계산용(커머셜할인·공채·계약금·의무보험 등) */
   tax_all?: Record<string, number>;

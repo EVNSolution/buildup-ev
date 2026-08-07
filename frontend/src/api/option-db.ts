@@ -31,7 +31,6 @@ async function get<T>(url: string): Promise<T> {
 
 export const OPTION_DB_TABLES = [
   { name: 'option_price',     label: '옵션 단가' },
-  { name: 'door_unit_price',  label: '도어 단가' },
   { name: 'subsidy_local',    label: '지방보조금 (지역)' },
   { name: 'subsidy_national', label: '국고보조금' },
   { name: 'tax_config',       label: '세율·부대비용' },
