@@ -132,22 +132,15 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         //
         // 서명칸은 **직접 타이핑**(TEXT), 도장칸은 서명/도장 이미지(SIGNATURE).
         // 도장·서명 파일을 올리게 하면 고객이 준비물 없이는 진행을 못 한다.
-        fields: p.signFields.map((f) => (f.kind === 'SIGN'
-          ? {
-              type: 'TEXT',
-              // ⚠️ TEXT 필드는 칸 크기(width/height)가 없으면 모두싸인 쪽에서
-              //    "Cannot read properties of undefined (reading 'width')" 로 500 이 난다.
-              //    좌표와 마찬가지로 페이지 대비 비율.
-              position: { page: f.page, x: f.x, y: f.y, width: 0.12, height: 0.025 },
-              // 규격 확정(실 API): size 는 지정된 값 중 하나(4~18, 24, 30, 36, 48, 60),
-              // font 는 NOTO_SANS | NOTO_SERIF 만 허용. 그 외 키는 넣지 않는다.
-              textStyle: { size: 12, font: 'NOTO_SANS' },
-            }
-          : {
-              type: 'SIGNATURE',
-              signatureTypes: ['SIGN', 'STAMP'],
-              position: { page: f.page, x: f.x, y: f.y },
-            })),
+        // 6칸 모두 SIGNATURE — 모두싸인 서명 UI 가 칸마다 그리기/타이핑/이미지를 고르게 한다.
+        // TEXT 필드는 규격 미확인 상태에서 500(InternalServerError, 'reading width')이
+        // 계속 나 포기했다. 원인을 알려주지 않아 추측이 길어지기만 한다.
+        // (참고: SIGNATURE 는 signatureType 이 모든 필드에서 같아야 한다는 제약이 있다)
+        fields: p.signFields.map((f) => ({
+          type: 'SIGNATURE',
+          signatureTypes: ['SIGN', 'STAMP'],
+          position: { page: f.page, x: f.x, y: f.y },
+        })),
       },
     ],
   };
