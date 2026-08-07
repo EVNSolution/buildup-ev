@@ -136,7 +136,9 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
           ? {
               type: 'TEXT',
               position: { page: f.page, x: f.x, y: f.y },
-              textStyle: { fontSize: 12, color: '#000000', align: 'CENTER' },
+              // 규격 확정(실 API): size 는 지정된 값 중 하나(4~18, 24, 30, 36, 48, 60),
+              // font 는 NOTO_SANS | NOTO_SERIF 만 허용. 그 외 키는 넣지 않는다.
+              textStyle: { size: 12, font: 'NOTO_SANS' },
             }
           : {
               type: 'SIGNATURE',
