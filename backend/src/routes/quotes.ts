@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import { renderContractPdfForQuote, ContractDocError } from '../services/contract-docgen.js';
-import { readFrozenDoc, isFrozen, FROZEN_MESSAGE } from '../services/doc-freeze.js';
+import { readFrozenDoc, isFrozen, FROZEN_MESSAGE, collectContractFilePaths, deleteContractFiles } from '../services/doc-freeze.js';
 import {
   calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   type PricingParams,
@@ -599,11 +599,16 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
         return;
       }
+      // ⚠️ 파일 경로는 행 삭제 '전에' 확보 — 지운 뒤에는 경로를 알 수 없어 고아로 남는다.
+      const contractPaths = await collectContractFilePaths(id);
       // 계약(purchase_contract)이 견적을 FK 참조 → 먼저 지워야 quote 삭제가 가능
       await prisma.$transaction(async (tx) => {
         await tx.purchaseContract.deleteMany({ where: { quote_id: id } });
         await tx.quote.delete({ where: { id } });
       });
+      if (contractPaths.length) {
+        await deleteContractFiles(contractPaths).catch(e => console.error('[DELETE /quotes/:id] 계약 파일 정리 실패', e));
+      }
       res.json({ data: { ok: true } });
       return;
     }
@@ -619,6 +624,8 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       // ⚠️ PDF 경로는 반드시 트랜잭션(행 삭제) '전에' 확보 — 행을 먼저 지우면 file_path 를
       //    못 찾아 파일이 고아로 남는다(issue #17 ②).
       const docPaths = order ? await collectGeneratedDocPaths(order.id) : [];
+      // 서명본 PDF + 고정본 견적서·계약서도 같은 이유로 미리 확보한다.
+      const contractPaths = await collectContractFilePaths(id);
       await prisma.$transaction(async (tx) => {
         if (order) {
           await tx.document.deleteMany({ where: { order_id: order.id } });
@@ -633,6 +640,9 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       // DB 커밋 성공 후 미리 확보한 경로로 실제 PDF 파일 정리. 파일 삭제 실패는 무시(로그만).
       if (docPaths.length) {
         await deleteGeneratedDocFilesByPaths(docPaths).catch(e => console.error('[DELETE /quotes/:id] 서류 파일 정리 실패', e));
+      }
+      if (contractPaths.length) {
+        await deleteContractFiles(contractPaths).catch(e => console.error('[DELETE /quotes/:id] 계약 파일 정리 실패', e));
       }
       res.json({ data: { ok: true } });
       return;

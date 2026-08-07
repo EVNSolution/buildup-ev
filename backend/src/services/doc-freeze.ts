@@ -108,3 +108,33 @@ export async function isFrozen(quoteId: number): Promise<boolean> {
 
 export const FROZEN_MESSAGE =
   '전자서명 요청이 발송되어 서류가 고정되었습니다. 고객이 받은 문서와 어긋나지 않도록 수정할 수 없습니다.';
+
+/**
+ * 견적에 매달린 계약 관련 파일 경로 — 삭제 전에 **먼저 확보**한다.
+ * 행을 지운 뒤에는 경로를 알 수 없어 파일이 고아로 남는다(기존 서류 정리와 같은 순서).
+ *
+ * 대상: 서명본 PDF(purchase_contract.signed_pdf_path) + 고정본 견적서·계약서.
+ */
+export async function collectContractFilePaths(quoteId: number): Promise<string[]> {
+  if (!prisma) return [];
+  const [quote, contracts] = await Promise.all([
+    prisma.quote.findUnique({
+      where: { id: quoteId },
+      select: { docs_frozen_quote_path: true, docs_frozen_contract_path: true },
+    }),
+    prisma.purchaseContract.findMany({ where: { quote_id: quoteId }, select: { signed_pdf_path: true } }),
+  ]);
+  return [
+    quote?.docs_frozen_quote_path,
+    quote?.docs_frozen_contract_path,
+    ...contracts.map((c) => c.signed_pdf_path),
+  ].filter((p): p is string => !!p);
+}
+
+/** 파일 삭제 — 이미 없으면 조용히 넘어간다(삭제가 목적이므로 없는 것도 성공). */
+export async function deleteContractFiles(paths: string[]): Promise<void> {
+  const { rm } = await import('node:fs/promises');
+  for (const p of paths) {
+    await rm(p, { force: true }).catch((e) => console.error('[deleteContractFiles] 실패', p, e));
+  }
+}
