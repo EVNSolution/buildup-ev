@@ -1,6 +1,6 @@
 /**
  * 옵션DB(기준데이터) 관리자 CRUD — ADMIN 전용. 영업(SALES) 노출 금지.
- * 대상: option_price · door_unit_price · subsidy_local(지역 161행) · subsidy_national ·
+ * 대상: option_price · subsidy_local(지역 161행) · subsidy_national ·
  *       tax_config(공채·계약금·커머셜 포함) · installment_rate.
  * 모든 변경은 option_db_change_log 에 필드별 이전값→새값·수정자·수정일시로 기록된다.
  * (총견적서 정답지 = STEGO-K1_총견적서.xlsx '옵션DB' 시트 — 값은 여기서만 수정)
@@ -45,18 +45,6 @@ const TABLES: Record<string, TableDef> = {
       where: { model_code_value_code: { model_code: String(k['model_code']), value_code: String(k['value_code']) } },
       update: { supply_price: Number(d['supply_price']), memo: (d['memo'] as string) ?? null },
       create: { model_code: String(k['model_code']), value_code: String(k['value_code']), supply_price: Number(d['supply_price']), memo: (d['memo'] as string) ?? null },
-    }),
-  },
-  door_unit_price: {
-    pk: ['model_code', 'top', 'doortype'], fields: ['unit_price'], numeric: ['unit_price'],
-    list: async () => db().doorUnitPrice.findMany({ orderBy: [{ model_code: 'asc' }, { top: 'asc' }, { doortype: 'asc' }] }),
-    find: async (k) => db().doorUnitPrice.findUnique({
-      where: { model_code_top_doortype: { model_code: String(k['model_code']), top: String(k['top']), doortype: String(k['doortype']) } },
-    }),
-    upsert: async (k, d) => db().doorUnitPrice.upsert({
-      where: { model_code_top_doortype: { model_code: String(k['model_code']), top: String(k['top']), doortype: String(k['doortype']) } },
-      update: { unit_price: Number(d['unit_price']) },
-      create: { model_code: String(k['model_code']), top: String(k['top']), doortype: String(k['doortype']), unit_price: Number(d['unit_price']) },
     }),
   },
   subsidy_local: {

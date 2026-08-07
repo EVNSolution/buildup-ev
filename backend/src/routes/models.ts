@@ -41,7 +41,7 @@ modelsRouter.get('/:modelCode/pricing-bundle', rbac('SALES', 'ADMIN'), async (re
     return;
   }
 
-  const [ogms, rules, optPrices, doorPrices, taxRows, subsidyNat] = await Promise.all([
+  const [ogms, rules, optPrices, taxRows, subsidyNat] = await Promise.all([
     prisma.optionGroupModel.findMany({
       where: { model_code: modelCode, group: { active: true } },
       include: {
@@ -53,7 +53,6 @@ modelsRouter.get('/:modelCode/pricing-bundle', rbac('SALES', 'ADMIN'), async (re
     }),
     prisma.optionRule.findMany(),
     prisma.optionPrice.findMany({ where: { model_code: modelCode } }),
-    prisma.doorUnitPrice.findMany({ where: { model_code: modelCode } }),
     prisma.taxConfig.findMany(),
     prisma.subsidyNational.findFirst({ where: { model_code: modelCode, year: calcYear } }),
   ]);
@@ -90,7 +89,6 @@ modelsRouter.get('/:modelCode/pricing-bundle', rbac('SALES', 'ADMIN'), async (re
       groups,
       rules,
       option_prices,
-      door_unit_prices: doorPrices.map(d => ({ top: d.top, doortype: d.doortype, unit_price: d.unit_price })),
       tax,
       // 총견적서 계산(calcQuote)에 필요한 전체 세율·부대비용 — 화면이 견적서와 같은 규칙을 쓰도록.
       tax_all: taxMap,
