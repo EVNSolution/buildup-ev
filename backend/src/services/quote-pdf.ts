@@ -182,7 +182,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     top: {
       priceTotal: won(r.body_price), promoAmount: won(r.promotion), promoTotal: won(r.promotion),
       paymentAmount: won(r.body_payment), downPayment: won(r.body_deposit), deliveryPayment: won(r.body_delivery),
-      acqTax: won(r.body_acq_tax), etcRegFee: won(r.etc_fee), regCost: won(r.body_reg_cost), initialPayment: won(r.body_initial),
+      acqTax: won(r.body_acq_tax), etcRegFee: won(r.etc_fee), structureFee: won(r.structure_change_fee), regCost: won(r.body_reg_cost), initialPayment: won(r.body_initial),
     },
     cust: {
       name: quote.customer?.name ?? '', bizType: BIZ_DISP[bizType] ?? bizType, region,

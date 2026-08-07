@@ -418,6 +418,9 @@ export function SalesPage() {
       insurance: t['insurance'] ?? 2_800,
       reg_agency: t['reg_agency'] ?? bundle.tax.reg_agency,
       etc_fee: t['etc_fee'] ?? bundle.tax.etc_fee,
+      // 구조변경 비용 — tax_config 값. 백엔드(buildQuoteParams)와 같은 기본값을 써야
+      // 화면 가격과 견적서 PDF 가 어긋나지 않는다.
+      structure_change_fee: t['structure_change_fee'] ?? 400_000,
     })
   }, [bundle, selections, subsidyLocal, customer, skipped, promotionZeroed, localSubsidyOff])
 

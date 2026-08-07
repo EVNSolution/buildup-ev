@@ -72,6 +72,12 @@ export interface QuoteParams {
   insurance: number;            // D28 의무보험료 (총견적서는 등록비 포함)
   reg_agency: number;           // D29 등록대행료
   etc_fee: number;              // I25 등록부가수수료
+  /**
+   * 구조변경 비용 — 특장 등록/부대비용의 세 번째 항목(VAT 포함).
+   * 이 금액만큼 탑 종류 단가를 낮춰 특장가격에서 등록/부대비용으로 자리를 옮긴 것.
+   * (자리를 옮기면 부가세 환급 대상 금액이 줄어 실구매가가 그만큼 올라간다 — 의도된 동작)
+   */
+  structure_change_fee: number;
 }
 
 export interface QuoteResult {
@@ -104,6 +110,7 @@ export interface QuoteResult {
   body_delivery: number;        // I23 인도금(특장)
   body_acq_tax: number;         // I24
   etc_fee: number;              // I25
+  structure_change_fee: number; // I25-2 구조변경 비용
   body_reg_cost: number;        // I30
   body_initial: number;         // I31 특장 초기 납부 금액
 
@@ -153,7 +160,7 @@ export function calcQuote(p: QuoteParams): QuoteResult {
   const car_initial = car_delivery + car_reg_cost;                                           // D31
 
   const body_acq_tax = floor10(body_payment * p.special_acq_tax_rate);                       // I24
-  const body_reg_cost = body_acq_tax + p.etc_fee;                                            // I30
+  const body_reg_cost = body_acq_tax + p.etc_fee + p.structure_change_fee;                   // I30
   const body_initial = body_delivery + body_reg_cost;                                        // I31
 
   // ── 할부 ──
@@ -179,7 +186,7 @@ export function calcQuote(p: QuoteParams): QuoteResult {
     car_acq_tax, bond_discount, plate: p.plate, stamp: p.stamp, insurance: p.insurance, reg_agency: p.reg_agency,
     car_reg_cost, car_initial,
     body_price: p.body_price, promotion: p.promotion, body_payment, body_deposit: p.body_deposit, body_delivery,
-    body_acq_tax, etc_fee: p.etc_fee, body_reg_cost, body_initial,
+    body_acq_tax, etc_fee: p.etc_fee, structure_change_fee: p.structure_change_fee, body_reg_cost, body_initial,
     car_installment, body_installment, total_installment,
     installment_rate: p.installment_rate, installment_months: p.installment_months,
     monthly_payment, installment_interest, vat_refund_price, real_price,

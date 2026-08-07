@@ -79,6 +79,9 @@ export const QUOTE_PARAMS: QuoteParams = {
   insurance: 2_800,             // X8 (총견적서는 등록비 포함)
   reg_agency: 30_000,           // X7
   etc_fee: 50_000,              // AD2
+  // 총견적서 엑셀에는 구조변경 비용 항목이 없다 — 정답지 재현을 깨지 않도록 0.
+  // 운영 기본값(400,000)은 tax_config 에서 주입되며, 별도 테스트로 검증한다.
+  structure_change_fee: 0,
 };
 
 /** 차량견적서 시트 계산값(ground truth). 월납입금·이자는 float → 근사 비교. */

@@ -101,5 +101,7 @@ export async function buildQuoteParams(
     insurance: taxMap['insurance'] ?? 2_800,
     reg_agency: taxMap['reg_agency'] ?? 30_000,
     etc_fee: taxMap['etc_fee'] ?? 50_000,
+    // 구조변경 비용 — tax_config 로 관리(관리자페이지에서 변경). 미설정 시 40만원.
+    structure_change_fee: taxMap['structure_change_fee'] ?? 400_000,
   };
 }
