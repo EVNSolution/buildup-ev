@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PhoneInput } from './PhoneInput'
 import type { CustomerInfo } from '@shared/types/index'
 import { fetchRegions } from '../api/quotes'
 
@@ -73,12 +74,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
 
         <div style={styles.row}>
           <label style={styles.label}>연락처</label>
-          <input
-            style={styles.field}
-            type="tel"
-            value={phone}
-            onChange={e => setPhone(e.target.value)}
-          />
+          <PhoneInput value={phone} onChange={setPhone} boxStyle={styles.field} />
         </div>
 
         <div style={styles.row}>

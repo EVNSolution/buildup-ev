@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, type InstallmentRateOption } from '../api/quotes'
+import { fetchInstallmentRates, saveQuoteInputs, saveQuoteCustomer, confirmQuote, type InstallmentRateOption } from '../api/quotes'
+import { PhoneInput } from './PhoneInput'
 import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 
 /**
@@ -12,6 +13,8 @@ interface Props {
   customerName?: string
   status: string
   initialInputs?: Record<string, unknown>
+  /** 견적에 연결된 고객 — 저장 후 오타를 발견했을 때 여기서 바로 고친다 */
+  customer?: { id: number; name: string; email?: string | null; phone?: string | null } | null
   onClose: () => void
   onDone: () => void
 }
@@ -19,7 +22,7 @@ interface Props {
 // 면세구분 — 엑셀 수식상 '일반인'+서울만 공채할인. 나머지는 placeholder(내일 수정 예정).
 const TAX_EXEMPT_OPTIONS = ['일반인', '면세사업자', '기타']
 
-export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, onClose, onDone }: Props) {
+export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, customer, onClose, onDone }: Props) {
   const init = initialInputs ?? {}
   const isConfirmed = status !== 'draft'
 
@@ -34,6 +37,11 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
   const [relation, setRelation] = useState<string>((init['buyer_relation'] as string) ?? '')
   const [regno, setRegno] = useState<string>((init['buyer_regno'] as string) ?? '')
   const [tel, setTel] = useState<string>((init['buyer_tel'] as string) ?? '')
+
+  // 고객정보 — 저장 후 오타를 발견해도 여기서 고치면 견적서·계약서에 즉시 반영된다
+  const [cName, setCName] = useState(customer?.name ?? '')
+  const [cPhone, setCPhone] = useState(customer?.phone ?? '')
+  const [cEmail, setCEmail] = useState(customer?.email ?? '')
 
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
   const [busy, setBusy] = useState(false)
@@ -58,6 +66,9 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
   async function handleConfirm() {
     setBusy(true); setErr('')
     try {
+      if (customer) {
+        await saveQuoteCustomer(quoteId, { name: cName.trim(), phone: cPhone, email: cEmail.trim() })
+      }
       await saveQuoteInputs(quoteId, payload())
       if (!isConfirmed) await confirmQuote(quoteId)
       onDone(); onClose()
@@ -100,6 +111,21 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
             영업용 번호판 보유 <span style={s.unit}>(취득세 4% 적용)</span>
           </label>
 
+          {customer && (
+            <>
+              <div style={s.divider}>
+                <span style={s.dividerText}>고객 정보</span>
+                <span style={s.optional}>수정하면 견적서·계약서에 바로 반영</span>
+              </div>
+              <label style={s.label}>성명 (상호/대표이사)</label>
+              <input style={s.input} value={cName} onChange={(e) => setCName(e.target.value)} />
+              <label style={s.label}>연락처</label>
+              <PhoneInput value={cPhone} onChange={setCPhone} boxStyle={s.input} />
+              <label style={s.label}>이메일</label>
+              <input style={s.input} type="email" value={cEmail} onChange={(e) => setCEmail(e.target.value)} />
+            </>
+          )}
+
           <div style={s.divider}>
             <span style={s.dividerText}>매매계약서 정보</span>
             <span style={s.optional}>모두 선택 · 비워두면 계약서에 공란</span>
@@ -118,7 +144,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
           <input style={s.input} value={regno} onChange={(e) => setRegno(e.target.value)} />
 
           <label style={s.label}>전화번호 <span style={s.unit}>(유선)</span></label>
-          <input style={s.input} value={tel} onChange={(e) => setTel(e.target.value)} />
+          <PhoneInput value={tel} onChange={setTel} boxStyle={s.input} />
 
           <div style={s.note}>
             {isConfirmed

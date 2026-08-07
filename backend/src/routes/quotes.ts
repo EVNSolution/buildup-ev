@@ -323,6 +323,51 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
   }
 });
 
+// ── PATCH /quotes/:id/customer — 견적에 연결된 고객정보 수정 ───────────────
+//
+// 저장 후에 고객정보 오타를 발견하는 일이 잦다. 예전에는 고객정보 팝업에서 고쳐도
+// 새 customer 행이 생길 뿐 견적이 가리키는 행은 그대로라, 견적서·계약서에 옛 값이 나갔다.
+// 여기서는 **견적이 가리키는 customer 행 자체**를 고쳐 모든 서류에 즉시 반영되게 한다.
+
+quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true, customer_id: true } });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+    }
+    if (!quote.customer_id) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '견적에 고객이 연결되어 있지 않습니다' } }); return; }
+
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const str = (k: string, max: number) => {
+      const v = b[k];
+      if (typeof v !== 'string') return undefined;
+      const t = v.trim();
+      return t ? t.slice(0, max) : null;   // 빈 문자열은 null 로 비운다
+    };
+    const data: Record<string, string | null> = {};
+    const name = str('name', 60);
+    if (name) data['name'] = name;          // 이름은 비울 수 없다(NOT NULL)
+    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['reg_no', 20]] as const) {
+      const v = str(k, max);
+      if (v !== undefined) data[k] = v;
+    }
+    if (!Object.keys(data).length) { res.json({ data: { ok: true, changed: 0 } }); return; }
+
+    await prisma.customer.update({ where: { id: quote.customer_id }, data });
+    res.json({ data: { ok: true, changed: Object.keys(data).length } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/customer]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '고객정보 저장 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── POST /quotes — 서버 재계산 + 스냅샷 저장 ─────────────────────────────
 
 quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> => {
