@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { openPdf } from '../lib/openPdf'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
@@ -12,7 +13,6 @@ import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { offValueCode } from '../components/OptionToggle'
 import { CustomerModal } from '../components/CustomerModal'
-import { PdfModal } from '../components/PdfModal'
 import { ContractPanel } from '../components/ContractPanel'
 import { EmailSendModal } from '../components/EmailSendModal'
 import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
@@ -96,8 +96,6 @@ function MyListView() {
   const [orders, setOrders]   = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
-  const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
-  const [contractPdf, setContractPdf] = useState<{ id: number; customerName?: string } | null>(null)
   const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
@@ -121,24 +119,8 @@ function MyListView() {
 
   return (
     <>
-    {pdfQuote && (
-      <PdfModal
-        previewUrl={`/api/v1/quotes/${pdfQuote.id}/pdf`}
-        downloadUrl={`/api/v1/quotes/${pdfQuote.id}/pdf?download=1`}
-        title="견적서"
-        subtitle={pdfQuote.customerName}
-        onClose={() => setPdfQuote(null)}
-      />
-    )}
-    {contractPdf && (
-      <PdfModal
-        previewUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf`}
-        downloadUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf?download=1`}
-        title="특장 매매계약서"
-        subtitle={contractPdf.customerName}
-        onClose={() => setContractPdf(null)}
-      />
-    )}
+    
+    
     {contractQuote && (
       <div
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
@@ -228,7 +210,7 @@ function MyListView() {
                             title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
-                              : setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                              : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                           >견적서</button>
                           {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
                           <button
@@ -236,7 +218,7 @@ function MyListView() {
                             title={q.status === 'draft' ? '견적서 생성 시 계약서도 함께 만들어집니다' : '특장 매매계약서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs })
-                              : setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                              : openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                           >계약서</button>
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           <button

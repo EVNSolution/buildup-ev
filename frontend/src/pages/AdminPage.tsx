@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { openPdf } from '../lib/openPdf'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
@@ -8,7 +9,6 @@ import { fetchWeightConstants, upsertWeightConstant, type WeightConstant } from 
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
-import { PdfModal } from '../components/PdfModal'
 import { OptionDbTab } from '../components/OptionDbTab'
 import { Tooltip } from '../components/Tooltip'
 import { useAuth } from '../contexts/AuthContext'
@@ -564,8 +564,6 @@ function QuotesTab() {
   const [confirmError, setConfirmError] = useState('')
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [pdfQuote, setPdfQuote] = useState<{ id: number; customerName?: string } | null>(null)
-  const [contractPdf, setContractPdf] = useState<{ id: number; customerName?: string } | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -690,12 +688,12 @@ function QuotesTab() {
               <div style={qtMob.actions}>
                 <button
                   style={{ ...qt.pdfBtn, flex: 1, minHeight: 44 }}
-                  onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                  onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                 >견적서</button>
                 <button
                   style={{ ...qt.pdfBtn, flex: 1, minHeight: 44, ...(q.status === 'draft' ? { opacity: 0.45 } : {}) }}
                   disabled={q.status === 'draft'}
-                  onClick={() => setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                  onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                 >계약서</button>
                 {q.status === 'draft' && (
                   <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
@@ -752,14 +750,14 @@ function QuotesTab() {
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
                         style={qt.pdfBtn}
-                        onClick={() => setPdfQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                        onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                       >견적서</button>
                       {/* 계약서는 견적 확정(생성) 후에만 의미가 있다 — 발송은 영업 업무라 관리자엔 두지 않는다 */}
                       <button
                         style={q.status === 'draft' ? { ...qt.pdfBtn, opacity: 0.45 } : qt.pdfBtn}
                         disabled={q.status === 'draft'}
                         title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
-                        onClick={() => setContractPdf({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                        onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                       >계약서</button>
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleConfirm(q.id)}>확정</button>
@@ -796,24 +794,8 @@ function QuotesTab() {
           onClose={() => { setConfirmingId(null); setConfirmError('') }}
         />
       )}
-      {pdfQuote && (
-        <PdfModal
-          previewUrl={`/api/v1/quotes/${pdfQuote.id}/pdf`}
-          downloadUrl={`/api/v1/quotes/${pdfQuote.id}/pdf?download=1`}
-          title="견적서"
-          subtitle={pdfQuote.customerName}
-          onClose={() => setPdfQuote(null)}
-        />
-      )}
-      {contractPdf && (
-        <PdfModal
-          previewUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf`}
-          downloadUrl={`/api/v1/quotes/${contractPdf.id}/contract-pdf?download=1`}
-          title="특장 매매계약서"
-          subtitle={contractPdf.customerName}
-          onClose={() => setContractPdf(null)}
-        />
-      )}
+      
+      
     </div>
   )
 }

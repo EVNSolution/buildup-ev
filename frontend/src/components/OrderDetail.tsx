@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, Fragment } from 'react'
+import { openPdf } from '../lib/openPdf'
 import type { ApiOrderMakerDetail, OrderVehicleInfo } from '@shared/types/index'
 import { calcBom } from '@buildup-ev/shared/bom'
 import { calcLoad } from '@buildup-ev/shared/load-calc'
@@ -358,7 +359,7 @@ function DocsTab({
           <div style={{ borderTop: canViewStructDocs ? '1px solid var(--line)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
             <button
               type="button"
-              onClick={() => setDocPreview({ url: pdfUrl('contract'), title: '특장 매매계약서' })}
+              onClick={() => openPdf(pdfUrl('contract'))}
               style={det.pdfBtn}
             >
               특장 매매계약서 미리보기
