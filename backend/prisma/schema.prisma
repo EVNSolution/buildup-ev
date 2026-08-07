@@ -356,6 +356,13 @@ model Quote {
   docs_emailed_at DateTime?
   docs_emailed_to String?   @db.VarChar(200)
 
+  // 서류 고정 — 전자서명 '요청 발송' 시점에 견적서·계약서 PDF 를 파일로 굳힌다.
+  // 고정 후에는 옵션 단가·세율이 바뀌어도 저장본을 그대로 내려주고, 입력 수정도 막는다.
+  // (고객이 서명한 문서와 시스템이 어긋나면 안 되므로 값 재계산이 아니라 바이트 보존)
+  docs_frozen_at   DateTime?
+  docs_frozen_quote_path    String? @db.VarChar(300)
+  docs_frozen_contract_path String? @db.VarChar(300)
+
   customer   Customer?    @relation(fields: [customer_id], references: [id])
   model      VehicleModel @relation(fields: [model_code], references: [code])
   sales_user User?        @relation("QuoteSales", fields: [sales_user_id], references: [email])

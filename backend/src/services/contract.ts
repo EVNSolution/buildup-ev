@@ -11,6 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { docStorageDir } from '../lib/soffice.js';
 import { type ContractInput } from './contract-pdf.js';
 import { renderContractPdfForQuote } from './contract-docgen.js';
+import { freezeQuoteDocs } from './doc-freeze.js';
 import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
@@ -106,6 +107,11 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
 
   // 계약서(서명대상) + 견적서(동봉) 생성.
   // 계약서는 영업페이지 미리보기·이메일과 **같은 렌더 경로**(새 양식) — 양식이 갈라지지 않게 한다.
+  // ★ 서류 고정 — 고객에게 보내는 순간의 문서를 정본으로 굳힌다.
+  //   이후 단가·세율이 바뀌어도 견적서·계약서는 이 파일 그대로 나간다.
+  //   재발송이면 처음 굳힌 문서를 그대로 쓴다(alreadyFrozen).
+  await freezeQuoteDocs(quoteId);
+
   const contractPdf = (await renderContractPdfForQuote(quoteId)).pdf;
   const quotePdf = await generateQuotePdf(quoteId);
 

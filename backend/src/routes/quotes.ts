@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import { renderContractPdfForQuote, ContractDocError } from '../services/contract-docgen.js';
+import { readFrozenDoc, isFrozen, FROZEN_MESSAGE } from '../services/doc-freeze.js';
 import {
   calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   type PricingParams,
@@ -275,6 +276,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
+    if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
       'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off',
@@ -343,6 +345,7 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request,
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
     if (!quote.customer_id) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '견적에 고객이 연결되어 있지 않습니다' } }); return; }
+    if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
 
     const b = (req.body ?? {}) as Record<string, unknown>;
     const str = (k: string, max: number) => {
@@ -668,7 +671,11 @@ quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): 
       return;
     }
 
-    const { pdf, filename } = await generateQuotePdf(id);
+    // 고정된 견적이면 그때 굳힌 파일을 그대로 — 단가가 바뀌어도 문서는 안 바뀐다
+    const frozen = await readFrozenDoc(id, 'quote');
+    const { pdf, filename } = frozen
+      ? { pdf: frozen, filename: `견적서_${id}.pdf` }
+      : await generateQuotePdf(id);
     const isDownload = req.query['download'] === '1';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
@@ -714,7 +721,10 @@ quotesRouter.get('/:id/contract-pdf', rbac('SALES', 'ADMIN'), async (req: Reques
       return;
     }
 
-    const { pdf, filename, warnings } = await renderContractPdfForQuote(id);
+    const frozenC = await readFrozenDoc(id, 'contract');
+    const { pdf, filename, warnings } = frozenC
+      ? { pdf: frozenC, filename: `특장매매계약서_${id}.pdf`, warnings: [] as string[] }
+      : await renderContractPdfForQuote(id);
     if (warnings.length) console.warn(`[GET /quotes/${id}/contract-pdf]`, warnings.join(' / '));
     const isDownload = req.query['download'] === '1';
     res.setHeader('Content-Type', 'application/pdf');
