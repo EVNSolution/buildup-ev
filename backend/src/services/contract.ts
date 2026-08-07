@@ -12,6 +12,7 @@ import { docStorageDir } from '../lib/soffice.js';
 import { type ContractInput } from './contract-pdf.js';
 import { renderContractPdfForQuote } from './contract-docgen.js';
 import { freezeQuoteDocs } from './doc-freeze.js';
+import { findSignPositions } from './sign-positions.js';
 import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
@@ -150,6 +151,11 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
     },
   });
 
+  // 서명란 좌표를 계약서 PDF 에서 직접 찾는다(마커 #SIGN1~3# + 같은 줄의 '(인)').
+  const signFields = await findSignPositions(contractPdf);
+  console.info(`[contract] 견적 ${quoteId} 서명 필드 ${signFields.length}개 ` +
+    signFields.map((f) => `${f.kind}@${f.page}p(${Math.round(f.x)},${Math.round(f.y)})`).join(' '));
+
   let documentId: string;
   try {
     ({ documentId } = await modusign.sendDocument({
@@ -158,6 +164,7 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
       pdfBase64: contractPdf.toString('base64'),
       participant: { name: customer.name, email: customer.email ?? undefined, phone: customer.phone ?? undefined, signingMethod },
       attachments: [{ fileName: quotePdf.filename, base64: quotePdf.pdf.toString('base64') }], // 견적서 동봉
+      signFields,
     }));
   } catch (e) {
     // 발송 실패 — 방금 만든 DRAFT 껍데기를 지운다.

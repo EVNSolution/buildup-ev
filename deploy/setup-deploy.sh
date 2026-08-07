@@ -85,6 +85,12 @@ require_docgen_deps() {
   fi
 }
 
+install_pdf_tools() {
+  # 전자서명: 계약서 PDF 에서 서명란 마커 좌표를 읽는 데 pdftotext(-bbox) 가 필요하다.
+  # 없으면 서명 필드 위치를 못 찾아 발송이 막힌다. 비치명이 아니라 필수.
+  need_cmd pdftotext || install_pkg poppler-utils || true
+}
+
 install_korean_fonts() {
   # docgen: LibreOffice 가 한글을 렌더하려면 한글 폰트 필요 — 없으면 서류 한글이 □(tofu)로 깨진다.
   # ⚠️ 비치명(best-effort): 실패해도 배포는 계속. 폰트는 기본 repo 에 있어 대개 성공.
@@ -124,6 +130,7 @@ disable_legacy_caddy_container
 require_docgen_deps
 install_korean_fonts
 
+install_pdf_tools
 if ! swapon --show=NAME | grep -qx '/swapfile'; then
   fallocate -l 2G /swapfile
   chmod 600 /swapfile
