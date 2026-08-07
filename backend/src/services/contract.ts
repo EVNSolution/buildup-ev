@@ -17,7 +17,7 @@ import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
 
 export class ContractError extends Error {
-  constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' = 'NOT_FOUND') {
+  constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' | 'NOT_SENDABLE' | 'ALREADY_SENT' = 'NOT_FOUND') {
     super(message);
   }
 }
@@ -99,6 +99,24 @@ export async function buildContractInput(quoteId: number): Promise<{ input: Cont
  */
 export async function sendContract(quoteId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
   const p = db();
+
+  // ── 비용 안전장치 ── 서명요청 1건마다 과금된다.
+  // (1) 확정 전 견적은 발송 불가 — 임시저장 상태로 고객에게 서명을 요청할 일은 없다.
+  const q = await p.quote.findUnique({ where: { id: quoteId }, select: { status: true } });
+  if (!q) throw new ContractError('견적을 찾을 수 없습니다', 'NOT_FOUND');
+  if (q.status === 'draft') {
+    throw new ContractError('견적을 먼저 확정해야 서명을 요청할 수 있습니다', 'NOT_SENDABLE');
+  }
+  // (2) 진행 중이거나 이미 완료된 계약이 있으면 재발송 차단.
+  //     거절·취소된 건만 다시 보낼 수 있다.
+  const latest = await getLatestContract(quoteId);
+  if (latest && !['REJECTED', 'CANCELED'].includes(latest.status)) {
+    throw new ContractError(
+      `이미 발송된 계약이 있습니다(현재 ${latest.status}). 거절·취소된 경우에만 재발송할 수 있습니다.`,
+      'ALREADY_SENT',
+    );
+  }
+
   const { customer } = await buildContractInput(quoteId);
   const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
   if (!contact) {
@@ -145,15 +163,25 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
  * 모두싸인 이벤트타입 → 내부 상태. ⚠️ 이벤트 문자열은 실 webhook 로 확정 필요(초안).
  * 실제 값 확인되면 이 매핑만 보정.
  */
+/**
+ * 모두싸인 이벤트 → 내부 상태. **구독 중인 5개만** 매핑한다(모르는 이벤트는 무시).
+ *
+ * ⚠️ 서명자가 1명이라 document_signed 는 발생하지 않는다(모두싸인 사양: 마지막
+ *    서명자 서명 시 미발행). 따라서 SENT → COMPLETED 로 바로 전이하며 SIGNING 은
+ *    실제로 쓰이지 않는다(enum 은 향후 다자서명 대비로 남겨둠).
+ * ⚠️ document_signing_canceled = 고객이 서명을 취소한 것 → 발송 대기(SENT)로 복귀.
+ *    document_request_canceled = 요청 자체 취소 → CANCELED(종료).
+ */
+const EVENT_STATUS: Record<string, ContractStatus> = {
+  document_started:           'SENT',
+  document_all_signed:        'COMPLETED',
+  document_rejected:          'REJECTED',
+  document_request_canceled:  'CANCELED',
+  document_signing_canceled:  'SENT',
+};
+
 export function mapEventToStatus(eventType: string): ContractStatus | null {
-  const e = eventType.toLowerCase();
-  if (e.includes('all_signed') || e.includes('completed')) return 'COMPLETED';
-  if (e.includes('reject')) return 'REJECTED';
-  if (e.includes('cancel')) return 'CANCELED';
-  if (e.includes('signing') || e.includes('signed')) return 'SIGNING';
-  if (e.includes('viewed') || e.includes('opened')) return 'VIEWED';
-  if (e.includes('started') || e.includes('sent') || e.includes('requested')) return 'SENT';
-  return null;
+  return EVENT_STATUS[eventType.trim().toLowerCase()] ?? null;
 }
 
 const TERMINAL: ContractStatus[] = ['COMPLETED', 'REJECTED', 'CANCELED'];
