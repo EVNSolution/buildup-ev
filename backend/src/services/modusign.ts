@@ -101,12 +101,15 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         name: p.participant.name,
         signingOrder: 1,
         signingMethod: { type: p.participant.signingMethod, value: contact },
+        // 실 API 검증에서 확정된 규약:
+        //  · signatureTypes 는 SIGN | STAMP 만 허용(DRAW 아님)
+        //  · anchor 는 field 최상위가 아니라 **position 안**에 넣는다.
+        //    "either (x,y,page) or anchor, not both or neither" — 둘 중 하나만.
+        //  · TEXT 필드는 textStyle 이 필수라 규격을 모르면 400 이 난다.
+        //    자필성명·서명 모두 손으로 쓰는 칸이므로 SIGNATURE 로 통일해 TEXT 를 쓰지 않는다.
         fields: [
-          // SIGNATURE 필드는 signatureTypes 필수(1~2개, 중복 불가).
-          // 'DRAW' = 직접 그리기 — 가장 보편적인 서명 방식.
-          // ⚠️ 허용값이 다르면 400 이 나며 에러 메시지가 유효값을 알려준다(과금 없음).
-          { type: 'SIGNATURE', signatureTypes: ['DRAW'], anchor: { text: CONTRACT_ANCHORS.SIGNATURE } },
-          { type: 'TEXT', anchor: { text: CONTRACT_ANCHORS.CUSTOMER_NAME } },
+          { type: 'SIGNATURE', signatureTypes: ['SIGN'], position: { anchor: { text: CONTRACT_ANCHORS.SIGNATURE } } },
+          { type: 'SIGNATURE', signatureTypes: ['SIGN'], position: { anchor: { text: CONTRACT_ANCHORS.CUSTOMER_NAME } } },
         ],
       },
     ],
