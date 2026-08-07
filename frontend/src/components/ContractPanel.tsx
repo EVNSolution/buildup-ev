@@ -3,7 +3,7 @@ import { fetchContract, sendContract, contractSignedUrl, type ContractInfo } fro
 import { PdfModal } from './PdfModal'
 
 const LABEL: Record<ContractInfo['status'], string> = {
-  DRAFT: '초안', SENT: '발송됨', VIEWED: '열람', SIGNING: '서명중',
+  DRAFT: '발송 실패', SENT: '발송됨', VIEWED: '열람', SIGNING: '서명중',
   COMPLETED: '완료', REJECTED: '거절', CANCELED: '취소',
 }
 const COLOR: Record<ContractInfo['status'], React.CSSProperties> = {

@@ -17,7 +17,7 @@ import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
 
 export class ContractError extends Error {
-  constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' | 'NOT_SENDABLE' | 'ALREADY_SENT' = 'NOT_FOUND') {
+  constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' | 'NOT_SENDABLE' | 'ALREADY_SENT' | 'NEEDS_REVIEW' = 'NOT_FOUND') {
     super(message);
   }
 }
@@ -110,7 +110,18 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
   // (2) 진행 중이거나 이미 완료된 계약이 있으면 재발송 차단.
   //     거절·취소된 건만 다시 보낼 수 있다.
   const latest = await getLatestContract(quoteId);
-  // DRAFT = 발송을 시도했으나 완료되지 않은 껍데기(API 오류 등). 재시도를 막으면 안 된다.
+  // DRAFT = 발송을 시도했으나 완료되지 않은 흔적. 두 경우를 구분해야 한다.
+  //  · documentId 없음 = 모두싸인이 문서를 만들지 못함(스키마 오류·인증 실패·요금제 소진 등)
+  //    → 과금되지 않았으므로 재시도해도 안전.
+  //  · documentId 있음 = 문서는 만들어졌는데 우리가 응답 처리에 실패(타임아웃 등)
+  //    → 이미 고객에게 갔을 수 있다. 그냥 재시도하면 이중 발송·이중 과금이 된다.
+  if (latest?.status === 'DRAFT' && latest.modusign_document_id) {
+    throw new ContractError(
+      '이전 발송이 끝까지 처리되지 않았습니다. 이미 고객에게 전달되었을 수 있어 자동 재발송을 막았습니다. ' +
+      '모두싸인에서 문서 상태를 확인한 뒤 진행하세요.',
+      'NEEDS_REVIEW',
+    );
+  }
   if (latest && !['DRAFT', 'REJECTED', 'CANCELED'].includes(latest.status)) {
     throw new ContractError(
       `이미 발송된 계약이 있습니다(현재 ${latest.status}). 거절·취소된 경우에만 재발송할 수 있습니다.`,
