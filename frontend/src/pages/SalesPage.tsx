@@ -88,6 +88,31 @@ const ORDER_STATUS_BADGE: React.CSSProperties = {
   background: 'var(--lime)', color: 'var(--dark)',
 }
 
+// 전자서명 진행 상태 — 팝업을 열지 않아도 목록에서 바로 보이게 한다.
+const CONTRACT_LABEL: Record<string, string> = {
+  DRAFT: '준비', SENT: '서명 대기', VIEWED: '열람', SIGNING: '서명 중',
+  COMPLETED: '서명 완료', REJECTED: '거절', CANCELED: '취소',
+}
+const CONTRACT_TONE: Record<string, React.CSSProperties> = {
+  COMPLETED: { background: '#eef7e9', borderColor: '#cfe4c2', color: '#3d6b28' },
+  REJECTED:  { background: '#fdecec', borderColor: '#f0b8b8', color: '#a12d2d' },
+  CANCELED:  { background: '#fdecec', borderColor: '#f0b8b8', color: '#a12d2d' },
+}
+
+function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; completed_at: string | null } | null }) {
+  if (!c) return <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+  const when = c.completed_at ?? c.sent_at
+  return (
+    <Tooltip text={`${CONTRACT_LABEL[c.status] ?? c.status}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
+      <span style={{
+        display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 700,
+        border: '1px solid var(--line)', background: '#f6f7f8', color: '#6b7280',
+        ...(CONTRACT_TONE[c.status] ?? {}),
+      }}>{CONTRACT_LABEL[c.status] ?? c.status}</span>
+    </Tooltip>
+  )
+}
+
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string)  { return s ? s.slice(0, 10) : '—' }
 
@@ -167,6 +192,7 @@ function MyListView() {
                   <th style={lv.th}>고객</th>
                   <th style={lv.th}>실구매가</th>
                   <th style={lv.th}>상태</th>
+                  <th style={lv.th}>전자서명</th>
                   <th style={lv.th}>주문 현황</th>
                   <th style={lv.th}>특장사</th>
                   <th style={lv.th}>날짜</th>
@@ -188,6 +214,7 @@ function MyListView() {
                           </span>
                         </Tooltip>
                       </td>
+                      <td style={lv.td}><ContractBadge c={q.contract} /></td>
                       <td style={lv.td}>
                         {order
                           ? <span style={ORDER_STATUS_BADGE}>{order.status}</span>

@@ -62,6 +62,27 @@ export function ContractPanel({ quoteId, customerName }: { quoteId: number; cust
         </div>
       )}
 
+      {contract && (
+        <div style={s.timeline}>
+          <div style={s.tlRow}>
+            <span style={s.tlLabel}>서명 요청 발송</span>
+            <span style={s.tlVal}>{contract.sent_at ? contract.sent_at.slice(0, 16).replace('T', ' ') : '—'}</span>
+          </div>
+          <div style={s.tlRow}>
+            <span style={s.tlLabel}>서명 완료</span>
+            <span style={s.tlVal}>
+              {contract.completed_at ? contract.completed_at.slice(0, 16).replace('T', ' ')
+                : contract.status === 'COMPLETED' ? '완료' : '대기'}
+            </span>
+          </div>
+          {contract.sent_at && (
+            <div style={s.frozen}>
+              발송 시점의 견적서·계약서가 고정되었습니다. 이후 단가가 바뀌어도 문서는 바뀌지 않으며, 견적 입력도 수정할 수 없습니다.
+            </div>
+          )}
+        </div>
+      )}
+
       {contract?.status === 'COMPLETED' && contract.has_signed && (
         <button style={s.primary} onClick={() => setPreview(true)}>서명본 보기 / 다운로드</button>
       )}
@@ -100,6 +121,11 @@ export function ContractPanel({ quoteId, customerName }: { quoteId: number; cust
 const s: Record<string, React.CSSProperties> = {
   muted: { color: 'var(--muted)', fontSize: 13, padding: '6px 0' },
   statusRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
+  timeline: { background: 'var(--card)', borderRadius: 9, padding: '10px 12px', marginBottom: 12 },
+  tlRow: { display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '3px 0' },
+  tlLabel: { color: 'var(--muted)' },
+  tlVal: { fontWeight: 700, color: 'var(--dark)' },
+  frozen: { marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line)', fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 },
   badge: { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
   meta: { fontSize: 12, color: 'var(--muted)' },
   sendBox: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, maxWidth: 380 },
