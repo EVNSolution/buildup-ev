@@ -128,16 +128,21 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         //  · TEXT 필드는 textStyle 이 필수라 규격을 모르면 400 이 난다.
         //    자필성명·서명 모두 손으로 쓰는 칸이므로 SIGNATURE 로 통일해 TEXT 를 쓰지 않는다.
         // anchor 방식은 우리 PDF 에서 동작하지 않아 좌표로 배치한다(sign-positions 참고).
-        // ⚠️ 모두싸인 제약 2가지(실 API 검증):
-        //  · 좌표는 페이지 대비 0~1 비율 ("x must not be greater than 1")
-        //  · "Signature field's signatureType should be equal for all signature fields"
-        //    → 필드마다 SIGN/STAMP 를 다르게 줄 수 없다. 6칸 모두 동일하게 주고,
-        //      서명자가 각 칸에서 서명·도장 중 골라 넣는다(서명칸엔 서명, (인)칸엔 도장).
-        fields: p.signFields.map((f) => ({
-          type: 'SIGNATURE',
-          signatureTypes: ['SIGN', 'STAMP'],
-          position: { page: f.page, x: f.x, y: f.y },
-        })),
+        // 좌표는 페이지 대비 0~1 비율("x must not be greater than 1").
+        //
+        // 서명칸은 **직접 타이핑**(TEXT), 도장칸은 서명/도장 이미지(SIGNATURE).
+        // 도장·서명 파일을 올리게 하면 고객이 준비물 없이는 진행을 못 한다.
+        fields: p.signFields.map((f) => (f.kind === 'SIGN'
+          ? {
+              type: 'TEXT',
+              position: { page: f.page, x: f.x, y: f.y },
+              textStyle: { fontSize: 12, color: '#000000', align: 'CENTER' },
+            }
+          : {
+              type: 'SIGNATURE',
+              signatureTypes: ['SIGN', 'STAMP'],
+              position: { page: f.page, x: f.x, y: f.y },
+            })),
       },
     ],
   };
