@@ -9,7 +9,8 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose }: {
   onClose: () => void
 }) {
   const [to, setTo] = useState(defaultTo ?? '')
-  const [includeContract, setIncludeContract] = useState(true)
+  // 기본은 견적서만 — 계약서는 필요할 때만 체크해서 보낸다
+  const [includeContract, setIncludeContract] = useState(false)
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState<string | null>(null)

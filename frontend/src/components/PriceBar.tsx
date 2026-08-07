@@ -161,7 +161,7 @@ const styles: Record<string, React.CSSProperties> = {
   heroLabel: { fontSize: 12, color: 'var(--lime)', fontWeight: 700 },
   heroValue: { fontSize: 22, fontWeight: 700, color: '#fff', marginTop: 2 },
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
-  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
+  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
   line: { display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--body)', padding: '2px 0' },
   lineBold: { fontWeight: 700, color: 'var(--dark)', borderTop: '1px solid var(--line)', marginTop: 3, paddingTop: 4 },

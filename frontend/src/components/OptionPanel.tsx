@@ -68,14 +68,22 @@ export function OptionPanel({
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
   const [showPromo, setShowPromo] = useState(false)
 
-  // 재량할인 대상: 가격이 있는 **선택 옵션**만(필수 옵션은 제외 — 탑/도어 등 기본 사양).
+  // 재량할인 대상: 가격이 있는 **선택 옵션**만(필수 옵션은 제외 — 탑 등 기본 사양).
+  // 예외로 도어종류(DOORTYPE)는 필수지만 할인 대상 — 목록에는 '기본도어' 로 표기한다.
+  const PROMO_EXCEPTIONS: Record<string, string> = { DOORTYPE: '기본도어' }
   const breakdown = optionBreakdown(selections, (c) => optionPrices[c] ?? 0)
   const zeroable = (Object.entries(breakdown) as [string, number][])
     .filter(([, v]) => v > 0)
     .map(([group, supply]) => {
       const g = bundle.groups.find((x) => x.code === group)
       const val = g?.values.find((v) => v.code === selections[group])
-      return { group, supply, required: g?.required ?? false, label: g?.name ?? group, value: val?.name ?? '' }
+      const exception = PROMO_EXCEPTIONS[group]
+      return {
+        group, supply,
+        required: (g?.required ?? false) && !exception,
+        label: exception ?? g?.name ?? group,
+        value: val?.name ?? '',
+      }
     })
     .filter((z) => !z.required)
 
@@ -172,7 +180,7 @@ export function OptionPanel({
                   />
                   <span style={styles.promoName}>{z.label}{z.value ? ` · ${z.value}` : ''}</span>
                   <span style={promotionZeroed.has(z.group) ? styles.promoZeroed : styles.promoPrice}>
-                    {promotionZeroed.has(z.group) ? '0원 (할인)' : `−${wonVat(z.supply)}`}
+                    {promotionZeroed.has(z.group) ? '0원' : wonVat(z.supply)}
                   </span>
                 </label>
               ))
