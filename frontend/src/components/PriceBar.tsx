@@ -27,7 +27,13 @@ export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
   const regEtc = ok ? ok.car_reg_cost + ok.body_reg_cost + ok.delivery_fee : 0
   const vehicleVat = ok ? ok.car_price : (breakdown ? Math.round(breakdown.trim_price * 1.1) : 0)
   const optionVat  = ok ? ok.body_price : (breakdown ? Math.round(breakdown.option_sum * 1.1) : 0)
-  const vatRefund  = ok ? (ok.car_payment + ok.body_payment) - ok.vat_refund_price : 0
+  // 일반구매자(비사업자)는 환급 자체가 없다 — vat_refund_price 가 0 으로 내려온다.
+  // 이때 차액을 그대로 쓰면 결제금액 전체가 환급액으로 표시되므로 0 으로 둔다.
+  const noRefund   = !!ok && ok.vat_refund_price === 0
+  const vatRefund  = ok && !noRefund ? (ok.car_payment + ok.body_payment) - ok.vat_refund_price : 0
+  // 실구매가 = 부가세 환급까지만. 등록·기타는 더하지 않고 오른쪽에 따로 보여준다.
+  // real_price(단일 소스)에서 등록·기타를 빼 계산해 견적서 규칙과 어긋나지 않게 한다.
+  const netPrice = ok ? ok.real_price - regEtc : 0
 
   return (
     <div style={styles.bar}>
@@ -51,21 +57,27 @@ export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
         <Op>−</Op>
         <Block label="보조금" value={ok ? ok.subsidy_total : 0} show={!!ok} muted={!hasCustomer} negative />
         <Op>−</Op>
-        <Block label="부가세 환급" value={vatRefund} show={!!ok} negative />
-        <Op>+</Op>
-
-        {/* ④ 등록·기타 (클릭 → 상세) */}
-        <div style={{ ...styles.block, ...styles.clickable }} onClick={() => ok && setShowReg(v => !v)}>
-          <div style={styles.blockLabel}>등록·기타 ▸</div>
-          <div style={styles.blockValue}>{ok ? fmt(regEtc) : '—'}</div>
-          {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
+        {/* ④ 부가세 환급 — 일반구매자는 환급 대상이 아니다 */}
+        <div style={styles.block}>
+          <div style={styles.blockLabel}>부가세 환급</div>
+          <div style={{ ...styles.blockValue, ...(noRefund ? styles.mutedVal : styles.negVal) }}>
+            {!ok ? '—' : noRefund ? '환급 불가' : fmt(vatRefund)}
+          </div>
         </div>
 
         <Op>=</Op>
-        {/* ⑤ 실구매가 */}
+        {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
         <div style={styles.hero}>
           <div style={styles.heroLabel}>실구매가</div>
-          <div style={styles.heroValue}>{tbd ? '미정' : ok ? fmt(ok.real_price) : '—'}</div>
+          <div style={styles.heroValue}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
+        </div>
+
+        {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
+        <div style={{ ...styles.block, ...styles.clickable, ...styles.aside }} onClick={() => ok && setShowReg(v => !v)}>
+          <div style={styles.blockLabel}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
+          <div style={styles.blockValue}>{ok ? fmt(regEtc) : '—'}</div>
+          {ok && <div style={styles.asideSub}>합계 {fmt(netPrice + regEtc)}</div>}
+          {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
         </div>
       </div>
     </div>
@@ -137,6 +149,10 @@ const styles: Record<string, React.CSSProperties> = {
   firstSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
   block: { ...cellBase, position: 'relative' },
   clickable: { cursor: 'pointer', border: '1px dashed var(--line)' },
+  // 등록·기타는 계산 흐름 밖 — 왼쪽에 구분선을 둬 실구매가와 시각적으로 분리한다
+  aside: { flex: 1.1, marginLeft: 8, borderLeft: '2px solid var(--line)' },
+  asideNote: { fontSize: 9.5, color: '#a8aeb6', fontWeight: 700 },
+  asideSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' as const },
   blockLabel: { fontSize: 11, color: 'var(--muted)' },
   blockValue: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginTop: 2, whiteSpace: 'nowrap' as const },
   negVal: { color: '#c0392b' },
