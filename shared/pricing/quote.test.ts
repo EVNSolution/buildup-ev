@@ -58,3 +58,34 @@ describe('calcQuote — 총견적서 계산 코어 (STEGO-K1_총견적서.xlsx)'
     expect(r.bond_discount).toBe(0);
   });
 });
+
+describe('구조변경 비용 — 특장 등록/부대비용 3번째 항목', () => {
+  it('⑩ 등록/부대비용 = 특장취득세 + 등록부가수수료 + 구조변경비용', () => {
+    const r = calcQuote({ ...QUOTE_PARAMS, structure_change_fee: 400_000 });
+    expect(r.body_reg_cost).toBe(r.body_acq_tax + r.etc_fee + 400_000);
+  });
+
+  it('실구매가에 그대로 더해진다', () => {
+    const base = calcQuote(QUOTE_PARAMS);
+    const withFee = calcQuote({ ...QUOTE_PARAMS, structure_change_fee: 400_000 });
+    expect(withFee.real_price - base.real_price).toBe(400_000);
+  });
+
+  it('탑 단가를 낮춰 자리를 옮기면 총액은 줄지만 실구매가는 오른다(환급 감소)', () => {
+    // 탑 종류 40만원(VAT 포함) 인하 + 구조변경 비용 40만원 신설
+    const before = calcQuote(QUOTE_PARAMS);
+    const after = calcQuote({
+      ...QUOTE_PARAMS,
+      body_price: QUOTE_PARAMS.body_price - 400_000,
+      structure_change_fee: 400_000,
+    });
+    expect(after.body_payment).toBe(before.body_payment - 400_000);   // 특장가격은 40만 감소
+    expect(after.vat_refund_price).toBeLessThan(before.vat_refund_price); // 환급 대상도 감소
+    expect(after.real_price).toBeGreaterThan(before.real_price);       // 환급이 줄어 실구매가는 상승
+  });
+
+  it('미설정(0)이면 기존과 동일 — 엑셀 정답지 불변', () => {
+    expect(calcQuote(QUOTE_PARAMS).body_reg_cost)
+      .toBe(calcQuote(QUOTE_PARAMS).body_acq_tax + QUOTE_PARAMS.etc_fee);
+  });
+});

@@ -117,6 +117,7 @@ function RegPopup({ ok, onClose }: { ok: QuoteResult; onClose: () => void }) {
         <div style={styles.popTitle}>특장 등록/부대비용 ⑩</div>
         <Line k="특장 취득세 (2.0%)" v={fmt(ok.body_acq_tax)} />
         <Line k="등록부가수수료" v={fmt(ok.etc_fee)} />
+        <Line k="구조변경 비용" v={fmt(ok.structure_change_fee)} />
         <Line k="특장 등록/부대비용 ⑩" v={fmt(ok.body_reg_cost)} bold />
         <div style={{ height: 8 }} />
         <Line k="탁송료" v={fmt(ok.delivery_fee)} />
