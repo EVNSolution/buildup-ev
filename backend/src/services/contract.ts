@@ -110,7 +110,8 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
   // (2) 진행 중이거나 이미 완료된 계약이 있으면 재발송 차단.
   //     거절·취소된 건만 다시 보낼 수 있다.
   const latest = await getLatestContract(quoteId);
-  if (latest && !['REJECTED', 'CANCELED'].includes(latest.status)) {
+  // DRAFT = 발송을 시도했으나 완료되지 않은 껍데기(API 오류 등). 재시도를 막으면 안 된다.
+  if (latest && !['DRAFT', 'REJECTED', 'CANCELED'].includes(latest.status)) {
     throw new ContractError(
       `이미 발송된 계약이 있습니다(현재 ${latest.status}). 거절·취소된 경우에만 재발송할 수 있습니다.`,
       'ALREADY_SENT',
@@ -125,11 +126,6 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
 
   // 계약서(서명대상) + 견적서(동봉) 생성.
   // 계약서는 영업페이지 미리보기·이메일과 **같은 렌더 경로**(새 양식) — 양식이 갈라지지 않게 한다.
-  // ★ 서류 고정 — 고객에게 보내는 순간의 문서를 정본으로 굳힌다.
-  //   이후 단가·세율이 바뀌어도 견적서·계약서는 이 파일 그대로 나간다.
-  //   재발송이면 처음 굳힌 문서를 그대로 쓴다(alreadyFrozen).
-  await freezeQuoteDocs(quoteId);
-
   const contractPdf = (await renderContractPdfForQuote(quoteId)).pdf;
   const quotePdf = await generateQuotePdf(quoteId);
 
@@ -143,13 +139,25 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
     },
   });
 
-  const { documentId } = await modusign.sendDocument({
-    title: `특장매매계약서_견적${quoteId}`,
-    fileName: `contract_quote${quoteId}.pdf`,
-    pdfBase64: contractPdf.toString('base64'),
-    participant: { name: customer.name, email: customer.email ?? undefined, phone: customer.phone ?? undefined, signingMethod },
-    attachments: [{ fileName: quotePdf.filename, base64: quotePdf.pdf.toString('base64') }], // 견적서 동봉
-  });
+  let documentId: string;
+  try {
+    ({ documentId } = await modusign.sendDocument({
+      title: `특장매매계약서_견적${quoteId}`,
+      fileName: `contract_quote${quoteId}.pdf`,
+      pdfBase64: contractPdf.toString('base64'),
+      participant: { name: customer.name, email: customer.email ?? undefined, phone: customer.phone ?? undefined, signingMethod },
+      attachments: [{ fileName: quotePdf.filename, base64: quotePdf.pdf.toString('base64') }], // 견적서 동봉
+    }));
+  } catch (e) {
+    // 발송 실패 — 방금 만든 DRAFT 껍데기를 지운다.
+    // 남겨두면 '준비' 상태로 목록에 뜨고 재발송까지 막혀 손쓸 수 없게 된다.
+    await p.purchaseContract.delete({ where: { id: contract.id } }).catch(() => {});
+    throw e;
+  }
+
+  // ★ 서류 고정은 **발송이 성공한 뒤**에만. 고객에게 실제로 나간 문서를 정본으로 굳힌다.
+  //   발송 전에 굳히면, 실패했을 때 수정도 재발송도 못 하는 상태로 잠긴다.
+  await freezeQuoteDocs(quoteId);
 
   return p.purchaseContract.update({
     where: { id: contract.id },
