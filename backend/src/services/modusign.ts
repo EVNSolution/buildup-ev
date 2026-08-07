@@ -72,6 +72,12 @@ async function req(method: string, path_: string, body?: unknown): Promise<unkno
   return res.json().catch(() => ({}));
 }
 
+/** 서명 필드 위치 — 좌표는 sign-positions 서비스가 PDF 에서 뽑아 준다. */
+export interface SignField {
+  kind: 'SIGN' | 'STAMP';
+  page: number; x: number; y: number;
+}
+
 export interface SendParams {
   title: string;
   pdfBase64: string;         // 서명 대상 문서(계약서)
@@ -79,6 +85,8 @@ export interface SendParams {
   participant: { name: string; email?: string; phone?: string; signingMethod: SigningMethod };
   // 서명 불필요 첨부(예: 견적서 동봉). 실 API 의 첨부 스키마는 E2E 시 확정.
   attachments?: { fileName: string; base64: string }[];
+  /** 비어 있으면 발송하지 않는다 — 서명란 없는 계약서를 보내면 안 된다. */
+  signFields: SignField[];
 }
 
 /**
@@ -86,6 +94,9 @@ export interface SendParams {
  * attachments 는 서명 없이 함께 전달(견적서 동봉). 반환: 모두싸인 문서 id.
  */
 export async function sendDocument(p: SendParams): Promise<{ documentId: string }> {
+  if (!p.signFields.length) {
+    throw new ModusignApiError('서명란 위치를 찾지 못했습니다 (계약서 템플릿의 #SIGN 마커 확인 필요)');
+  }
   const contact = p.participant.signingMethod === 'EMAIL' ? p.participant.email : p.participant.phone;
   // ── 요청 스키마(초안) — 실 API 로 검증 시 이 블록만 보정 ─────────────────────
   // 확장자는 파일명에서 뽑되, 없으면 pdf. (모두싸인은 name 과 별개로 extension 을 요구한다)
@@ -114,8 +125,11 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         //    "either (x,y,page) or anchor, not both or neither" — 둘 중 하나만.
         //  · TEXT 필드는 textStyle 이 필수라 규격을 모르면 400 이 난다.
         //    자필성명·서명 모두 손으로 쓰는 칸이므로 SIGNATURE 로 통일해 TEXT 를 쓰지 않는다.
-        fields: CONTRACT_ANCHORS.SIGN_SPOTS.map((text) => ({
-          type: 'SIGNATURE', signatureTypes: ['SIGN'], position: { anchor: { text } },
+        // anchor 방식은 우리 PDF 에서 동작하지 않아 좌표로 배치한다(sign-positions 참고).
+        fields: p.signFields.map((f) => ({
+          type: 'SIGNATURE',
+          signatureTypes: [f.kind],
+          position: { page: f.page, x: Math.round(f.x), y: Math.round(f.y) },
         })),
       },
     ],
