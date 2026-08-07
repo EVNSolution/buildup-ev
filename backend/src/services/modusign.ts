@@ -74,15 +74,25 @@ export interface SendParams {
 export async function sendDocument(p: SendParams): Promise<{ documentId: string }> {
   const contact = p.participant.signingMethod === 'EMAIL' ? p.participant.email : p.participant.phone;
   // ── 요청 스키마(초안) — 실 API 로 검증 시 이 블록만 보정 ─────────────────────
+  // 확장자는 파일명에서 뽑되, 없으면 pdf. (모두싸인은 name 과 별개로 extension 을 요구한다)
+  const extOf = (fname: string) => (fname.split('.').pop() ?? '').toLowerCase() || 'pdf';
+
   const body = {
     title: p.title,
-    file: { name: p.fileName, base64: p.pdfBase64 },
-    // 견적서 등 서명불필요 첨부. (모두싸인 첨부 필드명은 실 API 확인 필요.)
-    attachments: (p.attachments ?? []).map((a) => ({ name: a.fileName, base64: a.base64 })),
+    // ⚠️ 실 API 검증 결과 반영(400 ValidationFailedException):
+    //    - file.extension 필수 (pdf/hwp/docx/… 중 하나)
+    //    - participants[].signingOrder 필수. 전원 1(동시) 또는 순차([1,2,3])여야 한다.
+    //      서명자가 고객 1명이므로 1.
+    file: { name: p.fileName, extension: extOf(p.fileName), base64: p.pdfBase64 },
+    // 견적서 등 서명불필요 첨부
+    attachments: (p.attachments ?? []).map((a) => ({
+      name: a.fileName, extension: extOf(a.fileName), base64: a.base64,
+    })),
     participants: [
       {
         role: '고객',
         name: p.participant.name,
+        signingOrder: 1,
         signingMethod: { type: p.participant.signingMethod, value: contact },
         fields: [
           { type: 'SIGNATURE', anchor: { text: CONTRACT_ANCHORS.SIGNATURE } },
