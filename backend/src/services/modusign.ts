@@ -95,7 +95,10 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         signingOrder: 1,
         signingMethod: { type: p.participant.signingMethod, value: contact },
         fields: [
-          { type: 'SIGNATURE', anchor: { text: CONTRACT_ANCHORS.SIGNATURE } },
+          // SIGNATURE 필드는 signatureTypes 필수(1~2개, 중복 불가).
+          // 'DRAW' = 직접 그리기 — 가장 보편적인 서명 방식.
+          // ⚠️ 허용값이 다르면 400 이 나며 에러 메시지가 유효값을 알려준다(과금 없음).
+          { type: 'SIGNATURE', signatureTypes: ['DRAW'], anchor: { text: CONTRACT_ANCHORS.SIGNATURE } },
           { type: 'TEXT', anchor: { text: CONTRACT_ANCHORS.CUSTOMER_NAME } },
         ],
       },
