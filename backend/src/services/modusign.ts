@@ -7,7 +7,16 @@
  *   이 파일(요청 body 조립 + 응답 필드 파싱)만 보정하면 됨 — 상위 로직은 안 건드림.
  *   제약: 요청 본문 UTF-8 필수, 서명필드 ≤100 / 전체필드 ≤2000.
  */
-import { CONTRACT_ANCHORS } from './contract-pdf.js';
+/**
+ * 서명 필드 anchor — 새 계약서 양식(contract-template.docx)에 실제로 있는 문구.
+ * '자필성명 / 서명 / (인)' 이 영수증·개인정보동의·매수인 3곳에 반복 존재하며,
+ * 매칭 개수만큼 필드가 자동 생성되고 dataLabel 이 자동 넘버링된다(3곳 모두 서명 대상).
+ */
+export const CONTRACT_ANCHORS = {
+  CUSTOMER_NAME: '자필성명',
+  SIGNATURE: '서명',
+  SEAL: '(인)',
+} as const;
 
 export class ModusignConfigError extends Error {}
 export class ModusignApiError extends Error {
@@ -17,6 +26,14 @@ export class ModusignApiError extends Error {
 export type SigningMethod = 'EMAIL' | 'KAKAO';
 
 const BASE_URL = process.env['MODUSIGN_BASE_URL'] || 'https://api.modusign.co.kr';
+
+/**
+ * 실발송 차단 스위치 — **기본 true**. 서명요청 1건마다 과금되므로 개발 중 실수 발송을 막는다.
+ * 실제로 보내려면 서버 .env 에 MODUSIGN_DRY_RUN=false 를 명시해야 한다.
+ */
+export function isDryRun(): boolean {
+  return (process.env['MODUSIGN_DRY_RUN'] ?? 'true').toLowerCase() !== 'false';
+}
 
 function authHeader(): string {
   const key = process.env['MODUSIGN_API_KEY'];
@@ -70,11 +87,16 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         fields: [
           { type: 'SIGNATURE', anchor: { text: CONTRACT_ANCHORS.SIGNATURE } },
           { type: 'TEXT', anchor: { text: CONTRACT_ANCHORS.CUSTOMER_NAME } },
-          { type: 'SIGNING_DATE', anchor: { text: CONTRACT_ANCHORS.SIGNING_DATE } },
         ],
       },
     ],
   };
+  if (isDryRun()) {
+    // 실제 API 를 부르지 않는다. 문서 id 는 추적 가능한 가짜값으로 — 웹훅 모의에도 쓸 수 있다.
+    const fake = `dryrun-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    console.warn(`[modusign] DRY_RUN — 실제 발송하지 않음. title=${p.title} participant=${p.participant.name} documentId=${fake}`);
+    return { documentId: fake };
+  }
   const json = (await req('POST', '/documents', body)) as { id?: string; documentId?: string };
   const documentId = json.id ?? json.documentId;
   if (!documentId) throw new ModusignApiError('발송 응답에 문서 id 가 없습니다 (응답 스키마 확인 필요)');

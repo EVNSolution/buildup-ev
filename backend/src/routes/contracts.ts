@@ -35,7 +35,8 @@ contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), async (req: R
     res.json({ data: { id: contract.id, status: contract.status, signing_method: contract.signing_method, sent_at: contract.sent_at } });
   } catch (e) {
     if (e instanceof ContractError) {
-      const map = { NOT_FOUND: 404, NO_CUSTOMER: 400, NO_CONTACT: 400, DB_UNAVAILABLE: 503 } as const;
+      const map = { NOT_FOUND: 404, NO_CUSTOMER: 400, NO_CONTACT: 400, DB_UNAVAILABLE: 503,
+        NOT_SENDABLE: 409, ALREADY_SENT: 409 } as const;
       res.status(map[e.code]).json({ error: { code: e.code, message: e.message } });
       return;
     }
