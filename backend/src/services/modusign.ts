@@ -135,7 +135,10 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         fields: p.signFields.map((f) => (f.kind === 'SIGN'
           ? {
               type: 'TEXT',
-              position: { page: f.page, x: f.x, y: f.y },
+              // ⚠️ TEXT 필드는 칸 크기(width/height)가 없으면 모두싸인 쪽에서
+              //    "Cannot read properties of undefined (reading 'width')" 로 500 이 난다.
+              //    좌표와 마찬가지로 페이지 대비 비율.
+              position: { page: f.page, x: f.x, y: f.y, width: 0.12, height: 0.025 },
               // 규격 확정(실 API): size 는 지정된 값 중 하나(4~18, 24, 30, 36, 48, 60),
               // font 는 NOTO_SANS | NOTO_SERIF 만 허용. 그 외 키는 넣지 않는다.
               textStyle: { size: 12, font: 'NOTO_SANS' },
