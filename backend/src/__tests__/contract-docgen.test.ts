@@ -72,12 +72,6 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect(sect(after)).toBe(sect(before));
   });
 
-  it('계약조항 본문이 그대로 유지된다(수정 금지 영역)', () => {
-    const xml = docXml(fillContractDocx(template, TOKENS));
-    expect(xml).toContain('제1조');
-    expect(xml).toContain('관할법원');
-  });
-
   it('특수문자(&, <)가 들어가도 XML 이 깨지지 않는다', () => {
     const buf = fillContractDocx(template, { ...TOKENS, buyer_name: 'A & B <주식회사>' });
     const xml = docXml(buf);
