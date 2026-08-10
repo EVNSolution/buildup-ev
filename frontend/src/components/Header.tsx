@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import logoUrl from '../assets/logo.png'
 import type { CustomerInfo, Role } from '@shared/types/index'
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -45,7 +46,7 @@ export function Header({ customer }: Props) {
       flexWrap: isMobile ? 'wrap' : 'nowrap',
       ...(isMobile ? { gap: 8 } : {}),
     }}>
-      <div style={styles.logo}>EV<b style={styles.logoBold}>&</b>Solution</div>
+      <img src={logoUrl} alt="EV&Solution" style={styles.logo} />
       {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
 
@@ -120,8 +121,8 @@ const styles: Record<string, React.CSSProperties> = {
     // 어떤 경우에도 내용이 바 밖으로 새어 나가지 않게
     overflow: 'hidden',
   },
-  logo: { fontWeight: 800, fontSize: 28, color: 'var(--dark)', whiteSpace: 'nowrap', flexShrink: 0 },
-  logoBold: { color: 'var(--lime)' },
+  // 로고 이미지(706x261). 높이만 정하고 폭은 비율대로 — 예전 텍스트 로고와 비슷한 크기.
+  logo: { height: 34, width: 'auto', display: 'block', flexShrink: 0 },
   badge: {
     background: 'var(--lime)', color: 'var(--dark)', whiteSpace: 'nowrap', flexShrink: 0,
     fontWeight: 700, fontSize: 18, padding: '6px 16px', borderRadius: 999,
