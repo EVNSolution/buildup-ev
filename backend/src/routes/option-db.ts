@@ -233,6 +233,9 @@ optionDbRouter.post('/:table/rollback', rbac('ADMIN'), async (req: Request, res)
         if (!def.fields.includes(f)) continue;
         // 숫자 칸의 값이 비어 있던 기록은 되돌릴 수 없다(현재 값 유지)
         if (def.numeric.includes(f)) { if (v != null && v !== '') data[f] = Number(v); }
+        // 이력은 전부 문자열로 저장된다. 체크박스 칸에 'false' 라는 **문자열**을 그대로
+        // 돌려주면 upsert 쪽에서 참으로 읽혀 반대로 켜진다 → 원래 타입으로 되돌린다.
+        else if (typeof before0[f] === 'boolean') data[f] = v === 'true';
         else data[f] = v;
       }
       const after = await def.upsert(key, data);
