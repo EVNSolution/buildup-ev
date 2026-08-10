@@ -189,7 +189,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>이메일 <span style={s.req}>· 견적마다 새로 입력(자동 기입 안 함)</span></label>
+          <label style={s.label}>
+            이메일
+            {isCorporate && !v.buyer_agent.trim()
+              ? <span style={s.warnReq}> · 법인 직인을 찍을 사람의 이메일</span>
+              : <span style={s.req}> · 견적마다 새로 입력(자동 기입 안 함)</span>}
+          </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
         <div style={s.row}>
@@ -202,6 +207,14 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <SubsidyForm
           value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
         />
+
+        {isCorporate && (
+          <div style={s.signNote}>
+            {v.buyer_agent.trim()
+              ? <>서명란 3곳 모두 <b>「성명 {v.buyer_agent.trim()} 서명 (인)」</b> 로 나가고, <b>대리인 서명</b> 한 종류만 받습니다.</>
+              : <>서명란 3곳 모두 <b>「회사명 · 대표이사 · 서명 (인)」</b> 로 나가고, <b>법인 직인</b> 한 종류만 받습니다. 위 이메일로 서명 요청이 갑니다.</>}
+          </div>
+        )}
 
         <div style={s.sectionTitle}>
           계약서 정보{' '}
@@ -219,7 +232,10 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            대리인 <span style={s.req}>· 위임장 필수{isCorporate ? ' · 비우면 대표이사가 서명란에 들어감' : ''}</span>
+            대리인
+            {v.buyer_agent.trim()
+              ? <span style={s.warnReq}> · 위임장 필수</span>
+              : <span style={s.req}>{isCorporate ? ' · 비우면 법인 직인으로 서명' : ''}</span>}
           </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
         </div>
@@ -242,6 +258,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 }
 
 const s: Record<string, React.CSSProperties> = {
+  warnReq: { color: '#c0392b', fontWeight: 700, fontSize: 11.5 },
+  signNote: {
+    background: '#eef2e6', border: '1px solid #d5e0bf', color: '#42502a',
+    fontSize: 12, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
+  },
   overlay: {
     position: 'fixed', inset: 0, background: 'rgba(20,20,20,.5)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,

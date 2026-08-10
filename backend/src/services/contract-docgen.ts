@@ -158,6 +158,19 @@ export function missingCorporateFields(
  * 회사명은 법인일 때만 채워지므로(buildContractTokensFromQuote) 이것으로 충분하다.
  * 서명블록에서 법인 줄을 남길지, 날인칸을 몇 개 기대할지가 여기서 갈린다.
  */
+/**
+ * 법인 계약에서 **대리인 서명**을 쓰는가(= 대리인 이름이 입력됐는가).
+ *
+ * 법인은 두 갈래다. 어느 쪽이든 서명자는 1명이고 서명 **한 종류만** 쓴다
+ * (모두싸인은 한 서명자에게 두 종류를 허용하지 않는다).
+ *   · 대리인 있음 → 서명란 3곳 모두 「성명 ○○○  서명 (인)」, 대리인 서명(SIGN)
+ *   · 대리인 없음 → 서명란 3곳 모두 「회사명 ○○  대표이사 ○○  서명 (인)」, 법인 직인(STAMP)
+ *     이때 입력된 이메일은 **날인할 사람**(직인 보관자)의 것이어야 한다.
+ */
+export function usesAgentSignature(t: Pick<ContractTokens, 'company_name' | 'buyer_agent'>): boolean {
+  return Boolean(t.company_name.trim()) && Boolean(t.buyer_agent.trim());
+}
+
 export function isCorporateTokens(t: Pick<ContractTokens, 'company_name'>): boolean {
   return Boolean(t.company_name.trim());
 }
@@ -234,7 +247,9 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     //   · 매수인 블록은 **개인 줄·법인 줄 중 한 줄만** 채운다(나머지 줄은 완전히 공란)
     // 법인 서명자 = 대리인이 왔으면 대리인, 아니면 대표이사 본인.
     signer_name: isCorp ? (agentName || ceoName) : (customer?.name ?? ''),
-    buyer_personal_name: isCorp ? '' : (customer?.name ?? ''),
+    // 매수인 블록 성명 줄. 법인+대리인이면 대리인 이름(서명란 3곳이 같은 형태여야 한다),
+    // 법인+직인이면 이 줄 자체가 렌더에서 지워지므로 값은 쓰이지 않는다.
+    buyer_personal_name: isCorp ? agentName : (customer?.name ?? ''),
     company_name: isCorp ? (customer?.name ?? '') : '',
     ceo_name: isCorp ? ceoName : '',
     buyer_agent: agentName,
@@ -308,6 +323,13 @@ function blankTableRow(xml: string, marker: string): string {
   return xml.slice(0, open) + row + xml.slice(end);
 }
 
+/** marker 를 품은 행을 **전부** 지운다(같은 토큰이 여러 블록에 있을 때). */
+function dropAllRows(xml: string, marker: string): string {
+  let out = xml;
+  while (out.includes(marker)) out = dropTableRow(out, marker);
+  return out;
+}
+
 function dropTableRow(xml: string, marker: string): string {
   const [open, end] = findRowRange(xml, marker);
   return xml.slice(0, open) + xml.slice(end);
@@ -325,13 +347,15 @@ function dropTableRow(xml: string, marker: string): string {
 export function fillContractDocx(template: Buffer, tokens: ContractTokens): Buffer {
   const zip = new PizZip(template);
 
+  // 서명란 3곳(영수증·개인정보동의·매수인)은 **한 형태로 통일**한다.
+  // 안 쓰는 줄은 남기지 않는다 — 빈 라벨이 남으면 어디에 서명할지 헷갈린다.
   const xml0 = zip.file('word/document.xml')?.asText() ?? '';
-  zip.file('word/document.xml', isCorporateTokens(tokens)
-    // 법인 — 개인 줄은 남기되(서명블록 높이 유지) 「서명 (인)」 라벨까지 지워 진짜 공란으로.
-    //        라벨이 남아 있으면 서명하는 자리로 오해한다.
-    ? blankTableRow(xml0, '{{buyer_personal_name}}')
-    // 개인 — 법인 줄은 통째로 지운다. 빈 「회사명 / 대표이사」 가 남으면 헷갈린다.
-    : dropTableRow(xml0, '{{company_name}}'));
+  const useCorpSeal = isCorporateTokens(tokens) && !usesAgentSignature(tokens);
+  zip.file('word/document.xml', useCorpSeal
+    // 법인 직인 — 「회사명 / 대표이사」 줄만 남기고 성명 줄은 전부 제거
+    ? dropAllRows(dropAllRows(xml0, '{{signer_name}}'), '{{buyer_personal_name}}')
+    // 개인 계약 또는 법인+대리인 — 성명 줄만 남기고 「회사명 / 대표이사」 줄은 전부 제거
+    : dropAllRows(xml0, '{{company_name}}'));
 
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
