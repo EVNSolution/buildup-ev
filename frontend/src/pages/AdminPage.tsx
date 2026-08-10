@@ -525,7 +525,7 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
   const chip = (on: boolean, label: string, tip: string, tone: 'ok' | 'warn' | 'off' = 'ok') => (
     <Tooltip text={tip} placement="below">
       <span style={{
-        display: 'inline-block', padding: '2px 7px', borderRadius: 5, fontSize: 10.5, fontWeight: 700,
+        display: 'inline-block', whiteSpace: 'nowrap', padding: '2px 7px', borderRadius: 5, fontSize: 10.5, fontWeight: 700,
         border: '1px solid',
         ...(on
           ? tone === 'warn'
@@ -537,7 +537,7 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
   )
 
   return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
       {chip(mailed, '메일',
         mailed ? `참고용 메일 발송 ${fmtWhen(quote.docs_emailed_at)}${quote.docs_emailed_to ? ` → ${quote.docs_emailed_to}` : ''}` : '참고용 메일 미발송')}
       {chip(signSent, '서명요청',
@@ -845,7 +845,7 @@ function QuotesTab() {
                 <tr key={q.id}>
                   <td style={qt.td}>{q.quote_no ?? `#${q.id}`}</td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
-                  <td style={qt.tdMuted}>{q.sales_user_id ?? '—'}</td>
+                  <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>{q.sales_user_id ?? '—'}</td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
                     <Tooltip text={quoteStatusTip(q.status)} placement="below">
@@ -858,7 +858,7 @@ function QuotesTab() {
                   <td style={qt.td}><SendStatus quote={q} /></td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
                       <button
                         style={BTN.row}
                         title="고객·계약 정보 조회 (수정 불가)"
@@ -1114,14 +1114,17 @@ const qt: Record<string, React.CSSProperties> = {
   loading: { color: 'var(--muted)', fontSize: 13, padding: '24px 0' },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },
   tableWrap: { overflowX: 'auto' as const },
-  table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
+  // 폭이 모자라면 칸을 **줄여서 글자를 접지 말고** 가로로 넘겨 스크롤한다.
+  table: { width: '100%', minWidth: 'max-content' as const, borderCollapse: 'collapse' as const, fontSize: 13 },
   th: { textAlign: 'left' as const, padding: '9px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' as const },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' as const },
-  tdMuted: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12 },
-  tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const },
-  badgeDraft: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
-  badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
-  badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' as const, whiteSpace: 'nowrap' as const },
+  tdMuted: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const },
+  // 영업 이메일은 길어질 수 있다 — 표 전체를 밀어내지 않게 여기서만 줄임표로 자른다
+  tdEmail: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const, maxWidth: 210, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
+  tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, whiteSpace: 'nowrap' as const },
+  badgeDraft: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)', display: 'inline-block' as const, whiteSpace: 'nowrap' as const },
+  badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)', display: 'inline-block' as const, whiteSpace: 'nowrap' as const },
+  badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0', display: 'inline-block' as const, whiteSpace: 'nowrap' as const },
   pdfBtn: { padding: '5px 12px', border: '1px solid var(--line)', borderRadius: 7, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
   sendBtn: { padding: '5px 12px', border: '1px solid #b8c9e0', borderRadius: 7, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 12 },
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },

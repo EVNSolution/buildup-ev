@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { PricingResult, QuoteResult } from '@shared/pricing/core'
 import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
+import { useIsPortrait } from '../hooks/useIsPortrait'
 
 interface Props {
   /** 지원여부 판정용(내장탑 미정 등) */
@@ -23,6 +24,9 @@ function fmt(n: number) {
 }
 
 export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsidyChange, regions }: Props) {
+  // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
+  // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
+  const stack = useIsPortrait()
   const [showReg, setShowReg] = useState(false)
   const [showSubsidy, setShowSubsidy] = useState(false)
   const isUnsupported = calc?.status === 'unsupported'
@@ -43,30 +47,37 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
   // real_price(단일 소스)에서 등록·기타를 빼 계산해 견적서 규칙과 어긋나지 않게 한다.
   const netPrice = ok ? ok.real_price - regEtc : 0
 
+  // 세로로 쌓을 땐 폭이 넉넉하므로 글자를 줄이지 않는다(가로 배치용 축소는 stack 에서 해제).
+  const row  = stack ? styles.rowCell : null
+  const big  = stack ? styles.stackBig : null
+  const lbl  = stack ? styles.stackLabel : null
+
   return (
     <div style={styles.bar}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
-      <div style={styles.flow}>
+      <div style={stack ? styles.flowStack : styles.flow}>
         {/* ① 차량+특장 (부가세 포함) */}
-        <div style={styles.first}>
-          <div style={styles.firstLabel}>차량 + 특장 (VAT 포함)</div>
-          <div style={styles.firstValue}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
-          {ok && (
-            <div style={styles.firstSub}>차량 {fmt(vehicleVat)} · 특장 {fmt(optionVat)}</div>
-          )}
+        <div style={{ ...styles.first, ...row }}>
+          <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
+          <div style={stack ? styles.stackRight : undefined}>
+            <div style={{ ...styles.firstValue, ...big }}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
+            {ok && (
+              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>차량 {fmt(vehicleVat)} · 특장 {fmt(optionVat)}</div>
+            )}
+          </div>
         </div>
 
-        <Op>−</Op>
-        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative />
-        <Op>−</Op>
+        <Op stack={stack}>−</Op>
+        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} />
+        <Op stack={stack}>−</Op>
         {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
         <div
-          style={{ ...styles.block, ...styles.clickable }}
+          style={{ ...styles.block, ...styles.clickable, ...row }}
           onClick={() => setShowSubsidy(v => !v)}
         >
-          <div style={styles.blockLabel}>보조금 ▸</div>
-          <div style={{ ...styles.blockValue, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
+          <div style={{ ...styles.blockLabel, ...lbl }}>보조금 ▸</div>
+          <div style={{ ...styles.blockValue, ...big, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
             {!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
           </div>
           {showSubsidy && (
@@ -76,27 +87,32 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
             />
           )}
         </div>
-        <Op>−</Op>
+        <Op stack={stack}>−</Op>
         {/* ④ 부가세 환급 — 일반구매자는 환급 대상이 아니다 */}
-        <div style={styles.block}>
-          <div style={styles.blockLabel}>부가세 환급</div>
-          <div style={{ ...styles.blockValue, ...(noRefund ? styles.mutedVal : styles.negVal) }}>
+        <div style={{ ...styles.block, ...row }}>
+          <div style={{ ...styles.blockLabel, ...lbl }}>부가세 환급</div>
+          <div style={{ ...styles.blockValue, ...big, ...(noRefund ? styles.mutedVal : styles.negVal) }}>
             {!ok ? '—' : noRefund ? '환급 불가' : fmt(vatRefund)}
           </div>
         </div>
 
-        <Op>=</Op>
+        <Op stack={stack}>=</Op>
         {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
-        <div style={styles.hero}>
-          <div style={styles.heroLabel}>실구매가</div>
-          <div style={styles.heroValue}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
+        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : null) }}>
+          <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
+          <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
         </div>
 
         {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
-        <div style={{ ...styles.block, ...styles.clickable, ...styles.aside }} onClick={() => ok && setShowReg(v => !v)}>
-          <div style={styles.blockLabel}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
-          <div style={styles.blockValue}>{ok ? fmt(regEtc) : '—'}</div>
-          {ok && <div style={styles.asideSub}>합계 {fmt(netPrice + regEtc)}</div>}
+        <div
+          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : styles.aside) }}
+          onClick={() => ok && setShowReg(v => !v)}
+        >
+          <div style={{ ...styles.blockLabel, ...lbl }}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
+          <div style={stack ? styles.stackRight : undefined}>
+            <div style={{ ...styles.blockValue, ...big }}>{ok ? fmt(regEtc) : '—'}</div>
+            {ok && <div style={{ ...styles.asideSub, ...(stack ? styles.stackSub : null) }}>합계 {fmt(netPrice + regEtc)}</div>}
+          </div>
           {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
         </div>
       </div>
@@ -104,15 +120,15 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
   )
 }
 
-function Op({ children }: { children: string }) {
-  return <div style={styles.op}>{children}</div>
+function Op({ children, stack }: { children: string; stack?: boolean }) {
+  return <div style={stack ? styles.opStack : styles.op}>{children}</div>
 }
 
-function Block({ label, value, show, muted, negative }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean }) {
+function Block({ label, value, show, muted, negative, stack }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean }) {
   return (
-    <div style={styles.block}>
-      <div style={styles.blockLabel}>{label}</div>
-      <div style={{ ...styles.blockValue, ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }}>
+    <div style={{ ...styles.block, ...(stack ? styles.rowCell : null) }}>
+      <div style={{ ...styles.blockLabel, ...(stack ? styles.stackLabel : null) }}>{label}</div>
+      <div style={{ ...styles.blockValue, ...(stack ? styles.stackBig : null), ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }}>
         {show ? (muted ? '미반영' : fmt(value)) : '—'}
       </div>
     </div>
@@ -223,6 +239,19 @@ const styles: Record<string, React.CSSProperties> = {
   hero: { ...cellBase, flex: 1.3, background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
   heroLabel: { fontSize: fit(9.5, 0.62, 12), color: 'var(--lime)', fontWeight: 700, ...noSpill },
   heroValue: { fontSize: fit(13, 1.14, 22), fontWeight: 700, color: '#fff', marginTop: 2, ...noSpill },
+  // ── 세로 배치(화면이 1:1 보다 세로로 길 때) ──────────────────────────────
+  // 칸마다 '이름 왼쪽 · 금액 오른쪽' 한 줄. 폭이 넉넉하니 글자는 원래 크기로 되돌린다.
+  flowStack: { display: 'flex', flexDirection: 'column', gap: 4, width: '100%' },
+  // flexDirection 을 명시해야 한다 — 실구매가 칸(hero)이 column 이라 안 그러면 세로 모드에서 그대로 남는다
+  rowCell: { display: 'flex', flexDirection: 'row' as const, alignItems: 'center', justifyContent: 'space-between', gap: 10, flex: 'none' },
+  stackRight: { textAlign: 'right' as const, minWidth: 0 },
+  stackLabel: { fontSize: 12.5, flexShrink: 0 },
+  stackBig: { fontSize: 16, marginTop: 0 },
+  stackHero: { fontSize: 20, marginTop: 0 },
+  stackSub: { fontSize: 10.5, marginTop: 1 },
+  // 가로 배치의 왼쪽 구분선(marginLeft/borderLeft)은 세로에서 의미가 없다 — 위쪽 선으로
+  asideStack: { marginLeft: 0, paddingLeft: undefined, borderLeft: 'none', marginTop: 4, borderTop: '2px solid var(--line)' },
+  opStack: { fontSize: 12, color: 'var(--muted)', fontWeight: 700, alignSelf: 'center', lineHeight: 1 },
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
   popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
