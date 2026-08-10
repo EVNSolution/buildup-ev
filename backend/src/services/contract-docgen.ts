@@ -143,6 +143,15 @@ export function missesCorporateCeo(t: Pick<ContractTokens, 'company_name' | 'ceo
   return Boolean(t.company_name.trim()) && !t.ceo_name.trim();
 }
 
+/**
+ * 토큰만 보고 법인 계약인지 판정 — 렌더 단계는 견적 입력(biz_type)에 접근하지 않는다.
+ * 회사명은 법인일 때만 채워지므로(buildContractTokensFromQuote) 이것으로 충분하다.
+ * 서명블록에서 법인 줄을 남길지, 날인칸을 몇 개 기대할지가 여기서 갈린다.
+ */
+export function isCorporateTokens(t: Pick<ContractTokens, 'company_name'>): boolean {
+  return Boolean(t.company_name.trim());
+}
+
 /** 주문 → 계약서 토큰. 주문은 견적을 가리키는 껍데기이므로 견적 기준 함수로 위임. */
 export async function buildContractTokens(orderId: number): Promise<ContractTokens> {
   if (!prisma) throw new ContractDocError('DB 연결 필요', 'DB_UNAVAILABLE');
@@ -243,9 +252,55 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
   };
 }
 
-/** 토큰 치환 → docx(Buffer). 템플릿 토큰은 단일 run 이라 분할 걱정 없음(검증 완료). */
+/**
+ * 표의 한 행(`w:tr`)을 통째로 제거한다 — marker 를 품은 가장 안쪽 행이 대상.
+ *
+ * docxtemplater 의 조건부 블록 대신 XML 에서 직접 지우는 이유:
+ * 조건부는 문단·행 경계에 태그를 심어야 해서 레이아웃에 어떤 영향이 갈지 예측이 어렵다.
+ * 행을 통째로 들어내면 결과가 눈에 보이는 그대로다.
+ *
+ * ⚠️ 매수인 서명 소표의 행은 안에 또 다른 표가 없다(중첩 없음) — 그래서 marker 앞뒤의
+ *    가장 가까운 `<w:tr …>` / `</w:tr>` 짝이 곧 그 행이다. 중첩이 생기면 이 가정이 깨지므로
+ *    잘라낸 조각에 여는 `<w:tr` 이 또 있으면 예외를 던진다.
+ */
+function dropTableRow(xml: string, marker: string): string {
+  const at = xml.indexOf(marker);
+  if (at < 0) throw new ContractDocError(`양식에서 «${marker}» 를 찾지 못했습니다`, 'RENDER_FAILED');
+
+  // ⚠️ `<w:tr` 로 그냥 찾으면 **`<w:trPr`(행 속성) 에도 걸린다** — 그러면 행 한가운데를
+  //    잘라 문서가 깨진다(실제로 깨뜨렸다). 뒤에 공백이나 '>' 가 오는 것만 행 시작이다.
+  const OPEN_TR = /<w:tr(?=[\s>])/g;
+  let open = -1;
+  for (let m = OPEN_TR.exec(xml); m && m.index < at; m = OPEN_TR.exec(xml)) open = m.index;
+
+  const closeAt = xml.indexOf('</w:tr>', at);
+  if (open < 0 || closeAt < 0) {
+    throw new ContractDocError(`«${marker}» 를 감싸는 표 행을 찾지 못했습니다`, 'RENDER_FAILED');
+  }
+  const end = closeAt + '</w:tr>'.length;
+  const row = xml.slice(open, end);
+  if (/<w:tr(?=[\s>])/.test(row.slice(1))) {
+    throw new ContractDocError(`«${marker}» 행에 중첩 표가 있어 안전하게 지울 수 없습니다`, 'RENDER_FAILED');
+  }
+  return xml.slice(0, open) + xml.slice(end);
+}
+
+/**
+ * 토큰 치환 → docx(Buffer). 템플릿 토큰은 단일 run 이라 분할 걱정 없음(검증 완료).
+ *
+ * 매수인 서명블록은 두 줄(법인 줄이 위, 개인 줄이 아래)인데,
+ * **개인 계약이면 법인 줄을 통째로 지운다** — 빈 「회사명 / 대표이사 / 서명 (인)」 이 남으면
+ * 고객이 어디에 서명해야 하는지 헷갈린다.
+ * ⚠️ 반대(법인일 때 개인 줄 숨김)는 **하지 않는다** — 사용자가 개인 줄은 남기라고 정했다.
+ */
 export function fillContractDocx(template: Buffer, tokens: ContractTokens): Buffer {
   const zip = new PizZip(template);
+
+  if (!isCorporateTokens(tokens)) {
+    const xml = zip.file('word/document.xml')?.asText() ?? '';
+    zip.file('word/document.xml', dropTableRow(xml, '{{company_name}}'));
+  }
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: false,           // 줄바꿈은 페이지 밀림 원인 — special_terms 는 한 문단으로
