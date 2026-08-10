@@ -37,9 +37,8 @@ export function Header({ customer }: Props) {
   return (
     <header style={{
       ...styles.header,
-      // 데스크톱 최상단바 두께 2배 (53.5px → 107px). 내용 높이 30.5px 기준으로 상하 38px.
-      // 모바일은 이미 줄바꿈으로 높아져 그대로 둔다.
-      padding: isMobile ? '10px 14px' : '38px 20px',
+      // 모바일은 줄바꿈으로 높이가 달라지므로 고정 높이를 풀고 예전 여백을 쓴다
+      ...(isMobile ? { height: 'auto', padding: '10px 14px' } : {}),
       flexWrap: isMobile ? 'wrap' : 'nowrap',
       gap: isMobile ? 8 : 12,
     }}>
@@ -89,45 +88,60 @@ export function Header({ customer }: Props) {
   )
 }
 
+/**
+ * 최상단바 크기 — 바 두께는 **원래의 2배로 고정**(53.5px → 107px), 안의 글자·로고는
+ * 화면 폭에 따라 최대 2배까지 커진다.
+ *
+ * 전부 2배로 못 박으면 내용 필요폭이 1457px 이 되어 1280·1366 노트북에서 넘친다(실측).
+ * 그래서 1920 에서 2배가 되도록 폭에 비례시키고, 좁아지면 원래 크기까지 되돌아온다.
+ * `x(기본값)` = 그 값의 clamp(기본, 화면폭 비례, 기본×2).
+ */
+const HEADER_H = 107
+/** 기본값 n → 넓은 화면에서 2n 까지. 계수는 1920px 에서 2배가 되도록 뽑았다(2n/1920×100). */
+const x = (n: number) => `clamp(${n}px, ${(n / 9.6).toFixed(3)}vw, ${n * 2}px)`
+
 const styles: Record<string, React.CSSProperties> = {
   header: {
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    padding: '38px 20px',
+    gap: x(12),
+    // 높이를 고정해 두면 안의 글자가 커져도 바 두께는 그대로다
+    height: HEADER_H,
+    boxSizing: 'border-box',
+    padding: '0 20px',
     borderBottom: '1px solid var(--line)',
     background: '#fff',
   },
-  logo: { fontWeight: 800, fontSize: 18, color: 'var(--dark)' },
+  logo: { fontWeight: 800, fontSize: x(18), color: 'var(--dark)', whiteSpace: 'nowrap' },
   logoBold: { color: 'var(--lime)' },
   badge: {
-    background: 'var(--lime)', color: 'var(--dark)',
-    fontWeight: 700, fontSize: 12, padding: '4px 10px', borderRadius: 20,
+    background: 'var(--lime)', color: 'var(--dark)', whiteSpace: 'nowrap',
+    fontWeight: 700, fontSize: x(12), padding: `${x(4)} ${x(10)}`, borderRadius: 999,
   },
   custChip: {
-    fontSize: 12, border: '1px solid var(--line)', borderRadius: 20,
-    padding: '5px 12px', cursor: 'pointer', background: '#fff',
+    fontSize: x(12), border: '1px solid var(--line)', borderRadius: 999, whiteSpace: 'nowrap',
+    padding: `${x(5)} ${x(12)}`, cursor: 'pointer', background: '#fff',
   },
   userInfo: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 },
-  userName: { fontSize: 13, fontWeight: 600, color: 'var(--dark)' },
-  userOrg:  { fontSize: 11, color: 'var(--muted)' },
+  userName: { fontSize: x(13), fontWeight: 600, color: 'var(--dark)', whiteSpace: 'nowrap' },
+  userOrg:  { fontSize: x(11), color: 'var(--muted)', whiteSpace: 'nowrap' },
   logoutBtn: {
-    fontSize: 12, padding: '5px 12px', border: '1px solid var(--line)',
-    borderRadius: 6, background: '#fff', cursor: 'pointer', color: 'var(--muted)',
+    fontSize: x(12), padding: `${x(5)} ${x(12)}`, border: '1px solid var(--line)', whiteSpace: 'nowrap',
+    borderRadius: x(6), background: '#fff', cursor: 'pointer', color: 'var(--muted)',
   },
   // DEV: master surface switcher styles
   surfaceSwitch: {
-    display: 'flex', gap: 2, background: 'var(--card)', borderRadius: 8,
-    padding: 3, border: '1px solid var(--line)',
+    display: 'flex', gap: 2, background: 'var(--card)', borderRadius: x(8),
+    padding: x(3), border: '1px solid var(--line)',
   },
   surfaceBtn: {
-    fontSize: 12, fontWeight: 600, padding: '4px 12px', border: 'none',
-    borderRadius: 6, cursor: 'pointer', background: 'transparent', color: 'var(--muted)',
+    fontSize: x(12), fontWeight: 600, padding: `${x(4)} ${x(12)}`, border: 'none', whiteSpace: 'nowrap',
+    borderRadius: x(6), cursor: 'pointer', background: 'transparent', color: 'var(--muted)',
   },
   surfaceBtnActive: {
-    fontSize: 12, fontWeight: 700, padding: '4px 12px', border: 'none',
-    borderRadius: 6, cursor: 'pointer', background: '#fff', color: 'var(--dark)',
+    fontSize: x(12), fontWeight: 700, padding: `${x(4)} ${x(12)}`, border: 'none', whiteSpace: 'nowrap',
+    borderRadius: x(6), cursor: 'pointer', background: '#fff', color: 'var(--dark)',
     boxShadow: '0 1px 4px rgba(0,0,0,.1)',
   },
 }
