@@ -571,8 +571,10 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
     return;
   }
-  if (quote.status !== 'confirmed') {
-    res.status(409).json({ error: { code: 'CONFLICT', message: `확정 상태에서만 배정할 수 있습니다 (현재 ${quote.status})` } });
+  // 배정은 견적확정 또는 계약완료(전자서명 완료) 단계에서 가능하다.
+  // 전자서명을 마친 뒤 배정하는 것이 정상 흐름이지만, 서명 전 선배정도 막지 않는다.
+  if (!['confirmed', 'contracted'].includes(quote.status)) {
+    res.status(409).json({ error: { code: 'CONFLICT', message: `견적확정·계약완료 단계에서만 배정할 수 있습니다 (현재 ${quote.status})` } });
     return;
   }
   if (!makerOrg || makerOrg.type !== 'MAKER') {
@@ -641,7 +643,7 @@ quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): P
       return;
     }
 
-    if (quote.status === 'confirmed' || quote.status === 'assigned' || quote.status === 'ordered') {
+    if (['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(quote.status)) {
       // 확정·배정·주문 견적은 is_master만
       if (!req.auth!.is_master) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정·주문 견적은 마스터 관리자만 삭제 가능' } });

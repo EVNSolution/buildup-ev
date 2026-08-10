@@ -58,14 +58,17 @@ function sanitizeSelections(sel: Record<string, string>, bundle: ApiPricingBundl
 
 // ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
 const QUOTE_STATUS_KO: Record<string, string> = {
-  draft: '임시저장', confirmed: '확정', assigned: '배정', ordered: '주문', expired: '만료',
+  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
 const QUOTE_STATUS_FLOW = [
-  { key: 'draft',     label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed', label: '확정',     desc: '계약·전자서명 완료' },
-  { key: 'assigned',  label: '배정',     desc: '특장사 배정 · 주문 생성' },
-  { key: 'ordered',   label: '주문',     desc: '특장사 수락 · 제작 진행' },
+  { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
+  { key: 'confirmed',  label: '견적확정', desc: '견적서 생성 완료' },
+  { key: 'contracted', label: '계약완료', desc: '전자서명 완료' },
+  { key: 'assigned',   label: '배정완료', desc: '관리자가 특장사 배정' },
+  { key: 'ordered',    label: '주문진행', desc: '특장사 수락 · 제작 진행' },
+  { key: 'completed',  label: '완료',     desc: '특장사 전 공정 완료' },
 ] as const
 
 function quoteStatusTip(status: string): React.ReactNode {

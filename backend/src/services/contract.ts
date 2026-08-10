@@ -193,6 +193,18 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
 }
 
 /**
+ * 전자서명이 완료되면 견적 단계를 **계약완료(contracted)** 로 올린다.
+ * 이미 더 진행된 단계(배정·주문·완료)면 되돌리지 않는다.
+ */
+async function advanceQuoteToContracted(quoteId: number): Promise<void> {
+  const p = db();
+  const q = await p.quote.findUnique({ where: { id: quoteId }, select: { status: true } });
+  if (!q || !['draft', 'confirmed'].includes(q.status)) return;
+  await p.quote.update({ where: { id: quoteId }, data: { status: 'contracted' } });
+  console.info(`[contract] 견적 ${quoteId} 단계 ${q.status} → contracted(계약완료)`);
+}
+
+/**
  * 완료된 서명본 PDF 를 내려받아 저장한다. **실패해도 예외를 던지지 않는다**(경로 or null).
  * 서명 완료 상태 전이가 부수 작업 때문에 막히면 안 된다.
  */
@@ -243,7 +255,9 @@ export async function refreshContractStatus(quoteId: number): Promise<PurchaseCo
     if (saved) data.signed_pdf_path = saved;
   }
   console.info(`[contract] 견적 ${quoteId} 상태 재조회 ${contract.status} → ${mapped}`);
-  return p.purchaseContract.update({ where: { id: contract.id }, data });
+  const updated = await p.purchaseContract.update({ where: { id: contract.id }, data });
+  if (mapped === 'COMPLETED') await advanceQuoteToContracted(quoteId);
+  return updated;
 }
 
 /**
