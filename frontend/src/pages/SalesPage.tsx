@@ -177,11 +177,15 @@ function MyListView() {
     if (!customerEdit) return
     setEditSaving(true); setEditErr('')
     try {
+      // 고객 마스터도 함께 갱신한다 — 다음 견적에서 이 값들이 자동 기입된다.
       await saveQuoteCustomer(customerEdit.id, {
         name: v.name.trim(),
         phone: v.phone,
         email: v.email.trim(),
         address: v.address.trim(),
+        reg_no: v.buyer_regno.trim(),
+        ceo_name: v.subsidy.business_type === 'corporate' ? v.ceo_name.trim() : '',
+        tel: v.buyer_tel,
       })
       await saveQuoteInputs(customerEdit.id, {
         biz_type: mapBizType(v.subsidy.business_type),

@@ -313,12 +313,20 @@ model Tire {
 
 // ─── E: 거래 (customer · quote · order · order_option · document) ─────────
 
+/// 고객 마스터. 견적을 반복해서 넣는 고객이 많아 (성명/상호 + 생년월일/사업자번호)로
+/// 같은 고객을 알아보고 갱신한다 — 예전엔 견적마다 새 행이 쌓였다.
 model Customer {
   id         Int      @id @default(autoincrement())
   name       String   @db.VarChar(60)
+  /// 대표이사 — 법인사업자일 때만 채운다. 계약서 매수인 법인 줄에 인쇄된다.
+  ceo_name   String?  @db.VarChar(60)
   email      String?  @db.VarChar(120)
+  /// 휴대폰
   phone      String?  @db.VarChar(20)
+  /// 유선 전화번호(계약서 «전화번호» 칸). 입력했을 때만 저장된다.
+  tel        String?  @db.VarChar(20)
   address    String?  @db.VarChar(120)
+  /// 생년월일 또는 사업자번호. name 과 함께 고객을 식별하는 키다.
   reg_no     String?  @db.VarChar(20)
   created_by String?  @db.VarChar(120)
   created_at DateTime @default(now())
@@ -326,6 +334,9 @@ model Customer {
   creator User?   @relation(fields: [created_by], references: [email])
   quotes  Quote[]
 
+  /// 자동 기입 조회용. ⚠️ UNIQUE 가 아니다 — 이미 같은 (name, reg_no) 중복 행이 쌓여 있어
+  /// 유니크 제약을 걸면 마이그레이션이 실패한다. 중복은 코드에서 최신 1건을 쓴다.
+  @@index([name, reg_no])
   @@map("customer")
 }
 

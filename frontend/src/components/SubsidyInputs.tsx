@@ -46,27 +46,31 @@ export const DIESEL_OPTIONS: { value: DieselStatusCode; label: string; note?: st
 ]
 
 /** 보조금 입력 폼(팝업·모달 공용). 라벨 폭이 좁은 팝업에서도 쓰도록 단일 열. */
-export function SubsidyForm({ value, onChange, regions, compact }: {
+export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType }: {
   value: SubsidyInputs
   onChange: (v: SubsidyInputs) => void
   regions: string[]
   compact?: boolean
+  /** 견적 저장 모달은 사업자 구분을 **맨 위**에 따로 두므로 여기선 감춘다(값은 같은 상태). */
+  hideBusinessType?: boolean
 }) {
   const set = <K extends keyof SubsidyInputs>(k: K, v: SubsidyInputs[K]) => onChange({ ...value, [k]: v })
   const s = compact ? f.rowTight : f.row
 
   return (
     <>
-      <div style={s}>
-        <label style={f.label}>사업자 구분</label>
-        <select
-          style={f.field}
-          value={value.business_type}
-          onChange={e => set('business_type', e.target.value as BusinessType)}
-        >
-          {BUSINESS_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      </div>
+      {!hideBusinessType && (
+        <div style={s}>
+          <label style={f.label}>사업자 구분</label>
+          <select
+            style={f.field}
+            value={value.business_type}
+            onChange={e => set('business_type', e.target.value as BusinessType)}
+          >
+            {BUSINESS_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      )}
 
       <div style={s}>
         <label style={f.label}>지역 <span style={f.req}>· 지방보조금 조회 기준</span></label>

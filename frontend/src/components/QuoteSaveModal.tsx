@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { PhoneInput } from './PhoneInput'
-import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
-import type { CustomerInfo } from '@shared/types/index'
+import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
+import { lookupCustomer } from '../api/quotes'
+import type { BusinessType, CustomerInfo } from '@shared/types/index'
 
 /**
  * 견적 저장 모달 — **견적서·계약서에 필요한 고객 정보를 전부 여기서** 받는다.
@@ -72,6 +73,38 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   const [v, setV] = useState<QuoteSaveValues>(initial)
   const set = <K extends keyof QuoteSaveValues>(k: K, val: QuoteSaveValues[K]) => setV(p => ({ ...p, [k]: val }))
 
+  /** 자동 기입으로 채워진 항목 — 무엇이 저절로 들어갔는지 화면에 드러낸다. */
+  const [autofilled, setAutofilled] = useState<string[]>([])
+  /** 같은 키로 반복 조회하지 않도록 마지막 조회 키를 기억한다. */
+  const lastKey = useRef('')
+
+  /**
+   * 성명(상호)+생년월일(사업자번호)이 모두 채워지면 지난 고객정보를 불러와
+   * **빈 칸만** 채운다. 이미 적은 값은 절대 덮어쓰지 않는다.
+   */
+  async function tryAutofill(name: string, regNo: string) {
+    const key = `${name.trim()}|${regNo.trim()}`
+    if (!name.trim() || !regNo.trim() || key === lastKey.current) return
+    lastKey.current = key
+    const hit = await lookupCustomer(name, regNo)
+    if (!hit) { setAutofilled([]); return }
+
+    const filled: string[] = []
+    setV(prev => {
+      const next = { ...prev }
+      const fill = (k: 'ceo_name' | 'phone' | 'email' | 'address' | 'buyer_tel', val: string | null, label: string) => {
+        if (val && !next[k].trim()) { next[k] = val; filled.push(label) }
+      }
+      fill('ceo_name', hit.ceo_name, '대표이사')
+      fill('phone', hit.phone, '휴대폰')
+      fill('email', hit.email, '이메일')
+      fill('address', hit.address, '세부주소')
+      fill('buyer_tel', hit.tel, '전화번호')
+      return next
+    })
+    setAutofilled(filled)
+  }
+
   const isEdit = mode === 'edit'
   const isCorporate = v.subsidy.business_type === 'corporate'
   // 법인 계약서는 **상호 + 대표이사 + 대리인** 이 다 있어야 성립한다.
@@ -92,21 +125,58 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </p>
 
         <div style={s.sectionTitle}>고객 정보</div>
-        {/* 사업자 구분이 맨 위 — 아래 입력란 구성이 이 값에 따라 달라진다 */}
-        <SubsidyForm value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} />
+
+        {/*
+          맨 위 세 칸의 순서가 중요하다:
+          사업자 구분(라벨이 바뀐다) → 성명(상호) → 생년월일(사업자번호).
+          뒤의 두 값이 **고객 마스터를 찾는 키**라, 먼저 받아야 나머지를 자동으로 채울 수 있다.
+        */}
+        <div style={s.row}>
+          <label style={s.label}>사업자 구분</label>
+          <select
+            style={s.field}
+            value={v.subsidy.business_type}
+            onChange={e => set('subsidy', { ...v.subsidy, business_type: e.target.value as BusinessType })}
+          >
+            {BUSINESS_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
 
         <div style={s.row}>
           <label style={s.label}>{isCorporate ? '상호' : '성명'} <span style={s.req}>· 필수</span></label>
-          <input style={s.field} type="text" value={v.name} onChange={e => set('name', e.target.value)} />
+          <input
+            style={s.field} type="text" value={v.name}
+            onChange={e => set('name', e.target.value)}
+            onBlur={e => void tryAutofill(e.target.value, v.buyer_regno)}
+          />
         </div>
+
+        <div style={s.row}>
+          <label style={s.label}>
+            {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
+            <span style={s.req}> · 성명과 함께 지난 고객정보를 부르는 기준</span>
+          </label>
+          <input
+            style={s.field} type="text" value={v.buyer_regno}
+            onChange={e => set('buyer_regno', e.target.value)}
+            onBlur={e => void tryAutofill(v.name, e.target.value)}
+          />
+        </div>
+
+        {autofilled.length > 0 && (
+          <div style={s.autofill}>
+            지난 견적의 고객정보에서 <b>{autofilled.join(', ')}</b> 을(를) 불러와 빈 칸을 채웠습니다.
+            다르면 고쳐 주세요.
+          </div>
+        )}
 
         {isCorporate && (
           <div style={s.row}>
-            <label style={s.label}>대표이사 <span style={s.req}>· 계약서 서명란</span></label>
+            <label style={s.label}>대표이사 <span style={s.req}>· 계약서 매수인 법인 줄</span></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
             {missingCeo && (
               <div style={s.warn}>
-                대표이사를 입력해야 저장할 수 있습니다 — 법인 계약서는 서명란 3곳이 대표이사 이름으로 채워집니다.
+                대표이사를 입력해야 저장할 수 있습니다 — 법인 계약서 매수인 줄에 인쇄됩니다.
               </div>
             )}
           </div>
@@ -125,6 +195,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <input style={s.field} type="text" value={v.address} onChange={e => set('address', e.target.value)} />
         </div>
 
+        <div style={s.sectionTitle}>보조금 조건</div>
+        {/* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */}
+        <SubsidyForm
+          value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
+        />
+
         <div style={s.sectionTitle}>
           계약서 정보{' '}
           <span style={s.optional}>
@@ -134,10 +210,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <div style={s.row}>
           <label style={s.label}>계약처</label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
-        </div>
-        <div style={s.row}>
-          <label style={s.label}>{isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}</label>
-          <input style={s.field} type="text" value={v.buyer_regno} onChange={e => set('buyer_regno', e.target.value)} />
         </div>
         <div style={s.row}>
           <label style={s.label}>전화번호 <span style={s.req}>· 유선</span></label>
@@ -198,6 +270,10 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 8, background: '#fff', outline: 'none',
   },
   warn: { fontSize: 11, color: '#c0392b', marginTop: 5 },
+  autofill: {
+    fontSize: 11.5, color: 'var(--dark)', background: '#f2f6e8',
+    border: '1px solid #dce8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
+  },
   error: { fontSize: 12, color: '#c0392b', marginTop: 12 },
   btnRow: { display: 'flex', gap: 8, marginTop: 18 },
   btnOk: {

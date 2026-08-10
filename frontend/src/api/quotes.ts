@@ -149,7 +149,7 @@ export async function fetchLocalSubsidy(region: string, year: number): Promise<n
 /** 견적에 연결된 고객정보 수정 — 견적서·계약서에 즉시 반영된다(새 고객이 생기지 않음). */
 export async function saveQuoteCustomer(
   quoteId: number,
-  patch: { name?: string; phone?: string; email?: string; address?: string; reg_no?: string },
+  patch: { name?: string; phone?: string; email?: string; address?: string; reg_no?: string; ceo_name?: string; tel?: string },
 ): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/customer`, {
     method: 'PATCH',
@@ -161,4 +161,29 @@ export async function saveQuoteCustomer(
     const b = await res.json().catch(() => null) as { error?: { message?: string } } | null
     throw new Error(b?.error?.message ?? `고객정보 저장 실패: ${res.status}`)
   }
+}
+
+/** 고객 마스터 자동 기입용 조회 결과. */
+export interface CustomerMasterHit {
+  id: number
+  name: string
+  ceo_name: string | null
+  phone: string | null
+  tel: string | null
+  address: string | null
+  reg_no: string | null
+  email: string | null
+}
+
+/**
+ * 성명(상호) + 생년월일(사업자번호) **완전일치** 1건 조회. 없으면 null.
+ * 서버가 두 값을 모두 요구한다 — 부분검색·목록 조회는 없다(남의 고객정보 노출 방지).
+ */
+export async function lookupCustomer(name: string, regNo: string): Promise<CustomerMasterHit | null> {
+  if (!name.trim() || !regNo.trim()) return null
+  const q = new URLSearchParams({ name: name.trim(), reg_no: regNo.trim() })
+  const res = await fetch(`/api/v1/customers/lookup?${q}`, { credentials: 'include' })
+  if (!res.ok) return null              // 조회 실패는 자동 기입을 건너뛸 뿐, 입력을 막지 않는다
+  const body = await res.json() as { data: CustomerMasterHit | null }
+  return body.data
 }

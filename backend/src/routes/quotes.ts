@@ -12,6 +12,7 @@ import {
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js';
+import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 
 export const quotesRouter = Router();
@@ -364,7 +365,9 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request,
     const data: Record<string, string | null> = {};
     const name = str('name', 60);
     if (name) data['name'] = name;          // 이름은 비울 수 없다(NOT NULL)
-    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['reg_no', 20]] as const) {
+    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['reg_no', 20],
+      // 대표이사·유선전화도 고객 마스터에 쌓인다(다음 견적에서 자동 기입된다)
+      ['ceo_name', 60], ['tel', 20]] as const) {
       const v = str(k, max);
       if (v !== undefined) data[k] = v;
     }
@@ -436,14 +439,22 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     return;
   }
 
-  // 고객 생성·연결 (name 있을 때만)
+  // 고객 마스터 갱신·연결 (name 있을 때만).
+  // ⚠️ 예전엔 무조건 create 라 같은 고객이 견적을 낼 때마다 행이 새로 쌓였다.
+  //    이제 (성명 + 생년월일/사업자번호)가 같으면 기존 행을 갱신해 한 고객 = 한 행으로 모은다.
   let customerId: number | undefined;
   if (customer?.name) {
     try {
-      const cust = await prisma.customer.create({
-        data: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address, created_by: req.auth?.email },
+      customerId = await upsertCustomer({
+        name: customer.name,
+        reg_no: customer.buyer_regno,
+        ceo_name: customer.ceo_name,
+        email: customer.email,
+        phone: customer.phone,
+        tel: customer.buyer_tel,
+        address: customer.address,
+        created_by: req.auth?.email,
       });
-      customerId = cust.id;
     } catch (e: unknown) {
       if ((e as { code?: string }).code === 'P2003') {
         const cust = await prisma.customer.create({ data: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address } });
