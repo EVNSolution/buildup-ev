@@ -208,7 +208,10 @@ export async function refreshContractStatus(quoteId: number): Promise<PurchaseCo
   if (TERMINAL.includes(contract.status)) return contract;   // 이미 종료 — 되돌리지 않는다
 
   const doc = await modusign.getDocument(contract.modusign_document_id);
-  const mapped = doc.status ? mapEventToStatus(doc.status) : null;
+  // ⚠️ 문서 상태는 **웹훅 이벤트 이름과 다른 어휘**다(이벤트: document_all_signed /
+  //    문서상태: COMPLETED 같은 식). 이벤트 매핑을 그대로 쓰면 항상 null 이 나온다.
+  const mapped = mapDocStatus(doc.status);
+  console.info(`[contract] 견적 ${quoteId} 문서상태 raw='${doc.status ?? ''}' → ${mapped ?? '매핑없음'}`);
   if (!mapped || mapped === contract.status) return contract;
 
   const data: { status: ContractStatus; signed_pdf_path?: string; completed_at?: Date } = { status: mapped };
@@ -223,6 +226,22 @@ export async function refreshContractStatus(quoteId: number): Promise<PurchaseCo
   }
   console.info(`[contract] 견적 ${quoteId} 상태 재조회 ${contract.status} → ${mapped}`);
   return p.purchaseContract.update({ where: { id: contract.id }, data });
+}
+
+/**
+ * 모두싸인 **문서 상태**(getDocument) → 내부 상태.
+ * 웹훅 이벤트 이름과 어휘가 다르다. 정확한 값 목록이 문서로 확인되지 않아
+ * 대표 문자열을 포함 여부로 판정하고, **원본을 로그에 남겨** 나중에 좁힌다.
+ */
+export function mapDocStatus(raw: unknown): ContractStatus | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const v = raw.trim().toUpperCase();
+  if (v.includes('COMPLET') || v.includes('ALL_SIGNED') || v === 'DONE') return 'COMPLETED';
+  if (v.includes('REJECT')) return 'REJECTED';
+  if (v.includes('CANCEL') || v.includes('EXPIRE')) return 'CANCELED';
+  if (v.includes('SIGNING') || v.includes('ON_GOING') || v.includes('ONGOING')
+      || v.includes('SENT') || v.includes('START') || v.includes('PROGRESS')) return 'SENT';
+  return null;
 }
 
 // ── webhook 처리 ────────────────────────────────────────────────────────────
