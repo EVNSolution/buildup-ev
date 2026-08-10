@@ -8,6 +8,11 @@ interface Props {
   placement?: 'below' | 'above'
   maxWidth?: number
   minWidth?: number
+  /**
+   * 감싸는 span 에 얹을 스타일. 이 span 이 부모의 flex 항목이 되므로,
+   * 카드처럼 `flex: 1` 로 늘어나야 하는 요소를 감쌀 땐 여기로 넘겨줘야 한다.
+   */
+  wrapperStyle?: React.CSSProperties
 }
 
 interface Pos {
@@ -16,7 +21,7 @@ interface Pos {
   left: number
 }
 
-export function Tooltip({ text, children, placement = 'below', maxWidth = 220, minWidth = 150 }: Props) {
+export function Tooltip({ text, children, placement = 'below', maxWidth = 220, minWidth = 150, wrapperStyle }: Props) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<Pos>({ left: 0 })
   const triggerRef = useRef<HTMLSpanElement>(null)
@@ -65,7 +70,7 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
   return (
     <span
       ref={triggerRef}
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3, ...wrapperStyle }}
       onMouseEnter={() => !isMobile && calcAndOpen()}
       onMouseLeave={() => !isMobile && setOpen(false)}
     >
