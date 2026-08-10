@@ -329,7 +329,9 @@ export async function handleModusignEvent(documentId: string, eventType: string)
   try {
     const doc = await modusign.getDocument(documentId);
     if (doc.status) {
-      const fromApi = mapEventToStatus(doc.status);
+      // ⚠️ 문서 상태는 이벤트 이름과 **어휘가 다르다**(document_all_signed vs COMPLETED).
+      //    여기서 이벤트 매핑을 쓰면 항상 null 이라 교차검증이 사실상 꺼져 있었다.
+      const fromApi = mapDocStatus(doc.status);
       if (fromApi) mapped = fromApi; // API 실상태 우선
     }
   } catch {
@@ -349,6 +351,9 @@ export async function handleModusignEvent(documentId: string, eventType: string)
   }
 
   await p.purchaseContract.update({ where: { id: contract.id }, data });
+  // ⚠️ 이 한 줄이 빠져 있었다. 계약은 COMPLETED 가 되는데 견적은 confirmed 에 머물러,
+  //    서명을 마쳐도 「배정」 버튼이 계속 잠겨 있었다(수동 재조회 경로에만 있었다).
+  if (mapped === 'COMPLETED') await advanceQuoteToContracted(contract.quote_id);
 }
 
 /** 모두싸인 webhook body 에서 문서id·이벤트타입 추출(스키마 초안 — 실 webhook 로 확정). */

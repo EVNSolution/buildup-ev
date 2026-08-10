@@ -241,7 +241,8 @@ function MyListView() {
         <div style={{ width: 'min(460px, 94vw)', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontSize: 15, fontWeight: 700 }}>계약 · 전자서명{contractQuote.customerName ? ` — ${contractQuote.customerName}` : ''}</span>
-            <button style={{ border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 }} onClick={() => setContractQuote(null)}>✕</button>
+            {/* 팝업 안에서 서명을 요청하면 목록의 상태·발송현황이 달라진다 — 닫을 때 다시 읽는다 */}
+            <button style={{ border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 }} onClick={() => { setContractQuote(null); load() }}>✕</button>
           </div>
           <ContractPanel quoteId={contractQuote.id} customerName={contractQuote.customerName} />
         </div>
@@ -348,7 +349,7 @@ function MyListView() {
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
-                          >견적 생성</button>
+                          >{q.status === 'draft' ? '견적 생성' : '견적서'}</button>
                           {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
                           <button
                             style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
