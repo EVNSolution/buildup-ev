@@ -163,7 +163,10 @@ export async function saveQuoteCustomer(
   }
 }
 
-/** 고객 마스터 자동 기입용 조회 결과. */
+/**
+ * 고객 마스터 자동 기입용 조회 결과.
+ * ⚠️ 이메일은 없다 — 견적마다 받는 담당자가 달라져 매번 새로 입력받는다.
+ */
 export interface CustomerMasterHit {
   id: number
   name: string
@@ -172,7 +175,6 @@ export interface CustomerMasterHit {
   tel: string | null
   address: string | null
   reg_no: string | null
-  email: string | null
 }
 
 /**

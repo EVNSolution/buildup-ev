@@ -9,7 +9,14 @@
  */
 import { prisma } from '../lib/prisma.js';
 
-/** 자동 기입에 쓰는 필드. 이메일은 견적별로 달라지는 일이 많아 마스터에 두지 않는다. */
+/**
+ * 자동 기입에 쓰는 필드.
+ *
+ * ⚠️ **이메일은 일부러 빠져 있다.** 같은 고객이라도 견적마다 받는 담당자 메일이 달라지는
+ *    일이 잦아, 지난 값을 끌어오면 엉뚱한 사람에게 견적서가 나간다. 매번 새로 입력받는다.
+ *    (customer.email 컬럼 자체는 남겨 견적 저장 시 그 견적의 값으로 갱신된다 —
+ *     쓰기만 하고 자동 기입으로는 **읽지 않는다**)
+ */
 export interface CustomerMaster {
   id: number;
   name: string;
@@ -18,12 +25,11 @@ export interface CustomerMaster {
   tel: string | null;
   address: string | null;
   reg_no: string | null;
-  email: string | null;
 }
 
 const SELECT = {
   id: true, name: true, ceo_name: true, phone: true, tel: true,
-  address: true, reg_no: true, email: true,
+  address: true, reg_no: true,
 } as const;
 
 /** 키가 성립하는가 — 둘 다 비어 있지 않아야 조회·갱신 대상이다. */

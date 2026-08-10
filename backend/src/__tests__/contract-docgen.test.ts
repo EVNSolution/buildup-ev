@@ -132,11 +132,20 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect((xml.match(/\(주\)한빛물류/g) ?? []).length).toBe(2);
   });
 
-  it('법인 계약: 서명자는 **대리인** — 영수증·개인정보동의 2곳 + 대리인칸 = 3번', () => {
-    // 법인은 대리인이 와서 서명한다. 대표이사는 법인 줄에만 인쇄된다.
+  it('법인 + 대리인 있음: 서명자는 대리인 — 서명란 2곳 + 대리인칸 = 3번', () => {
+    // 대리인이 와서 서명하는 경우. 대표이사는 매수인 법인 줄에만 인쇄된다.
     const xml = docXml(fillContractDocx(template, CORP));
     expect((xml.match(/박대리/g) ?? []).length).toBe(3);
     expect((xml.match(/민원기/g) ?? []).length).toBe(1);
+  });
+
+  it('법인 + 대리인 없음: 서명자는 대표이사 — 서명란 2곳 + 법인 줄 = 3번', () => {
+    // 법인도 대표이사가 직접 오는 경우가 더 흔하다. 대리인칸은 공란으로 남는다.
+    const xml = docXml(fillContractDocx(template, {
+      ...CORP, buyer_agent: '', signer_name: '민원기',   // buildContractTokensFromQuote 의 대체 규칙
+    }));
+    expect((xml.match(/민원기/g) ?? []).length).toBe(3);
+    expect(xml).not.toContain('박대리');
   });
 
   it('매도인 날인줄(이브이앤솔루션 대표이사)은 법인 계약에서도 보존된다', () => {
@@ -172,21 +181,16 @@ describe('PDF 페이지 수 계산 (poppler 미설치 환경 대체)', () => {
 
 describe('법인 필수값 가드 (missingCorporateFields)', () => {
   const CO = '(주)한빛물류';
-  it('대표이사가 비면 알려준다 — 법인 줄이 공란이 된다', () => {
-    expect(missingCorporateFields({ company_name: CO, ceo_name: '', buyer_agent: '박대리' })).toEqual(['대표이사']);
-    expect(missingCorporateFields({ company_name: CO, ceo_name: '   ', buyer_agent: '박대리' })).toEqual(['대표이사']);
+  it('대표이사가 비면 막는다 — 법인 줄도 서명란도 공란이 된다', () => {
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '' })).toEqual(['대표이사']);
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '   ' })).toEqual(['대표이사']);
   });
-  it('대리인이 비면 알려준다 — 서명란 2곳이 공란이 된다', () => {
-    expect(missingCorporateFields({ company_name: CO, ceo_name: '민원기', buyer_agent: '' })).toEqual(['대리인']);
+  it('상호+대표이사만 있으면 통과 — **대리인은 선택**이다', () => {
+    // 대리인이 없으면 서명란에 대표이사가 들어가므로 공란이 되지 않는다.
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '민원기' })).toEqual([]);
   });
-  it('둘 다 비면 둘 다 알려준다', () => {
-    expect(missingCorporateFields({ company_name: CO, ceo_name: '', buyer_agent: '' })).toEqual(['대표이사', '대리인']);
-  });
-  it('상호+대표이사+대리인이 다 있으면 통과', () => {
-    expect(missingCorporateFields({ company_name: CO, ceo_name: '민원기', buyer_agent: '박대리' })).toEqual([]);
-  });
-  it('개인 계약(회사명 공란)은 대표이사·대리인이 없어도 정상', () => {
-    expect(missingCorporateFields({ company_name: '', ceo_name: '', buyer_agent: '' })).toEqual([]);
+  it('개인 계약(회사명 공란)은 대표이사가 없어도 정상', () => {
+    expect(missingCorporateFields({ company_name: '', ceo_name: '' })).toEqual([]);
   });
 });
 

@@ -92,12 +92,13 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
     const filled: string[] = []
     setV(prev => {
       const next = { ...prev }
-      const fill = (k: 'ceo_name' | 'phone' | 'email' | 'address' | 'buyer_tel', val: string | null, label: string) => {
+      // ⚠️ 이메일은 채우지 않는다 — 견적마다 받는 담당자가 달라, 지난 값을 끌어오면
+      //    엉뚱한 사람에게 견적서가 나간다.
+      const fill = (k: 'ceo_name' | 'phone' | 'address' | 'buyer_tel', val: string | null, label: string) => {
         if (val && !next[k].trim()) { next[k] = val; filled.push(label) }
       }
       fill('ceo_name', hit.ceo_name, '대표이사')
       fill('phone', hit.phone, '휴대폰')
-      fill('email', hit.email, '이메일')
       fill('address', hit.address, '세부주소')
       fill('buyer_tel', hit.tel, '전화번호')
       return next
@@ -107,12 +108,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
   const isEdit = mode === 'edit'
   const isCorporate = v.subsidy.business_type === 'corporate'
-  // 법인 계약서는 **상호 + 대표이사 + 대리인** 이 다 있어야 성립한다.
-  //   대표이사 → 매수인 법인 줄 / 대리인 → 영수증·개인정보동의 서명란(법인은 대리인이 서명한다)
-  // 백엔드도 같은 이유로 렌더를 막으므로(missingCorporateFields) 화면에서 미리 잡는다.
+  // 법인 계약서 필수값은 **상호 + 대표이사** 둘이다.
+  // 대표이사는 매수인 법인 줄에 인쇄되고, 대리인이 없으면 서명란에도 대표이사가 들어간다.
+  // 대리인은 선택 — 법인도 대표이사가 직접 오는 경우가 더 흔하다.
+  // 백엔드도 같은 기준으로 렌더를 막으므로(missingCorporateFields) 화면에서 미리 잡는다.
   const missingCeo = isCorporate && !v.ceo_name.trim()
-  const missingAgent = isCorporate && !v.buyer_agent.trim()
-  const canSave = !!v.name.trim() && !missingCeo && !missingAgent && !saving
+  const canSave = !!v.name.trim() && !missingCeo && !saving
 
   return (
     <div style={s.overlay} onClick={onClose}>
@@ -176,7 +177,8 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
             {missingCeo && (
               <div style={s.warn}>
-                대표이사를 입력해야 저장할 수 있습니다 — 법인 계약서 매수인 줄에 인쇄됩니다.
+                대표이사를 입력해야 저장할 수 있습니다 — 매수인 법인 줄에 인쇄되고,
+                대리인이 없으면 영수증·개인정보동의 서명란에도 들어갑니다.
               </div>
             )}
           </div>
@@ -187,7 +189,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>이메일</label>
+          <label style={s.label}>이메일 <span style={s.req}>· 견적마다 새로 입력(자동 기입 안 함)</span></label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
         <div style={s.row}>
@@ -204,7 +206,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <div style={s.sectionTitle}>
           계약서 정보{' '}
           <span style={s.optional}>
-            {isCorporate ? '(대리인은 법인 계약 필수 · 나머지는 선택)' : '(선택 — 비우면 계약서에 공란)'}
+            (선택 — 비우면 계약서에 공란)
           </span>
         </div>
         <div style={s.row}>
@@ -217,15 +219,9 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            대리인 <span style={s.req}>· 위임장 필수{isCorporate ? ' · 법인 계약 필수' : ''}</span>
+            대리인 <span style={s.req}>· 위임장 필수{isCorporate ? ' · 비우면 대표이사가 서명란에 들어감' : ''}</span>
           </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
-          {missingAgent && (
-            <div style={s.warn}>
-              대리인을 입력해야 저장할 수 있습니다 — 법인은 대리인이 서명하므로
-              영수증·개인정보동의 서명란 2곳이 대리인 이름으로 채워집니다.
-            </div>
-          )}
         </div>
         <div style={s.row}>
           <label style={s.label}>관계</label>
