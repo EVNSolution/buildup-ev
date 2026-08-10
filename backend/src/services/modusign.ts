@@ -71,6 +71,12 @@ export interface SendParams {
   attachments?: { fileName: string; base64: string }[];
   /** 비어 있으면 발송하지 않는다 — 서명란 없는 계약서를 보내면 안 된다. */
   signFields: SignField[];
+  /**
+   * 서명 방식 — 한 서명자의 모든 필드가 같아야 한다는 API 제약 때문에 한 종류만 쓴다.
+   *   'SIGN'  개인 계약, 법인+대리인 → 사람이 서명
+   *   'STAMP' 법인+대리인 없음      → 법인 직인
+   */
+  signatureType: 'SIGN' | 'STAMP';
 }
 
 /**
@@ -122,7 +128,7 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
         // (참고: SIGNATURE 는 signatureType 이 모든 필드에서 같아야 한다는 제약이 있다)
         fields: p.signFields.map((f) => ({
           type: 'SIGNATURE',
-          signatureTypes: ['SIGN', 'STAMP'],
+          signatureTypes: [p.signatureType],
           position: { page: f.page, x: f.x, y: f.y },
         })),
       },

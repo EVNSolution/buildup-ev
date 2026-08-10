@@ -117,42 +117,24 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect(xml).toContain('대표이사       민  원  기 ');
   });
 
-  it('법인 계약: 개인 줄은 행을 남기되 글자를 비운다(라벨까지 제거)', () => {
-    // 행을 지우면 서명블록 높이가 달라지고, 「서명 (인)」 라벨을 남기면
-    // 서명하는 자리로 오해한다 — 그래서 행은 두고 내용만 지운다.
+  it('법인 + 대리인: 서명란 3곳이 「성명 ○○○」 로 통일되고 회사명 줄은 사라진다', () => {
+    // 법인은 두 갈래다. 대리인 이름이 있으면 **대리인 서명 한 종류**만 쓰므로
+    // 서명란 3곳이 모두 성명 줄이어야 한다(회사명 줄은 남기지 않는다).
     const xml = docXml(fillContractDocx(template, CORP));
-    expect(xml).toContain('회사명');                       // 법인 줄은 그대로
-    expect((xml.match(/서명/g) ?? []).length).toBe(3);     // 개인 줄 라벨은 사라짐
-    // ⚠️ '(인)' 은 XML 에서 '(' / '인' / ')' 세 run 으로 쪼개져 있어 문자열로 못 센다.
-    //    행이 남아 있는지는 표 행 개수로 본다(글자만 지웠으므로 개수는 그대로).
-    const rows = (xml.match(/<w:tr(?=[\s>])/g) ?? []).length;
-    const personalRows = (docXml(fillContractDocx(template, TOKENS)).match(/<w:tr(?=[\s>])/g) ?? []).length;
-    expect(rows).toBe(personalRows + 1);   // 개인 계약은 법인 줄을 아예 지우므로 한 행 적다
-  });
-
-  it('법인 계약: 상호·대표이사가 채워지고 개인 줄 서명란은 비어 있다', () => {
-    const xml = docXml(fillContractDocx(template, CORP));
-    expect(xml).toContain('(주)한빛물류');
-    expect(xml).toContain('민원기');
+    expect((xml.match(/서명/g) ?? []).length).toBe(3);
+    expect(xml).not.toContain('회사명');
+    expect((xml.match(/박대리/g) ?? []).length).toBe(3);   // 서명란 3곳
     expect(xml).not.toMatch(/\{\{\s*\w+\s*\}\}/);
-    // 상호는 상단 성명칸 + 법인 줄 회사명 = 2번만. 서명란에 상호가 찍히면 안 된다.
-    expect((xml.match(/\(주\)한빛물류/g) ?? []).length).toBe(2);
   });
 
-  it('법인 + 대리인 있음: 서명자는 대리인 — 서명란 2곳 + 대리인칸 = 3번', () => {
-    // 대리인이 와서 서명하는 경우. 대표이사는 매수인 법인 줄에만 인쇄된다.
-    const xml = docXml(fillContractDocx(template, CORP));
-    expect((xml.match(/박대리/g) ?? []).length).toBe(3);
-    expect((xml.match(/민원기/g) ?? []).length).toBe(1);
-  });
-
-  it('법인 + 대리인 없음: 서명자는 대표이사 — 서명란 2곳 + 법인 줄 = 3번', () => {
-    // 법인도 대표이사가 직접 오는 경우가 더 흔하다. 대리인칸은 공란으로 남는다.
-    const xml = docXml(fillContractDocx(template, {
-      ...CORP, buyer_agent: '', signer_name: '민원기',   // buildContractTokensFromQuote 의 대체 규칙
-    }));
+  it('법인 + 직인: 서명란 3곳이 「회사명 · 대표이사」 로 통일되고 성명 줄은 사라진다', () => {
+    // 대리인이 비면 **법인 직인 한 종류**만 쓴다. 성명 줄은 전부 지운다.
+    const xml = docXml(fillContractDocx(template, { ...CORP, buyer_agent: '', signer_name: '', buyer_personal_name: '' }));
+    expect((xml.match(/회사명/g) ?? []).length).toBe(3);
+    expect((xml.match(/\(주\)한빛물류/g) ?? []).length).toBe(4);  // 상단 성명칸 1 + 서명란 3
     expect((xml.match(/민원기/g) ?? []).length).toBe(3);
     expect(xml).not.toContain('박대리');
+    expect(xml).not.toMatch(/\{\{\s*\w+\s*\}\}/);
   });
 
   it('매도인 날인줄(이브이앤솔루션 대표이사)은 법인 계약에서도 보존된다', () => {
