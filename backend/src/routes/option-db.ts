@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
+import { invalidateWeightConstantsCache } from '../services/weight-constants.js';
 
 export const optionDbRouter = Router();
 
@@ -81,6 +82,26 @@ const TABLES: Record<string, TableDef> = {
       create: { param_key: String(k['param_key']), value: String(d['value']), unit: (d['unit'] as string) ?? null, memo: (d['memo'] as string) ?? null },
     }),
   },
+  // 무게상수 — 예전엔 별도 화면·별도 라우트였다. 관리자가 "DB 고치는 곳"이 두 군데로
+  // 갈라져 있으면 한쪽만 낡는다. 여기로 합쳐 편집·이력·되돌리기를 전부 같은 방식으로 쓴다.
+  // 값이 바뀌면 캐시를 비워야 다음 서류생성부터 재계산에 반영된다.
+  weight_constant: {
+    pk: ['key'], fields: ['value', 'unit', 'description'], numeric: ['value'],
+    list: async (q) => (await db().weightConstant.findMany({
+      where: q ? { OR: [{ key: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : undefined,
+      orderBy: [{ category: 'asc' }, { key: 'asc' }],
+    })).map((r) => ({ ...r, value: num(r.value) })),
+    find: async (k) => db().weightConstant.findUnique({ where: { key: String(k['key']) } }),
+    upsert: async (k, d) => {
+      const row = await db().weightConstant.update({
+        where: { key: String(k['key']) },
+        // category 는 화면 분류 기준이라 편집 대상이 아니다 — 값·단위·설명만 고친다.
+        data: { value: Number(d['value']), unit: (d['unit'] as string) ?? null, description: (d['description'] as string) ?? null },
+      });
+      invalidateWeightConstantsCache();
+      return { ...row, value: num(row.value) };
+    },
+  },
   installment_rate: {
     pk: ['months'], fields: ['rate', 'label', 'active'], numeric: ['rate'],
     list: async () => (await db().installmentRate.findMany({ orderBy: { months: 'asc' } })).map((r) => ({ ...r, rate: num(r.rate) })),
@@ -99,7 +120,7 @@ const asText = (v: unknown) => (v == null || v === '' ? null : String(v));
 /** 변경 필드만 감사이력으로 기록. */
 async function writeLog(
   table: string, key: string, before: Row | null, after: Row,
-  fields: string[], user: string, action: 'create' | 'update',
+  fields: string[], user: string, action: 'create' | 'update' | 'rollback',
 ): Promise<number> {
   const entries: Prisma.OptionDbChangeLogCreateManyInput[] = [];
   for (const f of fields) {
@@ -126,6 +147,103 @@ optionDbRouter.get('/logs', rbac('ADMIN'), async (req: Request, res): Promise<vo
     take: Math.min(Number(limit) || 100, 500),
   });
   res.json({ data: rows });
+});
+
+// ── 되돌리기(롤백) ──────────────────────────────────────────────────────────
+//
+// 이력이 남아 있으니 "그때로 되돌려 달라"가 자연스럽다. 별도 스냅샷 테이블 없이
+// 변경이력만으로 복원한다: 어떤 (행·필드)든 **기준시각 이후 첫 변경의 old_value**가
+// 곧 그 시각의 값이다. 그것만 되돌려 쓰면 기준시각 상태가 그대로 재현된다.
+//
+// 복원 자체도 하나의 변경이라 이력에 action='rollback' 으로 남는다 → 되돌리기를
+// 되돌릴 수도 있다.
+
+/** 한 번의 저장(같은 초에 기록된 이력)을 하나의 복원 지점으로 묶는다. */
+interface RestorePoint { at: string; by: string; fields: number; rows: number; actions: string[] }
+
+// ── GET /option-db/:table/restore-points — 되돌릴 수 있는 시점 목록 ──────────
+optionDbRouter.get('/:table/restore-points', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const table = String(req.params['table']);
+  if (!TABLES[table]) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '지원하지 않는 테이블' } }); return; }
+
+  const logs = await prisma.optionDbChangeLog.findMany({
+    where: { table_name: table }, orderBy: { changed_at: 'desc' }, take: 2000,
+  });
+  const groups = new Map<string, RestorePoint & { rowKeys: Set<string> }>();
+  for (const l of logs) {
+    // 한 번의 저장이 행마다 별도 INSERT 라 밀리초가 조금씩 다르다 → 초 단위로 묶는다
+    const bucket = l.changed_at.toISOString().slice(0, 19);
+    const g = groups.get(bucket) ?? { at: l.changed_at.toISOString(), by: l.changed_by, fields: 0, rows: 0, actions: [], rowKeys: new Set<string>() };
+    g.fields += 1;
+    g.rowKeys.add(l.row_key);
+    if (!g.actions.includes(l.action)) g.actions.push(l.action);
+    // 그룹의 기준시각 = 그 묶음에서 가장 이른 변경(= 이 저장 직전으로 되돌리는 지점)
+    if (l.changed_at.toISOString() < g.at) g.at = l.changed_at.toISOString();
+    groups.set(bucket, g);
+  }
+  const data = [...groups.values()]
+    .map(({ rowKeys, ...g }) => ({ ...g, rows: rowKeys.size }))
+    .sort((a, b) => (a.at < b.at ? 1 : -1))
+    .slice(0, 50);
+  res.json({ data });
+});
+
+// ── POST /option-db/:table/rollback — 지정 시각 직전 상태로 복원 ─────────────
+optionDbRouter.post('/:table/rollback', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const table = String(req.params['table']);
+  const def = TABLES[table];
+  if (!def) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '지원하지 않는 테이블' } }); return; }
+
+  const { before } = req.body as { before?: string };
+  const at = before ? new Date(before) : null;
+  if (!at || Number.isNaN(at.getTime())) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '되돌릴 시각(before) 필요' } }); return; }
+
+  const logs = await prisma.optionDbChangeLog.findMany({
+    where: { table_name: table, changed_at: { gte: at } },
+    orderBy: { changed_at: 'asc' },
+  });
+  if (logs.length === 0) { res.json({ data: { ok: true, rows: 0, changed_fields: 0, skipped: [] } }); return; }
+
+  // (행, 필드) 별 **가장 이른** old_value = 기준시각의 값
+  const target = new Map<string, Map<string, string | null>>();
+  const createdAfter = new Set<string>();   // 기준시각엔 없던 행 — 지우지 않고 그대로 둔다
+  for (const l of logs) {
+    if (l.action === 'create') createdAfter.add(l.row_key);
+    const m = target.get(l.row_key) ?? new Map<string, string | null>();
+    if (!m.has(l.field)) m.set(l.field, l.old_value);
+    target.set(l.row_key, m);
+  }
+
+  const user = `${req.auth?.email ?? 'unknown'} (되돌리기)`;
+  let changed = 0, touched = 0;
+  const skipped: string[] = [];
+  try {
+    for (const [rk, fields] of target) {
+      if (createdAfter.has(rk)) { skipped.push(rk); continue; }
+      const parts = rk.split('|');
+      const key: Row = {};
+      def.pk.forEach((f, i) => { key[f] = parts[i] ?? ''; });
+      const before0 = await def.find(key);
+      if (!before0) { skipped.push(rk); continue; }   // 이미 사라진 행
+
+      const data: Row = { ...before0 };
+      for (const [f, v] of fields) {
+        if (!def.fields.includes(f)) continue;
+        // 숫자 칸의 값이 비어 있던 기록은 되돌릴 수 없다(현재 값 유지)
+        if (def.numeric.includes(f)) { if (v != null && v !== '') data[f] = Number(v); }
+        else data[f] = v;
+      }
+      const after = await def.upsert(key, data);
+      changed += await writeLog(table, rk, before0, after as Row, def.fields, user, 'rollback');
+      touched += 1;
+    }
+    res.json({ data: { ok: true, rows: touched, changed_fields: changed, skipped } });
+  } catch (e) {
+    console.error('[POST /option-db/:table/rollback]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '되돌리는 중 오류가 발생했습니다.' } });
+  }
 });
 
 // ── GET /option-db/:table — 행 목록 (q = 검색, subsidy_local 지역 등) ─────────

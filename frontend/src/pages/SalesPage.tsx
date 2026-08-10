@@ -8,6 +8,7 @@ import { fetchPricingBundle } from '../api/models'
 import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, saveQuoteCustomer, saveQuoteInputs } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
+import { BTN } from '../styles/buttons'
 import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
@@ -883,7 +884,8 @@ const lv: Record<string, React.CSSProperties> = {
   badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
   badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
-  pdfBtn: { padding: '4px 10px', minWidth: 74, textAlign: 'center' as const, border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
-  sendBtn: { padding: '4px 10px', minWidth: 74, textAlign: 'center' as const, border: '1px solid #b8c9e0', borderRadius: 6, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 11 },
-  confirmBtn: { padding: '4px 10px', minWidth: 74, textAlign: 'center' as const, border: '1px solid #1a1a1a', borderRadius: 6, cursor: 'pointer', background: '#1a1a1a', color: '#fff', fontWeight: 700, fontSize: 11 },
+  // 버튼 크기·모양은 styles/buttons.ts 한 곳에서 관리한다(영업·관리자 동일)
+  pdfBtn: BTN.row,
+  sendBtn: BTN.rowSend,
+  confirmBtn: BTN.rowPrimary,
 }

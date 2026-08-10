@@ -35,7 +35,38 @@ export const OPTION_DB_TABLES = [
   { name: 'subsidy_national', label: '국고보조금' },
   { name: 'tax_config',       label: '세율·부대비용' },
   { name: 'installment_rate', label: '할부 이율' },
+  { name: 'weight_constant',  label: '무게상수 (하중계산)' },
 ] as const
+
+/** 되돌릴 수 있는 시점 — 한 번의 저장 = 한 지점. */
+export interface RestorePoint {
+  /** 이 시각 **직전** 상태로 되돌린다 */
+  at: string
+  by: string
+  fields: number
+  rows: number
+  actions: string[]
+}
+
+export function fetchRestorePoints(table: string): Promise<RestorePoint[]> {
+  return get<RestorePoint[]>(`/api/v1/option-db/${table}/restore-points`)
+}
+
+/** `before` 시각 직전 상태로 복원. 복원 자체도 이력에 남아 되돌리기를 되돌릴 수 있다. */
+export async function rollbackOptionDb(table: string, before: string): Promise<{ rows: number; changed_fields: number; skipped: string[] }> {
+  const res = await fetch(`/api/v1/option-db/${table}/rollback`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ before }),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b.error?.message ?? `되돌리기 실패: ${res.status}`)
+  }
+  const body = await res.json() as { data: { rows: number; changed_fields: number; skipped: string[] } }
+  return body.data
+}
 
 export function fetchOptionDbTable(table: string, q?: string): Promise<OptionDbTable> {
   const qs = q ? `?q=${encodeURIComponent(q)}` : ''
