@@ -281,7 +281,9 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
       'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off',
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
-      'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel'];
+      'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
+      // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
+      'ceo_name'];
     const body = (req.body ?? {}) as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
     for (const k of ALLOWED) if (k in body) patch[k] = body[k];
@@ -401,6 +403,8 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
   // 총견적서 입력시트 스냅샷(견적별 입력값 — 나중에 총견적서 재출력·재계산용)
   const inputsSnapshot = {
     biz_type: customer?.biz_type,
+    // 대표이사 — 법인 계약서 매수인 서명블록용. 법인이 아니면 계약서에서 공란 처리된다.
+    ceo_name: customer?.ceo_name ?? '',
     is_sosang: customer?.is_sosang,
     region: customer?.region,
     has_transport_license: customer?.has_transport_license,

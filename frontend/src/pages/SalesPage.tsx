@@ -503,6 +503,7 @@ export function SalesPage() {
         local_subsidy_off: localSubsidyOff || undefined,
         customer: customer && !skipped ? {
           name: customer.name,
+          ceo_name: customer.ceo_name,   // 법인만 값 있음 → 계약서 {{ceo_name}}
           email: customer.email,
           phone: customer.phone,
           biz_type: mapBizType(customer.business_type),
