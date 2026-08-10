@@ -59,12 +59,15 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
       <div style={stack ? styles.flowStack : styles.flow}>
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={{ ...styles.first, ...row }}>
-          {/* 제목을 키우니 좁은 화면에서 '(VAT 포함)'이 잘렸다 — 아랫줄로 내렸다 */}
-          <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장</div>
+          {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
+          <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
           <div style={stack ? styles.stackRight : undefined}>
             <div style={{ ...styles.firstValue, ...big }}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
             {ok && (
-              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>VAT 포함 · 차량 {fmt(vehicleVat)} · 특장 {fmt(optionVat)}</div>
+              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>
+                <div>차량 {fmt(vehicleVat)}</div>
+                <div>특장 {fmt(optionVat)}</div>
+              </div>
             )}
           </div>
         </div>
@@ -227,7 +230,8 @@ const styles: Record<string, React.CSSProperties> = {
   // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
   // 테두리 없이 배경색만으로 구분한다 — 선을 두르면 칸마다 굵기가 달라 보여 지저분했다
   first: { ...cellBase, flex: 1.3, background: '#f7fadf' },
-  firstLabel: { fontSize: fit(11, 0.73, 14), color: '#6b7300', fontWeight: 700, ...noSpill },
+  // 잘라서 없애기보다 접히게 둔다 — '(VAT 포함)'이 사라지면 무슨 금액인지 알 수 없다
+  firstLabel: { fontSize: fit(11, 0.73, 14), color: '#6b7300', fontWeight: 700, overflow: 'hidden' },
   firstValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   // 차량·특장 분해는 금액이 길어 좁은 화면에서 한 줄에 안 들어간다.
   // 숫자를 잘라 버리면 안 되므로 이 줄만 두 줄로 접히게 둔다(블록 밖으로는 못 나감).
