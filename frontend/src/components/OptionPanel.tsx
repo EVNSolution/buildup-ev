@@ -17,6 +17,8 @@ interface Props {
   optionPrices: Record<string, number>
   onSelect: (groupCode: string, valueCode: string) => void
   onSave: () => void
+  /** 저장 완료 후 새 견적을 시작한다(저장 상태 해제). */
+  onStartNew: () => void
   isSaving: boolean
   savedQuote: { quote_id: number; pricing: PricingOk } | null
   saveError: string
@@ -53,6 +55,7 @@ export function OptionPanel({
   optionPrices,
   onSelect,
   onSave,
+  onStartNew,
   isSaving,
   savedQuote,
   saveError,
@@ -93,14 +96,15 @@ export function OptionPanel({
   const btnLabel = isSaving
     ? '저장 중…'
     : savedQuote
-    ? `저장 완료 (#${savedQuote.quote_id})`
+    ? '새 견적 작성'
     : isUnsupported
     ? '내장탑 미정 — 확정 불가'
     : unseen.length
     ? `${unseen.map((t) => t.label).join('·')} 확인 필요`
     : '견적 저장'
 
-  const btnDisabled = isSaving || !!savedQuote || isUnsupported || unseen.length > 0
+  // 저장 완료 상태에서는 버튼이 '새 견적 작성' 이 된다 — 잠그면 다음 견적을 못 짠다.
+  const btnDisabled = isSaving || (!savedQuote && (isUnsupported || unseen.length > 0))
 
   return (
     <aside style={styles.panel}>
@@ -196,10 +200,15 @@ export function OptionPanel({
 
       <div style={styles.footer}>
         {saveError && <div style={styles.saveError}>{saveError}</div>}
+        {savedQuote && !saveError && (
+          <div style={styles.savedNote}>
+            견적 #{savedQuote.quote_id} 저장 완료 — 「내 견적·주문」 탭에서 견적서를 만들 수 있습니다.
+          </div>
+        )}
         {canConvert && (
           <button
             style={btnDisabled ? styles.btnDisabled : savedQuote ? styles.btnSaved : styles.btnConfirm}
-            onClick={onSave}
+            onClick={savedQuote ? onStartNew : onSave}
             disabled={btnDisabled}
           >
             {btnLabel}
@@ -221,6 +230,10 @@ const btnBase = {
 }
 
 const styles = {
+  savedNote: {
+    background: '#eef7e9', border: '1px solid #cfe4c2', color: '#3d6b28',
+    fontSize: 12, padding: '8px 10px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,
+  },
   panel: {
     flexShrink: 0,
     width: 440,
