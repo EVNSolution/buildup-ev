@@ -226,6 +226,19 @@ ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), requirePermission('ord
     }
 
     const updated = await prisma.order.update({ where: { id }, data: { status } });
+
+    // 특장사가 마지막 공정(인도완료)을 찍으면 견적 단계도 '완료' 로 올린다.
+    // 되돌리는 전이(인도완료 → 이전 단계)면 주문진행으로 되돌린다 — 양방향 전이를 허용하므로.
+    const LAST = ORDER_STATUS_SEQ[ORDER_STATUS_SEQ.length - 1];
+    const order2 = await prisma.order.findUnique({ where: { id }, select: { quote_id: true } });
+    if (order2) {
+      const want = status === LAST ? 'completed' : 'ordered';
+      const q = await prisma.quote.findUnique({ where: { id: order2.quote_id }, select: { status: true } });
+      if (q && ['ordered', 'completed'].includes(q.status) && q.status !== want) {
+        await prisma.quote.update({ where: { id: order2.quote_id }, data: { status: want } });
+        console.info(`[orders] 주문 ${id} ${status} → 견적 ${order2.quote_id} 단계 ${q.status} → ${want}`);
+      }
+    }
     res.json({ data: updated });
   } catch (e) {
     console.error('[PATCH /orders/:id/status]', e);

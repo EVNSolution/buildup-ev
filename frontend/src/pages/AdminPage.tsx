@@ -25,14 +25,17 @@ function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[
     .sort((a, b) => a.sort_order - b.sort_order)
 }
 const QUOTE_STATUS_LABELS: Record<string, string> = {
-  draft: '임시저장', confirmed: '확정', assigned: '배정', ordered: '주문', expired: '만료',
+  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
 const QUOTE_STATUS_FLOW = [
-  { key: 'draft',     label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed', label: '확정',     desc: '계약·전자서명 완료' },
-  { key: 'assigned',  label: '배정',     desc: '특장사 배정 · 주문 생성' },
-  { key: 'ordered',   label: '주문',     desc: '특장사 수락 · 제작 진행' },
+  { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
+  { key: 'confirmed',  label: '견적확정', desc: '견적서 생성 완료' },
+  { key: 'contracted', label: '계약완료', desc: '전자서명 완료' },
+  { key: 'assigned',   label: '배정완료', desc: '관리자가 특장사 배정' },
+  { key: 'ordered',    label: '주문진행', desc: '특장사 수락 · 제작 진행' },
+  { key: 'completed',  label: '완료',     desc: '특장사 전 공정 완료' },
 ] as const
 
 function quoteStatusTip(status: string): React.ReactNode {
@@ -605,7 +608,7 @@ function QuotesTab() {
   }
 
   async function handleDelete(id: number, status: string) {
-    if (status === 'confirmed' || status === 'assigned' || status === 'ordered') {
+    if (['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(status)) {
       if (!window.confirm(`견적 #${id}\n\n연결된 주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`)) return
     } else {
       if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
@@ -624,6 +627,8 @@ function QuotesTab() {
   function statusBadgeStyle(status: string) {
     if (status === 'draft') return qt.badgeDraft
     if (status === 'confirmed') return qt.badgeConfirmed
+    // 계약완료·완료는 '끝난 단계' 라 한눈에 구분되어야 한다
+    if (status === 'contracted' || status === 'completed') return { ...qt.badgeOther, background: '#eef7e9', color: '#3d6b28' }
     return qt.badgeOther
   }
 
@@ -633,9 +638,11 @@ function QuotesTab() {
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>
           <option value="">전체 상태</option>
           <option value="draft">임시저장</option>
-          <option value="confirmed">확정</option>
-          <option value="assigned">배정</option>
-          <option value="ordered">주문</option>
+          <option value="confirmed">견적확정</option>
+          <option value="contracted">계약완료</option>
+          <option value="assigned">배정완료</option>
+          <option value="ordered">주문진행</option>
+          <option value="completed">완료</option>
           <option value="expired">만료</option>
         </select>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -698,10 +705,10 @@ function QuotesTab() {
                 {q.status === 'draft' && (
                   <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
-                {q.status === 'confirmed' && (
+                {['confirmed', 'contracted'].includes(q.status) && (
                   <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                 )}
-                {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered'))) && (
+                {(q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                   <button
                     style={{ ...(deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)), flex: 1, minHeight: 44 }}
                     disabled={deletingId === q.id}
@@ -762,10 +769,10 @@ function QuotesTab() {
                       {q.status === 'draft' && (
                         <button style={qt.confirmBtn} onClick={() => handleConfirm(q.id)}>확정</button>
                       )}
-                      {q.status === 'confirmed' && (
+                      {['confirmed', 'contracted'].includes(q.status) && (
                         <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                       )}
-                      {(q.status === 'draft' || (isMaster && (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered'))) && (
+                      {(q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                         <button
                           style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)}
                           disabled={deletingId === q.id}
