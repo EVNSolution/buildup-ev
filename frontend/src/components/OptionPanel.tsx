@@ -202,7 +202,7 @@ export function OptionPanel({
         {saveError && <div style={styles.saveError}>{saveError}</div>}
         {savedQuote && !saveError && (
           <div style={styles.savedNote}>
-            견적 #{savedQuote.quote_id} 저장 완료 — 「내 견적·주문」 탭에서 견적서를 만들 수 있습니다.
+            견적 #{savedQuote.quote_id} 저장 완료 — 「내 견적·주문」 탭에서 견적서를 만들 수 있습니다. 「새 견적 작성」을 누르면 처음 상태로 돌아갑니다.
           </div>
         )}
         {canConvert && (
