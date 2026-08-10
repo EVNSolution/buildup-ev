@@ -110,7 +110,7 @@ function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; co
   return (
     <Tooltip text={`${CONTRACT_LABEL[c.status] ?? c.status}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
       <span style={{
-        display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 700,
+        display: 'inline-block', whiteSpace: 'nowrap', padding: '2px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 700,
         border: '1px solid var(--line)', background: '#f6f7f8', color: '#6b7280',
         ...(CONTRACT_TONE[c.status] ?? {}),
       }}>{CONTRACT_LABEL[c.status] ?? c.status}</span>
@@ -318,7 +318,7 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{q.order?.maker_org?.name ?? '—'}</td>
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
                           {/* 견적서 생성 전(draft) = 견적서 버튼 → 입력 팝업 / 생성 후 = PDF 열람 + 수정 버튼 */}
                           {q.status !== 'draft' && (
                             <button
@@ -900,16 +900,18 @@ const lv: Record<string, React.CSSProperties> = {
   sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
   tableWrap: { overflowX: 'auto' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  // 폭이 모자라면 칸을 **줄여서 글자를 접지 말고** 가로로 넘겨 스크롤한다.
+  // (예전엔 고객명이 한 글자씩 세로로 접히고 배지·버튼이 눌려 찌그러졌다)
+  table: { width: '100%', minWidth: 'max-content', borderCollapse: 'collapse', fontSize: 13 },
   th: {
     textAlign: 'left', padding: '8px 12px',
     borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12,
     whiteSpace: 'nowrap',
   },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' },
-  badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
-  badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
-  badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
+  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap' },
+  badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)', display: 'inline-block', whiteSpace: 'nowrap' },
+  badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)', display: 'inline-block', whiteSpace: 'nowrap' },
+  badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0', display: 'inline-block', whiteSpace: 'nowrap' },
   // 버튼 크기·모양은 styles/buttons.ts 한 곳에서 관리한다(영업·관리자 동일)
   pdfBtn: BTN.row,
   sendBtn: BTN.rowSend,
