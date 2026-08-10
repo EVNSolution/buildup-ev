@@ -59,11 +59,12 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
       <div style={stack ? styles.flowStack : styles.flow}>
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={{ ...styles.first, ...row }}>
-          <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
+          {/* 제목을 키우니 좁은 화면에서 '(VAT 포함)'이 잘렸다 — 아랫줄로 내렸다 */}
+          <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장</div>
           <div style={stack ? styles.stackRight : undefined}>
             <div style={{ ...styles.firstValue, ...big }}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
             {ok && (
-              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>차량 {fmt(vehicleVat)} · 특장 {fmt(optionVat)}</div>
+              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>VAT 포함 · 차량 {fmt(vehicleVat)} · 특장 {fmt(optionVat)}</div>
             )}
           </div>
         </div>
@@ -226,26 +227,27 @@ const styles: Record<string, React.CSSProperties> = {
   // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
   // 테두리 없이 배경색만으로 구분한다 — 선을 두르면 칸마다 굵기가 달라 보여 지저분했다
   first: { ...cellBase, flex: 1.3, background: '#f7fadf' },
-  firstLabel: { fontSize: fit(10, 0.73, 14), color: '#6b7300', fontWeight: 700, ...noSpill },
+  firstLabel: { fontSize: fit(11, 0.73, 14), color: '#6b7300', fontWeight: 700, ...noSpill },
   firstValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   // 차량·특장 분해는 금액이 길어 좁은 화면에서 한 줄에 안 들어간다.
   // 숫자를 잘라 버리면 안 되므로 이 줄만 두 줄로 접히게 둔다(블록 밖으로는 못 나감).
-  firstSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, lineHeight: 1.35, overflow: 'hidden' },
+  firstSub: { fontSize: fit(10, 0.68, 13), color: 'var(--muted)', marginTop: 3, lineHeight: 1.35, overflow: 'hidden' },
   block: { ...cellBase, position: 'relative' },
   // 누를 수 있다는 표시는 라벨의 '▸' 로 충분하다(점선 테두리는 뺐다)
   clickable: { cursor: 'pointer' },
   // 등록·기타는 계산 흐름 밖 — 왼쪽에 구분선을 둬 실구매가와 시각적으로 분리한다
   // 계산 흐름 밖이라는 구분은 왼쪽 여백으로만 준다
   aside: { flex: 1.1, marginLeft: fit(10, 0.83, 16) },
-  asideNote: { fontSize: fit(7.5, 0.49, 9.5), color: '#a8aeb6', fontWeight: 700 },
-  asideSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, ...noSpill },
-  blockLabel: { fontSize: fit(9, 0.57, 11), color: 'var(--muted)', ...noSpill },
+  asideNote: { fontSize: fit(10, 0.68, 13), color: '#a8aeb6', fontWeight: 700 },
+  asideSub: { fontSize: fit(10, 0.68, 13), color: 'var(--muted)', marginTop: 3, ...noSpill },
+  // 칸 제목은 모두 같은 크기 — 오른쪽 패널 글자(14)와 비슷한 수준으로 맞춘다
+  blockLabel: { fontSize: fit(11, 0.73, 14), color: 'var(--muted)', ...noSpill },
   // 금액 글자 크기는 차량+특장 칸(firstValue)과 동일하게 — 칸마다 다르면 눈이 튄다
   blockValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   negVal: { color: '#c0392b' },
   mutedVal: { color: '#bfc4cb' },
   hero: { ...cellBase, flex: 1.3, background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
-  heroLabel: { fontSize: fit(9.5, 0.62, 12), color: 'var(--lime)', fontWeight: 700, ...noSpill },
+  heroLabel: { fontSize: fit(11, 0.73, 14), color: 'var(--lime)', fontWeight: 700, ...noSpill },
   heroValue: { fontSize: fit(13, 1.14, 22), fontWeight: 700, color: '#fff', marginTop: 2, ...noSpill },
   // ── 세로 배치(화면이 1:1 보다 세로로 길 때) ──────────────────────────────
   // 칸마다 '이름 왼쪽 · 금액 오른쪽' 한 줄. 폭이 넉넉하니 글자는 원래 크기로 되돌린다.
