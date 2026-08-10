@@ -130,7 +130,7 @@ const cardBase = {
 
 const styles = {
   row: { marginBottom: 14 },
-  label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
+  label: { display: 'block', fontSize: 12.5, color: 'var(--muted)', marginBottom: 7 },
   cardGrid: { display: 'flex', gap: 10 },
   // Tooltip 이 감싸는 span 이 카드 대신 flex 항목이 된다 — 늘어나게 해줘야 폭이 유지된다
   tipWrap: { display: 'flex', flex: 1, minWidth: 0 },
@@ -153,9 +153,9 @@ const styles = {
   },
   // 차량이 잘리면 안 되므로 칸 안에 통째로 담는다(contain)
   cardImgPic: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
-  cardName: { fontWeight: 700, fontSize: 14, marginTop: 9, color: 'var(--dark)' },
+  cardName: { fontWeight: 700, fontSize: 15, marginTop: 9, color: 'var(--dark)' },
   cardCode: { fontSize: 10, color: 'var(--muted)', marginTop: 2 },
-  cardDelta: { fontSize: 11, color: 'var(--muted)', marginTop: 2, fontWeight: 600 },
+  cardDelta: { fontSize: 12.5, color: 'var(--muted)', marginTop: 3, fontWeight: 600 },
 }
 
 const tip: Record<string, React.CSSProperties> = {

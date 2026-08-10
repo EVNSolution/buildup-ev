@@ -145,14 +145,14 @@ const f: Record<string, React.CSSProperties> = {
   needTag: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
   yesNo: { display: 'flex', gap: 6 },
   ynOff: {
-    flex: 1, height: 38, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
+    flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
     border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
   },
   ynOn: {
-    flex: 1, height: 38, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
+    flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
     border: '1px solid var(--lime)', borderRadius: 8, background: '#f7fadf', color: 'var(--dark)',
   },
-  row: { marginBottom: 12 },
+  row: { marginBottom: 8 },
   rowTight: { marginBottom: 9 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 5 },
   req: { fontSize: 14, color: '#b0b7c0' },

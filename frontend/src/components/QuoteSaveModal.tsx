@@ -199,8 +199,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   ]
   const missing = required.filter(([ok]) => !ok).map(([, label]) => label)
   const canSave = missing.length === 0 && !saving
-  // 열자마자 빨간 목록이 도배되면 겁만 준다 — 한 칸이라도 채운 뒤부터 남은 것을 알려준다
-  const started = required.some(([ok]) => ok)
 
   // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
   // 닫기는 '취소' 와 ✕ 로만.
@@ -216,12 +214,13 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
         <div style={s.sectionTitle}>고객 정보</div>
 
+        <div style={s.grid}>
         {/*
           맨 위 세 칸의 순서가 중요하다:
           사업자 구분(라벨이 바뀐다) → 성명(상호) → 생년월일(사업자번호).
           뒤의 두 값이 **고객 마스터를 찾는 키**라, 먼저 받아야 나머지를 자동으로 채울 수 있다.
         */}
-        <div style={s.row}>
+        <div style={{ ...s.row, ...s.gridFull }}>
           <label style={s.label}>사업자 구분</label>
           <select
             style={s.field}
@@ -261,6 +260,8 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           {regNoError(v.buyer_regno) && <div style={s.warn}>{regNoError(v.buyer_regno)}</div>}
         </div>
 
+        </div>
+
         {autofilled.length > 0 && (
           <div style={s.autofill}>
             지난 견적의 고객정보에서 <b>{autofilled.join(', ')}</b> 을(를) 불러와 빈 칸을 채웠습니다.
@@ -294,10 +295,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </div>
 
         <div style={s.sectionTitle}>보조금 조건</div>
+        <div style={s.grid}>
         {/* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */}
         <SubsidyForm
           value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
-          afterRegion={
+          afterRegion={<>
+            {/* 지역 바로 다음이 주소 — 두 칸으로 나눠 놓아야 팝업이 한 화면에 들어온다 */}
             <div style={s.row}>
               <label style={s.label}>주소<Tag need done={filled(v.address)} /></label>
               <div style={s.addrRow}>
@@ -305,26 +308,29 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
                   style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
                   onChange={e => set('address', e.target.value)}
                 />
-                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>주소 검색</button>
+                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>검색</button>
               </div>
               {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
-              <div style={{ marginTop: 8 }}>
-                <label style={s.label}>세부주소<Tag need done={filled(v.address_detail)} /></label>
-                <input
-                  ref={addrRef}
-                  style={s.field} type="text" value={v.address_detail}
-                  placeholder="동·호수 등"
-                  onChange={e => set('address_detail', e.target.value)}
-                />
-              </div>
             </div>
-          }
+            <div style={s.row}>
+              <label style={s.label}>세부주소<Tag need done={filled(v.address_detail)} /></label>
+              <input
+                ref={addrRef}
+                style={s.field} type="text" value={v.address_detail}
+                placeholder="동·호수 등"
+                onChange={e => set('address_detail', e.target.value)}
+              />
+            </div>
+          </>}
         />
+
+        </div>
 
         <div style={s.sectionTitle}>
           계약서 정보
           <span style={s.optional}> · 비우면 계약서에 공란</span>
         </div>
+        <div style={s.grid}>
         <div style={s.row}>
           <label style={s.label}>계약처<Tag /></label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
@@ -350,11 +356,8 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           )}
         </div>
 
-        {missing.length > 0 && started && (
-          <div style={s.missing}>
-            아직 <b>{missing.join(', ')}</b> 을(를) 입력하지 않았습니다.
-          </div>
-        )}
+        </div>
+
         {error && <div style={s.error}>{error}</div>}
 
         <div style={s.btnRow}>
@@ -379,29 +382,34 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
   },
   modal: {
-    background: '#fff', borderRadius: 16, width: 440, maxWidth: '92vw', maxHeight: '90vh',
-    overflowY: 'auto', padding: 22, boxShadow: '0 10px 40px rgba(0,0,0,.25)',
+    // 예전엔 440px 한 열이라 화면을 넘겨 스크롤해야 했다. 폭을 1.5배로 넓혀
+    // 입력칸을 두 열로 놓으면 한 화면에 들어온다.
+    background: '#fff', borderRadius: 16, width: 660, maxWidth: '94vw', maxHeight: '96vh',
+    overflowY: 'auto', padding: '18px 24px', boxShadow: '0 10px 40px rgba(0,0,0,.25)',
   },
-  h2: { margin: '0 0 4px', fontSize: 18, color: 'var(--dark)' },
-  desc: { margin: '0 0 16px', fontSize: 14, color: 'var(--muted)' },
+  /** 입력칸 두 열. 한 줄을 다 쓰는 칸은 gridColumn: '1 / -1'. */
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 },
+  gridFull: { gridColumn: '1 / -1' },
+  h2: { margin: '0 0 3px', fontSize: 17, color: 'var(--dark)' },
+  desc: { margin: '0 0 10px', fontSize: 14, color: 'var(--muted)' },
   sectionTitle: {
     fontSize: 14, fontWeight: 700, color: 'var(--dark)',
-    margin: '16px 0 10px', paddingBottom: 5, borderBottom: '1px solid var(--line)',
+    margin: '10px 0 7px', paddingBottom: 4, borderBottom: '1px solid var(--line)',
   },
   optional: { fontSize: 14, fontWeight: 400, color: '#b0b7c0' },
-  row: { marginBottom: 12 },
-  label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 6 },
+  row: { marginBottom: 8 },
+  label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 4 },
   // 「· 필수」는 아직 안 채운 동안만 빨강 / 「· 선택」과 채운 필수는 회색
   tagOn: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
   tagOff: { fontSize: 14, color: '#b0b7c0', fontWeight: 400 },
   addrRow: { display: 'flex', gap: 6 },
   addrBtn: {
-    flexShrink: 0, height: 38, padding: '0 14px', fontSize: 14, fontWeight: 700,
+    flexShrink: 0, height: 36, padding: '0 12px', fontSize: 14, fontWeight: 700,
     border: '1px solid var(--line)', borderRadius: 8, background: '#f7f8f3',
     color: 'var(--dark)', cursor: 'pointer', whiteSpace: 'nowrap',
   },
   field: {
-    width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', fontSize: 14,
+    width: '100%', boxSizing: 'border-box', height: 36, padding: '0 10px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
@@ -410,19 +418,15 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 14, color: 'var(--dark)', background: '#f2f6e8',
     border: '1px solid #dce8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
   },
-  missing: {
-    fontSize: 14, color: '#8a3a2f', background: '#fdf1ee', border: '1px solid #f2c9be',
-    borderRadius: 8, padding: '9px 11px', marginTop: 14, lineHeight: 1.6,
-  },
   error: { fontSize: 14, color: '#c0392b', marginTop: 12 },
-  btnRow: { display: 'flex', gap: 8, marginTop: 18 },
+  btnRow: { display: 'flex', gap: 8, marginTop: 14 },
   btnOk: {
-    flex: 1, fontSize: 14, fontWeight: 700, padding: 12, borderRadius: 9,
+    flex: 1, fontSize: 14, fontWeight: 700, padding: 11, borderRadius: 9,
     cursor: 'pointer', border: 'none', background: 'var(--lime)', color: 'var(--dark)',
   },
   btnOff: { opacity: .5, cursor: 'not-allowed' },
   btnCancel: {
-    flex: 1, fontSize: 14, fontWeight: 700, padding: 12, borderRadius: 9,
+    flex: 1, fontSize: 14, fontWeight: 700, padding: 11, borderRadius: 9,
     cursor: 'pointer', border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
   },
 }
