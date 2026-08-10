@@ -95,9 +95,10 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
 
   // 「서명」 라벨은 sign-positions.ts 가 날인 좌표를 잡는 기준이다.
   // 개수가 달라지면 서명란을 못 찾아 발송이 막히므로 여기서 고정한다.
-  it('법인 계약: 「서명」 라벨 4곳 (영수증·개인정보동의·법인 줄·개인 줄)', () => {
+  it('법인 계약: 「서명」 라벨 3곳 — 안 쓰는 개인 줄은 글자가 지워진다', () => {
+    // 날인 좌표(sign-positions)가 이 라벨 개수를 기준으로 잡는다. 개인 계약과 같아야 한다.
     const xml = docXml(fillContractDocx(template, CORP));
-    expect((xml.match(/서명/g) ?? []).length).toBe(4);
+    expect((xml.match(/서명/g) ?? []).length).toBe(3);
   });
 
   it('개인 계약: 법인 줄이 사라져 「서명」 라벨 3곳', () => {
@@ -116,11 +117,17 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect(xml).toContain('대표이사       민  원  기 ');
   });
 
-  it('법인 계약: 개인 줄은 숨기지 않는다(빈칸으로 남는다)', () => {
-    // 사용자 결정 — 숨김은 개인 계약의 법인 줄 한 방향뿐이다.
+  it('법인 계약: 개인 줄은 행을 남기되 글자를 비운다(라벨까지 제거)', () => {
+    // 행을 지우면 서명블록 높이가 달라지고, 「서명 (인)」 라벨을 남기면
+    // 서명하는 자리로 오해한다 — 그래서 행은 두고 내용만 지운다.
     const xml = docXml(fillContractDocx(template, CORP));
-    expect(xml).toContain('회사명');
-    expect((xml.match(/서명/g) ?? []).length).toBe(4);
+    expect(xml).toContain('회사명');                       // 법인 줄은 그대로
+    expect((xml.match(/서명/g) ?? []).length).toBe(3);     // 개인 줄 라벨은 사라짐
+    // ⚠️ '(인)' 은 XML 에서 '(' / '인' / ')' 세 run 으로 쪼개져 있어 문자열로 못 센다.
+    //    행이 남아 있는지는 표 행 개수로 본다(글자만 지웠으므로 개수는 그대로).
+    const rows = (xml.match(/<w:tr(?=[\s>])/g) ?? []).length;
+    const personalRows = (docXml(fillContractDocx(template, TOKENS)).match(/<w:tr(?=[\s>])/g) ?? []).length;
+    expect(rows).toBe(personalRows + 1);   // 개인 계약은 법인 줄을 아예 지우므로 한 행 적다
   });
 
   it('법인 계약: 상호·대표이사가 채워지고 개인 줄 서명란은 비어 있다', () => {

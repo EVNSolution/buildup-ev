@@ -275,7 +275,8 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
  *    가장 가까운 `<w:tr …>` / `</w:tr>` 짝이 곧 그 행이다. 중첩이 생기면 이 가정이 깨지므로
  *    잘라낸 조각에 여는 `<w:tr` 이 또 있으면 예외를 던진다.
  */
-function dropTableRow(xml: string, marker: string): string {
+/** marker 를 품은 가장 안쪽 표 행의 [시작, 끝) 범위. dropTableRow·blankTableRow 공용. */
+function findRowRange(xml: string, marker: string): [number, number] {
   const at = xml.indexOf(marker);
   if (at < 0) throw new ContractDocError(`양식에서 «${marker}» 를 찾지 못했습니다`, 'RENDER_FAILED');
 
@@ -290,10 +291,25 @@ function dropTableRow(xml: string, marker: string): string {
     throw new ContractDocError(`«${marker}» 를 감싸는 표 행을 찾지 못했습니다`, 'RENDER_FAILED');
   }
   const end = closeAt + '</w:tr>'.length;
-  const row = xml.slice(open, end);
-  if (/<w:tr(?=[\s>])/.test(row.slice(1))) {
-    throw new ContractDocError(`«${marker}» 행에 중첩 표가 있어 안전하게 지울 수 없습니다`, 'RENDER_FAILED');
+  if (/<w:tr(?=[\s>])/.test(xml.slice(open + 1, end))) {
+    throw new ContractDocError(`«${marker}» 행에 중첩 표가 있어 안전하게 다룰 수 없습니다`, 'RENDER_FAILED');
   }
+  return [open, end];
+}
+
+/**
+ * 행은 남기되 **글자만 지운다** — 칸 높이·테두리는 유지하고 내용만 공란으로.
+ * 법인 계약의 매수인 개인 줄이 이 경우다. 줄을 없애면 서명블록 높이가 달라지고,
+ * 라벨(「서명 (인)」)을 남겨두면 서명하는 자리로 오해한다.
+ */
+function blankTableRow(xml: string, marker: string): string {
+  const [open, end] = findRowRange(xml, marker);
+  const row = xml.slice(open, end).replace(/(<w:t(?:\s[^>]*)?>)[^<]*(<\/w:t>)/g, '$1$2');
+  return xml.slice(0, open) + row + xml.slice(end);
+}
+
+function dropTableRow(xml: string, marker: string): string {
+  const [open, end] = findRowRange(xml, marker);
   return xml.slice(0, open) + xml.slice(end);
 }
 
@@ -303,15 +319,19 @@ function dropTableRow(xml: string, marker: string): string {
  * 매수인 서명블록은 두 줄(법인 줄이 위, 개인 줄이 아래)인데,
  * **개인 계약이면 법인 줄을 통째로 지운다** — 빈 「회사명 / 대표이사 / 서명 (인)」 이 남으면
  * 고객이 어디에 서명해야 하는지 헷갈린다.
- * ⚠️ 반대(법인일 때 개인 줄 숨김)는 **하지 않는다** — 사용자가 개인 줄은 남기라고 정했다.
+ * 법인이면 개인 줄은 **남기되 글자를 지운다**(줄은 유지, 내용만 공란).
+ * 사용자가 "개인 줄은 숨기지 말라" 고 했지만 「서명 (인)」 라벨이 남아 공란이 아니었다.
  */
 export function fillContractDocx(template: Buffer, tokens: ContractTokens): Buffer {
   const zip = new PizZip(template);
 
-  if (!isCorporateTokens(tokens)) {
-    const xml = zip.file('word/document.xml')?.asText() ?? '';
-    zip.file('word/document.xml', dropTableRow(xml, '{{company_name}}'));
-  }
+  const xml0 = zip.file('word/document.xml')?.asText() ?? '';
+  zip.file('word/document.xml', isCorporateTokens(tokens)
+    // 법인 — 개인 줄은 남기되(서명블록 높이 유지) 「서명 (인)」 라벨까지 지워 진짜 공란으로.
+    //        라벨이 남아 있으면 서명하는 자리로 오해한다.
+    ? blankTableRow(xml0, '{{buyer_personal_name}}')
+    // 개인 — 법인 줄은 통째로 지운다. 빈 「회사명 / 대표이사」 가 남으면 헷갈린다.
+    : dropTableRow(xml0, '{{company_name}}'));
 
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
