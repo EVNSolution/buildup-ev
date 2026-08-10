@@ -47,6 +47,47 @@ export function OptionDbTab() {
     const pfx = String(row['value_code'] ?? '').split('_')[0]
     return SECTIONS.find((s) => s.prefixes.includes(pfx))?.label ?? '기타'
   }
+  // ── 코드 → 사람이 읽는 이름 ──────────────────────────────────────────────
+  // 옵션 단가는 `DOPT_REEFER_LOW_SLIDE` 같은 복합코드다. 무슨 조합인지 코드를 알아야
+  // 읽히므로, DB 구조를 모르는 관리자가 고칠 수 없었다. 조각을 한글로 풀어 함께 보여준다.
+  const PART_KO: Record<string, string> = {
+    // 적재함 형태
+    REEFER: '냉동', DRY: '내장',
+    // 탑 높이
+    LOW: '저상', STD: '표준',
+    // 도어 종류
+    SWING: '여닫이', SLIDE: '슬라이딩', EVSLIDE: '냉동/냉장 미닫이',
+    COUPANG: '미닫이', FOLD: '양문미닫이',
+    // 격벽 종류
+    NET: '그물망', MOVE: '이동식',
+    // 트림
+    BASIC: '기본(Basic)', PLUS: '플러스(Plus)',
+    // 단독 옵션
+    O: '있음', X: '없음',
+  }
+  /** 접두어 → 무엇의 가격인지 */
+  const PREFIX_KO: Record<string, string> = {
+    TRIM: '트림', TOP: '탑', DOPT: '도어 종류', DADD: '도어 추가',
+    SPL: '스포일러', PART: '격벽', TEMP: '온도기록계',
+    BLACKBOX: '블랙박스', TINT: '썬팅', DECAL: '데칼', SUPPLYKIT: '지급품 키트',
+  }
+  /** 열 제목도 코드 대신 한글로 — 관리자가 무슨 칸인지 알 수 있어야 한다. */
+  const COL_KO: Record<string, string> = {
+    model_code: '차종', value_code: '옵션 코드', supply_price: '단가', memo: '메모',
+    region: '지역', year: '연도', amount: '금액', extra: '추가', remaining_quota: '잔여물량',
+    as_of: '기준일', active: '적용', param_key: '항목', value: '값', unit: '단위',
+    months: '개월수', rate: '이율', label: '표기',
+  }
+
+  /** `DOPT_REEFER_LOW_SLIDE` → '도어 종류 · 냉동 / 저상 / 슬라이딩' */
+  function humanize(code: string): string {
+    const [prefix, ...rest] = code.split('_')
+    const head = PREFIX_KO[prefix ?? ''] ?? prefix ?? ''
+    if (!rest.length) return head
+    const parts = rest.map((r) => PART_KO[r] ?? r)
+    return `${head} · ${parts.join(' / ')}`
+  }
+
   /** 섹션 순서를 유지한 채 행을 묶는다. option_price 에만 적용. */
   function grouped(rows: Record<string, unknown>[]): { label: string; rows: Record<string, unknown>[] }[] {
     if (table !== 'option_price') return [{ label: '', rows }]
@@ -141,10 +182,10 @@ export function OptionDbTab() {
           <table style={s.table}>
             <thead>
               <tr>
-                {data.pk.map((f) => <th key={f} style={s.th}>{f}</th>)}
+                {data.pk.map((f) => <th key={f} style={s.th}>{COL_KO[f] ?? f}</th>)}
                 {data.fields.map((f) => (
                   <th key={f} style={s.th}>
-                    {isVatField(f) ? '단가 (VAT 포함)' : f}{data.numeric.includes(f) && !isVatField(f) ? ' (숫자)' : ''}
+                    {isVatField(f) ? '단가 (VAT 포함)' : COL_KO[f] ?? f}
                   </th>
                 ))}
                 <th style={s.th}></th>
@@ -164,7 +205,14 @@ export function OptionDbTab() {
                 const e = edits[k] ?? {}
                 return (
                   <tr key={k} style={edits[k] ? s.trDirty : undefined}>
-                    {data.pk.map((f) => <td key={f} style={s.tdKey}>{String(r[f] ?? '')}</td>)}
+                    {data.pk.map((f) => (
+                      <td key={f} style={s.tdKey}>
+                        {String(r[f] ?? '')}
+                        {table === 'option_price' && f === 'value_code' && (
+                          <div style={s.human}>{humanize(String(r[f] ?? ''))}</div>
+                        )}
+                      </td>
+                    ))}
                     {data.fields.map((f) => (
                       <td key={f} style={s.td}>
                         {typeof r[f] === 'boolean' ? (
@@ -243,6 +291,7 @@ export function OptionDbTab() {
 }
 
 const s: Record<string, React.CSSProperties> = {
+  human: { fontSize: 12, color: 'var(--muted)', marginTop: 2, fontWeight: 400 },
   sectionRow: { background: '#eef2e6', color: '#42502a', fontWeight: 700, fontSize: 14, padding: '7px 10px', borderTop: '2px solid #d5e0bf' },
   sectionCount: { fontSize: 12, color: '#7b8a5e', fontWeight: 400, marginLeft: 6 },
   sub: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
