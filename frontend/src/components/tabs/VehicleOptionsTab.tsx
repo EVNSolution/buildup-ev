@@ -1,6 +1,7 @@
 import type { ApiOptionGroup } from '@shared/types/index'
 import { valueUnitPrice } from '@shared/pricing/core'
 import { fmtWonVat } from '../OptionRow'
+import { Tooltip } from '../Tooltip'
 
 interface Props {
   groups: ApiOptionGroup[]
@@ -8,6 +9,67 @@ interface Props {
   onSelect: (groupCode: string, valueCode: string) => void
   hiddenValueCodes: Set<string>
   optionPrices: Record<string, number>
+}
+
+/**
+ * 트림 카드에 쓰는 차량 사진.
+ *
+ * `src/assets/trim-*.jpg|png` 를 있으면 쓰고 없으면 무늬 배경으로 둔다.
+ * 정적 import 로 걸어두면 파일이 없을 때 빌드가 깨져 배포가 막히므로 이렇게 찾는다.
+ */
+const trimImages = import.meta.glob('../../assets/trim-*.{jpg,jpeg,png}', {
+  eager: true, import: 'default', query: '?url',
+}) as Record<string, string>
+const trimImg: string | undefined = Object.values(trimImages)[0]
+
+/**
+ * 트림별 주요 사양 — 카드에 마우스를 올리면 뜬다.
+ *
+ * `b: true` = 기본(Basic) 대비 플러스(Plus)에서 **추가된** 항목. 두 트림의 차이가
+ * 무엇인지가 고를 때 궁금한 전부라, 그것만 굵게 보이게 한다.
+ */
+type Seg = { t: string; b?: boolean }
+const TRIM_SPECS: Record<string, { title: string; lines: Seg[][] }> = {
+  TRIM_BASIC: {
+    title: '기본(Basic)',
+    lines: [
+      [{ t: '71.2kWh 대용량 배터리' }],
+      [{ t: '스마트 크루즈 컨트롤' }],
+      [{ t: '12.9인치 PBV 인포테인먼트' }],
+      [{ t: '후방 카메라' }],
+      [{ t: '열선시트' }],
+    ],
+  },
+  TRIM_PLUS: {
+    title: '플러스(Plus)',
+    lines: [
+      [{ t: '71.2kWh 대용량 배터리' }],
+      [{ t: '스마트 크루즈 컨트롤, ' }, { t: '고속도로 주행 보조(HDA)', b: true }],
+      [{ t: '후측방 충돌 경고/보조, 후방교차 충돌방지 보조, 안전 하차 경고', b: true }],
+      [{ t: '12.9인치 PBV 인포테인먼트' }],
+      [{ t: '서라운드 뷰', b: true }, { t: '/후방 카메라' }],
+      [{ t: '열선시트, ' }, { t: '통풍시트, 열선 스티어링, 레인센서', b: true }],
+      [{ t: '16인치 알로이 휠', b: true }],
+    ],
+  },
+}
+
+function SpecTip({ spec }: { spec: { title: string; lines: Seg[][] } }) {
+  return (
+    <div>
+      <div style={tip.title}>{spec.title}</div>
+      <ul style={tip.list}>
+        {spec.lines.map((segs, i) => (
+          <li key={i} style={tip.item}>
+            {segs.map((s, j) => (
+              <span key={j} style={s.b ? tip.strong : undefined}>{s.t}</span>
+            ))}
+          </li>
+        ))}
+      </ul>
+      <div style={tip.foot}>주요 옵션만 표기하였습니다</div>
+    </div>
+  )
 }
 
 export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCodes, optionPrices }: Props) {
@@ -27,16 +89,35 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
           <div style={styles.cardGrid}>
             {group.values.filter(v => !hiddenValueCodes.has(v.code)).map(v => {
               const selected = selections[group.code] === v.code
-              return (
+              const spec = TRIM_SPECS[v.code]
+              const card = (
                 <div
-                  key={v.code}
                   style={selected ? styles.cardOn : styles.card}
                   onClick={() => onSelect(group.code, v.code)}
                 >
-                  <div style={styles.cardImg}>이미지</div>
+                  <div style={styles.cardImg}>
+                    {trimImg
+                      ? <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
+                      : <span style={styles.cardImgEmpty}>이미지</span>}
+                  </div>
                   <div style={styles.cardName}>{v.name}</div>
                   <div style={styles.cardDelta}>{fmtWonVat(valueUnitPrice(group.code, v.code, selections, price))}</div>
                 </div>
+              )
+              // 사양이 정의된 트림만 설명을 띄운다
+              return spec ? (
+                <Tooltip
+                  key={v.code}
+                  text={<SpecTip spec={spec} />}
+                  placement="below"
+                  maxWidth={320}
+                  minWidth={260}
+                  wrapperStyle={styles.tipWrap}
+                >
+                  {card}
+                </Tooltip>
+              ) : (
+                <div key={v.code} style={styles.tipWrap}>{card}</div>
               )
             })}
           </div>
@@ -47,7 +128,8 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
 }
 
 const cardBase = {
-  flex: 1,
+  width: '100%',
+  boxSizing: 'border-box' as const,
   border: '1.5px solid var(--line)',
   borderRadius: 12,
   padding: 11,
@@ -60,6 +142,8 @@ const styles = {
   row: { marginBottom: 14 },
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
   cardGrid: { display: 'flex', gap: 10 },
+  // Tooltip 이 감싸는 span 이 카드 대신 flex 항목이 된다 — 늘어나게 해줘야 폭이 유지된다
+  tipWrap: { display: 'flex', flex: 1, minWidth: 0 },
   card: cardBase,
   cardOn: {
     ...cardBase,
@@ -68,15 +152,31 @@ const styles = {
   },
   cardImg: {
     height: 70,
-    background: 'repeating-linear-gradient(45deg,#f0f2f4,#f0f2f4 8px,#e9ecef 8px,#e9ecef 16px)',
+    background: '#fff',
     borderRadius: 8,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden' as const,
     color: '#b3b9c0',
     fontSize: 11,
+  },
+  // 차량이 잘리면 안 되므로 칸 안에 통째로 담는다(contain)
+  cardImgPic: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
+  cardImgEmpty: {
+    width: '100%', height: '100%', borderRadius: 8,
+    background: 'repeating-linear-gradient(45deg,#f0f2f4,#f0f2f4 8px,#e9ecef 8px,#e9ecef 16px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   cardName: { fontWeight: 700, fontSize: 14, marginTop: 9, color: 'var(--dark)' },
   cardCode: { fontSize: 10, color: 'var(--muted)', marginTop: 2 },
   cardDelta: { fontSize: 11, color: 'var(--muted)', marginTop: 2, fontWeight: 600 },
+}
+
+const tip: Record<string, React.CSSProperties> = {
+  title: { fontWeight: 700, fontSize: 12, marginBottom: 5, color: '#c8d200' },
+  list: { margin: 0, paddingLeft: 15, display: 'flex', flexDirection: 'column', gap: 2 },
+  item: { fontSize: 11.5, lineHeight: 1.5 },
+  strong: { fontWeight: 700 },
+  foot: { fontSize: 10.5, color: '#9aa0a8', marginTop: 7, paddingTop: 5, borderTop: '1px solid rgba(255,255,255,.15)' },
 }
