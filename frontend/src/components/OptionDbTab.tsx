@@ -44,6 +44,25 @@ export function OptionDbTab({ only, note }: Props = {}) {
   const toVat = (supply: number) => Math.round(supply * 1.1)
   const toSupply = (vat: number) => Math.round(vat / 1.1)
 
+  // ── 금액 표시 ─────────────────────────────────────────────────────────────
+  // 0 이 몇 개인지 세어 가며 고치다 자릿수를 틀리기 쉽다. **원 단위 값에는 콤마**를 찍는다.
+  // 어떤 칸이 원인지는 단위 칸(unit)이 있으면 그것을 보고, 없는 표는 여기서 정한다.
+  const WON_FIELDS: Record<string, string[]> = {
+    option_price: ['supply_price'],
+    subsidy_local: ['amount', 'extra'],
+    subsidy_national: ['amount'],
+  }
+  const isWonField = (f: string, row: Record<string, unknown>) =>
+    (WON_FIELDS[table] ?? []).includes(f)
+    || (f === 'value' && String(row['unit'] ?? '') === '원')
+  /** 1234567 → '1,234,567' (빈 값은 그대로 빈 값) */
+  const withComma = (v: unknown) => {
+    const n = Number(String(v ?? '').replace(/,/g, ''))
+    return String(v ?? '') === '' || Number.isNaN(n) ? String(v ?? '') : n.toLocaleString('ko-KR')
+  }
+  /** 입력에서 숫자만 남긴다 — 콤마를 지우거나 더 넣어도 값은 같다. */
+  const digitsOnly = (v: string) => v.replace(/[^0-9]/g, '')
+
   // ── 구분(섹션) ────────────────────────────────────────────────────────────
   // 엑셀 옵션DB 시트의 구분과 동일하게 나눈다. 한 덩어리로 모여 있으면 찾기 어렵다.
   const SECTIONS: { label: string; prefixes: string[] }[] = [
@@ -286,15 +305,20 @@ export function OptionDbTab({ only, note }: Props = {}) {
                           />
                         ) : (
                           <>
+                            {/* 원 단위 칸은 콤마를 찍어 보여준다(type=number 로는 콤마를 못 쓴다) */}
                             <input
                               style={s.input}
-                              type={data.numeric.includes(f) ? 'number' : 'text'}
-                              value={String((f in e ? e[f] : (isVatField(f) ? toVat(Number(r[f]) || 0) : r[f])) ?? '')}
-                              onChange={(ev) => edit(k, f, ev.target.value)}
+                              type={data.numeric.includes(f) && !isWonField(f, r) ? 'number' : 'text'}
+                              inputMode={isWonField(f, r) ? 'numeric' : undefined}
+                              value={(() => {
+                                const raw = String((f in e ? e[f] : (isVatField(f) ? toVat(Number(r[f]) || 0) : r[f])) ?? '')
+                                return isWonField(f, r) ? withComma(raw) : raw
+                              })()}
+                              onChange={(ev) => edit(k, f, isWonField(f, r) ? digitsOnly(ev.target.value) : ev.target.value)}
                             />
                             {isVatField(f) && (
                               <div style={s.sub}>
-                                공급가 {toSupply(Number(f in e ? e[f] : toVat(Number(r[f]) || 0)) || 0).toLocaleString('ko-KR')}
+                                공급가 {toSupply(Number(String(f in e ? e[f] : toVat(Number(r[f]) || 0)).replace(/,/g, '')) || 0).toLocaleString('ko-KR')}
                               </div>
                             )}
                           </>
