@@ -10,7 +10,7 @@ import type { ContractStatus, PurchaseContract, Customer } from '@prisma/client'
 import { prisma } from '../lib/prisma.js';
 import { docStorageDir } from '../lib/soffice.js';
 import { type ContractInput } from './contract-pdf.js';
-import { renderContractPdfForQuote } from './contract-docgen.js';
+import { renderContractPdfForQuote, isCorporateContract } from './contract-docgen.js';
 import { freezeQuoteDocs } from './doc-freeze.js';
 import { findSignPositions } from './sign-positions.js';
 import { generateQuotePdf } from './quote-pdf.js';
@@ -151,10 +151,13 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
     },
   });
 
-  // 서명란 좌표를 계약서 PDF 에서 직접 찾는다(마커 #SIGN1~3# + 같은 줄의 '(인)').
-  const signFields = await findSignPositions(contractPdf);
-  console.info(`[contract] 견적 ${quoteId} 서명 필드 ${signFields.length}개 ` +
-    signFields.map((f) => `${f.kind}@${f.page}p(${f.x.toFixed(3)},${f.y.toFixed(3)})`).join(' '));
+  // 날인칸 좌표를 계약서 PDF 에서 직접 찾는다(라벨 '자필성명' 과 같은 줄의 '(인)').
+  // 매수인 블록은 개인/법인 중 한 줄에만 놓는다 — 판정 기준은 계약서 토큰과 동일해야 한다.
+  const inputs = (await p.quote.findUnique({ where: { id: quoteId }, select: { inputs: true } }))?.inputs;
+  const isCorp = isCorporateContract((inputs as Record<string, unknown> | null)?.['biz_type']);
+  const signFields = await findSignPositions(contractPdf, isCorp);
+  console.info(`[contract] 견적 ${quoteId} ${isCorp ? '법인' : '개인'} 날인칸 ${signFields.length}개 ` +
+    signFields.map((f) => `${f.slot}@${f.page}p(${f.x.toFixed(3)},${f.y.toFixed(3)})`).join(' '));
 
   let documentId: string;
   try {

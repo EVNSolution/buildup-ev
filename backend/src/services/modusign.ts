@@ -97,7 +97,9 @@ export interface SendParams {
  */
 export async function sendDocument(p: SendParams): Promise<{ documentId: string }> {
   if (!p.signFields.length) {
-    throw new ModusignApiError('서명란 위치를 찾지 못했습니다 (계약서 템플릿의 #SIGN 마커 확인 필요)');
+    throw new ModusignApiError(
+      '날인칸 위치를 찾지 못했습니다 — 계약서 양식의 «자필성명» 라벨과 «(인)» 을 확인하세요 (서버 로그에 상세)',
+    );
   }
   const contact = p.participant.signingMethod === 'EMAIL' ? p.participant.email : p.participant.phone;
   // ── 요청 스키마(초안) — 실 API 로 검증 시 이 블록만 보정 ─────────────────────
