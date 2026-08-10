@@ -701,7 +701,6 @@ export function SalesPage() {
             {['FREE', 'TOP', 'SIDE', 'REAR', 'FRONT'].map(v => (
               <span key={v} style={v === 'FREE' ? styles.vtabOn : styles.vtab}>{v}</span>
             ))}
-            <span style={styles.vtabR}>차종 변경</span>
           </div>
 
           <div style={styles.stage}>
@@ -809,7 +808,8 @@ const styles = {
     overflow: 'hidden',
   },
   viewer: {
-    flex: 1,
+    // 3D 화면이 과하게 커서 옵션 패널이 밀렸다 — 폭 비중을 3/4 로 줄인다.
+    flex: 0.75,
     minWidth: 0,
     display: 'flex',
     flexDirection: 'column' as const,

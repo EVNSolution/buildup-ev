@@ -45,9 +45,6 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
 
   return (
     <div style={styles.bar}>
-      {!hasCustomer && ok && (
-        <div style={styles.warn}>고객정보 미입력 — <b>보조금 미반영</b> 참고 견적입니다. 정확한 실구매가는 고객정보 입력 후 확인하세요.</div>
-      )}
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
       <div style={styles.flow}>
@@ -70,9 +67,8 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
         >
           <div style={styles.blockLabel}>보조금 ▸</div>
           <div style={{ ...styles.blockValue, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
-            {ok ? fmt(ok.subsidy_total) : '—'}
+            {!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
           </div>
-          {!hasCustomer && <div style={styles.asideSub}>지역 미선택</div>}
           {showSubsidy && (
             <SubsidyPopup
               value={subsidy} onChange={onSubsidyChange} regions={regions}
@@ -191,8 +187,9 @@ const styles: Record<string, React.CSSProperties> = {
   warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
   flow: { display: 'flex', gap: 6, alignItems: 'stretch', width: '100%' },
   op: { fontSize: 16, color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
-  first: { ...cellBase, flex: 1.3, background: '#eef2e6', border: '1px solid #d5e0bf' },
-  firstLabel: { fontSize: 11, color: '#5a6b3a', fontWeight: 700 },
+  // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
+  first: { ...cellBase, flex: 1.3, background: '#f7fadf', border: '1px solid var(--lime)' },
+  firstLabel: { fontSize: 14, color: '#6b7300', fontWeight: 700 },
   firstValue: { fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
   firstSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
   block: { ...cellBase, position: 'relative' },
