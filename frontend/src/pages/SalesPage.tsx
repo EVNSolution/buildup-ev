@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { openPdf } from '../lib/openPdf'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
@@ -9,6 +9,7 @@ import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, saveQuoteCusto
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { BTN } from '../styles/buttons'
+import stegoSide from '../assets/stego-k-side.jpg'
 import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
@@ -419,13 +420,7 @@ export function SalesPage() {
     return next
   })
 
-  const vivarTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [vivarState, setVivarState] = useState<'loading' | 'ok' | 'fail'>('loading')
 
-  useEffect(() => {
-    vivarTimer.current = setTimeout(() => setVivarState('fail'), 10000)
-    return () => { if (vivarTimer.current) clearTimeout(vivarTimer.current) }
-  }, [])
 
   // 번들 1회 로드
   useEffect(() => {
@@ -705,41 +700,14 @@ export function SalesPage() {
           </div>
 
           <div style={styles.stage}>
+           {/*
+             지금은 VIVAR 3D 대신 정지 이미지를 띄운다(임시). 이미지 자체가 16:9(1672x941)라
+             프레임에 딱 맞는다. 3D 연동이 붙으면 이 자리에 iframe 이 들어간다.
+           */}
            <div style={styles.frame}>
-            {/* iframe: 성공 전까지 hidden 상태로 백그라운드 로드 */}
-            <iframe
-              src="https://evnsolution.vivar.im/"
-              style={{ ...styles.vivarFrame, visibility: vivarState === 'ok' ? 'visible' : 'hidden' }}
-              allow="fullscreen; xr-spatial-tracking"
-              title="VIVAR 3D 컨피규레이터"
-              onLoad={() => {
-                if (vivarTimer.current) { clearTimeout(vivarTimer.current); vivarTimer.current = null }
-                setVivarState('ok')
-              }}
-              onError={() => setVivarState('fail')}
-            />
-            {/* 로딩 중 or 실패 시 fallback placeholder */}
-            {vivarState !== 'ok' && (
-              <div style={styles.fallback}>
-                <svg viewBox="0 0 520 230" style={styles.placeholderSvg} xmlns="http://www.w3.org/2000/svg">
-                  <g fill="none" stroke="#c4c9d0" strokeWidth="3">
-                    <path d="M30 170 L30 120 Q30 108 42 108 L120 108 L150 70 L210 70 L210 170 Z" fill="#f0f2f4"/>
-                    <rect x="210" y="55" width="270" height="115" rx="4" fill="#f7f8fa"/>
-                    <line x1="150" y1="70" x2="150" y2="108"/>
-                    <circle cx="95" cy="178" r="22" fill="#e9ecef"/><circle cx="400" cy="178" r="22" fill="#e9ecef"/>
-                    <circle cx="95" cy="178" r="9" fill="#fff"/><circle cx="400" cy="178" r="9" fill="#fff"/>
-                  </g>
-                  <text x="345" y="118" textAnchor="middle" fill="#aeb4bc" fontSize="13">특장 (탑)</text>
-                  <text x="120" y="95" textAnchor="middle" fill="#aeb4bc" fontSize="11">PV5</text>
-                </svg>
-                {vivarState === 'fail' && (
-                  <span style={styles.fallbackMsg}>3D 로드 불가 (도메인 frame 허용 필요)</span>
-                )}
-              </div>
-            )}
-            <span style={styles.caption}>3D 미리보기 · 옵션 연동 예정</span>
-            <span style={styles.watermark}>Powered by VIVAR</span>
+             <img src={stegoSide} alt="STEGO-K 측면" style={styles.stageImg} />
            </div>
+           <div style={styles.stageNote}>3D 미리보기 연동 예정</div>
           </div>
 
           <PriceBar
@@ -847,6 +815,7 @@ const styles = {
     flex: 1,
     minHeight: 260,
     display: 'flex',
+    flexDirection: 'column' as const,   // 3D 칸 아래에 안내 문구가 온다
     alignItems: 'center',
     justifyContent: 'center',
     padding: 12,
@@ -865,7 +834,9 @@ const styles = {
    */
   frame: {
     position: 'relative' as const,
-    width: 'min(100cqw, 100cqh * 16 / 9)',
+    // 26px = 아래 안내 문구가 차지하는 높이(글자 15 + 여백 8 + 여유). 이만큼 빼야
+    // 문구까지 넣고도 16:9 가 정확히 유지된다.
+    width: 'min(100cqw, (100cqh - 26px) * 16 / 9)',
     aspectRatio: '16 / 9',
     overflow: 'hidden' as const,
     borderRadius: 10,
@@ -883,15 +854,9 @@ const styles = {
     padding: '4px 8px',
     borderRadius: 6,
   },
-  placeholderSvg: { width: '55%', maxWidth: 520 },
-  // VIVAR 쪽 여백을 잘라내려고 1.7배 확대해 쓴다. 예전엔 이동량이 px 고정이라
-  // 화면 크기가 바뀌면 잘리는 위치가 달라졌다 — 퍼센트로 바꿔 어느 크기에서나 같은 자리로.
-  // (1 - 1/1.7) / 2 ≒ 20.6% 만큼 밀면 확대된 화면의 한가운데가 보인다.
-  vivarFrame: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', border: 'none', transformOrigin: 'top left', transform: 'scale(1.7) translate(-20.6%, -20.6%)' },
-  fallback: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8 },
-  fallbackMsg: { fontSize: 11, color: '#b71c1c', background: '#fff8f8', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: 6 },
-  caption: { position: 'absolute' as const, bottom: 10, left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: '#9aa0a8', background: 'rgba(255,255,255,0.82)', border: '1px solid var(--line)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' as const, pointerEvents: 'none' as const, zIndex: 10 },
-  watermark: { position: 'absolute' as const, bottom: 10, right: 18, fontSize: 11, color: '#b9bdc4', zIndex: 10, pointerEvents: 'none' as const },
+  // 이미지가 프레임과 같은 16:9 라 그대로 채운다
+  stageImg: { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', objectFit: 'cover' as const, display: 'block' },
+  stageNote: { marginTop: 8, fontSize: 12, color: 'var(--muted)', textAlign: 'center' as const },
 }
 
 const lv: Record<string, React.CSSProperties> = {
