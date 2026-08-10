@@ -32,8 +32,9 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose }: {
     }
   }
 
+  // 바깥 클릭으로 닫지 않는다 — 입력 중 실수로 눌러 값이 날아간다. 닫기는 ✕·취소로만.
   return (
-    <div style={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={s.overlay}>
       <div style={s.box}>
         <div style={s.head}>
           <span style={s.title}>이메일 발송{customerName ? ` — ${customerName}` : ''}</span>
