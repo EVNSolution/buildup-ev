@@ -18,9 +18,18 @@ export interface SaveQuoteRequest {
     region?: string
     address?: string
     has_transport_license?: boolean
+    /** 경유차 폐차여부 — 'none'|'keep'|'scrap'. 국고가 깎이는 건 'keep'뿐(엑셀 D15). */
+    diesel_status?: 'none' | 'keep' | 'scrap'
+    /** @deprecated diesel_status 로 대체 — 옛 클라이언트 호환용 */
     diesel_conversion?: boolean
     has_biz_plate?: boolean
     tax_exempt_type?: string
+    // 계약서 전용 입력(견적 저장 단계에서 함께 받는다). 비우면 계약서에 공란.
+    contract_party?: string
+    buyer_agent?: string
+    buyer_relation?: string
+    buyer_regno?: string
+    buyer_tel?: string
   }
 }
 
@@ -140,7 +149,7 @@ export async function fetchLocalSubsidy(region: string, year: number): Promise<n
 /** 견적에 연결된 고객정보 수정 — 견적서·계약서에 즉시 반영된다(새 고객이 생기지 않음). */
 export async function saveQuoteCustomer(
   quoteId: number,
-  patch: { name?: string; phone?: string; email?: string; address?: string; reg_no?: string },
+  patch: { name?: string; phone?: string; email?: string; address?: string; reg_no?: string; ceo_name?: string; tel?: string },
 ): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/customer`, {
     method: 'PATCH',
@@ -152,4 +161,31 @@ export async function saveQuoteCustomer(
     const b = await res.json().catch(() => null) as { error?: { message?: string } } | null
     throw new Error(b?.error?.message ?? `고객정보 저장 실패: ${res.status}`)
   }
+}
+
+/**
+ * 고객 마스터 자동 기입용 조회 결과.
+ * ⚠️ 이메일은 없다 — 견적마다 받는 담당자가 달라져 매번 새로 입력받는다.
+ */
+export interface CustomerMasterHit {
+  id: number
+  name: string
+  ceo_name: string | null
+  phone: string | null
+  tel: string | null
+  address: string | null
+  reg_no: string | null
+}
+
+/**
+ * 성명(상호) + 생년월일(사업자번호) **완전일치** 1건 조회. 없으면 null.
+ * 서버가 두 값을 모두 요구한다 — 부분검색·목록 조회는 없다(남의 고객정보 노출 방지).
+ */
+export async function lookupCustomer(name: string, regNo: string): Promise<CustomerMasterHit | null> {
+  if (!name.trim() || !regNo.trim()) return null
+  const q = new URLSearchParams({ name: name.trim(), reg_no: regNo.trim() })
+  const res = await fetch(`/api/v1/customers/lookup?${q}`, { credentials: 'include' })
+  if (!res.ok) return null              // 조회 실패는 자동 기입을 건너뛸 뿐, 입력을 막지 않는다
+  const body = await res.json() as { data: CustomerMasterHit | null }
+  return body.data
 }

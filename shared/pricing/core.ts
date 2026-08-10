@@ -16,8 +16,11 @@ export {
   TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
 } from './assemble.js';
 
-export { calcQuote, pmt, DEFAULT_TAX_EXEMPT_TYPE } from './quote.js';
-export type { QuoteParams, QuoteResult } from './quote.js';
+export {
+  calcQuote, pmt, DEFAULT_TAX_EXEMPT_TYPE,
+  dieselDeducts, toDieselStatus, DIESEL_STATUS_LABEL,
+} from './quote.js';
+export type { QuoteParams, QuoteResult, DieselStatus } from './quote.js';
 
 /**
  * 영업 견적 실구매가 계산 코어 — STEGO-K1 견적서_Ver1.21 로직 재현.

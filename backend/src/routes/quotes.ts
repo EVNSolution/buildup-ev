@@ -8,9 +8,11 @@ import { renderContractPdfForQuote, ContractDocError } from '../services/contrac
 import { readFrozenDoc, isFrozen, FROZEN_MESSAGE, collectContractFilePaths, deleteContractFiles } from '../services/doc-freeze.js';
 import {
   calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
+  dieselDeducts, toDieselStatus,
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js';
+import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 
 export const quotesRouter = Router();
@@ -88,7 +90,8 @@ async function buildParams(
       biz_type:  bizType,
       is_sosang: customer?.is_sosang ?? false,
       has_transport_license: customer?.has_transport_license ?? false,
-      diesel_conversion:     customer?.diesel_conversion ?? false,
+      // Ver1.21 엔진도 총견적서와 같은 기준으로 '유지' 여부를 본다(옛 boolean 도 복원).
+      diesel_conversion:     dieselDeducts(toDieselStatus(customer?.diesel_status, customer?.diesel_conversion)),
     },
   };
 }
@@ -119,7 +122,8 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        customer: { select: { id: true, name: true, email: true, phone: true } },
+        // address 는 고객정보 수정 팝업이 되읽어야 해서 함께 내려준다(계약서 주소의 뒷부분).
+        customer: { select: { id: true, name: true, email: true, phone: true, address: true } },
         order: { select: { maker_org: { select: { code: true, name: true } } } },
         // 전자서명 현황 — 재발송 시 행이 누적되므로 최신 1건이 현재 상태.
         contracts: {
@@ -224,6 +228,7 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
       is_sosang: inp['is_sosang'] as boolean | undefined,
       region: inp['region'] as string | undefined,
       has_transport_license: inp['has_transport_license'] as boolean | undefined,
+      diesel_status: inp['diesel_status'] as string | undefined,
       diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
       has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
       tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
@@ -279,7 +284,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
-      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off',
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'memo', 'local_subsidy_off',
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
       'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
       // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
@@ -302,6 +307,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
             is_sosang: merged['is_sosang'] as boolean | undefined,
             region: merged['region'] as string | undefined,
             has_transport_license: merged['has_transport_license'] as boolean | undefined,
+            diesel_status: merged['diesel_status'] as string | undefined,
             diesel_conversion: merged['diesel_conversion'] as boolean | undefined,
             has_biz_plate: merged['has_biz_plate'] as boolean | undefined,
             tax_exempt_type: merged['tax_exempt_type'] as string | undefined,
@@ -359,7 +365,9 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request,
     const data: Record<string, string | null> = {};
     const name = str('name', 60);
     if (name) data['name'] = name;          // 이름은 비울 수 없다(NOT NULL)
-    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['reg_no', 20]] as const) {
+    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['reg_no', 20],
+      // 대표이사·유선전화도 고객 마스터에 쌓인다(다음 견적에서 자동 기입된다)
+      ['ceo_name', 60], ['tel', 20]] as const) {
       const v = str(k, max);
       if (v !== undefined) data[k] = v;
     }
@@ -408,6 +416,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     is_sosang: customer?.is_sosang,
     region: customer?.region,
     has_transport_license: customer?.has_transport_license,
+    diesel_status: customer?.diesel_status,
     diesel_conversion: customer?.diesel_conversion,
     has_biz_plate: customer?.has_biz_plate,
     tax_exempt_type: customer?.tax_exempt_type,
@@ -416,6 +425,13 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     promotion_zeroed: promotion_zeroed ?? [],  // 재량할인(0원 처리 특장옵션 그룹)
     local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)
     memo: memo ?? '',                          // 메모/안내문
+    // 계약서 전용 입력 — 견적 저장 모달에서 함께 받는다(예전엔 견적서 생성 팝업에서 받았다).
+    // 전부 선택 입력이라 비어 있으면 계약서에 공란으로 나간다.
+    contract_party: customer?.contract_party ?? '',
+    buyer_agent: customer?.buyer_agent ?? '',
+    buyer_relation: customer?.buyer_relation ?? '',
+    buyer_regno: customer?.buyer_regno ?? '',
+    buyer_tel: customer?.buyer_tel ?? '',
   };
 
   if (result.status === 'unsupported') {
@@ -423,14 +439,22 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     return;
   }
 
-  // 고객 생성·연결 (name 있을 때만)
+  // 고객 마스터 갱신·연결 (name 있을 때만).
+  // ⚠️ 예전엔 무조건 create 라 같은 고객이 견적을 낼 때마다 행이 새로 쌓였다.
+  //    이제 (성명 + 생년월일/사업자번호)가 같으면 기존 행을 갱신해 한 고객 = 한 행으로 모은다.
   let customerId: number | undefined;
   if (customer?.name) {
     try {
-      const cust = await prisma.customer.create({
-        data: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address, created_by: req.auth?.email },
+      customerId = await upsertCustomer({
+        name: customer.name,
+        reg_no: customer.buyer_regno,
+        ceo_name: customer.ceo_name,
+        email: customer.email,
+        phone: customer.phone,
+        tel: customer.buyer_tel,
+        address: customer.address,
+        created_by: req.auth?.email,
       });
-      customerId = cust.id;
     } catch (e: unknown) {
       if ((e as { code?: string }).code === 'P2003') {
         const cust = await prisma.customer.create({ data: { name: customer.name, email: customer.email, phone: customer.phone, address: customer.address } });

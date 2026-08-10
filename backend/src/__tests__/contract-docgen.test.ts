@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import PizZip from 'pizzip';
-import { fillContractDocx, countPdfPages, ContractDocError, isCorporateContract, missesCorporateCeo, type ContractTokens } from '../services/contract-docgen.js';
+import { fillContractDocx, countPdfPages, ContractDocError, isCorporateContract, missingCorporateFields, type ContractTokens } from '../services/contract-docgen.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = path.resolve(__dirname, '../../..', 'doc-templates/contract-template.docx');
@@ -29,6 +29,16 @@ function docXml(buf: Buffer): string {
 
 describe('계약서 토큰 치환 (contract-template.docx)', () => {
   const template = readFileSync(TEMPLATE);
+
+  /**
+   * 법인 계약 토큰 — 상호는 buyer_name·company_name, 법인 줄은 대표이사,
+   * **서명란 2곳은 대리인**(법인은 대리인이 와서 서명한다).
+   */
+  const CORP: ContractTokens = {
+    ...TOKENS, buyer_name: '(주)한빛물류',
+    signer_name: '박대리', buyer_agent: '박대리', buyer_personal_name: '',
+    company_name: '(주)한빛물류', ceo_name: '민원기',
+  };
 
   it('모든 토큰이 치환되어 {{ }} 가 남지 않는다', () => {
     const xml = docXml(fillContractDocx(template, TOKENS));
@@ -78,29 +88,39 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
   // 모두싸인이 한 서명자에게 서명·도장 두 종류를 허용하지 않아, **이름은 인쇄**하고
   // 전자서명으로는 `(인)` 날인만 받는다. 그래서 「서명」 라벨 자리에 이름이 찍혀야 한다.
 
-  /** 법인 계약 토큰 — 상호는 buyer_name·company_name, 서명은 대표이사 개인명. */
-  const CORP: ContractTokens = {
-    ...TOKENS, buyer_name: '(주)한빛물류',
-    signer_name: '민원기', buyer_personal_name: '', company_name: '(주)한빛물류', ceo_name: '민원기',
-  };
-
   it('개인 계약: 본인 이름이 성명칸 + 서명란 3곳 = 4번 인쇄된다', () => {
     const xml = docXml(fillContractDocx(template, TOKENS));
     expect((xml.match(/정재성/g) ?? []).length).toBe(4);
   });
 
-  it('양식에 「서명」 라벨이 남아 있지 않다(이름 토큰으로 교체됨)', () => {
-    // 라벨이 남아 있으면 고객이 손으로 쓸 칸으로 오해한다.
-    expect(docXml(template)).not.toContain('<w:t>서명</w:t>');
+  // 「서명」 라벨은 sign-positions.ts 가 날인 좌표를 잡는 기준이다.
+  // 개수가 달라지면 서명란을 못 찾아 발송이 막히므로 여기서 고정한다.
+  it('법인 계약: 「서명」 라벨 4곳 (영수증·개인정보동의·법인 줄·개인 줄)', () => {
+    const xml = docXml(fillContractDocx(template, CORP));
+    expect((xml.match(/서명/g) ?? []).length).toBe(4);
+  });
+
+  it('개인 계약: 법인 줄이 사라져 「서명」 라벨 3곳', () => {
+    const xml = docXml(fillContractDocx(template, TOKENS));
+    expect((xml.match(/서명/g) ?? []).length).toBe(3);
   });
 
   // ── 매수인 블록은 개인 줄·법인 줄 중 **한 줄만** 쓴다 ──────────────────
 
-  it('개인 계약: 개인 줄만 채우고 법인 줄(회사명·대표이사)은 공란', () => {
+  it('개인 계약: 매수인 법인 줄(회사명/대표이사)이 통째로 사라진다', () => {
+    // 빈 「회사명 / 대표이사 / 서명 (인)」 이 남으면 어디에 서명할지 헷갈린다.
     const xml = docXml(fillContractDocx(template, TOKENS));
-    expect(xml).toContain('회사명');       // 라벨은 남는다
-    expect(xml).toContain('대표이사');
+    expect(xml).not.toContain('회사명');
     expect(xml).not.toMatch(/\{\{\s*(company_name|ceo_name)\s*\}\}/);
+    // 매도인 줄의 「대표이사」는 남아 있어야 한다(지운 건 매수인 법인 줄뿐)
+    expect(xml).toContain('대표이사       민  원  기 ');
+  });
+
+  it('법인 계약: 개인 줄은 숨기지 않는다(빈칸으로 남는다)', () => {
+    // 사용자 결정 — 숨김은 개인 계약의 법인 줄 한 방향뿐이다.
+    const xml = docXml(fillContractDocx(template, CORP));
+    expect(xml).toContain('회사명');
+    expect((xml.match(/서명/g) ?? []).length).toBe(4);
   });
 
   it('법인 계약: 상호·대표이사가 채워지고 개인 줄 서명란은 비어 있다', () => {
@@ -112,9 +132,20 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect((xml.match(/\(주\)한빛물류/g) ?? []).length).toBe(2);
   });
 
-  it('법인 계약: 서명자는 대표이사 개인명 — 영수증·개인정보동의 2곳 + 법인 줄 = 3번', () => {
+  it('법인 + 대리인 있음: 서명자는 대리인 — 서명란 2곳 + 대리인칸 = 3번', () => {
+    // 대리인이 와서 서명하는 경우. 대표이사는 매수인 법인 줄에만 인쇄된다.
     const xml = docXml(fillContractDocx(template, CORP));
+    expect((xml.match(/박대리/g) ?? []).length).toBe(3);
+    expect((xml.match(/민원기/g) ?? []).length).toBe(1);
+  });
+
+  it('법인 + 대리인 없음: 서명자는 대표이사 — 서명란 2곳 + 법인 줄 = 3번', () => {
+    // 법인도 대표이사가 직접 오는 경우가 더 흔하다. 대리인칸은 공란으로 남는다.
+    const xml = docXml(fillContractDocx(template, {
+      ...CORP, buyer_agent: '', signer_name: '민원기',   // buildContractTokensFromQuote 의 대체 규칙
+    }));
     expect((xml.match(/민원기/g) ?? []).length).toBe(3);
+    expect(xml).not.toContain('박대리');
   });
 
   it('매도인 날인줄(이브이앤솔루션 대표이사)은 법인 계약에서도 보존된다', () => {
@@ -148,16 +179,18 @@ describe('PDF 페이지 수 계산 (poppler 미설치 환경 대체)', () => {
   });
 });
 
-describe('법인 대표이사 누락 가드 (missesCorporateCeo)', () => {
-  it('법인인데 대표이사가 비면 true — 서명란 3곳이 전부 공란이 된다', () => {
-    expect(missesCorporateCeo({ company_name: '(주)한빛물류', ceo_name: '' })).toBe(true);
-    expect(missesCorporateCeo({ company_name: '(주)한빛물류', ceo_name: '   ' })).toBe(true);
+describe('법인 필수값 가드 (missingCorporateFields)', () => {
+  const CO = '(주)한빛물류';
+  it('대표이사가 비면 막는다 — 법인 줄도 서명란도 공란이 된다', () => {
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '' })).toEqual(['대표이사']);
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '   ' })).toEqual(['대표이사']);
   });
-  it('법인 + 대표이사 있으면 false', () => {
-    expect(missesCorporateCeo({ company_name: '(주)한빛물류', ceo_name: '민원기' })).toBe(false);
+  it('상호+대표이사만 있으면 통과 — **대리인은 선택**이다', () => {
+    // 대리인이 없으면 서명란에 대표이사가 들어가므로 공란이 되지 않는다.
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '민원기' })).toEqual([]);
   });
   it('개인 계약(회사명 공란)은 대표이사가 없어도 정상', () => {
-    expect(missesCorporateCeo({ company_name: '', ceo_name: '' })).toBe(false);
+    expect(missingCorporateFields({ company_name: '', ceo_name: '' })).toEqual([]);
   });
 });
 

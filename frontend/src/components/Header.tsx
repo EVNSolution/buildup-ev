@@ -11,7 +11,6 @@ const ROLE_LABELS: Record<Role, string> = {
 
 interface Props {
   customer?: CustomerInfo | null
-  onOpenCustomerModal?: () => void
 }
 
 // DEV: master surface switcher — surface별 경로·레이블 정의
@@ -21,7 +20,7 @@ const SURFACES: { path: string; label: string }[] = [
   { path: '/maker', label: '특장' },
 ]
 
-export function Header({ customer, onOpenCustomerModal }: Props) {
+export function Header({ customer }: Props) {
   const { session, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -29,9 +28,11 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
   const user = session?.user
   const org  = session?.org
 
+  // 저장된 고객 표시 전용. 예전엔 눌러서 진입 팝업을 다시 열었지만, 고객정보 입력이
+  // 견적 저장 단계로 옮겨가면서 여는 대상이 사라졌다(보조금 조건은 가격바에서 고친다).
   const custLabel = customer
-    ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? '소상공인' : '일반'} ▾`
-    : '고객 정보 입력 ▾'
+    ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? '소상공인' : '일반'}`
+    : null
 
   return (
     <header style={{
@@ -62,10 +63,8 @@ export function Header({ customer, onOpenCustomerModal }: Props) {
         </div>
       )}
 
-      {/* 영업화면 전용: 고객 정보 칩 */}
-      {onOpenCustomerModal && (
-        <span style={styles.custChip} onClick={onOpenCustomerModal}>{custLabel}</span>
-      )}
+      {/* 영업화면 전용: 저장된 고객 표시 칩(클릭 동작 없음) */}
+      {custLabel && <span style={styles.custChip}>{custLabel}</span>}
 
       {/* 로그인 사용자 표시 */}
       {user && (

@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import { injectJwtAuth } from './middleware/rbac.js';
 import { modelsRouter } from './routes/models.js';
 import { quotesRouter } from './routes/quotes.js';
+import { customersRouter } from './routes/customers.js';
 import { loadCalcRouter } from './routes/load-calc.js';
 import { ordersRouter } from './routes/orders.js';
 import { docsRouter } from './routes/docs.js';
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/v1/feature-modules', featureModulesRouter);
   app.use('/api/v1/models', modelsRouter);
   app.use('/api/v1/quotes', quotesRouter);
+  app.use('/api/v1/customers', customersRouter); // 고객 마스터 완전일치 조회(자동 기입)
   app.use('/api/v1/load-calc', loadCalcRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/orders', docsRouter);
