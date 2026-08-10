@@ -29,6 +29,7 @@ export interface ContractInput {
     email?: string;
     phone?: string;
     address?: string;
+    address_detail?: string;     // 동·호수 등 상세주소
     biz_no?: string;             // 생년월일(사업자번호)
   };
   vehicle: { model: string; options: string[] };
@@ -53,7 +54,7 @@ function tagData(input: ContractInput): Record<string, string> {
     계약일자: input.contract_date ?? '',
     성명: input.customer.name ?? '',
     사업자번호: input.customer.biz_no ?? '',
-    주소: input.customer.address ?? '',
+    주소: [input.customer.address, input.customer.address_detail].filter(Boolean).join(' ').trim(),
     휴대폰: input.customer.phone ?? '',
     이메일: input.customer.email ?? '',
     // 특장 사양(옵션코드→라벨은 buildContractInput 에서 해결)

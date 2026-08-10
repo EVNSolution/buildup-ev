@@ -326,6 +326,8 @@ model Customer {
   /// 유선 전화번호(계약서 «전화번호» 칸). 입력했을 때만 저장된다.
   tel        String?  @db.VarChar(20)
   address    String?  @db.VarChar(120)
+  /// 동·호수 등 상세주소. 주소 검색으로 채운 도로명주소(address)의 뒷부분.
+  address_detail String? @db.VarChar(120)
   /// 생년월일 또는 사업자번호. name 과 함께 고객을 식별하는 키다.
   reg_no     String?  @db.VarChar(20)
   created_by String?  @db.VarChar(120)

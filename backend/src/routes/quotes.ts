@@ -122,8 +122,8 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        // address 는 고객정보 수정 팝업이 되읽어야 해서 함께 내려준다(계약서 주소의 뒷부분).
-        customer: { select: { id: true, name: true, email: true, phone: true, address: true } },
+        // address·address_detail 은 고객정보 수정 팝업이 되읽어야 해서 함께 내려준다.
+        customer: { select: { id: true, name: true, email: true, phone: true, address: true, address_detail: true } },
         order: { select: { maker_org: { select: { code: true, name: true } } } },
         // 전자서명 현황 — 재발송 시 행이 누적되므로 최신 1건이 현재 상태.
         contracts: {
@@ -365,7 +365,7 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request,
     const data: Record<string, string | null> = {};
     const name = str('name', 60);
     if (name) data['name'] = name;          // 이름은 비울 수 없다(NOT NULL)
-    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['reg_no', 20],
+    for (const [k, max] of [['email', 120], ['phone', 20], ['address', 120], ['address_detail', 120], ['reg_no', 20],
       // 대표이사·유선전화도 고객 마스터에 쌓인다(다음 견적에서 자동 기입된다)
       ['ceo_name', 60], ['tel', 20]] as const) {
       const v = str(k, max);
@@ -427,6 +427,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     memo: memo ?? '',                          // 메모/안내문
     // 계약서 전용 입력 — 견적 저장 모달에서 함께 받는다(예전엔 견적서 생성 팝업에서 받았다).
     // 전부 선택 입력이라 비어 있으면 계약서에 공란으로 나간다.
+    address_detail: customer?.address_detail ?? '',
     contract_party: customer?.contract_party ?? '',
     buyer_agent: customer?.buyer_agent ?? '',
     buyer_relation: customer?.buyer_relation ?? '',
@@ -453,6 +454,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
         phone: customer.phone,
         tel: customer.buyer_tel,
         address: customer.address,
+        address_detail: customer.address_detail,
         created_by: req.auth?.email,
       });
     } catch (e: unknown) {

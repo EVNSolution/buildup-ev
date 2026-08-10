@@ -17,7 +17,8 @@ export type CustomerInput = {
   biz_type?: string;
   is_sosang?: boolean;
   region?: string;
-  address?: string;                  // 세부주소(계약서·서류용)
+  address?: string;                  // 주소(계약서·서류용)
+  address_detail?: string;           // 동·호수 등 상세주소
   has_transport_license?: boolean;  // 화물자동차 운송사업허가증
   /**
    * 경유차 폐차여부(총견적서 '입력 시트' C5) — 'none' | 'keep' | 'scrap'.

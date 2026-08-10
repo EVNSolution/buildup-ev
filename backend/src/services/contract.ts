@@ -83,6 +83,7 @@ export async function buildContractInput(quoteId: number): Promise<{ input: Cont
       email: customer.email ?? undefined,
       phone: customer.phone ?? undefined,
       address: customer.address ?? undefined,
+      address_detail: customer.address_detail ?? undefined,
       biz_no: customer.reg_no ?? undefined,
     },
     vehicle: { model: quote.model_code, options: Object.values(selections) },

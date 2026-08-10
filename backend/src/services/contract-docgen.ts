@@ -214,6 +214,7 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     is_sosang: inp['is_sosang'] as boolean | undefined,
     region: inp['region'] as string | undefined,
     address: inp['address'] as string | undefined,
+    address_detail: inp['address_detail'] as string | undefined,
     has_transport_license: inp['has_transport_license'] as boolean | undefined,
     diesel_status: inp['diesel_status'] as string | undefined,
     diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
@@ -256,7 +257,11 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     buyer_relation: String(inp['buyer_relation'] ?? ''),
     buyer_regno: String(inp['buyer_regno'] ?? customer?.reg_no ?? ''),
     // 주소 = 지역(시/도·시군구) + 세부주소 — 계약서엔 전체 주소가 필요
-    buyer_address: [inp['region'], customer?.address].filter(Boolean).join(' ').trim(),
+    // 주소 검색으로 받은 값은 시·도까지 들어 있어 region 을 붙이면 겹친다.
+    // 상세주소가 있으면 새 방식(주소 + 상세), 없으면 옛 견적 방식(지역 + 세부주소)을 쓴다.
+    buyer_address: (inp['address_detail'] as string | undefined)?.trim()
+      ? [customer?.address, inp['address_detail']].filter(Boolean).join(' ').trim()
+      : [inp['region'], customer?.address].filter(Boolean).join(' ').trim(),
     buyer_tel: String(inp['buyer_tel'] ?? ''),
     buyer_mobile: customer?.phone ?? '',
     buyer_email: customer?.email ?? '',
