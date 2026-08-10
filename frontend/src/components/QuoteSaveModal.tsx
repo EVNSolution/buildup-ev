@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
 import { lookupCustomer } from '../api/quotes'
+import { preloadPostcode, searchAddress } from '../lib/postcode'
 import type { BusinessType, CustomerInfo } from '@shared/types/index'
 
 /**
@@ -55,6 +56,44 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
   }
 }
 
+/**
+ * 라벨 옆 표시 — 「제목 · 필수」 / 「제목 · 선택」.
+ *
+ * 가운데 점으로 띄워야 제목의 일부처럼 읽히지 않는다.
+ * 필수는 **비어 있는 동안만 빨강**이고, 채우면 회색으로 가라앉는다 — 남은 할 일만
+ * 눈에 띄게 하려는 것.
+ */
+function Tag({ need, done }: { need?: boolean; done?: boolean }) {
+  if (!need) return <span style={s.tagOff}> · 선택</span>
+  return <span style={done ? s.tagOff : s.tagOn}> · 필수</span>
+}
+
+/** 라벨 옆 회색 안내(무슨 값을 적어야 하는지). */
+function Note({ children }: { children: React.ReactNode }) {
+  return <span style={s.tagOff}> · {children}</span>
+}
+
+// ── 생년월일 / 사업자번호 ───────────────────────────────────────────────────
+// 개인은 생년월일 8자리, 사업자는 사업자번호 10자리. 둘 다 숫자만 받고 칸을 벗어날 때
+// 형식을 맞춰 준다 — 하이픈을 어디에 넣을지 사람이 고민할 필요가 없다.
+const digitsOf = (v: string) => v.replace(/\D/g, '')
+
+/** 8자리 → YYYY-MM-DD · 10자리 → 000-00-00000 · 그 외는 손대지 않는다. */
+export function formatRegNo(raw: string): string {
+  const d = digitsOf(raw)
+  if (d.length === 8) return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`
+  return raw
+}
+
+/** 비어 있지 않은데 8자리도 10자리도 아니면 알려준다. */
+export function regNoError(raw: string): string | null {
+  const d = digitsOf(raw)
+  if (!d) return null
+  if (d.length === 8 || d.length === 10) return null
+  return `숫자 ${d.length}자리 — 생년월일 8자리 또는 사업자번호 10자리로 입력하세요`
+}
+
 interface Props {
   initial: QuoteSaveValues
   regions: string[]
@@ -77,6 +116,25 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   const [autofilled, setAutofilled] = useState<string[]>([])
   /** 같은 키로 반복 조회하지 않도록 마지막 조회 키를 기억한다. */
   const lastKey = useRef('')
+  /** 주소 검색창을 못 띄웠을 때(네트워크 등) — 직접 입력으로 계속할 수 있게 알린다. */
+  const [addrErr, setAddrErr] = useState('')
+  const addrRef = useRef<HTMLInputElement>(null)
+
+  // 주소 검색창은 누른 그 순간 열려야 브라우저가 막지 않는다 — 미리 받아둔다
+  useEffect(() => { preloadPostcode() }, [])
+
+  async function pickAddress() {
+    setAddrErr('')
+    try {
+      await searchAddress((address) => {
+        // 검색으로 채우는 건 도로명주소까지. 동·호수는 이어서 직접 적는다.
+        set('address', address + ' ')
+        setTimeout(() => addrRef.current?.focus(), 0)
+      })
+    } catch (e) {
+      setAddrErr(e instanceof Error ? e.message : '주소 검색을 불러오지 못했습니다')
+    }
+  }
 
   /**
    * 성명(상호)+생년월일(사업자번호)이 모두 채워지면 지난 고객정보를 불러와
@@ -148,7 +206,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </div>
 
         <div style={s.row}>
-          <label style={s.label}>{isCorporate ? '상호' : '성명'} <span style={s.req}>필수</span></label>
+          <label style={s.label}>{isCorporate ? '상호' : '성명'}<Tag need done={!!v.name.trim()} /></label>
           <input
             style={s.field} type="text" value={v.name}
             onChange={e => set('name', e.target.value)}
@@ -159,12 +217,21 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <div style={s.row}>
           <label style={s.label}>
             {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
+            <Tag />
           </label>
           <input
             style={s.field} type="text" value={v.buyer_regno}
+            inputMode="numeric"
+            placeholder="숫자만 입력"
             onChange={e => set('buyer_regno', e.target.value)}
-            onBlur={e => void tryAutofill(v.name, e.target.value)}
+            onBlur={e => {
+              // 칸을 벗어날 때 형식을 맞춘다 — 입력 중에 하이픈이 끼어들면 지우기가 성가시다
+              const formatted = formatRegNo(e.target.value)
+              if (formatted !== v.buyer_regno) set('buyer_regno', formatted)
+              void tryAutofill(v.name, formatted)
+            }}
           />
+          {regNoError(v.buyer_regno) && <div style={s.warn}>{regNoError(v.buyer_regno)}</div>}
         </div>
 
         {autofilled.length > 0 && (
@@ -176,7 +243,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
         {isCorporate && (
           <div style={s.row}>
-            <label style={s.label}>대표이사 <span style={s.req}>필수</span></label>
+            <label style={s.label}>대표이사<Tag need done={!!v.ceo_name.trim()} /></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
             {missingCeo && (
               <div style={s.warn}>
@@ -186,15 +253,15 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         )}
 
         <div style={s.row}>
-          <label style={s.label}>휴대폰</label>
+          <label style={s.label}>휴대폰<Tag /></label>
           <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            이메일
-            {isCorporate && !v.buyer_agent.trim()
-              ? <span style={s.warnReq}> 법인 직인을 찍을 사람의 이메일</span>
-              : null}
+            이메일<Tag />
+            <Note>{isCorporate && !v.buyer_agent.trim()
+              ? '법인 직인을 찍을 사람 · 전자서명용'
+              : '전자서명을 위한 이메일'}</Note>
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
@@ -203,38 +270,44 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         {/* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */}
         <SubsidyForm
           value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
+          afterRegion={
+            <div style={s.row}>
+              <label style={s.label}>주소<Tag /><Note>검색 후 동·호수를 이어서 입력</Note></label>
+              <div style={s.addrRow}>
+                <input
+                  ref={addrRef}
+                  style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
+                  onChange={e => set('address', e.target.value)}
+                />
+                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>주소 검색</button>
+              </div>
+              {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
+            </div>
+          }
         />
-        <div style={s.row}>
-          <label style={s.label}>세부주소</label>
-          <input style={s.field} type="text" value={v.address} onChange={e => set('address', e.target.value)} />
-        </div>
 
         <div style={s.sectionTitle}>
-          계약서 정보{' '}
-          <span style={s.optional}>
-            (선택 — 비우면 계약서에 공란)
-          </span>
+          계약서 정보
+          <span style={s.optional}> · 비우면 계약서에 공란</span>
         </div>
         <div style={s.row}>
-          <label style={s.label}>계약처 <span style={s.req}>선택</span></label>
+          <label style={s.label}>계약처<Tag /></label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>유선번호 <span style={s.req}>선택</span></label>
+          <label style={s.label}>유선번호<Tag /></label>
           <PhoneInput value={v.buyer_tel} onChange={x => set('buyer_tel', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            대리인
-            {v.buyer_agent.trim()
-              ? <span style={s.warnReq}> · 위임장 필수</span>
-              : <span style={s.req}>선택</span>}
+            대리인<Tag />
+            {v.buyer_agent.trim() ? <Note>위임장 필요</Note> : null}
           </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            관계{v.buyer_agent.trim() ? <span style={s.warnReq}> 필수</span> : <span style={s.req}>선택</span>}
+            관계<Tag need={!!v.buyer_agent.trim()} done={!!v.buyer_relation.trim()} />
           </label>
           <input style={s.field} type="text" value={v.buyer_relation} onChange={e => set('buyer_relation', e.target.value)} />
           {missingRelation && (
@@ -257,7 +330,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
 const s: Record<string, React.CSSProperties> = {
   warnBox: { color: '#c0392b', fontSize: 14, marginTop: 4, lineHeight: 1.5 },
-  warnReq: { color: '#c0392b', fontWeight: 700, fontSize: 14 },
   signNote: {
     background: '#eef2e6', border: '1px solid #d5e0bf', color: '#42502a',
     fontSize: 14, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
@@ -279,7 +351,15 @@ const s: Record<string, React.CSSProperties> = {
   optional: { fontSize: 14, fontWeight: 400, color: '#b0b7c0' },
   row: { marginBottom: 12 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 6 },
-  req: { fontSize: 14, color: '#b0b7c0' },
+  // 「· 필수」는 아직 안 채운 동안만 빨강 / 「· 선택」과 채운 필수는 회색
+  tagOn: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
+  tagOff: { fontSize: 14, color: '#b0b7c0', fontWeight: 400 },
+  addrRow: { display: 'flex', gap: 6 },
+  addrBtn: {
+    flexShrink: 0, height: 38, padding: '0 14px', fontSize: 14, fontWeight: 700,
+    border: '1px solid var(--line)', borderRadius: 8, background: '#f7f8f3',
+    color: 'var(--dark)', cursor: 'pointer', whiteSpace: 'nowrap',
+  },
   field: {
     width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
