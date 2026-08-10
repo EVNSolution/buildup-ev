@@ -421,6 +421,13 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     promotion_zeroed: promotion_zeroed ?? [],  // 재량할인(0원 처리 특장옵션 그룹)
     local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)
     memo: memo ?? '',                          // 메모/안내문
+    // 계약서 전용 입력 — 견적 저장 모달에서 함께 받는다(예전엔 견적서 생성 팝업에서 받았다).
+    // 전부 선택 입력이라 비어 있으면 계약서에 공란으로 나간다.
+    contract_party: customer?.contract_party ?? '',
+    buyer_agent: customer?.buyer_agent ?? '',
+    buyer_relation: customer?.buyer_relation ?? '',
+    buyer_regno: customer?.buyer_regno ?? '',
+    buyer_tel: customer?.buyer_tel ?? '',
   };
 
   if (result.status === 'unsupported') {

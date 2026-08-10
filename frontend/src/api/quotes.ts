@@ -18,9 +18,18 @@ export interface SaveQuoteRequest {
     region?: string
     address?: string
     has_transport_license?: boolean
+    /** 경유차 폐차여부 — 'none'|'keep'|'scrap'. 국고가 깎이는 건 'keep'뿐(엑셀 D15). */
+    diesel_status?: 'none' | 'keep' | 'scrap'
+    /** @deprecated diesel_status 로 대체 — 옛 클라이언트 호환용 */
     diesel_conversion?: boolean
     has_biz_plate?: boolean
     tax_exempt_type?: string
+    // 계약서 전용 입력(견적 저장 단계에서 함께 받는다). 비우면 계약서에 공란.
+    contract_party?: string
+    buyer_agent?: string
+    buyer_relation?: string
+    buyer_regno?: string
+    buyer_tel?: string
   }
 }
 

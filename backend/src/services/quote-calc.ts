@@ -28,6 +28,12 @@ export type CustomerInput = {
   diesel_conversion?: boolean;
   has_biz_plate?: boolean;          // 영업용 번호판 보유 → 취득세 4%
   tax_exempt_type?: string;         // 면세구분('일반인' 등) — 공채할인 판정
+  // ── 계약서 전용 입력(견적 저장 시 함께 받음). 계산에는 쓰이지 않고 inputs 에 저장만 된다. ──
+  contract_party?: string;
+  buyer_agent?: string;
+  buyer_relation?: string;
+  buyer_regno?: string;
+  buyer_tel?: string;
 };
 
 /** 총견적서 견적단위 입력(선수금 비율·할부개월수·재량할인). */

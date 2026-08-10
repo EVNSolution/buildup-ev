@@ -60,10 +60,27 @@ export interface CustomerInfo {
   address?: string;                    // 세부주소 — 계약서·견적서·구조변경 서류에 사용
   is_small_business: boolean;          // 소상공인
   has_transport_license: boolean;      // 화물자동차 운송사업허가증
-  is_diesel_conversion: boolean;       // 경유차 유지 후 전기차 전환
+  /**
+   * 경유차 폐차여부 — 총견적서 '입력 시트' C5. 'none'|'keep'|'scrap'.
+   * 국고보조금을 깎는 것은 'keep'(유지)뿐이다(엑셀 D15). 'scrap'(폐차)은 금액 영향 없음.
+   */
+  diesel_status?: DieselStatusCode;
+  /** @deprecated diesel_status 로 대체. 옛 견적 복원용으로만 남긴다(= 'keep' 여부). */
+  is_diesel_conversion: boolean;
   has_biz_plate?: boolean;             // 영업용 번호판 보유 → 취득세 4% (총견적서)
   tax_exempt_type?: string;            // 면세구분('일반인' 등) — 공채할인 판정 (총견적서)
+
+  // ── 계약서 전용 입력(견적 저장 단계에서 함께 받는다) ──
+  // 전부 선택 입력 — 비워두면 계약서에 공란으로 나간다.
+  contract_party?: string;             // 계약처
+  buyer_agent?: string;                // 대리인(위임장 필수)
+  buyer_relation?: string;             // 관계
+  buyer_regno?: string;                // 생년월일 / 사업자번호
+  buyer_tel?: string;                  // 유선 전화번호
 }
+
+/** shared/pricing 의 DieselStatus 와 같은 값 — 타입 패키지 간 순환 import 를 피하려고 여기 다시 둔다. */
+export type DieselStatusCode = 'none' | 'keep' | 'scrap';
 
 // ── 견적 계산 ──────────────────────────────────────────────────────────
 

@@ -1,22 +1,30 @@
 import { useState } from 'react'
 import type { PricingResult, QuoteResult } from '@shared/pricing/core'
+import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
 
 interface Props {
   /** 지원여부 판정용(내장탑 미정 등) */
   calc: PricingResult | null
   /** 표시 금액의 단일 소스 — 총견적서 기준(견적서 PDF 와 동일 규칙) */
   total: QuoteResult | null
+  /** 보조금 산정 입력이 갖춰졌는가(지역 선택 여부). 미선택이면 보조금 금액을 흐리게 보여준다. */
   hasCustomer: boolean
   /** 차량+특장 세부 (부가세 별도 단가) */
   breakdown: { trim_price: number; option_sum: number } | null
+  /** 「보조금」 블록 팝업에서 그 자리에서 고치는 입력값 */
+  subsidy: SubsidyInputs
+  onSubsidyChange: (v: SubsidyInputs) => void
+  /** 지역 선택 목록(지방보조금 조회 기준) */
+  regions: string[]
 }
 
 function fmt(n: number) {
   return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
-export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
+export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsidyChange, regions }: Props) {
   const [showReg, setShowReg] = useState(false)
+  const [showSubsidy, setShowSubsidy] = useState(false)
   const isUnsupported = calc?.status === 'unsupported'
   const tbd = isUnsupported ? (calc as { reason: string }).reason : null
   const ok = isUnsupported ? null : total
@@ -55,7 +63,23 @@ export function PriceBar({ calc, total, hasCustomer, breakdown }: Props) {
         <Op>−</Op>
         <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative />
         <Op>−</Op>
-        <Block label="보조금" value={ok ? ok.subsidy_total : 0} show={!!ok} muted={!hasCustomer} negative />
+        {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
+        <div
+          style={{ ...styles.block, ...styles.clickable }}
+          onClick={() => setShowSubsidy(v => !v)}
+        >
+          <div style={styles.blockLabel}>보조금 ▸</div>
+          <div style={{ ...styles.blockValue, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
+            {ok ? fmt(ok.subsidy_total) : '—'}
+          </div>
+          {!hasCustomer && <div style={styles.asideSub}>지역 미선택</div>}
+          {showSubsidy && (
+            <SubsidyPopup
+              value={subsidy} onChange={onSubsidyChange} regions={regions}
+              onClose={() => setShowSubsidy(false)}
+            />
+          )}
+        </div>
         <Op>−</Op>
         {/* ④ 부가세 환급 — 일반구매자는 환급 대상이 아니다 */}
         <div style={styles.block}>
@@ -96,6 +120,29 @@ function Block({ label, value, show, muted, negative }: { label: string; value: 
         {show ? (muted ? '미반영' : fmt(value)) : '—'}
       </div>
     </div>
+  )
+}
+
+/**
+ * 보조금 산정 입력 팝업 — 등록·기타 상세 팝업과 같은 여닫이 방식.
+ * 여기 값이 바뀌면 화면 금액이 즉시 다시 계산된다(견적 저장 전에도).
+ */
+function SubsidyPopup({ value, onChange, regions, onClose }: {
+  value: SubsidyInputs
+  onChange: (v: SubsidyInputs) => void
+  regions: string[]
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
+      {/* 입력칸이라 클릭이 블록 토글로 새어 나가면 안 된다 */}
+      <div style={{ ...styles.popup, ...styles.popupLeft }} onClick={e => e.stopPropagation()}>
+        <div style={styles.popTitle}>보조금 산정 조건</div>
+        <SubsidyForm value={value} onChange={onChange} regions={regions} compact />
+        <div style={styles.popFoot}>지역을 골라야 지방보조금이 반영됩니다.</div>
+      </div>
+    </>
   )
 }
 
@@ -164,6 +211,9 @@ const styles: Record<string, React.CSSProperties> = {
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
   popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
+  // 보조금 블록은 가격바 왼쪽에 있어 오른쪽 정렬(popup)로 열면 화면 밖으로 나간다.
+  popupLeft: { right: 'auto' as const, left: 0, width: 280 },
+  popFoot: { fontSize: 10.5, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--line)' },
   line: { display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--body)', padding: '2px 0' },
   lineBold: { fontWeight: 700, color: 'var(--dark)', borderTop: '1px solid var(--line)', marginTop: 3, paddingTop: 4 },
   lineNote: { color: 'var(--muted)' },

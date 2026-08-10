@@ -5,14 +5,15 @@ import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { offValueCode } from '../components/OptionToggle'
-import { CustomerModal } from '../components/CustomerModal'
+import { QuoteSaveModal, valuesFromCustomer, type QuoteSaveValues } from '../components/QuoteSaveModal'
+import { DEFAULT_SUBSIDY_INPUTS, type SubsidyInputs } from '../components/SubsidyInputs'
 import { ContractPanel } from '../components/ContractPanel'
 import { EmailSendModal } from '../components/EmailSendModal'
 import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
@@ -173,7 +174,6 @@ function MyListView() {
         customerName={confirmQuoteModal.customerName}
         status={confirmQuoteModal.status}
         initialInputs={confirmQuoteModal.inputs}
-        customer={confirmQuoteModal.customer}
         onClose={() => setConfirmQuoteModal(null)}
         onDone={load}
       />
@@ -285,9 +285,18 @@ export function SalesPage() {
   const [bundleLoading, setBundleLoading] = useState(true)
   const [selections, setSelections] = useState<Record<string, string>>({})
 
-  const [showModal, setShowModal] = useState(true)
+  /**
+   * 보조금 산정 입력 — **화면 금액을 즉시 바꾸는 값**이라 저장 모달이 아니라
+   * 가격바 「보조금」 팝업에서 그 자리에서 고친다. 진입 시 팝업으로 막지 않는다.
+   */
+  const [subsidyInputs, setSubsidyInputs] = useState<SubsidyInputs>(DEFAULT_SUBSIDY_INPUTS)
+  /** 지역 목록(161개) — 보조금 팝업·저장 모달이 함께 쓴다. */
+  const [regions, setRegions] = useState<string[]>([])
+  /** 저장 단계에서 받은 고객·계약 정보(저장 후 다시 열 때 유지) */
   const [customer, setCustomer] = useState<CustomerInfo | null>(null)
-  const [skipped, setSkipped] = useState(false)
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  /** 지방보조금은 지역을 골라야 계산된다 — 그 전까지 보조금 금액을 흐리게 보여준다. */
+  const subsidyReady = !!subsidyInputs.region_code
 
   const [subsidyLocal, setSubsidyLocal] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
@@ -335,16 +344,20 @@ export function SalesPage() {
       .finally(() => setBundleLoading(false))
   }, [session])
 
+  useEffect(() => {
+    fetchRegions().then(setRegions).catch(() => setRegions([]))
+  }, [])
+
   // 지역 변경 시 지방보조금 fetch
   useEffect(() => {
-    if (!customer?.region_code || skipped) {
+    if (!subsidyInputs.region_code) {
       setSubsidyLocal(0)
       return
     }
-    fetchLocalSubsidy(customer.region_code, new Date().getFullYear())
+    fetchLocalSubsidy(subsidyInputs.region_code, new Date().getFullYear())
       .then(setSubsidyLocal)
       .catch(() => setSubsidyLocal(0))
-  }, [customer?.region_code, skipped])
+  }, [subsidyInputs.region_code])
 
   // option_rule 기준 비활성 그룹 코드
   const disabledGroupCodes = useMemo<Set<string>>(() => {
@@ -375,27 +388,26 @@ export function SalesPage() {
     const price = (code: string) => bundle.option_prices[code] ?? 0
     // 재량할인(프로모션) 0원 처리를 조립 단계에 반영 → 화면 가격이 실제 견적과 일치
     const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
-    const useCustomer = !skipped && customer
-
     return calcPrice({
       trim_price,
       option_sum,
       subsidy: {
         national:          bundle.subsidy_national?.amount ?? 0,
-        local:             useCustomer && !localSubsidyOff ? subsidyLocal : 0,
+        local:             subsidyReady && !localSubsidyOff ? subsidyLocal : 0,
         sosang_rate:       bundle.subsidy_national?.sosang_rate ?? 0.3,
         takbae_rate:       TAKBAE_RATE,
         diesel_conversion: DIESEL_CONVERSION_SUBSIDY,
       },
       tax: bundle.tax,
       customer: {
-        biz_type:  mapBizType(customer?.business_type),
-        is_sosang: !!useCustomer && customer.is_small_business,
-        has_transport_license: !!useCustomer && customer.has_transport_license,
-        diesel_conversion:     !!useCustomer && customer.is_diesel_conversion,
+        biz_type:  mapBizType(subsidyInputs.business_type),
+        is_sosang: subsidyInputs.is_small_business,
+        has_transport_license: subsidyInputs.has_transport_license,
+        // Ver1.21 엔진은 '유지'만 감액 대상으로 본다(총견적서와 동일 기준)
+        diesel_conversion:     subsidyInputs.diesel_status === 'keep',
       },
     })
-  }, [bundle, selections, subsidyLocal, customer, skipped, promotionZeroed, localSubsidyOff])
+  }, [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, localSubsidyOff])
 
   /**
    * 화면 표시 금액의 단일 소스 — **총견적서 기준**(견적서 PDF 와 동일 규칙).
@@ -407,24 +419,23 @@ export function SalesPage() {
     const price = (code: string) => bundle.option_prices[code] ?? 0
     const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
     const t = bundle.tax_all ?? {}
-    const useCustomer = !skipped && customer
-    const biz = mapBizType(customer?.business_type)
+    const biz = mapBizType(subsidyInputs.business_type)
     return calcQuote({
       car_price: Math.round(trim_price * 1.1),
       delivery_fee: t['delivery_fee'] ?? bundle.tax.delivery_fee,
       commercial_discount: t['commercial_discount'] ?? 0,
       partnership_rate: t['partnership_rate'] ?? 0.01,
       subsidy_national: bundle.subsidy_national?.amount ?? 0,
-      diesel_conversion: !!useCustomer && customer.is_diesel_conversion,
+      diesel_conversion: subsidyInputs.diesel_status === 'keep',   // 엑셀 D15 — 「유지」만 −50만
       diesel_deduction: t['diesel_deduction'] ?? 500_000,
-      subsidy_local: useCustomer ? subsidyLocal : 0,
+      subsidy_local: subsidyReady ? subsidyLocal : 0,
       is_corporation: biz === 'corporation',
       local_subsidy_off: localSubsidyOff,
       no_vat_refund: biz === 'consumer',
-      is_sosang: !!useCustomer && customer.is_small_business,
+      is_sosang: subsidyInputs.is_small_business,
       sosang_rate: bundle.subsidy_national?.sosang_rate ?? 0.3,
       is_individual: biz === 'individual',
-      has_transport_license: !!useCustomer && customer.has_transport_license,
+      has_transport_license: subsidyInputs.has_transport_license,
       takbae_rate: TAKBAE_RATE,
       body_price: Math.round(option_sum * 1.1),
       promotion: 0,
@@ -438,7 +449,7 @@ export function SalesPage() {
       acq_tax_rate_normal: t['acq_tax_rate'] ?? bundle.tax.acq_tax_rate,
       acq_tax_relief: t['acq_tax_relief_cap'] ?? bundle.tax.acq_tax_relief_cap,
       special_acq_tax_rate: t['special_acq_tax_rate'] ?? bundle.tax.special_acq_tax_rate,
-      is_seoul_normal: (customer?.tax_exempt_type ?? DEFAULT_TAX_EXEMPT_TYPE) === '일반인' && customer?.region_code === '서울특별시',
+      is_seoul_normal: (customer?.tax_exempt_type ?? DEFAULT_TAX_EXEMPT_TYPE) === '일반인' && subsidyInputs.region_code === '서울특별시',
       bond_discount: t['bond_discount'] ?? 0,
       plate: t['plate'] ?? bundle.tax.plate,
       stamp: t['stamp'] ?? bundle.tax.stamp,
@@ -449,7 +460,7 @@ export function SalesPage() {
       // 화면 가격과 견적서 PDF 가 어긋나지 않는다.
       structure_change_fee: t['structure_change_fee'] ?? 400_000,
     })
-  }, [bundle, selections, subsidyLocal, customer, skipped, promotionZeroed, localSubsidyOff])
+  }, [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, localSubsidyOff])
 
   function handleSelect(groupCode: string, valueCode: string) {
     setSelections(prev => {
@@ -470,24 +481,14 @@ export function SalesPage() {
     setSaveError('')
   }
 
-  function handleCustomerComplete(info: CustomerInfo) {
-    setCustomer(info)
-    setSkipped(false)
-    setShowModal(false)
-    setSavedQuote(null)
+  /** 「견적 저장」 → 고객·계약 정보를 받는 모달을 먼저 연다(진입 시 팝업은 없앴다). */
+  function handleOpenSave() {
+    if (!bundle || liveCalc?.status === 'unsupported') return
     setSaveError('')
+    setShowSaveModal(true)
   }
 
-  function handleSkip() {
-    setCustomer(null)
-    setSkipped(true)
-    setSubsidyLocal(0)
-    setShowModal(false)
-    setSavedQuote(null)
-    setSaveError('')
-  }
-
-  async function handleSave() {
+  async function handleSave(v: QuoteSaveValues) {
     if (!bundle) return
     if (liveCalc?.status === 'unsupported') return
 
@@ -501,21 +502,46 @@ export function SalesPage() {
         memo: memo || undefined,
         promotion_zeroed: promotionZeroed.size ? [...promotionZeroed] : undefined,
         local_subsidy_off: localSubsidyOff || undefined,
-        customer: customer && !skipped ? {
-          name: customer.name,
-          ceo_name: customer.ceo_name,   // 법인만 값 있음 → 계약서 {{ceo_name}}
-          email: customer.email,
-          phone: customer.phone,
-          biz_type: mapBizType(customer.business_type),
-          is_sosang: customer.is_small_business,
-          region: customer.region_code,
-          address: customer.address,
-          has_transport_license: customer.has_transport_license,
-          diesel_conversion: customer.is_diesel_conversion,
-        } : undefined,
+        customer: {
+          name: v.name.trim(),
+          // 법인만 값이 있다 → 계약서 {{ceo_name}}. 개인이면 보내지 않는다.
+          ceo_name: v.subsidy.business_type === 'corporate' ? v.ceo_name.trim() : undefined,
+          email: v.email.trim() || undefined,
+          phone: v.phone || undefined,
+          biz_type: mapBizType(v.subsidy.business_type),
+          is_sosang: v.subsidy.is_small_business,
+          region: v.subsidy.region_code,
+          address: v.address.trim() || undefined,
+          has_transport_license: v.subsidy.has_transport_license,
+          diesel_status: v.subsidy.diesel_status,
+          // 계약서 전용 입력 — 비우면 계약서에 공란으로 나간다
+          contract_party: v.contract_party.trim() || undefined,
+          buyer_agent: v.buyer_agent.trim() || undefined,
+          buyer_relation: v.buyer_relation.trim() || undefined,
+          buyer_regno: v.buyer_regno.trim() || undefined,
+          buyer_tel: v.buyer_tel || undefined,
+        },
       }
       const result = await saveQuote(req)
       setSavedQuote(result)
+      // 저장에 쓴 값을 화면 상태로 되돌려 둔다(헤더 표시·다시 열기).
+      setSubsidyInputs(v.subsidy)
+      setCustomer({
+        name: v.name.trim(), ceo_name: v.ceo_name.trim() || undefined,
+        email: v.email.trim() || undefined, phone: v.phone || undefined,
+        business_type: v.subsidy.business_type,
+        region_code: v.subsidy.region_code, address: v.address.trim() || undefined,
+        is_small_business: v.subsidy.is_small_business,
+        has_transport_license: v.subsidy.has_transport_license,
+        diesel_status: v.subsidy.diesel_status,
+        is_diesel_conversion: v.subsidy.diesel_status === 'keep',
+        contract_party: v.contract_party.trim() || undefined,
+        buyer_agent: v.buyer_agent.trim() || undefined,
+        buyer_relation: v.buyer_relation.trim() || undefined,
+        buyer_regno: v.buyer_regno.trim() || undefined,
+        buyer_tel: v.buyer_tel || undefined,
+      })
+      setShowSaveModal(false)
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : '저장 실패')
     } finally {
@@ -531,11 +557,19 @@ export function SalesPage() {
 
   return (
     <div style={styles.root}>
-      {showModal && (
-        <CustomerModal onComplete={handleCustomerComplete} onSkip={handleSkip} initial={customer} />
+      {/* 견적 저장 단계에서만 고객·계약 정보를 받는다 — 진입 시 팝업은 없앴다 */}
+      {showSaveModal && (
+        <QuoteSaveModal
+          initial={valuesFromCustomer(customer, subsidyInputs)}
+          regions={regions}
+          saving={isSaving}
+          error={saveError}
+          onSave={handleSave}
+          onClose={() => setShowSaveModal(false)}
+        />
       )}
 
-      <Header customer={customer} onOpenCustomerModal={() => setShowModal(true)} />
+      <Header customer={customer} />
 
       <div style={styles.tabBar}>
         <button style={salesTab === 'config' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('config')}>컨피규레이터</button>
@@ -592,8 +626,11 @@ export function SalesPage() {
           <PriceBar
             calc={displayCalc}
             total={liveTotal}
-            hasCustomer={!!customer && !skipped}
+            hasCustomer={subsidyReady}
             breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
+            subsidy={subsidyInputs}
+            onSubsidyChange={setSubsidyInputs}
+            regions={regions}
           />
         </section>
 
@@ -605,7 +642,7 @@ export function SalesPage() {
           hiddenValueCodes={hiddenValueCodes}
           optionPrices={bundle.option_prices}
           onSelect={handleSelect}
-          onSave={handleSave}
+          onSave={handleOpenSave}
           isSaving={isSaving}
           savedQuote={savedQuote}
           saveError={saveError}
