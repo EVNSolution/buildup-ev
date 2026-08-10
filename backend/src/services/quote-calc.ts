@@ -5,7 +5,8 @@
  */
 import { prisma } from '../lib/prisma.js';
 import {
-  assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, type QuoteParams,
+  assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE,
+  dieselDeducts, toDieselStatus, type QuoteParams,
 } from '@buildup-ev/shared/pricing';
 
 export type CustomerInput = {
@@ -18,7 +19,13 @@ export type CustomerInput = {
   region?: string;
   address?: string;                  // 세부주소(계약서·서류용)
   has_transport_license?: boolean;  // 화물자동차 운송사업허가증
-  diesel_conversion?: boolean;      // 경유차 유지 후 전기차 전환
+  /**
+   * 경유차 폐차여부(총견적서 '입력 시트' C5) — 'none' | 'keep' | 'scrap'.
+   * 국고보조금을 깎는 것은 'keep'(유지)뿐이다. 'scrap'(폐차)은 금액에 영향이 없다.
+   */
+  diesel_status?: string;
+  /** @deprecated 옛 견적 하위호환 — diesel_status 가 없을 때만 'keep' 여부로 해석된다. */
+  diesel_conversion?: boolean;
   has_biz_plate?: boolean;          // 영업용 번호판 보유 → 취득세 4%
   tax_exempt_type?: string;         // 면세구분('일반인' 등) — 공채할인 판정
 };
@@ -72,7 +79,8 @@ export async function buildQuoteParams(
     commercial_discount: taxMap['commercial_discount'] ?? 0,
     partnership_rate: taxMap['partnership_rate'] ?? 0.01,
     subsidy_national: subsidyNat?.amount ?? 0,
-    diesel_conversion: customer?.diesel_conversion ?? false,
+    // 「유지」일 때만 국고 −500,000(엑셀 D15). 옛 견적은 diesel_conversion boolean 으로 복원된다.
+    diesel_conversion: dieselDeducts(toDieselStatus(customer?.diesel_status, customer?.diesel_conversion)),
     diesel_deduction: taxMap['diesel_deduction'] ?? 500_000,
     subsidy_local: subsidyLoc?.amount ?? 0,
     is_corporation: bizType === 'corporation',

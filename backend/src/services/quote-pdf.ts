@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
-import { calcQuote, optionBreakdown } from '@buildup-ev/shared/pricing';
+import { calcQuote, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, type CustomerInput } from './quote-calc.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -103,6 +103,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     is_sosang: inp['is_sosang'] as boolean | undefined,
     region: inp['region'] as string | undefined,
     has_transport_license: inp['has_transport_license'] as boolean | undefined,
+    diesel_status: inp['diesel_status'] as string | undefined,
     diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
     has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
     tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
@@ -187,7 +188,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     cust: {
       name: quote.customer?.name ?? '', bizType: BIZ_DISP[bizType] ?? bizType, region,
       isSosang: ox(!!inp['is_sosang']), hasTransportLicense: ox(!!inp['has_transport_license']),
-      dieselStatus: inp['diesel_conversion'] ? '경유차 유지 후 전기차 전환' : '해당없음',
+      // 엑셀 '입력 시트' C5 선택지 문구 그대로(경유차없음 / 유지 / 폐차). 옛 견적은 boolean 으로 복원.
+      dieselStatus: DIESEL_STATUS_LABEL[toDieselStatus(inp['diesel_status'], inp['diesel_conversion'])],
       hasCommercialPlate: ox(!!inp['has_biz_plate']), advanceRate: `${Math.round(downRate * 100)}%`,
       vatRefundPrice: won(r.vat_refund_price),
     },

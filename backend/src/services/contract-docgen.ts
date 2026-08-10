@@ -182,6 +182,7 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     region: inp['region'] as string | undefined,
     address: inp['address'] as string | undefined,
     has_transport_license: inp['has_transport_license'] as boolean | undefined,
+    diesel_status: inp['diesel_status'] as string | undefined,
     diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
     has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
     tax_exempt_type: inp['tax_exempt_type'] as string | undefined,

@@ -27,6 +27,43 @@ function floor10(x: number): number {
   return Math.floor(x / 10) * 10;
 }
 
+/**
+ * 경유차 폐차여부 — 총견적서 '입력 시트' C5 의 3지 선택을 그대로 옮긴 것.
+ *   none  경유차없음
+ *   keep  경유차 유지 후 전기차 전환   ← **국고보조금 −500,000**
+ *   scrap 경유차 폐차 후 전기차 전환   ← 보조금 영향 **없음**
+ *
+ * ⚠️ 엑셀 차량견적서 D15 수식이 정답지다:
+ *     =IF('입력 시트'!C5="경유차 유지 후 전기차 전환", 옵션DB!AA2-500000, 옵션DB!AA2)
+ *    「폐차」는 선택지로만 존재하고 금액을 바꾸지 않는다(「경유차없음」과 같다).
+ *    감액은 사업자 구분과 **무관**하다 — 법인 조건이 붙어 있지 않다.
+ */
+export type DieselStatus = 'none' | 'keep' | 'scrap';
+
+/** 계약서·견적서에 인쇄할 표기(엑셀 C5 선택지 문구 그대로). */
+export const DIESEL_STATUS_LABEL: Record<DieselStatus, string> = {
+  none: '경유차없음',
+  keep: '경유차 유지 후 전기차 전환',
+  scrap: '경유차 폐차 후 전기차 전환',
+};
+
+/**
+ * 국고보조금이 깎이는 경우인가 = 「유지」뿐.
+ * calcQuote 의 `diesel_conversion` 는 이 판정 결과를 받는다.
+ */
+export function dieselDeducts(status: DieselStatus): boolean {
+  return status === 'keep';
+}
+
+/**
+ * 저장된 값 → DieselStatus. 하위호환:
+ * 예전 견적은 `diesel_conversion: boolean`(= 유지 여부)만 갖고 있어 그것으로 복원한다.
+ */
+export function toDieselStatus(status: unknown, legacyConversion?: unknown): DieselStatus {
+  if (status === 'none' || status === 'keep' || status === 'scrap') return status;
+  return legacyConversion === true ? 'keep' : 'none';
+}
+
 export interface QuoteParams {
   // ── 차량 (VAT 포함) ──
   car_price: number;            // D10 차량가격(트림, VAT포함)

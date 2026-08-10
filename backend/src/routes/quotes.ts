@@ -8,6 +8,7 @@ import { renderContractPdfForQuote, ContractDocError } from '../services/contrac
 import { readFrozenDoc, isFrozen, FROZEN_MESSAGE, collectContractFilePaths, deleteContractFiles } from '../services/doc-freeze.js';
 import {
   calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
+  dieselDeducts, toDieselStatus,
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js';
@@ -88,7 +89,8 @@ async function buildParams(
       biz_type:  bizType,
       is_sosang: customer?.is_sosang ?? false,
       has_transport_license: customer?.has_transport_license ?? false,
-      diesel_conversion:     customer?.diesel_conversion ?? false,
+      // Ver1.21 엔진도 총견적서와 같은 기준으로 '유지' 여부를 본다(옛 boolean 도 복원).
+      diesel_conversion:     dieselDeducts(toDieselStatus(customer?.diesel_status, customer?.diesel_conversion)),
     },
   };
 }
@@ -224,6 +226,7 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
       is_sosang: inp['is_sosang'] as boolean | undefined,
       region: inp['region'] as string | undefined,
       has_transport_license: inp['has_transport_license'] as boolean | undefined,
+      diesel_status: inp['diesel_status'] as string | undefined,
       diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
       has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
       tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
@@ -279,7 +282,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
-      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'promotion_zeroed', 'memo', 'local_subsidy_off',
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'memo', 'local_subsidy_off',
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
       'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
       // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
@@ -302,6 +305,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
             is_sosang: merged['is_sosang'] as boolean | undefined,
             region: merged['region'] as string | undefined,
             has_transport_license: merged['has_transport_license'] as boolean | undefined,
+            diesel_status: merged['diesel_status'] as string | undefined,
             diesel_conversion: merged['diesel_conversion'] as boolean | undefined,
             has_biz_plate: merged['has_biz_plate'] as boolean | undefined,
             tax_exempt_type: merged['tax_exempt_type'] as string | undefined,
@@ -408,6 +412,7 @@ quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> =
     is_sosang: customer?.is_sosang,
     region: customer?.region,
     has_transport_license: customer?.has_transport_license,
+    diesel_status: customer?.diesel_status,
     diesel_conversion: customer?.diesel_conversion,
     has_biz_plate: customer?.has_biz_plate,
     tax_exempt_type: customer?.tax_exempt_type,

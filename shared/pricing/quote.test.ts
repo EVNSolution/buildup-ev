@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcQuote, pmt } from './quote.js';
+import { calcQuote, pmt, dieselDeducts, toDieselStatus, DIESEL_STATUS_LABEL, type DieselStatus } from './quote.js';
 import { QUOTE_PARAMS, QUOTE_EXPECTED } from './fixtures.js';
 
 describe('calcQuote — 총견적서 계산 코어 (STEGO-K1_총견적서.xlsx)', () => {
@@ -56,6 +56,75 @@ describe('calcQuote — 총견적서 계산 코어 (STEGO-K1_총견적서.xlsx)'
     const seoul = calcQuote({ ...QUOTE_PARAMS, is_seoul_normal: true });
     expect(seoul.bond_discount).toBe(QUOTE_PARAMS.bond_discount);
     expect(r.bond_discount).toBe(0);
+  });
+});
+
+/**
+ * 경유차 폐차여부 — 정답지는 STEGO-K1_총견적서.xlsx 차량견적서 **D15** 수식뿐이다:
+ *
+ *   =IF('입력 시트'!C5="경유차 유지 후 전기차 전환", 옵션DB!AA2-500000, 옵션DB!AA2)
+ *
+ * '입력 시트' C5 의 선택지는 3개(경유차없음 / 유지 / 폐차)인데, 수식이 걸러내는 것은
+ * **「유지」 하나뿐**이다. 「폐차」는 「경유차없음」과 완전히 같은 금액이 된다
+ * — 엑셀 어디에도 폐차에 대한 가산·감액이 없다.
+ * 또한 감액에 **사업자 구분 조건이 없다**(법인만 적용이 아니다).
+ */
+describe('경유차 폐차여부 → 국고보조금 (차량견적서 D15)', () => {
+  const NATIONAL = 11_500_000;   // 옵션DB AA2
+  const DEDUCTION = 500_000;
+
+  const withStatus = (s: DieselStatus) =>
+    calcQuote({ ...QUOTE_PARAMS, subsidy_national: NATIONAL, diesel_deduction: DEDUCTION, diesel_conversion: dieselDeducts(s) });
+
+  it('「유지」만 국고 −500,000 (11,500,000 → 11,000,000)', () => {
+    expect(withStatus('keep').subsidy_national).toBe(NATIONAL - DEDUCTION);
+  });
+
+  it('「폐차」는 감액 없음 — 「경유차없음」과 같은 금액', () => {
+    expect(withStatus('scrap').subsidy_national).toBe(NATIONAL);
+    expect(withStatus('none').subsidy_national).toBe(NATIONAL);
+    expect(withStatus('scrap').car_payment).toBe(withStatus('none').car_payment);
+  });
+
+  it('감액은 사업자 구분과 무관하다 (D15 에 법인 조건이 없다)', () => {
+    const corp = calcQuote({
+      ...QUOTE_PARAMS, subsidy_national: NATIONAL, diesel_deduction: DEDUCTION,
+      diesel_conversion: true, is_corporation: true, is_individual: false, is_sosang: false,
+    });
+    expect(corp.subsidy_national).toBe(NATIONAL - DEDUCTION);
+  });
+
+  /**
+   * 저장된 엑셀 상태 그대로의 회귀 — 개인사업자 · 소상공인O · 화물운송O · **경유차 폐차**
+   * · 대구광역시(지방 3,450,000). 아래 숫자는 전부 차량견적서 시트의 계산값이다.
+   */
+  it('엑셀 저장 상태(폐차 · 대구) 재현 — D15~D20', () => {
+    const q = calcQuote({
+      ...QUOTE_PARAMS,
+      subsidy_national: NATIONAL,
+      diesel_conversion: dieselDeducts('scrap'),   // C5 = 경유차 폐차 후 전기차 전환
+      subsidy_local: 3_450_000,                    // 대구광역시 (옵션DB N93)
+    });
+    expect(q.subsidy_national).toBe(11_500_000);   // D15
+    expect(q.subsidy_local).toBe(3_450_000);       // D16
+    expect(q.subsidy_sosang).toBe(3_450_000);      // D17
+    expect(q.subsidy_takbae).toBe(1_150_000);      // D18
+    expect(q.subsidy_total).toBe(-19_550_000);     // D19
+    expect(q.car_payment).toBe(29_098_500);        // D20
+  });
+
+  it('표기 문구는 엑셀 C5 선택지 그대로', () => {
+    expect(DIESEL_STATUS_LABEL.none).toBe('경유차없음');
+    expect(DIESEL_STATUS_LABEL.keep).toBe('경유차 유지 후 전기차 전환');
+    expect(DIESEL_STATUS_LABEL.scrap).toBe('경유차 폐차 후 전기차 전환');
+  });
+
+  it('옛 견적(diesel_conversion boolean)도 그대로 복원된다', () => {
+    expect(toDieselStatus(undefined, true)).toBe('keep');    // 예전 체크됨 = 유지
+    expect(toDieselStatus(undefined, false)).toBe('none');
+    expect(toDieselStatus(undefined, undefined)).toBe('none');
+    expect(toDieselStatus('scrap', true)).toBe('scrap');     // 새 값이 우선
+    expect(toDieselStatus('bogus', true)).toBe('keep');      // 잘못된 값은 레거시로 복원
   });
 });
 
