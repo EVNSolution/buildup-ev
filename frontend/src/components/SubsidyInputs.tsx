@@ -46,13 +46,15 @@ export const DIESEL_OPTIONS: { value: DieselStatusCode; label: string; note?: st
 ]
 
 /** 보조금 입력 폼(팝업·모달 공용). 라벨 폭이 좁은 팝업에서도 쓰도록 단일 열. */
-export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType }: {
+export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType, afterRegion }: {
   value: SubsidyInputs
   onChange: (v: SubsidyInputs) => void
   regions: string[]
   compact?: boolean
   /** 견적 저장 모달은 사업자 구분을 **맨 위**에 따로 두므로 여기선 감춘다(값은 같은 상태). */
   hideBusinessType?: boolean
+  /** 지역 칸 **바로 아래**에 끼워 넣을 내용(세부주소 등). 주소는 지역과 붙어 있어야 읽힌다. */
+  afterRegion?: React.ReactNode
 }) {
   const set = <K extends keyof SubsidyInputs>(k: K, v: SubsidyInputs[K]) => onChange({ ...value, [k]: v })
   const s = compact ? f.rowTight : f.row
@@ -76,6 +78,8 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
         <label style={f.label}>지역 <span style={f.req}>· 지방보조금 조회 기준</span></label>
         <RegionPicker regions={regions} value={value.region_code} onChange={v => set('region_code', v)} />
       </div>
+
+      {afterRegion}
 
       <div style={s}>
         <label style={f.label}>경유차 폐차여부</label>
