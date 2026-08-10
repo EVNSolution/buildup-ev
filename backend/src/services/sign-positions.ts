@@ -117,9 +117,10 @@ function sealRightOf(label: Word, words: Word[]): Word | undefined {
 /**
  * 계약서 PDF → 날인칸 3곳(영수증 · 개인정보동의 · 매수인 한 줄).
  *
- * @param isCorporate 법인 계약이면 true. 양식에 법인 줄이 남아 있어 「서명」 라벨이 4개고,
- *                    개인 계약이면 렌더 단계에서 법인 줄을 지워 3개다. 매수인 줄은 두 경우 모두
- *                    라벨 순서 index 2 (법인 줄이 개인 줄보다 위).
+ * @param isCorporate 법인 계약이면 true — 매수인 날인이 법인 줄에 붙는다(슬롯 이름만 갈린다).
+ *                    렌더 단계에서 쓰지 않는 줄은 지우거나(개인 계약→법인 줄 삭제)
+ *                    글자를 비우므로(법인 계약→개인 줄 공란), **「서명」 라벨은 두 경우 모두 3개**다.
+ *                    매수인 줄은 문서 순서 index 2 (법인 줄이 개인 줄보다 위).
  * @returns 항상 3개. 하나라도 못 찾으면 **빈 배열** — 날인칸이 빠진 계약서를 발송하면 안 되므로
  *          호출부(modusign.sendDocument)가 발송을 거부하게 한다.
  */
@@ -131,13 +132,14 @@ export async function findSignPositions(pdf: Buffer, isCorporate: boolean): Prom
     const xml = await run('pdftotext', ['-bbox', p, '-']);
     const { words, pages } = parseBbox(xml);
 
-    // 「서명」 라벨을 문서 순서로. [영수증, 개인정보동의, (법인 줄), 개인 줄]
+    // 「서명」 라벨을 문서 순서로. [영수증, 개인정보동의, 매수인(법인 줄 또는 개인 줄)]
+    // 쓰지 않는 줄은 렌더 단계에서 이미 사라지거나 비워져 라벨이 남지 않는다.
     const byDoc = (a: Word, b: Word) => a.page - b.page || a.y0 - b.y0;
     const labels = words.filter((w) => w.text === LABEL).sort(byDoc);
-    const expected = isCorporate ? 4 : 3;
-    if (labels.length !== expected) {
+    const EXPECTED_LABELS = 3;
+    if (labels.length !== EXPECTED_LABELS) {
       console.error(`[sign-positions] 라벨 '${LABEL}' 이 ${labels.length}개입니다`
-        + `(${isCorporate ? '법인' : '개인'} 계약 기대 ${expected}). `
+        + `(${isCorporate ? '법인' : '개인'} 계약 기대 ${EXPECTED_LABELS}). `
         + `양식(contract-template.docx)에서 서명란이 바뀌었는지 확인하세요.`);
       return [];
     }
