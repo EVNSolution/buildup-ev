@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import PizZip from 'pizzip';
-import { fillContractDocx, countPdfPages, ContractDocError, type ContractTokens } from '../services/contract-docgen.js';
+import { fillContractDocx, countPdfPages, ContractDocError, isCorporateContract, type ContractTokens } from '../services/contract-docgen.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = path.resolve(__dirname, '../../..', 'doc-templates/contract-template.docx');
@@ -11,6 +11,8 @@ const TEMPLATE = path.resolve(__dirname, '../../..', 'doc-templates/contract-tem
 const TOKENS: ContractTokens = {
   contract_no: '26-0003', contract_date: '2026-08-06', contract_party: 'EV&Solution',
   buyer_name: '정재성', buyer_agent: '', buyer_relation: '', buyer_regno: '123-45-67890',
+  company_name: '', ceo_name: '',   // 개인 계약 — 법인 줄은 공란
+
   buyer_address: '경기도 군포시 산본로 100', buyer_tel: '031-000-0000',
   buyer_mobile: '010-1234-5678', buyer_email: 'test@example.com',
   spec_body: '냉장/냉동', spec_height: '저상', spec_spoiler: 'X', spec_temp: 'O',
@@ -72,6 +74,42 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect(sect(after)).toBe(sect(before));
   });
 
+  // ── 매수인 서명란(전자서명 개편) ────────────────────────────────────────
+  // 모두싸인이 한 서명자에게 서명·도장 두 종류를 허용하지 않아, **이름은 인쇄**하고
+  // 전자서명으로는 `(인)` 날인만 받는다. 그래서 「서명」 라벨 자리에 이름이 찍혀야 한다.
+
+  it('매수인 이름이 서명란 3곳 + 성명칸 1곳 = 4번 인쇄된다', () => {
+    const xml = docXml(fillContractDocx(template, TOKENS));
+    expect((xml.match(/정재성/g) ?? []).length).toBe(4);
+  });
+
+  it('양식에 「서명」 라벨이 남아 있지 않다(이름 토큰으로 교체됨)', () => {
+    // 라벨이 남아 있으면 고객이 손으로 쓸 칸으로 오해한다.
+    expect(docXml(template)).not.toContain('<w:t>서명</w:t>');
+  });
+
+  it('법인 계약이면 회사명·대표이사가 채워진다', () => {
+    const xml = docXml(fillContractDocx(template, {
+      ...TOKENS, buyer_name: '(주)한빛물류', company_name: '(주)한빛물류', ceo_name: '민원기',
+    }));
+    expect(xml).toContain('민원기');
+    expect(xml).not.toMatch(/\{\{\s*\w+\s*\}\}/);
+  });
+
+  it('개인 계약이면 회사명·대표이사는 공란이지만 줄(라벨)은 남는다', () => {
+    const xml = docXml(fillContractDocx(template, TOKENS));   // company_name·ceo_name = ''
+    expect(xml).toContain('회사명');
+    expect(xml).toContain('대표이사');
+    expect(xml).not.toMatch(/\{\{\s*(company_name|ceo_name)\s*\}\}/);
+  });
+
+  it('매도인 날인줄(이브이앤솔루션 대표이사)은 토큰 치환과 무관하게 보존된다', () => {
+    // 매수인 블록의 「대표이사」와 글자가 같아 실수로 함께 바뀌기 쉬운 자리다.
+    for (const buf of [template, fillContractDocx(template, TOKENS)]) {
+      expect(docXml(buf)).toContain('대표이사       민  원  기 ');
+    }
+  });
+
   it('특수문자(&, <)가 들어가도 XML 이 깨지지 않는다', () => {
     const buf = fillContractDocx(template, { ...TOKENS, buyer_name: 'A & B <주식회사>' });
     const xml = docXml(buf);
@@ -89,6 +127,19 @@ describe('PDF 페이지 수 계산 (poppler 미설치 환경 대체)', () => {
   it('/Type /Page 가 없으면 /Count 로 대체한다', () => {
     const fake = Buffer.from('%PDF-1.4\n/Type /Pages /Count 4\n');
     expect(countPdfPages(fake)).toBe(4);
+  });
+});
+
+describe('법인 판정 (isCorporateContract)', () => {
+  it("저장값 'corporation' 만 법인이다", () => {
+    expect(isCorporateContract('corporation')).toBe(true);
+  });
+  it('그 외 구분·미입력은 개인으로 본다', () => {
+    // ⚠️ 프론트 표기는 'corporate' 지만 저장 전 mapBizType 이 'corporation' 으로 바꾼다.
+    //    저장값 기준으로만 판정해야 개인/법인 날인 위치가 어긋나지 않는다.
+    for (const v of ['individual', 'simplified', 'consumer', 'corporate', '', undefined, null]) {
+      expect(isCorporateContract(v)).toBe(false);
+    }
   });
 });
 

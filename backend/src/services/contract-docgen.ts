@@ -86,6 +86,11 @@ export function countPdfPages(pdf: Buffer): number {
 export interface ContractTokens {
   contract_no: string; contract_date: string; contract_party: string;
   buyer_name: string; buyer_agent: string; buyer_relation: string; buyer_regno: string;
+  /**
+   * 매수인 서명블록 맨 아랫줄(회사명/대표이사). **법인사업자일 때만** 값이 들어간다.
+   * 그 외(개인사업자·간이과세자·일반구매자)는 공란 — 줄 자체는 양식에 남아 있다.
+   */
+  company_name: string; ceo_name: string;
   buyer_address: string; buyer_tel: string; buyer_mobile: string; buyer_email: string;
   spec_body: string; spec_height: string; spec_spoiler: string; spec_temp: string;
   spec_door: string; spec_door_add: string; spec_partition: string;
@@ -107,6 +112,15 @@ const PART_DISP: Record<string, string> = {
 };
 const ox = (on: boolean) => (on ? 'O' : 'X');
 const won = (n: number) => Math.round(n || 0).toLocaleString('ko-KR');
+
+/**
+ * 법인사업자 계약인가. 매수인 서명블록의 「회사명/대표이사」 줄을 채울지,
+ * 날인칸을 개인 줄과 법인 줄 중 어디에 놓을지를 이 판정 하나로 결정한다.
+ * ⚠️ 저장되는 값은 프론트 mapBizType 이 변환한 'corporation' 이다('corporate' 아님).
+ */
+export function isCorporateContract(bizType: unknown): boolean {
+  return bizType === 'corporation';
+}
 
 /** 주문 → 계약서 토큰. 주문은 견적을 가리키는 껍데기이므로 견적 기준 함수로 위임. */
 export async function buildContractTokens(orderId: number): Promise<ContractTokens> {
@@ -134,6 +148,7 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
   const customer = quote.customer;
   const sel = (quote.selections ?? {}) as Record<string, string>;
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
+  const isCorp = isCorporateContract(inp['biz_type']);
 
 
   // 금액은 총견적서 엔진(calcQuote)의 **특장 축** 단일 소스를 그대로 쓴다.
@@ -169,6 +184,10 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     contract_date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
     contract_party: String(inp['contract_party'] ?? ''),   // 특장사 아님 — 팝업 입력
     buyer_name: customer?.name ?? '',
+    // 매수인 서명블록 맨 아랫줄 — 법인 계약에서만 채운다.
+    // 법인은 고객명 칸에 **상호**를 받으므로 회사명 = customer.name, 대표이사는 별도 입력값.
+    company_name: isCorp ? (customer?.name ?? '') : '',
+    ceo_name: isCorp ? String(inp['ceo_name'] ?? '') : '',
     buyer_agent: String(inp['buyer_agent'] ?? ''),
     buyer_relation: String(inp['buyer_relation'] ?? ''),
     buyer_regno: String(inp['buyer_regno'] ?? customer?.reg_no ?? ''),
