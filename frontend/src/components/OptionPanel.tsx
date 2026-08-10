@@ -238,7 +238,9 @@ const styles = {
     // 예전엔 440px 고정이라 넓은 화면에서 오른쪽이 휑하게 비어 보였다.
     // 3D 가 16:9 로 자리를 잡고 남는 폭을 이 패널이 전부 채운다.
     flex: 1,
-    minWidth: 380,
+    // 화면이 좁으면 여기까지만 줄어든다 — 기본 폭의 0.75배(380 → 285).
+    // 더 줄이면 옵션 카드 2열이 무너진다.
+    minWidth: 285,
     display: 'flex',
     flexDirection: 'column' as const,
     minHeight: 0,

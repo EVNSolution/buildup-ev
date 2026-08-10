@@ -179,32 +179,50 @@ function Line({ k, v, bold, note }: { k: string; v: string; bold?: boolean; note
   )
 }
 
-const cellBase = { background: 'var(--card)', borderRadius: 10, padding: '9px 13px', flex: 1, minWidth: 0 }
+/**
+ * 가격바 글자 크기 — 폭에 따라 줄어든다.
+ *
+ * 3D 를 16:9 로 고정하면서 이 바의 폭이 좁아졌고, 고정 크기 글자가 블록 밖으로 삐져나왔다.
+ * 이제 `clamp(최소, 화면폭 비례, 최대)` 로 넓은 화면에선 예전 크기 그대로, 좁아지면 줄어든다.
+ * 계수는 바 폭 ≒ 화면폭의 65%(3D 칸이 2, 옵션 패널이 1) 기준으로 뽑았다.
+ * 그래도 안 들어가는 극단적인 경우를 대비해 글자줄마다 overflow 를 막아 둔다(clip).
+ */
+const fit = (min: number, vw: number, max: number) => `clamp(${min}px, ${vw}vw, ${max}px)`
+/** 글자가 어떤 경우에도 블록 밖으로 나가지 않게. 팝업은 블록에 달려 있으므로 여기서만 자른다. */
+const noSpill = { overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const }
+
+const cellBase = {
+  background: 'var(--card)', borderRadius: 10,
+  padding: `${fit(6, 0.47, 9)} ${fit(8, 0.68, 13)}`,
+  flex: 1, minWidth: 0,
+}
 
 const styles: Record<string, React.CSSProperties> = {
   bar: { flexShrink: 0, borderTop: '1px solid var(--line)', background: '#fff', padding: '12px 16px' },
   warn: { background: 'var(--warnbg)', border: '1px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
   warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
-  flow: { display: 'flex', gap: 6, alignItems: 'stretch', width: '100%' },
-  op: { fontSize: 16, color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
+  flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },
+  op: { fontSize: fit(11, 0.83, 16), color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
   // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
   first: { ...cellBase, flex: 1.3, background: '#f7fadf', border: '1px solid var(--lime)' },
-  firstLabel: { fontSize: 14, color: '#6b7300', fontWeight: 700 },
-  firstValue: { fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
-  firstSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis' },
+  firstLabel: { fontSize: fit(10, 0.73, 14), color: '#6b7300', fontWeight: 700, ...noSpill },
+  firstValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
+  // 차량·특장 분해는 금액이 길어 좁은 화면에서 한 줄에 안 들어간다.
+  // 숫자를 잘라 버리면 안 되므로 이 줄만 두 줄로 접히게 둔다(블록 밖으로는 못 나감).
+  firstSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, lineHeight: 1.35, overflow: 'hidden' },
   block: { ...cellBase, position: 'relative' },
   clickable: { cursor: 'pointer', border: '1px dashed var(--line)' },
   // 등록·기타는 계산 흐름 밖 — 왼쪽에 구분선을 둬 실구매가와 시각적으로 분리한다
-  aside: { flex: 1.1, marginLeft: 8, borderLeft: '2px solid var(--line)' },
-  asideNote: { fontSize: 9.5, color: '#a8aeb6', fontWeight: 700 },
-  asideSub: { fontSize: 10, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap' as const },
-  blockLabel: { fontSize: 11, color: 'var(--muted)' },
-  blockValue: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginTop: 2, whiteSpace: 'nowrap' as const },
+  aside: { flex: 1.1, marginLeft: fit(4, 0.42, 8), paddingLeft: fit(8, 0.68, 13), borderLeft: '2px solid var(--line)' },
+  asideNote: { fontSize: fit(7.5, 0.49, 9.5), color: '#a8aeb6', fontWeight: 700 },
+  asideSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, ...noSpill },
+  blockLabel: { fontSize: fit(9, 0.57, 11), color: 'var(--muted)', ...noSpill },
+  blockValue: { fontSize: fit(10, 0.78, 15), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   negVal: { color: '#c0392b' },
   mutedVal: { color: '#bfc4cb' },
   hero: { ...cellBase, flex: 1.3, background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
-  heroLabel: { fontSize: 12, color: 'var(--lime)', fontWeight: 700 },
-  heroValue: { fontSize: 22, fontWeight: 700, color: '#fff', marginTop: 2 },
+  heroLabel: { fontSize: fit(9.5, 0.62, 12), color: 'var(--lime)', fontWeight: 700, ...noSpill },
+  heroValue: { fontSize: fit(13, 1.14, 22), fontWeight: 700, color: '#fff', marginTop: 2, ...noSpill },
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
   popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
