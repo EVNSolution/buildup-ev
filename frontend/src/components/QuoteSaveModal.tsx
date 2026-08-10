@@ -113,7 +113,9 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   // 대리인은 선택 — 법인도 대표이사가 직접 오는 경우가 더 흔하다.
   // 백엔드도 같은 기준으로 렌더를 막으므로(missingCorporateFields) 화면에서 미리 잡는다.
   const missingCeo = isCorporate && !v.ceo_name.trim()
-  const canSave = !!v.name.trim() && !missingCeo && !saving
+  // 대리인이 있으면 관계를 받아야 한다 — 위임 관계가 계약서에 남아야 하기 때문.
+  const missingRelation = !!v.buyer_agent.trim() && !v.buyer_relation.trim()
+  const canSave = !!v.name.trim() && !missingCeo && !missingRelation && !saving
 
   // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
   // 닫기는 '취소' 와 ✕ 로만.
@@ -124,7 +126,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <p style={s.desc}>
           {isEdit
             ? '고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.'
-            : '견적서·계약서에 들어갈 정보입니다. 저장 후에도 견적 목록의 «고객정보» 에서 고칠 수 있습니다.'}
+            : '저장 후에도 견적 목록의 고객정보에서 수정할 수 있습니다.'}
         </p>
 
         <div style={s.sectionTitle}>고객 정보</div>
@@ -146,7 +148,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </div>
 
         <div style={s.row}>
-          <label style={s.label}>{isCorporate ? '상호' : '성명'} <span style={s.req}>· 필수</span></label>
+          <label style={s.label}>{isCorporate ? '상호' : '성명'} <span style={s.req}>필수</span></label>
           <input
             style={s.field} type="text" value={v.name}
             onChange={e => set('name', e.target.value)}
@@ -157,7 +159,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <div style={s.row}>
           <label style={s.label}>
             {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
-            <span style={s.req}> · 성명과 함께 지난 고객정보를 부르는 기준</span>
           </label>
           <input
             style={s.field} type="text" value={v.buyer_regno}
@@ -175,13 +176,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
         {isCorporate && (
           <div style={s.row}>
-            <label style={s.label}>대표이사 <span style={s.req}>· 계약서 매수인 법인 줄</span></label>
+            <label style={s.label}>대표이사 <span style={s.req}>필수</span></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
             {missingCeo && (
               <div style={s.warn}>
-                대표이사를 입력해야 저장할 수 있습니다 — 매수인 법인 줄에 인쇄되고,
-                대리인이 없으면 영수증·개인정보동의 서명란에도 들어갑니다.
-              </div>
+                대표이사를 입력해야 저장할 수 있습니다</div>
             )}
           </div>
         )}
@@ -194,8 +193,8 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <label style={s.label}>
             이메일
             {isCorporate && !v.buyer_agent.trim()
-              ? <span style={s.warnReq}> · 법인 직인을 찍을 사람의 이메일</span>
-              : <span style={s.req}> · 견적마다 새로 입력(자동 기입 안 함)</span>}
+              ? <span style={s.warnReq}> 법인 직인을 찍을 사람의 이메일</span>
+              : null}
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
@@ -206,17 +205,9 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
         />
         <div style={s.row}>
-          <label style={s.label}>세부주소 <span style={s.req}>· 지역 뒤에 붙어 계약서 주소가 된다</span></label>
+          <label style={s.label}>세부주소</label>
           <input style={s.field} type="text" value={v.address} onChange={e => set('address', e.target.value)} />
         </div>
-
-        {isCorporate && (
-          <div style={s.signNote}>
-            {v.buyer_agent.trim()
-              ? <>서명란 3곳 모두 <b>「성명 {v.buyer_agent.trim()} 서명 (인)」</b> 로 나가고, <b>대리인 서명</b> 한 종류만 받습니다.</>
-              : <>서명란 3곳 모두 <b>「회사명 · 대표이사 · 서명 (인)」</b> 로 나가고, <b>법인 직인</b> 한 종류만 받습니다. 위 이메일로 서명 요청이 갑니다.</>}
-          </div>
-        )}
 
         <div style={s.sectionTitle}>
           계약서 정보{' '}
@@ -225,11 +216,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           </span>
         </div>
         <div style={s.row}>
-          <label style={s.label}>계약처</label>
+          <label style={s.label}>계약처 <span style={s.req}>선택</span></label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>전화번호 <span style={s.req}>· 유선</span></label>
+          <label style={s.label}>유선번호 <span style={s.req}>선택</span></label>
           <PhoneInput value={v.buyer_tel} onChange={x => set('buyer_tel', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
@@ -237,13 +228,18 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
             대리인
             {v.buyer_agent.trim()
               ? <span style={s.warnReq}> · 위임장 필수</span>
-              : <span style={s.req}>{isCorporate ? ' · 비우면 법인 직인으로 서명' : ''}</span>}
+              : <span style={s.req}>선택</span>}
           </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>관계</label>
+          <label style={s.label}>
+            관계{v.buyer_agent.trim() ? <span style={s.warnReq}> 필수</span> : <span style={s.req}>선택</span>}
+          </label>
           <input style={s.field} type="text" value={v.buyer_relation} onChange={e => set('buyer_relation', e.target.value)} />
+          {missingRelation && (
+            <div style={s.warnBox}>대리인을 입력하면 관계도 입력해야 저장할 수 있습니다</div>
+          )}
         </div>
 
         {error && <div style={s.error}>{error}</div>}
@@ -260,10 +256,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 }
 
 const s: Record<string, React.CSSProperties> = {
-  warnReq: { color: '#c0392b', fontWeight: 700, fontSize: 11.5 },
+  warnBox: { color: '#c0392b', fontSize: 14, marginTop: 4, lineHeight: 1.5 },
+  warnReq: { color: '#c0392b', fontWeight: 700, fontSize: 14 },
   signNote: {
     background: '#eef2e6', border: '1px solid #d5e0bf', color: '#42502a',
-    fontSize: 12, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
+    fontSize: 14, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
   },
   overlay: {
     position: 'fixed', inset: 0, background: 'rgba(20,20,20,.5)',
@@ -274,34 +271,34 @@ const s: Record<string, React.CSSProperties> = {
     overflowY: 'auto', padding: 22, boxShadow: '0 10px 40px rgba(0,0,0,.25)',
   },
   h2: { margin: '0 0 4px', fontSize: 18, color: 'var(--dark)' },
-  desc: { margin: '0 0 16px', fontSize: 12.5, color: 'var(--muted)' },
+  desc: { margin: '0 0 16px', fontSize: 14, color: 'var(--muted)' },
   sectionTitle: {
-    fontSize: 12, fontWeight: 700, color: 'var(--dark)',
+    fontSize: 14, fontWeight: 700, color: 'var(--dark)',
     margin: '16px 0 10px', paddingBottom: 5, borderBottom: '1px solid var(--line)',
   },
-  optional: { fontSize: 10.5, fontWeight: 400, color: '#b0b7c0' },
+  optional: { fontSize: 14, fontWeight: 400, color: '#b0b7c0' },
   row: { marginBottom: 12 },
-  label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
-  req: { fontSize: 10.5, color: '#b0b7c0' },
+  label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 6 },
+  req: { fontSize: 14, color: '#b0b7c0' },
   field: {
-    width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', fontSize: 13,
+    width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
-  warn: { fontSize: 11, color: '#c0392b', marginTop: 5 },
+  warn: { fontSize: 14, color: '#c0392b', marginTop: 5 },
   autofill: {
-    fontSize: 11.5, color: 'var(--dark)', background: '#f2f6e8',
+    fontSize: 14, color: 'var(--dark)', background: '#f2f6e8',
     border: '1px solid #dce8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
   },
-  error: { fontSize: 12, color: '#c0392b', marginTop: 12 },
+  error: { fontSize: 14, color: '#c0392b', marginTop: 12 },
   btnRow: { display: 'flex', gap: 8, marginTop: 18 },
   btnOk: {
-    flex: 1, fontSize: 13.5, fontWeight: 700, padding: 12, borderRadius: 9,
+    flex: 1, fontSize: 14, fontWeight: 700, padding: 12, borderRadius: 9,
     cursor: 'pointer', border: 'none', background: 'var(--lime)', color: 'var(--dark)',
   },
   btnOff: { opacity: .5, cursor: 'not-allowed' },
   btnCancel: {
-    flex: 1, fontSize: 13.5, fontWeight: 700, padding: 12, borderRadius: 9,
+    flex: 1, fontSize: 14, fontWeight: 700, padding: 12, borderRadius: 9,
     cursor: 'pointer', border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
   },
 }

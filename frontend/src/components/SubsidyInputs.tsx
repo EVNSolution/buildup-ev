@@ -113,14 +113,14 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
 const f: Record<string, React.CSSProperties> = {
   row: { marginBottom: 12 },
   rowTight: { marginBottom: 9 },
-  label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
-  req: { fontSize: 10.5, color: '#b0b7c0' },
-  hint: { fontSize: 10.5, color: '#b0b7c0' },
+  label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 5 },
+  req: { fontSize: 14, color: '#b0b7c0' },
+  hint: { fontSize: 14, color: '#b0b7c0' },
   field: {
-    width: '100%', boxSizing: 'border-box', height: 36, padding: '0 9px', fontSize: 12.5,
+    width: '100%', boxSizing: 'border-box', height: 36, padding: '0 9px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
-  check: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: 'pointer', padding: '4px 0' },
+  check: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', padding: '4px 0' },
   checkbox: { width: 15, height: 15, accentColor: 'var(--lime)' },
 }
