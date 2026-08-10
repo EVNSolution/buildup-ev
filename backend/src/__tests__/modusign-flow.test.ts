@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { mapEventToStatus } from '../services/contract.js';
-import { isDryRun, CONTRACT_ANCHORS } from '../services/modusign.js';
+import { isDryRun } from '../services/modusign.js';
 import { webhooksRouter } from '../routes/webhooks.js';
 
 const SECRET = 'test-secret-value';
@@ -98,9 +98,3 @@ describe('DRY_RUN — 실수 발송 방지', () => {
   });
 });
 
-describe('서명 anchor — 새 계약서 양식 문구', () => {
-  it('서명란 3곳에 대응하는 고유 마커를 쓴다', () => {
-    expect(CONTRACT_ANCHORS.SIGN_SPOTS).toEqual(['#SIGN1#', '#SIGN2#', '#SIGN3#']);
-    expect(new Set(CONTRACT_ANCHORS.SIGN_SPOTS).size).toBe(3);  // 중복이면 같은 자리에 겹친다
-  });
-});

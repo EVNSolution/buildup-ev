@@ -46,7 +46,13 @@ export interface ModelOptionsResponse {
 export type BusinessType = 'individual' | 'corporate' | 'simplified' | 'consumer';
 
 export interface CustomerInfo {
+  /** 법인사업자면 **상호**, 그 외에는 **성명**. 계약서 `{{buyer_name}}` 으로 나간다. */
   name: string;
+  /**
+   * 대표이사 — **법인사업자일 때만** 입력받는다. 계약서 매수인 서명블록의
+   * 「회사명 / 대표이사」 줄(`{{ceo_name}}`)에 인쇄된다. 그 외 구분에서는 공란.
+   */
+  ceo_name?: string;
   email?: string;
   phone?: string;
   business_type: BusinessType;

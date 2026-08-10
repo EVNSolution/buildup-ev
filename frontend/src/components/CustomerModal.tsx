@@ -12,6 +12,7 @@ interface Props {
 
 export function CustomerModal({ onComplete, onSkip, initial }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
+  const [ceoName, setCeoName] = useState(initial?.ceo_name ?? '')
   const [email, setEmail] = useState(initial?.email ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
   const [businessType, setBusinessType] = useState<CustomerInfo['business_type']>(initial?.business_type ?? 'individual')
@@ -30,9 +31,14 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
     })
   }, [])
 
+  // 법인사업자만 「상호 + 대표이사」 2칸. 계약서 매수인 서명블록의 법인 줄이 이 값으로 채워진다.
+  const isCorporate = businessType === 'corporate'
+
   function handleComplete() {
     onComplete({
       name: name || '고객',
+      // 법인이 아니면 대표이사는 보내지 않는다 — 구분을 법인→개인으로 바꿨을 때 값이 남지 않게.
+      ceo_name: isCorporate ? (ceoName.trim() || undefined) : undefined,
       email: email || undefined,
       phone: phone || undefined,
       business_type: businessType,
@@ -53,7 +59,7 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
         </p>
 
         <div style={styles.row}>
-          <label style={styles.label}>고객명</label>
+          <label style={styles.label}>{isCorporate ? '상호' : '성명'}</label>
           <input
             style={styles.field}
             type="text"
@@ -61,6 +67,18 @@ export function CustomerModal({ onComplete, onSkip, initial }: Props) {
             onChange={e => setName(e.target.value)}
           />
         </div>
+
+        {isCorporate && (
+          <div style={styles.row}>
+            <label style={styles.label}>대표이사</label>
+            <input
+              style={styles.field}
+              type="text"
+              value={ceoName}
+              onChange={e => setCeoName(e.target.value)}
+            />
+          </div>
+        )}
 
         <div style={styles.row}>
           <label style={styles.label}>이메일</label>

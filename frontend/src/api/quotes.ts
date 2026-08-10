@@ -10,6 +10,7 @@ export interface SaveQuoteRequest {
   local_subsidy_off?: boolean       // 지방보조금 미적용(예산 소진 — 이 견적에만)
   customer?: {
     name?: string
+    ceo_name?: string               // 대표이사 — 법인사업자일 때만(계약서 서명블록)
     email?: string
     phone?: string
     biz_type: 'individual' | 'corporation' | 'simplified' | 'consumer'

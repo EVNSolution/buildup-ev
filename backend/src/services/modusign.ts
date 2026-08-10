@@ -7,24 +7,6 @@
  *   이 파일(요청 body 조립 + 응답 필드 파싱)만 보정하면 됨 — 상위 로직은 안 건드림.
  *   제약: 요청 본문 UTF-8 필수, 서명필드 ≤100 / 전체필드 ≤2000.
  */
-/**
- * 서명 필드 anchor — 새 계약서 양식(contract-template.docx)에 실제로 있는 문구.
- * '자필성명 / 서명 / (인)' 이 영수증·개인정보동의·매수인 3곳에 반복 존재하며,
- * 매칭 개수만큼 필드가 자동 생성되고 dataLabel 이 자동 넘버링된다(3곳 모두 서명 대상).
- */
-export const CONTRACT_ANCHORS = {
-  /**
-   * 서명 위치 마커 — 계약서 서명란 3곳(영수증·개인정보동의·매수인)에 각각 하나씩.
-   *
-   * 한글 '서명' 을 앵커로 쓰면 모두싸인이 "Anchor text not found in PDF" 를 냈다.
-   * PDF 에 텍스트로 분명히 있고 poppler 는 찾는데도 그렇다(추출기 차이 추정).
-   * 그래서 각 자리에 **고유한 영문 마커**를 넣고 그것을 앵커로 쓴다.
-   * 마커는 셀 배경색과 같은 글자색 + 6pt 라 화면·인쇄에 보이지 않는다.
-   * ⚠️ 템플릿에서 이 마커를 지우면 서명란이 안 잡힌다.
-   */
-  SIGN_SPOTS: ['#SIGN1#', '#SIGN2#', '#SIGN3#'] as const,
-} as const;
-
 export class ModusignConfigError extends Error {}
 export class ModusignApiError extends Error {
   constructor(message: string, public status?: number) { super(message); }
@@ -97,7 +79,9 @@ export interface SendParams {
  */
 export async function sendDocument(p: SendParams): Promise<{ documentId: string }> {
   if (!p.signFields.length) {
-    throw new ModusignApiError('서명란 위치를 찾지 못했습니다 (계약서 템플릿의 #SIGN 마커 확인 필요)');
+    throw new ModusignApiError(
+      '날인칸 위치를 찾지 못했습니다 — 계약서 양식의 «자필성명» 라벨과 «(인)» 을 확인하세요 (서버 로그에 상세)',
+    );
   }
   const contact = p.participant.signingMethod === 'EMAIL' ? p.participant.email : p.participant.phone;
   // ── 요청 스키마(초안) — 실 API 로 검증 시 이 블록만 보정 ─────────────────────
