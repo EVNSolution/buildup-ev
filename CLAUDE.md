@@ -49,13 +49,21 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 - **배포 = `origin/main`에 push하면 GitHub Actions가 자동 배포.** 수동 rsync·서버 직접 빌드로 배포하지 말 것.
 - ⚠️ **`main` push = 프로덕션 즉시 반영.** 검증 끝난 것만 push. 데모·운영 중엔 특히 신중히(불안하면 배포 담당과 함께).
 - ⚠️ **git 밖 변경(rsync·서버 직접 수정)은 다음 자동배포가 git 기준으로 덮어써 소실됨.** 모든 변경은 반드시 **커밋 → push**로 git에 남길 것.
-- **인프라는 추측 금지 — 만지기 전 `sudo docker ps`·`systemctl`로 재확인**(non-sudo 결과로 "Docker 안 씀" 같은 결론 내지 말 것). 현재 구성(참고):
-  - 백엔드 = systemd `buildup-ev` (tsx, :3001) · 프론트 = Caddy 정적 `frontend/dist`
-  - Postgres = Docker `buildup-ev-postgres` · 리버스프록시 = Docker `buildup-ev-caddy`
-  - 수동 재시작 필요 시: `sudo systemctl restart buildup-ev` + `sudo docker restart buildup-ev-caddy` (컨테이너 이름 추측 금지)
+- **인프라는 추측 금지 — 만지기 전 `sudo pm2 list`·`sudo docker ps`·`systemctl`로 재확인**(non-sudo 결과로 "Docker 안 씀" 같은 결론 내지 말 것). 현재 구성(2026-08-10 서버에서 직접 확인):
+  - **공개 주소 = `https://buildup-ev.cleversystem.ai`** · EC2 `i-007f16861a396a936` (ap-northeast-2)
+  - **백엔드 = pm2 2슬롯 blue/green** — `buildup-ev-blue`(:3101) · `buildup-ev-green`(:3102), tsx 로 `backend/src/server.ts` 직접 실행
+  - **릴리스 = `/opt/buildup-ev/releases/{blue,green}`** (배포마다 반대 슬롯에 받아 띄우고 Caddy 업스트림을 바꾼다) · 문서 저장소는 슬롯 밖 `/opt/buildup-ev/shared/documents`
+  - **프론트 = Caddy 가 활성 슬롯의 `frontend/dist` 를 정적 서빙**
+  - **리버스프록시 = 호스트 systemd `caddy`** (도커 아님). 설정 = `/etc/caddy/Caddyfile.d/buildup-ev.caddy` — **배포 스크립트가 매번 새로 쓴다. 손으로 고치면 다음 배포에 사라짐**
+  - **Postgres = Docker `buildup-ev-postgres`** (127.0.0.1:5432) — 도커 컨테이너는 이것 **하나뿐**
+  - ⚠️ `/etc/systemd/system/buildup-ev.service` 유닛 파일이 남아 있지만 **inactive(미사용)**. 이걸 재시작해도 아무 일도 일어나지 않는다
+  - 어느 슬롯이 서비스 중인지: `sudo cat /etc/caddy/Caddyfile.d/buildup-ev.caddy` 의 `reverse_proxy` 포트
+  - 수동 재시작이 필요하면: `sudo pm2 restart buildup-ev-<활성슬롯>` · Caddy 는 `sudo systemctl reload caddy` (컨테이너·유닛 이름 추측 금지)
 - **비밀정보 커밋·출력 절대 금지**: `.env`, `*.pem`(BUILDUP-EV-key.pem), `JWT_SECRET`, `DATABASE_URL`. **서버 `.env`는 건드리지 말 것**(JWT_SECRET 불일치 사고 원인).
 - **DB 스키마/seed 변경 전 백업**: `sudo docker exec buildup-ev-postgres pg_dump …`. seed는 **참조 테이블만 upsert**인지 확인 — 주문·견적 등 트랜잭션 테이블에 `delete/truncate` 금지.
 - **프론트/백 반영 경로 다름**: 브라우저에서 도는 로직(예 LoadCalcTab의 `calcBom`) 변경 → **프론트 재빌드** 필요. 백엔드 템플릿·라우트는 런타임 로드 → **백엔드 재시작**. (PDF는 되는데 화면 탭은 옛값이면 프론트 빌드 안 된 것.)
+- **배포 반영 확인은 활성 슬롯에서**: 새 라우트가 떴는지 보려면 `curl -o /dev/null -w %{http_code} http://localhost:<활성포트>/api/v1/<경로>` — **404 면 옛 릴리스, 403(인증필요) 이면 반영된 것**. 비활성 슬롯은 이전 코드라 404 가 정상이다.
+- **서버 `.env` 는 릴리스마다 새로 쓰인다** — 배포가 SSM SecureString `/buildup-ev/app-env` 로 덮어쓴다. 서버 파일을 직접 고치면 다음 배포에 사라지므로, 키 추가는 **반드시 SSM 파라미터에** 해야 한다.
 
 ## 작업 안전 가드레일 (이번 세션 사고들에서 도출)
 - **검증 없이 단정하지 말 것.** "테스트 실패는 무관", "Docker 안 씀", "커밋했다" 등은 실제 확인(`git stash` 후 재실행, `sudo docker ps`, `git status`) 뒤에만 말할 것.
