@@ -11,20 +11,26 @@ import { RegionPicker } from './RegionPicker'
  *    택배업 보조금이 붙는다. 보조금 결과가 사업자 구분에 직접 걸려 있어 빼면 화면 금액이 틀린다.
  *    (같은 값을 견적 저장 모달 맨 위에서도 고른다 — 상태는 하나이고 두 화면이 같이 본다)
  */
+/**
+ * ⚠️ 세 값이 `null`/`''` 을 가질 수 있는 이유: **아직 답하지 않음**을 구분해야 한다.
+ * 체크박스로 두면 '아니오'와 '아직 안 봄'이 똑같이 unchecked 라, 물어보지도 않은 조건이
+ * 보조금 계산에 그대로 들어간다. 보조금은 금액이 크게 갈리는 값이라 명시적으로 받는다.
+ * 계산에 넘길 때는 아직 답이 없으면 '아니오'로 본다(SalesPage 에서 `?? false`).
+ */
 export interface SubsidyInputs {
   business_type: BusinessType
   region_code: string
-  is_small_business: boolean
-  has_transport_license: boolean
-  diesel_status: DieselStatusCode
+  is_small_business: boolean | null
+  has_transport_license: boolean | null
+  diesel_status: DieselStatusCode | ''
 }
 
 export const DEFAULT_SUBSIDY_INPUTS: SubsidyInputs = {
   business_type: 'individual',
   region_code: '',
-  is_small_business: false,
-  has_transport_license: false,
-  diesel_status: 'none',
+  is_small_business: null,
+  has_transport_license: null,
+  diesel_status: '',
 }
 
 export const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
@@ -88,33 +94,64 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
           value={value.diesel_status}
           onChange={e => set('diesel_status', e.target.value as DieselStatusCode)}
         >
+          {/* 기본값을 '경유차없음' 으로 두면 물어보지도 않고 답한 셈이 된다 */}
+          <option value="">선택하세요</option>
           {DIESEL_OPTIONS.map(o => (
             <option key={o.value} value={o.value}>{o.label}{o.note ? ` (${o.note})` : ''}</option>
           ))}
         </select>
       </div>
 
-      <label style={f.check}>
-        <input
-          type="checkbox" style={f.checkbox}
-          checked={value.is_small_business}
-          onChange={e => set('is_small_business', e.target.checked)}
-        />
-        소상공인 <span style={f.hint}>국고 30% 추가</span>
-      </label>
-      <label style={f.check}>
-        <input
-          type="checkbox" style={f.checkbox}
-          checked={value.has_transport_license}
-          onChange={e => set('has_transport_license', e.target.checked)}
-        />
-        화물자동차 운송사업허가증 <span style={f.hint}>개인사업자 국고 10% 추가</span>
-      </label>
+      <YesNo
+        label="소상공인" hint="국고 30% 추가" tight={!!compact}
+        value={value.is_small_business} onChange={v => set('is_small_business', v)}
+      />
+      <YesNo
+        label="화물자동차 운송사업허가증" hint="개인사업자 국고 10% 추가" tight={!!compact}
+        value={value.has_transport_license} onChange={v => set('has_transport_license', v)}
+      />
     </>
   )
 }
 
+/**
+ * 예 / 아니오 — 체크박스 대신 쓴다.
+ * 체크박스는 '아니오'와 '아직 안 고름'이 구분되지 않아, 보조금처럼 금액이 갈리는
+ * 조건에는 쓸 수 없다. 고르기 전에는 둘 다 눌리지 않은 상태로 남는다.
+ */
+function YesNo({ label, hint, value, onChange, tight }: {
+  label: string
+  hint?: string
+  value: boolean | null
+  onChange: (v: boolean) => void
+  tight: boolean
+}) {
+  return (
+    <div style={tight ? f.rowTight : f.row}>
+      <label style={f.label}>
+        {label}
+        {hint ? <span style={f.hint}> · {hint}</span> : null}
+        {value === null ? <span style={f.needTag}> · 필수</span> : <span style={f.hint}> · 필수</span>}
+      </label>
+      <div style={f.yesNo}>
+        <button type="button" style={value === true ? f.ynOn : f.ynOff} onClick={() => onChange(true)}>예</button>
+        <button type="button" style={value === false ? f.ynOn : f.ynOff} onClick={() => onChange(false)}>아니오</button>
+      </div>
+    </div>
+  )
+}
+
 const f: Record<string, React.CSSProperties> = {
+  needTag: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
+  yesNo: { display: 'flex', gap: 6 },
+  ynOff: {
+    flex: 1, height: 38, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
+    border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
+  },
+  ynOn: {
+    flex: 1, height: 38, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
+    border: '1px solid var(--lime)', borderRadius: 8, background: '#f7fadf', color: 'var(--dark)',
+  },
   row: { marginBottom: 12 },
   rowTight: { marginBottom: 9 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 5 },

@@ -24,6 +24,7 @@ export interface QuoteSaveValues {
   email: string
   phone: string
   address: string
+  address_detail: string
   contract_party: string
   buyer_agent: string
   buyer_relation: string
@@ -33,7 +34,7 @@ export interface QuoteSaveValues {
 
 export function emptyQuoteSaveValues(subsidy: SubsidyInputs): QuoteSaveValues {
   return {
-    subsidy, name: '', ceo_name: '', email: '', phone: '', address: '',
+    subsidy, name: '', ceo_name: '', email: '', phone: '', address: '', address_detail: '',
     contract_party: '', buyer_agent: '', buyer_relation: '', buyer_regno: '', buyer_tel: '',
   }
 }
@@ -48,6 +49,7 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
     email: c.email ?? '',
     phone: c.phone ?? '',
     address: c.address ?? '',
+    address_detail: c.address_detail ?? '',
     contract_party: c.contract_party ?? '',
     buyer_agent: c.buyer_agent ?? '',
     buyer_relation: c.buyer_relation ?? '',
@@ -127,8 +129,8 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
     setAddrErr('')
     try {
       await searchAddress((address) => {
-        // 검색으로 채우는 건 도로명주소까지. 동·호수는 이어서 직접 적는다.
-        set('address', address + ' ')
+        // 검색으로 채우는 건 도로명주소까지. 동·호수는 아래 세부주소 칸에 적는다.
+        set('address', address)
         setTimeout(() => addrRef.current?.focus(), 0)
       })
     } catch (e) {
@@ -173,7 +175,32 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   const missingCeo = isCorporate && !v.ceo_name.trim()
   // 대리인이 있으면 관계를 받아야 한다 — 위임 관계가 계약서에 남아야 하기 때문.
   const missingRelation = !!v.buyer_agent.trim() && !v.buyer_relation.trim()
-  const canSave = !!v.name.trim() && !missingCeo && !missingRelation && !saving
+
+  /**
+   * 저장에 반드시 필요한 값들.
+   * 견적서·계약서·전자서명·보조금 계산이 전부 이 값들에 걸려 있어, 비면 나중에
+   * 서류를 다시 만들거나 보조금이 틀린다. 그래서 저장 단계에서 한 번에 받는다.
+   */
+  const filled = (x: string) => !!x.trim()
+  const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
+  const required: [boolean, string][] = [
+    [filled(v.name), isCorporate ? '상호' : '성명'],
+    [!missingCeo, '대표이사'],
+    [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
+    [filled(v.phone), '휴대폰'],
+    [filled(v.email), '이메일'],
+    [filled(v.subsidy.region_code), '지역'],
+    [filled(v.address), '주소'],
+    [filled(v.address_detail), '세부주소'],
+    [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
+    [v.subsidy.is_small_business !== null, '소상공인'],
+    [v.subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
+    [!missingRelation, '관계'],
+  ]
+  const missing = required.filter(([ok]) => !ok).map(([, label]) => label)
+  const canSave = missing.length === 0 && !saving
+  // 열자마자 빨간 목록이 도배되면 겁만 준다 — 한 칸이라도 채운 뒤부터 남은 것을 알려준다
+  const started = required.some(([ok]) => ok)
 
   // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
   // 닫기는 '취소' 와 ✕ 로만.
@@ -217,7 +244,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <div style={s.row}>
           <label style={s.label}>
             {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
-            <Tag />
+            <Tag need done={regNoOk} />
           </label>
           <input
             style={s.field} type="text" value={v.buyer_regno}
@@ -253,12 +280,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         )}
 
         <div style={s.row}>
-          <label style={s.label}>휴대폰<Tag /></label>
+          <label style={s.label}>휴대폰<Tag need done={filled(v.phone)} /></label>
           <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            이메일<Tag />
+            이메일<Tag need done={filled(v.email)} />
             <Note>{isCorporate && !v.buyer_agent.trim()
               ? '법인 직인을 찍을 사람 · 전자서명용'
               : '전자서명을 위한 이메일'}</Note>
@@ -272,16 +299,24 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
           afterRegion={
             <div style={s.row}>
-              <label style={s.label}>주소<Tag /><Note>검색 후 동·호수를 이어서 입력</Note></label>
+              <label style={s.label}>주소<Tag need done={filled(v.address)} /></label>
               <div style={s.addrRow}>
                 <input
-                  ref={addrRef}
                   style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
                   onChange={e => set('address', e.target.value)}
                 />
                 <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>주소 검색</button>
               </div>
               {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
+              <div style={{ marginTop: 8 }}>
+                <label style={s.label}>세부주소<Tag need done={filled(v.address_detail)} /></label>
+                <input
+                  ref={addrRef}
+                  style={s.field} type="text" value={v.address_detail}
+                  placeholder="동·호수 등"
+                  onChange={e => set('address_detail', e.target.value)}
+                />
+              </div>
             </div>
           }
         />
@@ -315,6 +350,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           )}
         </div>
 
+        {missing.length > 0 && started && (
+          <div style={s.missing}>
+            아직 <b>{missing.join(', ')}</b> 을(를) 입력하지 않았습니다.
+          </div>
+        )}
         {error && <div style={s.error}>{error}</div>}
 
         <div style={s.btnRow}>
@@ -369,6 +409,10 @@ const s: Record<string, React.CSSProperties> = {
   autofill: {
     fontSize: 14, color: 'var(--dark)', background: '#f2f6e8',
     border: '1px solid #dce8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
+  },
+  missing: {
+    fontSize: 14, color: '#8a3a2f', background: '#fdf1ee', border: '1px solid #f2c9be',
+    borderRadius: 8, padding: '9px 11px', marginTop: 14, lineHeight: 1.6,
   },
   error: { fontSize: 14, color: '#c0392b', marginTop: 12 },
   btnRow: { display: 'flex', gap: 8, marginTop: 18 },

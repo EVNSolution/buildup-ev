@@ -57,7 +57,8 @@ export interface CustomerInfo {
   phone?: string;
   business_type: BusinessType;
   region_code: string;
-  address?: string;                    // 세부주소 — 계약서·견적서·구조변경 서류에 사용
+  address?: string;                    // 주소(주소 검색으로 채운 도로명주소)
+  address_detail?: string;             // 동·호수 등 상세주소
   is_small_business: boolean;          // 소상공인
   has_transport_license: boolean;      // 화물자동차 운송사업허가증
   /**
@@ -258,7 +259,7 @@ export interface ApiQuote {
   org_id: string | null;
   customer_id: number | null;
   created_at: string;
-  customer: { id: number; name: string; email?: string | null; phone?: string | null; address?: string | null } | null;
+  customer: { id: number; name: string; email?: string | null; phone?: string | null; address?: string | null; address_detail?: string | null } | null;
   /** 견적별 입력 스냅샷(사업자구분·보조금조건·계약서 입력 등). 고객정보 수정 팝업이 되읽는다. */
   inputs?: Record<string, unknown> | null;
   /**

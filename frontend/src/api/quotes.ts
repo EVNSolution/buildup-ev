@@ -17,6 +17,7 @@ export interface SaveQuoteRequest {
     is_sosang: boolean
     region?: string
     address?: string
+    address_detail?: string
     has_transport_license?: boolean
     /** 경유차 폐차여부 — 'none'|'keep'|'scrap'. 국고가 깎이는 건 'keep'뿐(엑셀 D15). */
     diesel_status?: 'none' | 'keep' | 'scrap'
@@ -149,7 +150,7 @@ export async function fetchLocalSubsidy(region: string, year: number): Promise<n
 /** 견적에 연결된 고객정보 수정 — 견적서·계약서에 즉시 반영된다(새 고객이 생기지 않음). */
 export async function saveQuoteCustomer(
   quoteId: number,
-  patch: { name?: string; phone?: string; email?: string; address?: string; reg_no?: string; ceo_name?: string; tel?: string },
+  patch: { name?: string; phone?: string; email?: string; address?: string; address_detail?: string; reg_no?: string; ceo_name?: string; tel?: string },
 ): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/customer`, {
     method: 'PATCH',

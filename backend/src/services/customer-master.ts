@@ -24,12 +24,13 @@ export interface CustomerMaster {
   phone: string | null;
   tel: string | null;
   address: string | null;
+  address_detail: string | null;
   reg_no: string | null;
 }
 
 const SELECT = {
   id: true, name: true, ceo_name: true, phone: true, tel: true,
-  address: true, reg_no: true,
+  address: true, address_detail: true, reg_no: true,
 } as const;
 
 /** 키가 성립하는가 — 둘 다 비어 있지 않아야 조회·갱신 대상이다. */
@@ -65,6 +66,7 @@ export interface CustomerUpsertInput {
   phone?: string | null;
   tel?: string | null;
   address?: string | null;
+  address_detail?: string | null;
   created_by?: string | undefined;
 }
 
@@ -86,7 +88,7 @@ export async function upsertCustomer(input: CustomerUpsertInput): Promise<number
   const patch: Record<string, string> = {};
   for (const [k, v] of Object.entries({
     ceo_name: clean(input.ceo_name), email: clean(input.email), phone: clean(input.phone),
-    tel: clean(input.tel), address: clean(input.address), reg_no: regNo,
+    tel: clean(input.tel), address: clean(input.address), address_detail: clean(input.address_detail), reg_no: regNo,
   })) {
     if (v) patch[k] = v;
   }
