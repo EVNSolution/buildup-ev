@@ -20,7 +20,7 @@ const MAKER     = 'maker1@partner.com';
 const MAKER_ORG = 'ORG_BRAIN';
 
 const ADMIN_COOKIE = authCookie(ADMIN, 'ADMIN', 'ORG_HQ');
-const SALES_COOKIE = authCookie(SALES, 'SALES', 'ORG_SALES1');
+const SALES_COOKIE = authCookie(SALES, 'SALES', 'ORG_HQ');
 const MAKER_COOKIE = authCookie(MAKER, 'MAKER', MAKER_ORG);
 
 const REEFER_SELECTIONS = {

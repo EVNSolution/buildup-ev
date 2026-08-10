@@ -11,7 +11,7 @@ import { createApp } from '../app.js';
 import { authCookie } from './helpers.js';
 
 const shouldSkip = !process.env['DATABASE_URL'];
-const SALES_COOKIE = authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1');
+const SALES_COOKIE = authCookie('sales1@evnsolution.com', 'SALES', 'ORG_HQ');
 
 const REEFER_SELECTIONS = {
   TRIM: 'TRIM_PLUS',

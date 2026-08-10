@@ -28,7 +28,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
 
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1'))
+      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_HQ'))
       .send(PV5_INPUT)
       .expect(200);
 
@@ -42,7 +42,7 @@ describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
   it('필수 필드 누락(wheelbase_mm 없음) → 400', async () => {
     const res = await request(app)
       .post('/api/v1/load-calc')
-      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1'))
+      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_HQ'))
       .send({
         curb_axle_front_kg: 1105,
         curb_axle_rear_kg: 800,

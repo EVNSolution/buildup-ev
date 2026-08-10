@@ -96,7 +96,7 @@ describe('GET /api/v1/auth/me — JWT 인증 (test mode DB skip)', () => {
   it('SALES 쿠키 → 503(DB없음) 또는 200', async () => {
     const res = await request(app)
       .get('/api/v1/auth/me')
-      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1'));
+      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_HQ'));
     expect([200, 404, 503]).toContain(res.status);
   });
 });
@@ -113,7 +113,7 @@ describe('orders RBAC — 인증·권한 검증', () => {
   it('SALES — GET /orders/:id RBAC 통과 (403 아님)', async () => {
     const res = await request(app)
       .get('/api/v1/orders/1')
-      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_SALES1'));
+      .set('Cookie', authCookie('sales1@evnsolution.com', 'SALES', 'ORG_HQ'));
     expect(res.status).not.toBe(403);
   });
 
