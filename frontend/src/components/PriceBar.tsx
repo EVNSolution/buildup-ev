@@ -48,12 +48,12 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
   const netPrice = ok ? ok.real_price - regEtc : 0
 
   // 세로로 쌓을 땐 폭이 넉넉하므로 글자를 줄이지 않는다(가로 배치용 축소는 stack 에서 해제).
-  const row  = stack ? styles.rowCell : null
+  const row  = stack ? styles.rowCell : styles.cellTall
   const big  = stack ? styles.stackBig : null
   const lbl  = stack ? styles.stackLabel : null
 
   return (
-    <div style={styles.bar}>
+    <div style={stack ? styles.bar : { ...styles.bar, ...styles.barTall }}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
       <div style={stack ? styles.flowStack : styles.flow}>
@@ -98,14 +98,14 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
 
         <Op stack={stack}>=</Op>
         {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
-        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : null) }}>
+        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : styles.cellTall) }}>
           <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
           <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
         </div>
 
         {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
         <div
-          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : styles.aside) }}
+          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : { ...styles.aside, ...styles.cellTall }) }}
           onClick={() => ok && setShowReg(v => !v)}
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
@@ -126,7 +126,7 @@ function Op({ children, stack }: { children: string; stack?: boolean }) {
 
 function Block({ label, value, show, muted, negative, stack }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean }) {
   return (
-    <div style={{ ...styles.block, ...(stack ? styles.rowCell : null) }}>
+    <div style={{ ...styles.block, ...(stack ? styles.rowCell : styles.cellTall) }}>
       <div style={{ ...styles.blockLabel, ...(stack ? styles.stackLabel : null) }}>{label}</div>
       <div style={{ ...styles.blockValue, ...(stack ? styles.stackBig : null), ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }}>
         {show ? (muted ? '미반영' : fmt(value)) : '—'}
@@ -215,6 +215,10 @@ const cellBase = {
 
 const styles: Record<string, React.CSSProperties> = {
   bar: { flexShrink: 0, borderTop: '1px solid var(--line)', background: '#fff', padding: '12px 16px' },
+  // 가로 배치일 때만 두께를 키운다 — 세로로 쌓을 땐 이미 충분히 높다.
+  barTall: { padding: '34px 16px' },
+  // 칸도 같이 두툼하게(가로 배치 전용). 글자는 그대로 두고 위아래 여백만 늘린다.
+  cellTall: { paddingTop: fit(20, 1.6, 30), paddingBottom: fit(20, 1.6, 30) },
   warn: { background: 'var(--warnbg)', border: '1px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
   warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
   flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },

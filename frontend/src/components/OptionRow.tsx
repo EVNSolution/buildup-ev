@@ -42,7 +42,9 @@ export function PriceBtn({ label, price, selected, disabled = false, onClick }: 
 const btnBase = {
   flex: 1,
   minWidth: 72,
-  padding: '9px 8px',
+  // 가로로만 길쭉해 보이던 버튼 — 세로를 키워 비율을 잡는다
+  minHeight: 62,
+  padding: '13px 10px',
   borderRadius: 8,
   cursor: 'pointer',
   background: '#fff',
@@ -53,15 +55,17 @@ const btnBase = {
 }
 
 const styles = {
-  row: { marginBottom: 14 },
-  head: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 },
-  label: { fontSize: 11.5, color: 'var(--muted)' },
-  badgeReq: { fontSize: 9.5, fontWeight: 700, color: '#b23c3c', background: '#fdecec', border: '1px solid #f3c3c3', borderRadius: 5, padding: '1px 5px' },
-  badgeOpt: { fontSize: 9.5, fontWeight: 700, color: '#5a6b7a', background: '#eef1f4', border: '1px solid #dbe1e7', borderRadius: 5, padding: '1px 5px' },
-  btns: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
+  // 글자 크기 세 단계 — 본문 13.5 / 보조 12.5 / 뱃지 11.5.
+  // '작은 글씨로 의도한 것'은 본문보다 1씩 작게 유지한다.
+  row: { marginBottom: 16 },
+  head: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 },
+  label: { fontSize: 12.5, color: 'var(--muted)' },
+  badgeReq: { fontSize: 11.5, fontWeight: 700, color: '#b23c3c', background: '#fdecec', border: '1px solid #f3c3c3', borderRadius: 5, padding: '1px 6px' },
+  badgeOpt: { fontSize: 11.5, fontWeight: 700, color: '#5a6b7a', background: '#eef1f4', border: '1px solid #dbe1e7', borderRadius: 5, padding: '1px 6px' },
+  btns: { display: 'flex', gap: 7, flexWrap: 'wrap' as const },
   btn: { ...btnBase, border: '1px solid var(--line)', color: 'var(--body)' },
   btnOn: { ...btnBase, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
   btnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
-  btnName: { fontSize: 12.5 },
-  btnPrice: { fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 },
+  btnName: { fontSize: 13.5 },
+  btnPrice: { fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 },
 }

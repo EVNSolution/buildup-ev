@@ -232,7 +232,7 @@ const btnBase = {
 const styles = {
   savedNote: {
     background: '#eef7e9', border: '1px solid #cfe4c2', color: '#3d6b28',
-    fontSize: 12, padding: '8px 10px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,
+    fontSize: 12.5, padding: '9px 11px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,
   },
   panel: {
     // 예전엔 440px 고정이라 넓은 화면에서 오른쪽이 휑하게 비어 보였다.
@@ -250,7 +250,7 @@ const styles = {
   tab: {
     flex: 1,
     textAlign: 'center' as const,
-    fontSize: 13,
+    fontSize: 13.5,
     padding: '13px 4px',
     cursor: 'pointer',
     color: 'var(--muted)',
@@ -259,7 +259,7 @@ const styles = {
   tabOn: {
     flex: 1,
     textAlign: 'center' as const,
-    fontSize: 13,
+    fontSize: 13.5,
     padding: '13px 4px',
     cursor: 'pointer',
     color: 'var(--dark)',
@@ -277,17 +277,17 @@ const styles = {
     maxHeight: 260,
     overflowY: 'auto' as const,
   },
-  extraLabel: { fontSize: 12, fontWeight: 700, color: 'var(--dark)' },
-  hint: { fontSize: 10.5, color: 'var(--muted)', fontWeight: 400 },
+  extraLabel: { fontSize: 13.5, fontWeight: 700, color: 'var(--dark)' },
+  hint: { fontSize: 12.5, color: 'var(--muted)', fontWeight: 400 },
   memo: {
-    width: '100%', boxSizing: 'border-box' as const, fontSize: 12.5, padding: '8px 10px',
+    width: '100%', boxSizing: 'border-box' as const, fontSize: 13.5, padding: '9px 11px',
     border: '1px solid var(--line)', borderRadius: 7, resize: 'vertical' as const, fontFamily: 'inherit',
   },
-  promoToggle: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' },
+  promoToggle: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' },
   cbox: { width: 15, height: 15, accentColor: 'var(--lime)' } as React.CSSProperties,
   promoList: { display: 'flex', flexDirection: 'column' as const, gap: 4, padding: '4px 0 2px 22px' },
-  promoEmpty: { fontSize: 11.5, color: 'var(--muted)' },
-  promoItem: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, cursor: 'pointer' },
+  promoEmpty: { fontSize: 12.5, color: 'var(--muted)' },
+  promoItem: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: 'pointer' },
   promoName: { flex: 1, color: 'var(--dark)' },
   promoPrice: { color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' as const },
   promoZeroed: { color: '#2e7d32', fontWeight: 700 },
