@@ -74,9 +74,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
   const isEdit = mode === 'edit'
   const isCorporate = v.subsidy.business_type === 'corporate'
-  // 법인은 대표이사가 있어야 계약서 서명란이 채워진다(백엔드도 같은 이유로 렌더를 막는다).
+  // 법인 계약서는 **상호 + 대표이사 + 대리인** 이 다 있어야 성립한다.
+  //   대표이사 → 매수인 법인 줄 / 대리인 → 영수증·개인정보동의 서명란(법인은 대리인이 서명한다)
+  // 백엔드도 같은 이유로 렌더를 막으므로(missingCorporateFields) 화면에서 미리 잡는다.
   const missingCeo = isCorporate && !v.ceo_name.trim()
-  const canSave = !!v.name.trim() && !missingCeo && !saving
+  const missingAgent = isCorporate && !v.buyer_agent.trim()
+  const canSave = !!v.name.trim() && !missingCeo && !missingAgent && !saving
 
   return (
     <div style={s.overlay} onClick={onClose}>
@@ -122,7 +125,12 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <input style={s.field} type="text" value={v.address} onChange={e => set('address', e.target.value)} />
         </div>
 
-        <div style={s.sectionTitle}>계약서 정보 <span style={s.optional}>(선택 — 비우면 계약서에 공란)</span></div>
+        <div style={s.sectionTitle}>
+          계약서 정보{' '}
+          <span style={s.optional}>
+            {isCorporate ? '(대리인은 법인 계약 필수 · 나머지는 선택)' : '(선택 — 비우면 계약서에 공란)'}
+          </span>
+        </div>
         <div style={s.row}>
           <label style={s.label}>계약처</label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
@@ -136,8 +144,16 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <PhoneInput value={v.buyer_tel} onChange={x => set('buyer_tel', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>대리인 <span style={s.req}>· 위임장 필수</span></label>
+          <label style={s.label}>
+            대리인 <span style={s.req}>· 위임장 필수{isCorporate ? ' · 법인 계약 필수' : ''}</span>
+          </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
+          {missingAgent && (
+            <div style={s.warn}>
+              대리인을 입력해야 저장할 수 있습니다 — 법인은 대리인이 서명하므로
+              영수증·개인정보동의 서명란 2곳이 대리인 이름으로 채워집니다.
+            </div>
+          )}
         </div>
         <div style={s.row}>
           <label style={s.label}>관계</label>

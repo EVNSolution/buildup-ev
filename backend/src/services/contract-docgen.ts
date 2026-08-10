@@ -89,8 +89,9 @@ export interface ContractTokens {
   buyer_name: string;
   buyer_agent: string; buyer_relation: string; buyer_regno: string;
   /**
-   * 영수증·개인정보동의 서명란 2곳 = **실제로 서명하는 사람**의 이름.
-   * 개인이면 고객 본인, 법인이면 대표이사 개인명(법인을 대리해 서명하는 자연인).
+   * 영수증·개인정보동의 서명란 2곳 = **실제로 와서 서명하는 사람**의 이름.
+   * 개인이면 고객 본인, **법인이면 대리인**(buyer_agent) — 법인은 대리인이 서명한다.
+   * (법인 줄의 대표이사는 ceo_name 으로 따로 인쇄된다)
    */
   signer_name: string;
   /**
@@ -135,12 +136,22 @@ export function isCorporateContract(bizType: unknown): boolean {
 }
 
 /**
- * 법인 계약인데 대표이사가 비었나.
- * 이 상태로 렌더하면 서명란 3곳(영수증·개인정보동의·법인 줄)이 **모두 공란**인 계약서가
- * 나간다 — 서명할 사람 이름이 없는 문서다. 렌더 단계에서 막는다.
+ * 법인 계약에 반드시 있어야 하는 값 중 빠진 것 — 없으면 빈 배열.
+ *
+ * 법인 계약서는 **상호 + 대표이사 + 대리인** 세 값이 다 있어야 성립한다:
+ *   · 대표이사(ceo_name)  → 매수인 법인 줄에 인쇄
+ *   · 대리인(buyer_agent) → 영수증·개인정보동의 서명란 2곳에 인쇄(법인은 대리인이 서명한다)
+ * 하나라도 비면 서명란이 공란인 계약서가 나가므로 렌더 단계에서 막는다.
+ * (개인 계약은 해당 없음 — 회사명이 비어 있으면 빈 배열)
  */
-export function missesCorporateCeo(t: Pick<ContractTokens, 'company_name' | 'ceo_name'>): boolean {
-  return Boolean(t.company_name.trim()) && !t.ceo_name.trim();
+export function missingCorporateFields(
+  t: Pick<ContractTokens, 'company_name' | 'ceo_name' | 'buyer_agent'>,
+): string[] {
+  if (!t.company_name.trim()) return [];
+  const missing: string[] = [];
+  if (!t.ceo_name.trim()) missing.push('대표이사');
+  if (!t.buyer_agent.trim()) missing.push('대리인');
+  return missing;
 }
 
 /**
@@ -180,6 +191,7 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
   const isCorp = isCorporateContract(inp['biz_type']);
   const ceoName = String(inp['ceo_name'] ?? '').trim();
+  const agentName = String(inp['buyer_agent'] ?? '').trim();
 
 
   // 금액은 총견적서 엔진(calcQuote)의 **특장 축** 단일 소스를 그대로 쓴다.
@@ -221,11 +233,12 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     // 서명란마다 들어갈 이름이 달라 토큰을 나눠 둔다.
     //   · 영수증·개인정보동의 = 실제 서명자   → 개인은 본인, 법인은 대표이사
     //   · 매수인 블록은 **개인 줄·법인 줄 중 한 줄만** 채운다(나머지 줄은 완전히 공란)
-    signer_name: isCorp ? ceoName : (customer?.name ?? ''),
+    // 법인은 대리인이 와서 서명한다 — 영수증·개인정보동의 서명란은 대리인 이름.
+    signer_name: isCorp ? agentName : (customer?.name ?? ''),
     buyer_personal_name: isCorp ? '' : (customer?.name ?? ''),
     company_name: isCorp ? (customer?.name ?? '') : '',
     ceo_name: isCorp ? ceoName : '',
-    buyer_agent: String(inp['buyer_agent'] ?? ''),
+    buyer_agent: agentName,
     buyer_relation: String(inp['buyer_relation'] ?? ''),
     buyer_regno: String(inp['buyer_regno'] ?? customer?.reg_no ?? ''),
     // 주소 = 지역(시/도·시군구) + 세부주소 — 계약서엔 전체 주소가 필요
@@ -356,9 +369,12 @@ export interface ContractDocResult {
 async function renderFromTokens(tokens: ContractTokens): Promise<{ pdf: Buffer; pages: number; warnings: string[] }> {
   // 필수값 가드 — 빈 값은 docxtemplater 가 조용히 빈칸으로 치환하므로(토큰 잔존 검사로는 못 잡음)
   // 계약서로서 의미가 없는 공백 계약이 생성되지 않도록 여기서 막는다.
-  if (missesCorporateCeo(tokens)) {
+  const missingCorp = missingCorporateFields(tokens);
+  if (missingCorp.length) {
     throw new ContractDocError(
-      '법인 계약은 대표이사가 필요합니다 (고객 정보에서 «대표이사» 를 입력하세요)', 'NOT_FOUND',
+      `법인 계약서에 필요한 값이 없습니다: ${missingCorp.join(', ')} — 고객 정보에서 입력하세요. `
+      + '(대표이사는 매수인 법인 줄에, 대리인은 영수증·개인정보동의 서명란에 인쇄됩니다)',
+      'NOT_FOUND',
     );
   }
   const REQUIRED: (keyof ContractTokens)[] = ['contract_no', 'contract_date', 'buyer_name'];

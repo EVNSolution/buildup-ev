@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import PizZip from 'pizzip';
-import { fillContractDocx, countPdfPages, ContractDocError, isCorporateContract, missesCorporateCeo, type ContractTokens } from '../services/contract-docgen.js';
+import { fillContractDocx, countPdfPages, ContractDocError, isCorporateContract, missingCorporateFields, type ContractTokens } from '../services/contract-docgen.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = path.resolve(__dirname, '../../..', 'doc-templates/contract-template.docx');
@@ -30,10 +30,14 @@ function docXml(buf: Buffer): string {
 describe('계약서 토큰 치환 (contract-template.docx)', () => {
   const template = readFileSync(TEMPLATE);
 
-  /** 법인 계약 토큰 — 상호는 buyer_name·company_name, 서명은 대표이사 개인명. */
+  /**
+   * 법인 계약 토큰 — 상호는 buyer_name·company_name, 법인 줄은 대표이사,
+   * **서명란 2곳은 대리인**(법인은 대리인이 와서 서명한다).
+   */
   const CORP: ContractTokens = {
     ...TOKENS, buyer_name: '(주)한빛물류',
-    signer_name: '민원기', buyer_personal_name: '', company_name: '(주)한빛물류', ceo_name: '민원기',
+    signer_name: '박대리', buyer_agent: '박대리', buyer_personal_name: '',
+    company_name: '(주)한빛물류', ceo_name: '민원기',
   };
 
   it('모든 토큰이 치환되어 {{ }} 가 남지 않는다', () => {
@@ -128,9 +132,11 @@ describe('계약서 토큰 치환 (contract-template.docx)', () => {
     expect((xml.match(/\(주\)한빛물류/g) ?? []).length).toBe(2);
   });
 
-  it('법인 계약: 서명자는 대표이사 개인명 — 영수증·개인정보동의 2곳 + 법인 줄 = 3번', () => {
+  it('법인 계약: 서명자는 **대리인** — 영수증·개인정보동의 2곳 + 대리인칸 = 3번', () => {
+    // 법인은 대리인이 와서 서명한다. 대표이사는 법인 줄에만 인쇄된다.
     const xml = docXml(fillContractDocx(template, CORP));
-    expect((xml.match(/민원기/g) ?? []).length).toBe(3);
+    expect((xml.match(/박대리/g) ?? []).length).toBe(3);
+    expect((xml.match(/민원기/g) ?? []).length).toBe(1);
   });
 
   it('매도인 날인줄(이브이앤솔루션 대표이사)은 법인 계약에서도 보존된다', () => {
@@ -164,16 +170,23 @@ describe('PDF 페이지 수 계산 (poppler 미설치 환경 대체)', () => {
   });
 });
 
-describe('법인 대표이사 누락 가드 (missesCorporateCeo)', () => {
-  it('법인인데 대표이사가 비면 true — 서명란 3곳이 전부 공란이 된다', () => {
-    expect(missesCorporateCeo({ company_name: '(주)한빛물류', ceo_name: '' })).toBe(true);
-    expect(missesCorporateCeo({ company_name: '(주)한빛물류', ceo_name: '   ' })).toBe(true);
+describe('법인 필수값 가드 (missingCorporateFields)', () => {
+  const CO = '(주)한빛물류';
+  it('대표이사가 비면 알려준다 — 법인 줄이 공란이 된다', () => {
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '', buyer_agent: '박대리' })).toEqual(['대표이사']);
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '   ', buyer_agent: '박대리' })).toEqual(['대표이사']);
   });
-  it('법인 + 대표이사 있으면 false', () => {
-    expect(missesCorporateCeo({ company_name: '(주)한빛물류', ceo_name: '민원기' })).toBe(false);
+  it('대리인이 비면 알려준다 — 서명란 2곳이 공란이 된다', () => {
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '민원기', buyer_agent: '' })).toEqual(['대리인']);
   });
-  it('개인 계약(회사명 공란)은 대표이사가 없어도 정상', () => {
-    expect(missesCorporateCeo({ company_name: '', ceo_name: '' })).toBe(false);
+  it('둘 다 비면 둘 다 알려준다', () => {
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '', buyer_agent: '' })).toEqual(['대표이사', '대리인']);
+  });
+  it('상호+대표이사+대리인이 다 있으면 통과', () => {
+    expect(missingCorporateFields({ company_name: CO, ceo_name: '민원기', buyer_agent: '박대리' })).toEqual([]);
+  });
+  it('개인 계약(회사명 공란)은 대표이사·대리인이 없어도 정상', () => {
+    expect(missingCorporateFields({ company_name: '', ceo_name: '', buyer_agent: '' })).toEqual([]);
   });
 });
 
