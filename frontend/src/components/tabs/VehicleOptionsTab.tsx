@@ -2,6 +2,9 @@ import type { ApiOptionGroup } from '@shared/types/index'
 import { valueUnitPrice } from '@shared/pricing/core'
 import { fmtWonVat } from '../OptionRow'
 import { Tooltip } from '../Tooltip'
+// 트림 카드 사진 — 컨피규레이터 3D 자리에 쓰는 것과 같은 이미지.
+// 트림은 사양 차이지 겉모습 차이가 아니라 두 카드 모두 같은 사진이면 된다.
+import trimImg from '../../assets/stego-k-side.jpg'
 
 interface Props {
   groups: ApiOptionGroup[]
@@ -10,17 +13,6 @@ interface Props {
   hiddenValueCodes: Set<string>
   optionPrices: Record<string, number>
 }
-
-/**
- * 트림 카드에 쓰는 차량 사진.
- *
- * `src/assets/trim-*.jpg|png` 를 있으면 쓰고 없으면 무늬 배경으로 둔다.
- * 정적 import 로 걸어두면 파일이 없을 때 빌드가 깨져 배포가 막히므로 이렇게 찾는다.
- */
-const trimImages = import.meta.glob('../../assets/trim-*.{jpg,jpeg,png}', {
-  eager: true, import: 'default', query: '?url',
-}) as Record<string, string>
-const trimImg: string | undefined = Object.values(trimImages)[0]
 
 /**
  * 트림별 주요 사양 — 카드에 마우스를 올리면 뜬다.
@@ -96,9 +88,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
                   onClick={() => onSelect(group.code, v.code)}
                 >
                   <div style={styles.cardImg}>
-                    {trimImg
-                      ? <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
-                      : <span style={styles.cardImgEmpty}>이미지</span>}
+                    <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
                   </div>
                   <div style={styles.cardName}>{v.name}</div>
                   <div style={styles.cardDelta}>{fmtWonVat(valueUnitPrice(group.code, v.code, selections, price))}</div>
@@ -163,11 +153,6 @@ const styles = {
   },
   // 차량이 잘리면 안 되므로 칸 안에 통째로 담는다(contain)
   cardImgPic: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
-  cardImgEmpty: {
-    width: '100%', height: '100%', borderRadius: 8,
-    background: 'repeating-linear-gradient(45deg,#f0f2f4,#f0f2f4 8px,#e9ecef 8px,#e9ecef 16px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
   cardName: { fontWeight: 700, fontSize: 14, marginTop: 9, color: 'var(--dark)' },
   cardCode: { fontSize: 10, color: 'var(--muted)', marginTop: 2 },
   cardDelta: { fontSize: 11, color: 'var(--muted)', marginTop: 2, fontWeight: 600 },
