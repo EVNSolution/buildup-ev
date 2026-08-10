@@ -121,7 +121,8 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        customer: { select: { id: true, name: true, email: true, phone: true } },
+        // address 는 고객정보 수정 팝업이 되읽어야 해서 함께 내려준다(계약서 주소의 뒷부분).
+        customer: { select: { id: true, name: true, email: true, phone: true, address: true } },
         order: { select: { maker_org: { select: { code: true, name: true } } } },
         // 전자서명 현황 — 재발송 시 행이 누적되므로 최신 1건이 현재 상태.
         contracts: {

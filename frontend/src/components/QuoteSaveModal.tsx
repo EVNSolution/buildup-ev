@@ -61,12 +61,18 @@ interface Props {
   error: string
   onSave: (v: QuoteSaveValues) => void
   onClose: () => void
+  /**
+   * 'create' = 견적 저장 / 'edit' = 저장된 견적의 고객정보 수정.
+   * 입력 구성이 완전히 같아 같은 폼을 쓴다 — 저장·수정 화면이 따로 놀면 한쪽만 낡는다.
+   */
+  mode?: 'create' | 'edit'
 }
 
-export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose }: Props) {
+export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create' }: Props) {
   const [v, setV] = useState<QuoteSaveValues>(initial)
   const set = <K extends keyof QuoteSaveValues>(k: K, val: QuoteSaveValues[K]) => setV(p => ({ ...p, [k]: val }))
 
+  const isEdit = mode === 'edit'
   const isCorporate = v.subsidy.business_type === 'corporate'
   // 법인은 대표이사가 있어야 계약서 서명란이 채워진다(백엔드도 같은 이유로 렌더를 막는다).
   const missingCeo = isCorporate && !v.ceo_name.trim()
@@ -75,9 +81,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   return (
     <div style={s.overlay} onClick={onClose}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <h2 style={s.h2}>견적 저장</h2>
+        <h2 style={s.h2}>{isEdit ? '고객정보 수정' : '견적 저장'}</h2>
         <p style={s.desc}>
-          견적서·계약서에 들어갈 정보입니다. 저장 후에도 견적 목록에서 고칠 수 있습니다.
+          {isEdit
+            ? '고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.'
+            : '견적서·계약서에 들어갈 정보입니다. 저장 후에도 견적 목록의 «고객정보» 에서 고칠 수 있습니다.'}
         </p>
 
         <div style={s.sectionTitle}>고객 정보</div>
@@ -93,7 +101,11 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <div style={s.row}>
             <label style={s.label}>대표이사 <span style={s.req}>· 계약서 서명란</span></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
-            {missingCeo && <div style={s.warn}>법인 계약서는 대표이사가 있어야 발송됩니다.</div>}
+            {missingCeo && (
+              <div style={s.warn}>
+                대표이사를 입력해야 저장할 수 있습니다 — 법인 계약서는 서명란 3곳이 대표이사 이름으로 채워집니다.
+              </div>
+            )}
           </div>
         )}
 
@@ -136,7 +148,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
         <div style={s.btnRow}>
           <button style={{ ...s.btnOk, ...(canSave ? null : s.btnOff) }} onClick={() => canSave && onSave(v)} disabled={!canSave}>
-            {saving ? '저장 중…' : '견적 저장'}
+            {saving ? '저장 중…' : isEdit ? '저장' : '견적 저장'}
           </button>
           <button style={s.btnCancel} onClick={onClose} disabled={saving}>취소</button>
         </div>

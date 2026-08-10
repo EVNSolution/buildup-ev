@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { openPdf } from '../lib/openPdf'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
+import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE, toDieselStatus } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, saveQuoteCustomer, saveQuoteInputs } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { Header } from '../components/Header'
@@ -117,6 +117,43 @@ function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; co
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string)  { return s ? s.slice(0, 10) : '—' }
 
+/** 프론트 표기('corporate') ← 저장값('corporation') 역매핑. mapBizType 의 반대. */
+function unmapBizType(v: unknown): CustomerInfo['business_type'] {
+  if (v === 'corporation') return 'corporate'
+  if (v === 'simplified') return 'simplified'
+  if (v === 'consumer') return 'consumer'
+  return 'individual'
+}
+
+/**
+ * 저장된 견적 → 고객정보 수정 폼 초기값.
+ * 고객 행(customer)과 견적 입력 스냅샷(inputs) 두 곳에 나뉘어 있어 여기서 합친다.
+ */
+function customerEditValues(q: ApiQuote): QuoteSaveValues {
+  const inp = (q.inputs ?? {}) as Record<string, unknown>
+  const str = (k: string) => String(inp[k] ?? '')
+  return {
+    subsidy: {
+      business_type: unmapBizType(inp['biz_type']),
+      region_code: str('region'),
+      is_small_business: inp['is_sosang'] === true,
+      has_transport_license: inp['has_transport_license'] === true,
+      // 옛 견적은 diesel_status 가 없고 boolean 만 있다 — '유지' 여부로 복원한다.
+      diesel_status: toDieselStatus(inp['diesel_status'], inp['diesel_conversion']),
+    },
+    name: q.customer?.name ?? '',
+    ceo_name: str('ceo_name'),
+    email: q.customer?.email ?? '',
+    phone: q.customer?.phone ?? '',
+    address: q.customer?.address ?? '',
+    contract_party: str('contract_party'),
+    buyer_agent: str('buyer_agent'),
+    buyer_relation: str('buyer_relation'),
+    buyer_regno: str('buyer_regno'),
+    buyer_tel: str('buyer_tel'),
+  }
+}
+
 function MyListView() {
   const [quotes, setQuotes]   = useState<ApiQuote[]>([])
   const [orders, setOrders]   = useState<ApiOrder[]>([])
@@ -127,6 +164,45 @@ function MyListView() {
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
     { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
   >(null)
+  /** 고객정보 수정 — 저장 모달을 수정 모드로 재사용한다(입력 구성이 같다). */
+  const [customerEdit, setCustomerEdit] = useState<ApiQuote | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editErr, setEditErr] = useState('')
+  const [regions, setRegions] = useState<string[]>([])
+
+  useEffect(() => { fetchRegions().then(setRegions).catch(() => setRegions([])) }, [])
+
+  /** 수정 저장 — 고객 행(PATCH /customer)과 견적 입력(PATCH /inputs)을 함께 갱신한다. */
+  async function handleCustomerEditSave(v: QuoteSaveValues) {
+    if (!customerEdit) return
+    setEditSaving(true); setEditErr('')
+    try {
+      await saveQuoteCustomer(customerEdit.id, {
+        name: v.name.trim(),
+        phone: v.phone,
+        email: v.email.trim(),
+        address: v.address.trim(),
+      })
+      await saveQuoteInputs(customerEdit.id, {
+        biz_type: mapBizType(v.subsidy.business_type),
+        is_sosang: v.subsidy.is_small_business,
+        region: v.subsidy.region_code,
+        has_transport_license: v.subsidy.has_transport_license,
+        diesel_status: v.subsidy.diesel_status,
+        // 개인으로 되돌리면 대표이사를 비운다 — 계약서 법인 줄이 남아 있으면 안 된다.
+        ceo_name: v.subsidy.business_type === 'corporate' ? v.ceo_name.trim() : '',
+        contract_party: v.contract_party.trim(),
+        buyer_agent: v.buyer_agent.trim(),
+        buyer_relation: v.buyer_relation.trim(),
+        buyer_regno: v.buyer_regno.trim(),
+        buyer_tel: v.buyer_tel,
+      })
+      setCustomerEdit(null)
+      load()
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : '고객정보 저장 실패')
+    } finally { setEditSaving(false) }
+  }
 
   function load() {
     setLoading(true); setErr('')
@@ -166,6 +242,17 @@ function MyListView() {
         quoteId={emailQuote.id}
         customerName={emailQuote.customerName}
         onClose={() => setEmailQuote(null)}
+      />
+    )}
+    {customerEdit && (
+      <QuoteSaveModal
+        mode="edit"
+        initial={customerEditValues(customerEdit)}
+        regions={regions}
+        saving={editSaving}
+        error={editErr}
+        onSave={handleCustomerEditSave}
+        onClose={() => setCustomerEdit(null)}
       />
     )}
     {confirmQuoteModal && (
@@ -230,14 +317,26 @@ function MyListView() {
                             <button
                               style={lv.pdfBtn}
                               title="견적서 입력값(선수금·할부·면세 등) 수정"
-                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs, customer: q.customer ?? undefined })}
+                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })}
                             >수정</button>
                           )}
+                          {/*
+                            고객정보 수정 — 캐피탈 입력(«수정»)과 성격이 달라 버튼을 나눴다.
+                            서류가 고정된 뒤엔 백엔드가 409 로 막으므로, 누르기 전에 비활성으로 알린다.
+                          */}
+                          <button
+                            style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
+                            disabled={!!q.docs_frozen_at}
+                            title={q.docs_frozen_at
+                              ? `전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 (${fmtDate(q.docs_frozen_at)})`
+                              : '성명·상호·대표이사·연락처·주소·사업자구분·계약서 정보 수정'}
+                            onClick={() => { setEditErr(''); setCustomerEdit(q) }}
+                          >고객정보</button>
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
                             title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
-                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs, customer: q.customer ?? undefined })
+                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                           >견적서</button>
                           {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
@@ -245,7 +344,7 @@ function MyListView() {
                             style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.status === 'draft' ? '견적서 생성 시 계약서도 함께 만들어집니다' : '특장 매매계약서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
-                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: (q as unknown as { inputs?: Record<string, unknown> }).inputs, customer: q.customer ?? undefined })
+                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                           >계약서</button>
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
