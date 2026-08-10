@@ -49,8 +49,8 @@ export function OptionSegmentRow({ group, selected, onSelect, disabled = false, 
 const btnBase = {
   flex: 1,
   minWidth: 54,
-  fontSize: 12.5,
-  padding: '9px 6px',
+  fontSize: 14,
+  padding: '11px 8px',
   border: '1px solid var(--line)',
   background: '#fff',
   borderRadius: 8,
@@ -63,12 +63,12 @@ const btnBase = {
 }
 
 const styles = {
-  row: { marginBottom: 14, transition: 'opacity .15s' },
-  label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 6 },
-  disabledBadge: { fontSize: 10, color: 'var(--warn)', marginLeft: 4 },
+  row: { marginBottom: 16, transition: 'opacity .15s' },
+  label: { display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 7 },
+  disabledBadge: { fontSize: 13, color: 'var(--warn)', marginLeft: 4 },
   seg: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
   segBtn: btnBase,
   segBtnOn: { ...btnBase, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
-  delta: { fontSize: 10, color: 'var(--muted)', fontWeight: 500 },
-  deltaOn: { fontSize: 10, color: 'var(--muted)', fontWeight: 500 },
+  delta: { fontSize: 13, color: 'var(--muted)', fontWeight: 500 },
+  deltaOn: { fontSize: 13, color: 'var(--muted)', fontWeight: 500 },
 }

@@ -221,7 +221,7 @@ export function OptionPanel({
 
 const btnBase = {
   width: '100%',
-  fontSize: 13.5,
+  fontSize: 14,
   fontWeight: 700,
   padding: 12,
   borderRadius: 9,
@@ -300,7 +300,7 @@ const styles = {
     gap: 6,
   },
   saveError: {
-    fontSize: 12,
+    fontSize: 13,
     color: 'var(--warn)',
     background: 'var(--warnbg)',
     border: '1px solid #f0c9ad',

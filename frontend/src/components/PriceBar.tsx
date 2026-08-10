@@ -151,7 +151,7 @@ function SubsidyPopup({ value, onChange, regions, onClose }: {
       {/* 입력칸이라 클릭이 블록 토글로 새어 나가면 안 된다 */}
       <div style={{ ...styles.popup, ...styles.popupLeft }} onClick={e => e.stopPropagation()}>
         <div style={styles.popTitle}>보조금 산정 조건</div>
-        <SubsidyForm value={value} onChange={onChange} regions={regions} compact />
+        <SubsidyForm value={value} onChange={onChange} regions={regions} compact hideRequired />
         <div style={styles.popFoot}>지역을 골라야 지방보조금이 반영됩니다.</div>
       </div>
     </>
