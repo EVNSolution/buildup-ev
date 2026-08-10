@@ -192,6 +192,39 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
   });
 }
 
+/**
+ * 모두싸인 API 로 실제 상태를 다시 읽어 반영한다 — **웹훅 유실 복구용**.
+ *
+ * 웹훅은 유실되거나(네트워크·배포 중 재시작) 스펙 불일치로 무시될 수 있다.
+ * 실제로 event 가 객체로 와서 전부 무시된 사고가 있었고, 그동안 서명을 마쳐도
+ * 단계가 넘어가지 않았다. 그때 손으로 되살릴 방법이 필요하다.
+ *
+ * 웹훅 처리(handleModusignEvent)와 같은 갱신 경로를 쓰되, 이쪽은 사람이 부른다.
+ */
+export async function refreshContractStatus(quoteId: number): Promise<PurchaseContract | null> {
+  const p = db();
+  const contract = await getLatestContract(quoteId);
+  if (!contract?.modusign_document_id) return contract;
+  if (TERMINAL.includes(contract.status)) return contract;   // 이미 종료 — 되돌리지 않는다
+
+  const doc = await modusign.getDocument(contract.modusign_document_id);
+  const mapped = doc.status ? mapEventToStatus(doc.status) : null;
+  if (!mapped || mapped === contract.status) return contract;
+
+  const data: { status: ContractStatus; signed_pdf_path?: string; completed_at?: Date } = { status: mapped };
+  if (mapped === 'COMPLETED') {
+    const pdf = await modusign.downloadSignedPdf(contract.modusign_document_id);
+    const dir = path.join(docStorageDir(), 'quotes', String(contract.quote_id));
+    await mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, `contract_signed_${contract.id}.pdf`);
+    await writeFile(filePath, pdf);
+    data.signed_pdf_path = filePath;
+    data.completed_at = new Date();
+  }
+  console.info(`[contract] 견적 ${quoteId} 상태 재조회 ${contract.status} → ${mapped}`);
+  return p.purchaseContract.update({ where: { id: contract.id }, data });
+}
+
 // ── webhook 처리 ────────────────────────────────────────────────────────────
 
 /**
@@ -250,7 +283,10 @@ export async function handleModusignEvent(documentId: string, eventType: string)
   } catch {
     // 재조회 실패 시 이벤트 매핑값으로 진행(로그는 호출부)
   }
-  if (!mapped) return;
+  if (!mapped) {
+    console.warn(`[webhook/modusign] 매핑되지 않은 이벤트 '${eventType}' (document ${documentId}) — 무시`);
+    return;
+  }
 
   const data: { status: ContractStatus; signed_pdf_path?: string; completed_at?: Date } = { status: mapped };
 
@@ -268,10 +304,37 @@ export async function handleModusignEvent(documentId: string, eventType: string)
 }
 
 /** 모두싸인 webhook body 에서 문서id·이벤트타입 추출(스키마 초안 — 실 webhook 로 확정). */
+/**
+ * webhook payload → { documentId, eventType }.
+ *
+ * ⚠️ 모두싸인은 `event` 를 **객체**로 보낸다(문자열이 아니다). 예전 구현이 그대로
+ *    String() 으로 감싸 `[object Object]` 가 저장됐고, 상태 매핑이 전부 실패해
+ *    **서명을 완료해도 단계가 넘어가지 않았다**(실제 사고). 값이 객체면 안쪽에서
+ *    타입 문자열을 꺼낸다.
+ */
 export function extractWebhookEvent(body: unknown): { documentId: string; eventType: string } | null {
   const b = (body ?? {}) as Record<string, any>;
+
+  /** 문자열이면 그대로, 객체면 흔한 키에서 타입 문자열을 꺼낸다. */
+  const asType = (v: unknown): string | null => {
+    if (typeof v === 'string') return v.trim() || null;
+    if (v && typeof v === 'object') {
+      for (const k of ['type', 'name', 'eventType', 'event_type', 'event']) {
+        const inner = (v as Record<string, unknown>)[k];
+        if (typeof inner === 'string' && inner.trim()) return inner.trim();
+      }
+    }
+    return null;
+  };
+
   const documentId = b.documentId ?? b.document_id ?? b.document?.id ?? b.data?.documentId ?? b.data?.document?.id;
-  const eventType = b.event ?? b.eventType ?? b.event_type ?? b.type ?? b.data?.event;
-  if (!documentId || !eventType) return null;
-  return { documentId: String(documentId), eventType: String(eventType) };
+  const eventType =
+    asType(b.event) ?? asType(b.eventType) ?? asType(b.event_type) ?? asType(b.type) ?? asType(b.data?.event);
+
+  if (!documentId || !eventType) {
+    // 파싱 실패는 스펙 불일치다 — 원본을 남겨야 다음에 고칠 수 있다(자격증명 없음).
+    console.error('[webhook/modusign] 파싱 실패 payload:', JSON.stringify(body).slice(0, 800));
+    return null;
+  }
+  return { documentId: String(documentId), eventType };
 }
