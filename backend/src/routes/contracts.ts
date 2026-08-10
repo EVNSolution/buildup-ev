@@ -7,7 +7,7 @@ import type { Request, Response } from 'express';
 import { existsSync, createReadStream } from 'node:fs';
 import { rbac } from '../middleware/rbac.js';
 import {
-  sendContract, getLatestContract, ContractError,
+  sendContract, getLatestContract, ContractError, refreshContractStatus,
 } from '../services/contract.js';
 import { ModusignConfigError, ModusignApiError } from '../services/modusign.js';
 import { SofficeUnavailableError } from '../lib/soffice.js';
@@ -49,6 +49,19 @@ contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), async (req: R
 });
 
 // ── GET /:id/contract — 현재 계약 상태 ───────────────────────────────────────
+// ── POST /:id/contract/refresh — 모두싸인 실제 상태로 동기화(웹훅 유실 복구) ──
+contractsRouter.post('/:id/contract/refresh', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
+  const id = quoteId(req);
+  if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  try {
+    const c = await refreshContractStatus(id);
+    res.json({ data: c ? { id: c.id, status: c.status, completed_at: c.completed_at } : null });
+  } catch (e) {
+    console.error('[POST contract/refresh]', e);
+    res.status(502).json({ error: { code: 'MODUSIGN_ERROR', message: '상태 조회 실패' } });
+  }
+});
+
 contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
