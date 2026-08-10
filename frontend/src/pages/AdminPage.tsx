@@ -5,11 +5,11 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote, assignQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
-import { fetchWeightConstants, upsertWeightConstant, type WeightConstant } from '../api/weight-constants'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { OptionDbTab } from '../components/OptionDbTab'
+import { BTN } from '../styles/buttons'
 import { Tooltip } from '../components/Tooltip'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -339,7 +339,7 @@ function AccountsTab() {
     if (user.is_master) {
       return isMaster ? (
         <button
-          style={{ ...acc.actionBtn, ...btnH }}
+          style={{ ...BTN.row, ...btnH }}
           onClick={() => handleResetPw(user.email)}
           disabled={resetting === user.email}
         >
@@ -350,27 +350,27 @@ function AccountsTab() {
     return (
       <>
         <button
-          style={{ ...acc.actionBtn, ...btnH }}
+          style={{ ...BTN.row, ...btnH }}
           onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
         >
           {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
         </button>
         <button
-          style={{ ...acc.actionBtn, ...btnH }}
+          style={{ ...BTN.row, ...btnH }}
           onClick={() => handleResetPw(user.email)}
           disabled={resetting === user.email}
         >
           {resetting === user.email ? '…' : '비번재설정'}
         </button>
         <button
-          style={{ ...(user.status === 'active' ? acc.suspendBtn : acc.activateBtn), ...btnH }}
+          style={{ ...(user.status === 'active' ? BTN.rowDanger : BTN.rowPrimary), ...btnH }}
           onClick={() => handleToggleStatus(user)}
           disabled={togglingStatus === user.email}
         >
           {user.status === 'active' ? '정지' : '활성화'}
         </button>
         <button
-          style={{ ...(isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.deleteBtn), ...btnH }}
+          style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDanger), ...btnH }}
           onClick={() => handleDelete(user.email)}
           disabled={isDeleteDisabled(user) || deleting === user.email}
           title={
@@ -383,7 +383,7 @@ function AccountsTab() {
         </button>
         {isMaster && (
           <button
-            style={{ ...(isDeleteDisabled(user) ? acc.deleteBtnDisabled : acc.cascadeDeleteBtn), ...btnH }}
+            style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDangerOutline), ...btnH }}
             onClick={() => handleCascadeDelete(user.email)}
             disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
             title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
@@ -405,13 +405,13 @@ function AccountsTab() {
         <div style={acc.resetResultBox}>
           <span style={acc.resetResultLabel}>{resetResult.email} 임시 비밀번호 (1회만 표시):</span>
           <span style={acc.tempPw}>{resetResult.temp_password}</span>
-          <button style={acc.dismissBtn} onClick={() => setResetResult(null)}>확인</button>
+          <button style={BTN.barPrimary} onClick={() => setResetResult(null)}>확인</button>
         </div>
       )}
 
       <div style={acc.toolbar}>
         <span style={acc.count}>{users.length}명</span>
-        <button style={{ ...acc.createBtn, minHeight: isMobile ? 44 : undefined }} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
+        <button style={{ ...BTN.barPrimary, minHeight: isMobile ? 44 : undefined }} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
       </div>
 
       {isMobile ? (
@@ -549,6 +549,101 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
   )
 }
 
+// ── 고객정보 조회 (읽기 전용) ─────────────────────────────────────────────
+//
+// 관리자는 견적을 **고치지 않는다**. 계약서·견적서에 어떤 값이 들어갔는지 확인만 하면 되므로
+// 영업의 「수정」 폼을 그대로 쓰지 않고, 같은 항목을 읽기 전용으로 보여준다.
+// 값은 견적 저장 시 함께 굳어진 입력 스냅샷(quote.inputs)과 고객 마스터에서 그대로 읽는다.
+const BIZ_KO: Record<string, string> = {
+  individual: '개인사업자', corporate: '법인사업자', simplified: '간이과세자', personal: '개인',
+}
+const DIESEL_KO: Record<string, string> = {
+  none: '경유차 없음', keep: '경유차 유지 후 전기차 전환', scrap: '경유차 폐차 후 전기차 전환',
+}
+
+function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose: () => void }) {
+  const inp = (quote.inputs ?? {}) as Record<string, unknown>
+  const t = (k: string) => { const v = inp[k]; return v == null || v === '' ? '' : String(v) }
+  const isCorp = t('biz_type') === 'corporate'
+  const yn = (k: string) => (inp[k] === true ? '예' : '아니오')
+
+  const groups: { title: string; rows: [string, string][] }[] = [
+    {
+      title: '고객',
+      rows: [
+        [isCorp ? '상호' : '성명', quote.customer?.name ?? ''],
+        ...(isCorp ? [['대표이사', t('ceo_name')] as [string, string]] : []),
+        ['사업자 구분', BIZ_KO[t('biz_type')] ?? t('biz_type')],
+        ['연락처', quote.customer?.phone ?? ''],
+        ['이메일', quote.customer?.email ?? ''],
+        ['세부주소', quote.customer?.address ?? ''],
+      ],
+    },
+    {
+      title: '보조금 조건',
+      rows: [
+        ['지역', t('region')],
+        ['소상공인', yn('is_sosang')],
+        ['화물운송 허가', yn('has_transport_license')],
+        ['경유차', DIESEL_KO[t('diesel_status')] ?? t('diesel_status')],
+      ],
+    },
+    {
+      title: '계약서 정보',
+      rows: [
+        ['계약 당사자', t('contract_party')],
+        [isCorp ? '사업자번호' : '생년월일', t('buyer_regno')],
+        ['유선번호', t('buyer_tel')],
+        ['대리인', t('buyer_agent')],
+        ['관계', t('buyer_relation')],
+      ],
+    },
+    {
+      title: '결제 조건',
+      rows: [
+        ['선수금 비율', t('down_payment_rate') ? `${Math.round(Number(t('down_payment_rate')) * 100)}%` : ''],
+        ['할부 개월', t('installment_months') === '0' ? '일시불' : (t('installment_months') ? `${t('installment_months')}개월` : '')],
+        ['메모', t('memo')],
+      ],
+    },
+  ]
+
+  return (
+    <div style={modal.overlay} onClick={onClose}>
+      <div style={{ ...modal.box, width: 520, maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={modal.title}>고객 정보 — {quote.quote_no ?? `#${quote.id}`}</div>
+        <div style={modal.desc}>조회 전용입니다. 값을 고치려면 영업 견적 목록의 「수정」을 이용하세요.</div>
+        {groups.map(g => (
+          <div key={g.title}>
+            <div style={cv.groupTitle}>{g.title}</div>
+            <table style={cv.table}>
+              <tbody>
+                {g.rows.map(([label, value]) => (
+                  <tr key={label}>
+                    <td style={cv.tdLabel}>{label}</td>
+                    <td style={value ? cv.tdValue : cv.tdEmpty}>{value || '입력 없음'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        <div style={modal.actions}>
+          <button style={modal.confirmBtn} onClick={onClose}>닫기</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const cv: Record<string, React.CSSProperties> = {
+  groupTitle: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', margin: '4px 0 6px' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  tdLabel: { padding: '6px 10px 6px 0', color: 'var(--muted)', width: 110, verticalAlign: 'top', whiteSpace: 'nowrap' },
+  tdValue: { padding: '6px 0', color: 'var(--dark)', wordBreak: 'break-all' },
+  tdEmpty: { padding: '6px 0', color: '#c2c8cf' },
+}
+
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
 function QuotesTab() {
   const { session } = useAuth()
@@ -567,6 +662,7 @@ function QuotesTab() {
   const [confirmError, setConfirmError] = useState('')
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [viewing, setViewing] = useState<ApiQuote | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -650,7 +746,7 @@ function QuotesTab() {
           <span style={qt.dateSep}>~</span>
           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput, ...(isMobile ? { minHeight: 44 } : {}) }} />
         </div>
-        <button onClick={load} style={{ ...qt.searchBtn, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>조회</button>
+        <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>조회</button>
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
@@ -694,23 +790,31 @@ function QuotesTab() {
               </div>
               <div style={qtMob.actions}>
                 <button
-                  style={{ ...qt.pdfBtn, flex: 1, minHeight: 44 }}
+                  style={{ ...BTN.row, flex: 1, minHeight: 44 }}
+                  onClick={() => setViewing(q)}
+                >고객정보</button>
+                <button
+                  style={{ ...BTN.row, flex: 1, minHeight: 44 }}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                 >견적서</button>
                 <button
-                  style={{ ...qt.pdfBtn, flex: 1, minHeight: 44, ...(q.status === 'draft' ? { opacity: 0.45 } : {}) }}
+                  style={{ ...(q.status === 'draft' ? BTN.rowMuted : BTN.row), flex: 1, minHeight: 44 }}
                   disabled={q.status === 'draft'}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                 >계약서</button>
                 {q.status === 'draft' && (
-                  <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
+                  <button style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
-                {['confirmed', 'contracted'].includes(q.status) && (
-                  <button style={{ ...qt.confirmBtn, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                {/* 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
+                {q.status === 'confirmed' && (
+                  <button style={{ ...BTN.rowMuted, flex: 1, minHeight: 44 }} disabled title="전자서명이 완료되어야 배정할 수 있습니다">배정</button>
+                )}
+                {q.status === 'contracted' && (
+                  <button style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                 )}
                 {(q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                   <button
-                    style={{ ...(deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)), flex: 1, minHeight: 44 }}
+                    style={{ ...(deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)), flex: 1, minHeight: 44 }}
                     disabled={deletingId === q.id}
                     onClick={() => handleDelete(q.id, q.status)}
                   >{deletingId === q.id ? '…' : '삭제'}</button>
@@ -756,25 +860,34 @@ function QuotesTab() {
                   <td style={qt.td}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
-                        style={qt.pdfBtn}
+                        style={BTN.row}
+                        title="고객·계약 정보 조회 (수정 불가)"
+                        onClick={() => setViewing(q)}
+                      >고객정보</button>
+                      <button
+                        style={BTN.row}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                       >견적서</button>
                       {/* 계약서는 견적 확정(생성) 후에만 의미가 있다 — 발송은 영업 업무라 관리자엔 두지 않는다 */}
                       <button
-                        style={q.status === 'draft' ? { ...qt.pdfBtn, opacity: 0.45 } : qt.pdfBtn}
+                        style={q.status === 'draft' ? BTN.rowMuted : BTN.row}
                         disabled={q.status === 'draft'}
                         title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                       >계약서</button>
                       {q.status === 'draft' && (
-                        <button style={qt.confirmBtn} onClick={() => handleConfirm(q.id)}>확정</button>
+                        <button style={BTN.rowPrimary} onClick={() => handleConfirm(q.id)}>확정</button>
                       )}
-                      {['confirmed', 'contracted'].includes(q.status) && (
-                        <button style={qt.confirmBtn} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                      {/* 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
+                      {q.status === 'confirmed' && (
+                        <button style={BTN.rowMuted} disabled title="전자서명이 완료되어야 배정할 수 있습니다">배정</button>
+                      )}
+                      {q.status === 'contracted' && (
+                        <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                       )}
                       {(q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                         <button
-                          style={deletingId === q.id ? qt.deleteBtnDisabled : (q.status !== 'draft' ? qt.deleteBtnStrong : qt.deleteBtn)}
+                          style={deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)}
                           disabled={deletingId === q.id}
                           onClick={() => handleDelete(q.id, q.status)}
                           title={q.status !== 'draft' ? '견적 삭제 — 연결 주문·서류도 함께 삭제됩니다' : '견적 삭제'}
@@ -790,6 +903,8 @@ function QuotesTab() {
           </table>
         </div>
       )}
+
+      {viewing && <CustomerViewModal quote={viewing} onClose={() => setViewing(null)} />}
 
       {confirmingId !== null && (
         <ConfirmModal
@@ -953,129 +1068,17 @@ export function AdminPage() {
         )}
 
         {activeTab === 'accounts' && <AccountsTab />}
-        {activeTab === 'weights' && <WeightConstantsTab />}
-        {activeTab === 'optiondb' && <OptionDbTab />}
+        {/* 무게상수도 옵션DB와 같은 화면을 쓴다 — 편집·이력·되돌리기가 전부 동일하게 동작 */}
+        {activeTab === 'weights' && (
+          <OptionDbTab
+            only={['weight_constant']}
+            note={<>하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 <b>다음 서류생성부터 재계산</b>에 반영됩니다.</>}
+          />
+        )}
+        {activeTab === 'optiondb' && <OptionDbTab only={['option_price', 'subsidy_local', 'subsidy_national', 'tax_config', 'installment_rate']} />}
       </div>
     </div>
   )
-}
-
-// ── 무게상수 탭 (weight_constant CRUD — 관리자 전용) ─────────────────────────
-const WC_CATS: [string, string][] = [
-  ['vehicle', '차종 기준값'],
-  ['item', '항목 무게·위치'],
-  ['tire', '타이어'],
-  ['topframe', '탑무게 — 프레임(공통)'],
-  ['topreefer', '탑무게 — 냉동'],
-  ['topdry', '탑무게 — 내장'],
-]
-
-function WeightConstantsTab() {
-  const [rows, setRows] = useState<WeightConstant[]>([])
-  const [draft, setDraft] = useState<Record<string, string>>({})
-  const [saving, setSaving] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [err, setErr] = useState('')
-
-  function load() {
-    setLoading(true); setErr('')
-    fetchWeightConstants()
-      .then(rs => { setRows(rs); setDraft(Object.fromEntries(rs.map(r => [r.key, String(r.value)]))) })
-      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(() => { load() }, [])
-
-  async function save(row: WeightConstant) {
-    const raw = (draft[row.key] ?? '').trim()
-    const value = Number(raw)
-    if (!raw || !Number.isFinite(value)) { setErr(`${row.key}: 숫자를 입력하세요`); return }
-    setSaving(row.key); setErr('')
-    try {
-      await upsertWeightConstant({ ...row, value })
-      setRows(prev => prev.map(r => r.key === row.key ? { ...r, value } : r))
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : '저장 실패')
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  if (loading) return <div style={styles.content}>불러오는 중…</div>
-
-  return (
-    <div style={styles.content}>
-      <div style={wc.note}>
-        하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 <b>다음 서류생성부터 재계산</b>에 반영됩니다. (영업 화면 미노출)
-      </div>
-      {err && <div style={wc.err}>{err}</div>}
-      {WC_CATS.map(([cat, label]) => {
-        const list = rows.filter(r => r.category === cat)
-        if (!list.length) return null
-        return (
-          <div key={cat} style={wc.group}>
-            <div style={wc.groupLabel}>{label}</div>
-            <table style={wc.table}>
-              <thead>
-                <tr>
-                  <th style={wc.th}>키</th>
-                  <th style={wc.th}>설명</th>
-                  <th style={{ ...wc.th, textAlign: 'right', width: 120 }}>값</th>
-                  <th style={{ ...wc.th, width: 60 }}>단위</th>
-                  <th style={{ ...wc.th, width: 70 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {list.map(r => {
-                  const dirty = (draft[r.key] ?? '') !== String(r.value)
-                  return (
-                    <tr key={r.key}>
-                      <td style={wc.tdKey}>{r.key}</td>
-                      <td style={wc.tdDesc}>{r.description}</td>
-                      <td style={wc.tdVal}>
-                        <input
-                          style={wc.input}
-                          inputMode="decimal"
-                          value={draft[r.key] ?? ''}
-                          onChange={e => setDraft(d => ({ ...d, [r.key]: e.target.value }))}
-                        />
-                      </td>
-                      <td style={wc.tdUnit}>{r.unit}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          style={dirty ? wc.btnOn : wc.btnOff}
-                          disabled={!dirty || saving === r.key}
-                          onClick={() => save(r)}
-                        >
-                          {saving === r.key ? '저장중' : '저장'}
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-const wc: Record<string, React.CSSProperties> = {
-  note: { background: '#fef6e6', border: '1px solid #f0d9a8', color: '#7a5b17', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 14 },
-  err: { background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 12 },
-  group: { marginBottom: 20 },
-  groupLabel: { fontSize: 13, fontWeight: 700, color: '#333', margin: '0 0 6px 2px' },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
-  th: { textAlign: 'left', color: '#888', fontWeight: 600, fontSize: 11.5, padding: '4px 8px', borderBottom: '1px solid #e5e5e5' },
-  tdKey: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', fontFamily: 'monospace', color: '#444', whiteSpace: 'nowrap' },
-  tdDesc: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', color: '#666' },
-  tdVal: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' },
-  tdUnit: { padding: '5px 8px', borderBottom: '1px solid #f0f0f0', color: '#888', whiteSpace: 'nowrap' },
-  input: { width: 100, textAlign: 'right', padding: '4px 6px', border: '1px solid #ccc', borderRadius: 6, fontSize: 12.5 },
-  btnOn: { padding: '4px 12px', border: 'none', borderRadius: 6, background: '#2e7d32', color: '#fff', fontSize: 12, cursor: 'pointer' },
-  btnOff: { padding: '4px 12px', border: '1px solid #ddd', borderRadius: 6, background: '#f5f5f5', color: '#bbb', fontSize: 12, cursor: 'default' },
 }
 
 // ── 스타일 ────────────────────────────────────────────────────────────────

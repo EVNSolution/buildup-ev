@@ -239,7 +239,13 @@ export interface ApiPricingBundle {
 
 // ── 견적 / 주문 API 응답 타입 ──────────────────────────────────────────────
 
-export type QuoteStatus = 'draft' | 'confirmed' | 'assigned' | 'ordered' | 'expired';
+/**
+ * 견적 상태 6단계 (+ 만료).
+ *   임시저장 → 견적확정 → 계약완료(전자서명 완료) → 배정완료 → 주문진행 → 완료
+ * DB enum(QuoteStatus)과 값이 1:1로 같아야 한다.
+ */
+export type QuoteStatus =
+  | 'draft' | 'confirmed' | 'contracted' | 'assigned' | 'ordered' | 'completed' | 'expired';
 
 export interface ApiQuote {
   id: number;

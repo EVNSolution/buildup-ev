@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react'
 import {
   OPTION_DB_TABLES, fetchOptionDbTable, saveOptionDbRows, fetchOptionDbLogs,
-  type OptionDbTable, type OptionDbLog,
+  fetchRestorePoints, rollbackOptionDb,
+  type OptionDbTable, type OptionDbLog, type RestorePoint,
 } from '../api/option-db'
+import { BTN } from '../styles/buttons'
 
 /**
  * 옵션DB(기준데이터) 관리 — ADMIN 전용.
  * 총견적서 '옵션DB' 시트에 해당하는 값들을 여기서만 수정한다(단가·보조금·세율·이율).
  * 수정 시 변경 필드별로 이전값→새값·수정자·수정일시가 기록되며 [변경 이력]에서 확인.
  */
-export function OptionDbTab() {
-  const [table, setTable] = useState<string>(OPTION_DB_TABLES[0].name)
+interface Props {
+  /** 이 테이블들만 다룬다(생략하면 전부). 무게상수 탭이 같은 화면을 재사용한다. */
+  only?: string[]
+  /** 표 위 안내문 */
+  note?: React.ReactNode
+}
+
+export function OptionDbTab({ only, note }: Props = {}) {
+  const TABS = only ? OPTION_DB_TABLES.filter((t) => only.includes(t.name)) : OPTION_DB_TABLES
+  const [table, setTable] = useState<string>(TABS[0]?.name ?? OPTION_DB_TABLES[0].name)
   const [q, setQ] = useState('')
   const [data, setData] = useState<OptionDbTable | null>(null)
   const [edits, setEdits] = useState<Record<string, Record<string, unknown>>>({})
@@ -18,6 +28,8 @@ export function OptionDbTab() {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [logs, setLogs] = useState<OptionDbLog[] | null>(null)
+  const [points, setPoints] = useState<RestorePoint[] | null>(null)
+  const [rollingBack, setRollingBack] = useState('')
 
   const keyOf = (row: Record<string, unknown>, pk: string[]) => pk.map((f) => String(row[f] ?? '')).join('|')
 
@@ -47,6 +59,11 @@ export function OptionDbTab() {
     const pfx = String(row['value_code'] ?? '').split('_')[0]
     return SECTIONS.find((s) => s.prefixes.includes(pfx))?.label ?? '기타'
   }
+  /** 무게상수는 행이 들고 있는 category 로 나눈다(옵션 단가의 접두어 구분과 같은 역할). */
+  const WC_CATS: Record<string, string> = {
+    vehicle: '차종 기준값', item: '항목 무게·위치', tire: '타이어',
+    topframe: '탑무게 — 프레임(공통)', topreefer: '탑무게 — 냉동', topdry: '탑무게 — 내장',
+  }
   // ── 코드 → 사람이 읽는 이름 ──────────────────────────────────────────────
   // 옵션 단가는 `DOPT_REEFER_LOW_SLIDE` 같은 복합코드다. 무슨 조합인지 코드를 알아야
   // 읽히므로, DB 구조를 모르는 관리자가 고칠 수 없었다. 조각을 한글로 풀어 함께 보여준다.
@@ -74,6 +91,7 @@ export function OptionDbTab() {
   /** 열 제목도 코드 대신 한글로 — 관리자가 무슨 칸인지 알 수 있어야 한다. */
   const COL_KO: Record<string, string> = {
     model_code: '차종', value_code: '옵션 코드', supply_price: '단가', memo: '메모',
+    key: '상수 이름', description: '설명', category: '구분',
     region: '지역', year: '연도', amount: '금액', extra: '추가', remaining_quota: '잔여물량',
     as_of: '기준일', active: '적용', param_key: '항목', value: '값', unit: '단위',
     months: '개월수', rate: '이율', label: '표기',
@@ -88,8 +106,17 @@ export function OptionDbTab() {
     return `${head} · ${parts.join(' / ')}`
   }
 
-  /** 섹션 순서를 유지한 채 행을 묶는다. option_price 에만 적용. */
+  /** 섹션 순서를 유지한 채 행을 묶는다(구분이 있는 표만). */
   function grouped(rows: Record<string, unknown>[]): { label: string; rows: Record<string, unknown>[] }[] {
+    if (table === 'weight_constant') {
+      const order = Object.values(WC_CATS)
+      const map = new Map<string, Record<string, unknown>[]>()
+      for (const r of rows) {
+        const k = WC_CATS[String(r['category'] ?? '')] ?? '기타'
+        map.set(k, [...(map.get(k) ?? []), r])
+      }
+      return [...order, '기타'].filter((l) => map.has(l)).map((l) => ({ label: l, rows: map.get(l)! }))
+    }
     if (table !== 'option_price') return [{ label: '', rows }]
     const order = [...SECTIONS.map((s) => s.label), '기타']
     const map = new Map<string, Record<string, unknown>[]>()
@@ -140,6 +167,37 @@ export function OptionDbTab() {
     }
   }
 
+  // ── 되돌리기 ────────────────────────────────────────────────────────────
+  // 잘못 고쳤을 때 "그때로 돌려줘"가 가능해야 한다. 변경 이력만으로 복원하므로
+  // 별도 백업이 필요 없고, 되돌린 것도 이력에 남아 다시 되돌릴 수 있다.
+  function openRestore() {
+    setErr(''); setMsg('')
+    fetchRestorePoints(table)
+      .then(setPoints)
+      .catch((e) => setErr(e instanceof Error ? e.message : '복원 지점 조회 실패'))
+  }
+
+  async function doRollback(p: RestorePoint) {
+    const when = p.at.replace('T', ' ').slice(0, 16)
+    if (!window.confirm(
+      `${when} 의 수정 **직전** 상태로 되돌립니다.\n\n`
+      + `되돌릴 범위: ${p.rows}개 항목 · ${p.fields}개 값\n`
+      + `(이 시점 이후의 모든 수정이 함께 취소됩니다)\n\n진행할까요?`,
+    )) return
+    setRollingBack(p.at); setErr('')
+    try {
+      const r = await rollbackOptionDb(table, p.at)
+      setPoints(null)
+      setMsg(`${when} 직전 상태로 되돌렸습니다 — ${r.rows}개 항목 · ${r.changed_fields}개 값 복원`
+        + (r.skipped.length ? ` (그 뒤 새로 만들어진 ${r.skipped.length}개 항목은 그대로 두었습니다)` : ''))
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '되돌리기 실패')
+    } finally {
+      setRollingBack('')
+    }
+  }
+
   function openLogs(rowKey?: string) {
     fetchOptionDbLogs({ table, row_key: rowKey, limit: 200 })
       .then(setLogs)
@@ -152,9 +210,11 @@ export function OptionDbTab() {
   return (
     <div style={s.root}>
       <div style={s.bar}>
-        <select style={s.select} value={table} onChange={(e) => { setQ(''); setTable(e.target.value) }}>
-          {OPTION_DB_TABLES.map((t) => <option key={t.name} value={t.name}>{t.label}</option>)}
-        </select>
+        {TABS.length > 1 && (
+          <select style={s.select} value={table} onChange={(e) => { setQ(''); setTable(e.target.value) }}>
+            {TABS.map((t) => <option key={t.name} value={t.name}>{t.label}</option>)}
+          </select>
+        )}
         {searchable && (
           <>
             <input
@@ -163,15 +223,18 @@ export function OptionDbTab() {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') load() }}
             />
-            <button style={s.btn} onClick={() => load()}>검색</button>
+            <button style={BTN.bar} onClick={() => load()}>검색</button>
           </>
         )}
         <div style={{ flex: 1 }} />
-        <button style={s.btn} onClick={() => openLogs()}>변경 이력</button>
-        <button style={dirty ? s.primary : s.btnDisabled} onClick={save} disabled={!dirty || loading}>
+        <button style={BTN.bar} onClick={() => openLogs()}>변경 이력</button>
+        <button style={BTN.barDanger} onClick={openRestore}>되돌리기</button>
+        <button style={dirty ? BTN.barPrimary : BTN.barDisabled} onClick={save} disabled={!dirty || loading}>
           {loading ? '처리 중…' : dirty ? `저장 (${dirty}행)` : '저장'}
         </button>
       </div>
+
+      {note && <div style={s.note}>{note}</div>}
 
       {msg && <div style={s.ok}>✓ {msg}</div>}
       {err && <div style={s.err}>{err}</div>}
@@ -239,7 +302,7 @@ export function OptionDbTab() {
                       </td>
                     ))}
                     <td style={s.td}>
-                      <button style={s.linkBtn} title="이 항목의 변경 이력" onClick={() => openLogs(k)}>이력</button>
+                      <button style={BTN.row} title="이 항목의 변경 이력" onClick={() => openLogs(k)}>이력</button>
                     </td>
                   </tr>
                 )
@@ -252,12 +315,55 @@ export function OptionDbTab() {
         </div>
       )}
 
+      {points && (
+        <div style={s.overlay} onClick={(ev) => { if (ev.target === ev.currentTarget) setPoints(null) }}>
+          <div style={s.modal}>
+            <div style={s.modalHead}>
+              <span style={s.modalTitle}>되돌리기 — {TABS.find((t) => t.name === table)?.label}</span>
+              <button style={BTN.bar} onClick={() => setPoints(null)}>✕</button>
+            </div>
+            <div style={s.note}>
+              되돌릴 시점을 고르세요. 고른 <b>수정 직전</b> 상태로 값이 복원되며,
+              그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.
+            </div>
+            <div style={s.logWrap}>
+              {points.length === 0 ? <div style={s.empty}>되돌릴 수 있는 수정 기록이 없습니다.</div> : (
+                <table style={s.table}>
+                  <thead>
+                    <tr>
+                      <th style={s.th}>수정 일시</th><th style={s.th}>수정자</th>
+                      <th style={s.th}>범위</th><th style={s.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {points.map((p) => (
+                      <tr key={p.at}>
+                        <td style={s.tdSm}>{p.at.replace('T', ' ').slice(0, 16)}</td>
+                        <td style={s.tdSm}>{p.by}</td>
+                        <td style={s.tdSm}>{p.rows}개 항목 · {p.fields}개 값</td>
+                        <td style={s.tdSm}>
+                          <button
+                            style={rollingBack ? BTN.rowDisabled : BTN.rowDangerOutline}
+                            disabled={!!rollingBack}
+                            onClick={() => doRollback(p)}
+                          >{rollingBack === p.at ? '되돌리는 중…' : '이 직전으로'}</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {logs && (
         <div style={s.overlay} onClick={(ev) => { if (ev.target === ev.currentTarget) setLogs(null) }}>
           <div style={s.modal}>
             <div style={s.modalHead}>
               <span style={s.modalTitle}>변경 이력 — {OPTION_DB_TABLES.find((t) => t.name === table)?.label}</span>
-              <button style={s.btn} onClick={() => setLogs(null)}>✕</button>
+              <button style={BTN.bar} onClick={() => setLogs(null)}>✕</button>
             </div>
             <div style={s.logWrap}>
               {logs.length === 0 ? <div style={s.empty}>기록이 없습니다.</div> : (
@@ -295,6 +401,7 @@ const s: Record<string, React.CSSProperties> = {
   sectionRow: { background: '#eef2e6', color: '#42502a', fontWeight: 700, fontSize: 14, padding: '7px 10px', borderTop: '2px solid #d5e0bf' },
   sectionCount: { fontSize: 12, color: '#7b8a5e', fontWeight: 400, marginLeft: 6 },
   sub: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
+  note: { background: '#f7f8f3', border: '1px solid var(--line)', color: '#5b6350', fontSize: 12.5, padding: '9px 12px', borderRadius: 8, marginBottom: 12, lineHeight: 1.6 },
   root: { padding: 16 },
   bar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
   select: { padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 7, fontSize: 13 },
