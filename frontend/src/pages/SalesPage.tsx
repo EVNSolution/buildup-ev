@@ -230,7 +230,6 @@ function MyListView() {
     {contractQuote && (
       <div
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
-        onClick={(e) => { if (e.target === e.currentTarget) setContractQuote(null) }}
       >
         <div style={{ width: 'min(460px, 94vw)', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -342,7 +341,7 @@ function MyListView() {
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
-                          >견적서</button>
+                          >견적 생성</button>
                           {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
                           <button
                             style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
@@ -881,7 +880,7 @@ const lv: Record<string, React.CSSProperties> = {
   badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)' },
   badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0' },
-  pdfBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
-  sendBtn: { padding: '4px 10px', border: '1px solid #b8c9e0', borderRadius: 6, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 11 },
-  confirmBtn: { padding: '4px 10px', border: '1px solid #1a1a1a', borderRadius: 6, cursor: 'pointer', background: '#1a1a1a', color: '#fff', fontWeight: 700, fontSize: 11 },
+  pdfBtn: { padding: '4px 10px', minWidth: 74, textAlign: 'center' as const, border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
+  sendBtn: { padding: '4px 10px', minWidth: 74, textAlign: 'center' as const, border: '1px solid #b8c9e0', borderRadius: 6, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 11 },
+  confirmBtn: { padding: '4px 10px', minWidth: 74, textAlign: 'center' as const, border: '1px solid #1a1a1a', borderRadius: 6, cursor: 'pointer', background: '#1a1a1a', color: '#fff', fontWeight: 700, fontSize: 11 },
 }

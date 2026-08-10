@@ -115,8 +115,10 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   const missingCeo = isCorporate && !v.ceo_name.trim()
   const canSave = !!v.name.trim() && !missingCeo && !saving
 
+  // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
+  // 닫기는 '취소' 와 ✕ 로만.
   return (
-    <div style={s.overlay} onClick={onClose}>
+    <div style={s.overlay}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <h2 style={s.h2}>{isEdit ? '고객정보 수정' : '견적 저장'}</h2>
         <p style={s.desc}>
@@ -197,16 +199,16 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
-        <div style={s.row}>
-          <label style={s.label}>세부주소 <span style={s.req}>· 지역 뒤에 붙어 계약서 주소가 된다</span></label>
-          <input style={s.field} type="text" value={v.address} onChange={e => set('address', e.target.value)} />
-        </div>
 
         <div style={s.sectionTitle}>보조금 조건</div>
         {/* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */}
         <SubsidyForm
           value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
         />
+        <div style={s.row}>
+          <label style={s.label}>세부주소 <span style={s.req}>· 지역 뒤에 붙어 계약서 주소가 된다</span></label>
+          <input style={s.field} type="text" value={v.address} onChange={e => set('address', e.target.value)} />
+        </div>
 
         {isCorporate && (
           <div style={s.signNote}>

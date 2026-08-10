@@ -59,8 +59,9 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
     finally { setBusy(false) }
   }
 
+  // 바깥 클릭으로 닫지 않는다 — 입력 중 실수로 눌러 값이 날아간다. 닫기는 ✕·취소로만.
   return (
-    <div style={s.overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={s.overlay}>
       <div style={s.box}>
         <div style={s.head}>
           <span style={s.title}>{isConfirmed ? '견적 입력 수정' : '견적서 생성'}{customerName ? ` — ${customerName}` : ''}</span>
