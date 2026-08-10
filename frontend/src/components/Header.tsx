@@ -37,7 +37,9 @@ export function Header({ customer }: Props) {
   return (
     <header style={{
       ...styles.header,
-      padding: isMobile ? '10px 14px' : '11px 20px',
+      // 데스크톱 최상단바 두께 2배 (53.5px → 107px). 내용 높이 30.5px 기준으로 상하 38px.
+      // 모바일은 이미 줄바꿈으로 높아져 그대로 둔다.
+      padding: isMobile ? '10px 14px' : '38px 20px',
       flexWrap: isMobile ? 'wrap' : 'nowrap',
       gap: isMobile ? 8 : 12,
     }}>
@@ -93,7 +95,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
-    padding: '11px 20px',
+    padding: '38px 20px',
     borderBottom: '1px solid var(--line)',
     background: '#fff',
   },
