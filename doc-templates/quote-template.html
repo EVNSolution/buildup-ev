@@ -118,17 +118,14 @@
         <colgroup><col style="width:63%"><col style="width:37%"></colgroup>
         <!-- each:topOptions --><tr><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:topOptions -->
         <tr class="grp"><td class="k"><span class="cir">⑦</span> 특장 가격 (VAT 포함)</td><td class="num">{{ top.priceTotal }}</td></tr>
-        <tr><td class="k">프로모션</td><td class="num">{{ top.promoAmount }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">⑧</span> 프로모션</td><td class="num">{{ top.promoTotal }}</td></tr>
-        <tr class="grp"><td class="k">특장 결제 금액 (⑦-⑧)</td><td class="num">{{ top.paymentAmount }}</td></tr>
         <tr><td class="k">계약금</td><td class="num">{{ top.downPayment }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">⑨</span> 인도금(특장)</td><td class="num">{{ top.deliveryPayment }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">⑧</span> 인도금(특장)</td><td class="num">{{ top.deliveryPayment }}</td></tr>
         <tr><td class="k">특장 취득세 (2.0%)</td><td class="num">{{ top.acqTax }}</td></tr>
         <tr><td class="k">등록부가수수료</td><td class="num">{{ top.etcRegFee }}</td></tr>
         <tr><td class="k">구조변경 비용</td><td class="num">{{ top.structureFee }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">⑩</span> 등록/부대비용</td><td class="num">{{ top.regCost }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">⑨</span> 등록/부대비용</td><td class="num">{{ top.regCost }}</td></tr>
         <!-- pad:top -->
-        <tr class="final"><td class="k">특장 초기 납부 금액 (⑨+⑩)</td><td class="num">{{ top.initialPayment }}</td></tr>
+        <tr class="final"><td class="k">특장 초기 납부 금액 (⑧+⑨)</td><td class="num">{{ top.initialPayment }}</td></tr>
       </table>
     </div>
 
@@ -146,10 +143,7 @@
         <tr><td class="lab">영업용 번호판 보유</td><td class="cval" colspan="2">{{ cust.hasCommercialPlate }}</td></tr>
         <tr><td class="lab">선수금</td><td class="cval" colspan="2">{{ cust.advanceRate }}</td></tr>
         <tr class="blank"><td>&nbsp;</td><td></td><td></td></tr>
-        <tr class="hh"><td class="k">할부</td><td class="num">차량</td><td class="num">특장</td></tr>
-        <tr><td class="k">할부금</td><td class="num">{{ inst.car }}</td><td class="num">{{ inst.top }}</td></tr>
-        <tr class="grp"><td class="k">총할부금</td><td class="num" colspan="2">{{ inst.total }}</td></tr>
-        <tr><td class="k">상품명</td><td class="cval" colspan="2">{{ inst.productName }}</td></tr>
+        <tr class="grp"><td class="k">할부원금</td><td class="num" colspan="2">{{ inst.total }}</td></tr>
         <tr><td class="k">이율</td><td class="num" colspan="2">{{ inst.interestRate }}</td></tr>
         <tr><td class="k">할부이자</td><td class="num" colspan="2">{{ inst.interest }}</td></tr>
         <tr><td class="k">이용기간</td><td class="num" colspan="2">{{ inst.termMonths }}</td></tr>

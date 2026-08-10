@@ -181,7 +181,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       regCost: won(r.car_reg_cost), initialPayment: won(r.car_initial),
     },
     top: {
-      priceTotal: won(r.body_price), promoAmount: won(r.promotion), promoTotal: won(r.promotion),
+      priceTotal: won(r.body_price),
       paymentAmount: won(r.body_payment), downPayment: won(r.body_deposit), deliveryPayment: won(r.body_delivery),
       acqTax: won(r.body_acq_tax), etcRegFee: won(r.etc_fee), structureFee: won(r.structure_change_fee), regCost: won(r.body_reg_cost), initialPayment: won(r.body_initial),
     },
@@ -194,10 +194,12 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       vatRefundPrice: won(r.vat_refund_price),
     },
     inst: {
-      car: won(r.car_installment), top: won(r.body_installment), total: won(r.total_installment),
-      productName: '일반형 오토론할부',
+      // 할부원금 = 총할부금. 차량·특장으로 나누지 않는다(양식에서 한 줄로 통합).
+      total: won(r.total_installment),
       interestRate: `${(r.installment_rate * 100).toFixed(2)}%`,
-      interest: won(r.installment_interest), termMonths: `${r.installment_months} 개월`,
+      // 일시불(개월수 0)이면 PMT 가 0 이라 이자 = -원금 이 된다 — 0원으로 표기한다.
+      interest: won(r.installment_months > 0 ? r.installment_interest : 0),
+      termMonths: `${r.installment_months} 개월`,
       monthlyPayment: won(r.monthly_payment),
     },
     memoText: (inp['memo'] as string | undefined) ?? '',
