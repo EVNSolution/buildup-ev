@@ -52,7 +52,7 @@ export const DIESEL_OPTIONS: { value: DieselStatusCode; label: string; note?: st
 ]
 
 /** 보조금 입력 폼(팝업·모달 공용). 라벨 폭이 좁은 팝업에서도 쓰도록 단일 열. */
-export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType, afterRegion }: {
+export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType, afterRegion, hideRequired }: {
   value: SubsidyInputs
   onChange: (v: SubsidyInputs) => void
   regions: string[]
@@ -61,6 +61,11 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
   hideBusinessType?: boolean
   /** 지역 칸 **바로 아래**에 끼워 넣을 내용(세부주소 등). 주소는 지역과 붙어 있어야 읽힌다. */
   afterRegion?: React.ReactNode
+  /**
+   * 「· 필수」 표시를 감춘다. 가격바의 보조금 팝업은 **지금 값을 바꿔 보는 곳**이지
+   * 저장 전에 채워야 할 목록이 아니다 — 거기서 필수라고 하면 겁만 준다.
+   */
+  hideRequired?: boolean
 }) {
   const set = <K extends keyof SubsidyInputs>(k: K, v: SubsidyInputs[K]) => onChange({ ...value, [k]: v })
   const s = compact ? f.rowTight : f.row
@@ -103,11 +108,11 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       </div>
 
       <YesNo
-        label="소상공인" hint="국고 30% 추가" tight={!!compact}
+        label="소상공인" hint="국고 30% 추가" tight={!!compact} hideRequired={!!hideRequired}
         value={value.is_small_business} onChange={v => set('is_small_business', v)}
       />
       <YesNo
-        label="화물자동차 운송사업허가증" hint="개인사업자 국고 10% 추가" tight={!!compact}
+        label="화물자동차 운송사업허가증" hint="개인사업자 국고 10% 추가" tight={!!compact} hideRequired={!!hideRequired}
         value={value.has_transport_license} onChange={v => set('has_transport_license', v)}
       />
     </>
@@ -119,19 +124,21 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
  * 체크박스는 '아니오'와 '아직 안 고름'이 구분되지 않아, 보조금처럼 금액이 갈리는
  * 조건에는 쓸 수 없다. 고르기 전에는 둘 다 눌리지 않은 상태로 남는다.
  */
-function YesNo({ label, hint, value, onChange, tight }: {
+function YesNo({ label, hint, value, onChange, tight, hideRequired }: {
   label: string
   hint?: string
   value: boolean | null
   onChange: (v: boolean) => void
   tight: boolean
+  hideRequired?: boolean
 }) {
   return (
     <div style={tight ? f.rowTight : f.row}>
       <label style={f.label}>
         {label}
         {hint ? <span style={f.hint}> · {hint}</span> : null}
-        {value === null ? <span style={f.needTag}> · 필수</span> : <span style={f.hint}> · 필수</span>}
+        {hideRequired ? null
+          : value === null ? <span style={f.needTag}> · 필수</span> : <span style={f.hint}> · 필수</span>}
       </label>
       <div style={f.yesNo}>
         <button type="button" style={value === true ? f.ynOn : f.ynOff} onClick={() => onChange(true)}>예</button>

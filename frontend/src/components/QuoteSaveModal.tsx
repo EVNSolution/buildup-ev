@@ -273,10 +273,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <div style={s.row}>
             <label style={s.label}>대표이사<Tag need done={!!v.ceo_name.trim()} /></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
-            {missingCeo && (
-              <div style={s.warn}>
-                대표이사를 입력해야 저장할 수 있습니다</div>
-            )}
           </div>
         )}
 
@@ -351,9 +347,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
             관계<Tag need={!!v.buyer_agent.trim()} done={!!v.buyer_relation.trim()} />
           </label>
           <input style={s.field} type="text" value={v.buyer_relation} onChange={e => set('buyer_relation', e.target.value)} />
-          {missingRelation && (
-            <div style={s.warnBox}>대리인을 입력하면 관계도 입력해야 저장할 수 있습니다</div>
-          )}
         </div>
 
         </div>
@@ -372,7 +365,6 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 }
 
 const s: Record<string, React.CSSProperties> = {
-  warnBox: { color: '#c0392b', fontSize: 14, marginTop: 4, lineHeight: 1.5 },
   signNote: {
     background: '#eef2e6', border: '1px solid #d5e0bf', color: '#42502a',
     fontSize: 14, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',

@@ -149,12 +149,12 @@ const styles = {
     justifyContent: 'center',
     overflow: 'hidden' as const,
     color: '#b3b9c0',
-    fontSize: 11,
+    fontSize: 13,
   },
   // 차량이 잘리면 안 되므로 칸 안에 통째로 담는다(contain)
   cardImgPic: { width: '100%', height: '100%', objectFit: 'contain' as const, display: 'block' },
   cardName: { fontWeight: 700, fontSize: 15, marginTop: 9, color: 'var(--dark)' },
-  cardCode: { fontSize: 10, color: 'var(--muted)', marginTop: 2 },
+  cardCode: { fontSize: 13, color: 'var(--muted)', marginTop: 2 },
   cardDelta: { fontSize: 13, color: 'var(--muted)', marginTop: 3, fontWeight: 600 },
 }
 
