@@ -4,10 +4,11 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import logoUrl from '../assets/logo.png'
 import type { CustomerInfo, Role } from '@shared/types/index'
 
+// 로고 옆 배지는 영어 한 단어로만 — 한글까지 넣으면 배지가 길어져 로고를 밀어낸다
 const ROLE_LABELS: Record<Role, string> = {
-  SALES: '영업 (Sales)',
-  ADMIN: '관리자 (Admin)',
-  MAKER: '특장사 (Conversion)',
+  SALES: 'Sales',
+  ADMIN: 'Admin',
+  MAKER: 'Maker',
 }
 
 interface Props {
