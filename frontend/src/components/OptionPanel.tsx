@@ -235,8 +235,10 @@ const styles = {
     fontSize: 12, padding: '8px 10px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,
   },
   panel: {
-    flexShrink: 0,
-    width: 440,
+    // 예전엔 440px 고정이라 넓은 화면에서 오른쪽이 휑하게 비어 보였다.
+    // 3D 가 16:9 로 자리를 잡고 남는 폭을 이 패널이 전부 채운다.
+    flex: 1,
+    minWidth: 380,
     display: 'flex',
     flexDirection: 'column' as const,
     minHeight: 0,

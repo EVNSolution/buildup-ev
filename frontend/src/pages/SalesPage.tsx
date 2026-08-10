@@ -705,6 +705,7 @@ export function SalesPage() {
           </div>
 
           <div style={styles.stage}>
+           <div style={styles.frame}>
             {/* iframe: 성공 전까지 hidden 상태로 백그라운드 로드 */}
             <iframe
               src="https://evnsolution.vivar.im/"
@@ -738,6 +739,7 @@ export function SalesPage() {
             )}
             <span style={styles.caption}>3D 미리보기 · 옵션 연동 예정</span>
             <span style={styles.watermark}>Powered by VIVAR</span>
+           </div>
           </div>
 
           <PriceBar
@@ -809,8 +811,9 @@ const styles = {
     overflow: 'hidden',
   },
   viewer: {
-    // 3D 화면이 과하게 커서 옵션 패널이 밀렸다 — 폭 비중을 3/4 로 줄인다.
-    flex: 0.75,
+    // 폭은 옵션 패널과 2:1 로 나눈다. 3D 는 이 폭 안에서 16:9 로 맞춰지고(styles.frame),
+    // 남는 자리는 위아래 여백이 된다 — 패널은 고정폭이 아니라 남은 폭을 전부 채운다.
+    flex: 2,
     minWidth: 0,
     display: 'flex',
     flexDirection: 'column' as const,
@@ -846,8 +849,28 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative' as const,
+    padding: 12,
+    boxSizing: 'border-box' as const,
     overflow: 'hidden' as const,
+    // 안쪽 16:9 박스가 이 영역을 기준으로 크기를 잡는다(아래 frame 의 cqw/cqh)
+    containerType: 'size' as const,
+  },
+  /**
+   * 3D 가 실제로 그려지는 곳 — **항상 정확히 16:9**.
+   *
+   * `aspect-ratio` 만 쓰면 가로가 좁아질 때 브라우저가 비율을 깨뜨린다(실측 확인).
+   * 그래서 남는 가로·세로 중 작은 쪽에 맞춰 폭을 직접 계산한다:
+   *   폭 = min(가용 가로, 가용 세로 × 16/9)
+   * 화면이 어떤 크기든 3D 는 16:9 를 유지하고, 남는 자리는 위아래(또는 좌우) 여백이 된다.
+   */
+  frame: {
+    position: 'relative' as const,
+    width: 'min(100cqw, 100cqh * 16 / 9)',
+    aspectRatio: '16 / 9',
+    overflow: 'hidden' as const,
+    borderRadius: 10,
+    border: '1px solid var(--line)',
+    background: '#fff',
   },
   embedTag: {
     position: 'absolute' as const,
@@ -861,7 +884,10 @@ const styles = {
     borderRadius: 6,
   },
   placeholderSvg: { width: '55%', maxWidth: 520 },
-  vivarFrame: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', border: 'none', transformOrigin: 'top left', transform: 'scale(1.7) translate(-90px, -68px)' },
+  // VIVAR 쪽 여백을 잘라내려고 1.7배 확대해 쓴다. 예전엔 이동량이 px 고정이라
+  // 화면 크기가 바뀌면 잘리는 위치가 달라졌다 — 퍼센트로 바꿔 어느 크기에서나 같은 자리로.
+  // (1 - 1/1.7) / 2 ≒ 20.6% 만큼 밀면 확대된 화면의 한가운데가 보인다.
+  vivarFrame: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', border: 'none', transformOrigin: 'top left', transform: 'scale(1.7) translate(-20.6%, -20.6%)' },
   fallback: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 8 },
   fallbackMsg: { fontSize: 11, color: '#b71c1c', background: '#fff8f8', border: '1px solid #ffcdd2', padding: '4px 10px', borderRadius: 6 },
   caption: { position: 'absolute' as const, bottom: 10, left: '50%', transform: 'translateX(-50%)', fontSize: 10, color: '#9aa0a8', background: 'rgba(255,255,255,0.82)', border: '1px solid var(--line)', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' as const, pointerEvents: 'none' as const, zIndex: 10 },
