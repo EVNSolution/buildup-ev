@@ -585,6 +585,16 @@ export function SalesPage() {
   }
 
   /** 「견적 저장」 → 고객·계약 정보를 받는 모달을 먼저 연다(진입 시 팝업은 없앴다). */
+  /**
+   * 저장 완료 후 새 견적 시작. 저장 상태만 풀고 **옵션 선택·고객 입력은 그대로 둔다** —
+   * 비슷한 조건으로 한 건 더 뽑는 경우가 많아, 전부 지우면 처음부터 다시 골라야 한다.
+   * (완전히 새로 시작하려면 옵션을 바꾸면 된다)
+   */
+  function handleStartNew() {
+    setSavedQuote(null)
+    setSaveError('')
+  }
+
   function handleOpenSave() {
     if (!bundle || liveCalc?.status === 'unsupported') return
     setSaveError('')
@@ -746,6 +756,7 @@ export function SalesPage() {
           optionPrices={bundle.option_prices}
           onSelect={handleSelect}
           onSave={handleOpenSave}
+          onStartNew={handleStartNew}
           isSaving={isSaving}
           savedQuote={savedQuote}
           saveError={saveError}
