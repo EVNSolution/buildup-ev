@@ -236,7 +236,8 @@ const styles: Record<string, React.CSSProperties> = {
   asideNote: { fontSize: fit(7.5, 0.49, 9.5), color: '#a8aeb6', fontWeight: 700 },
   asideSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, ...noSpill },
   blockLabel: { fontSize: fit(9, 0.57, 11), color: 'var(--muted)', ...noSpill },
-  blockValue: { fontSize: fit(10, 0.78, 15), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
+  // 금액 글자 크기는 차량+특장 칸(firstValue)과 동일하게 — 칸마다 다르면 눈이 튄다
+  blockValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   negVal: { color: '#c0392b' },
   mutedVal: { color: '#bfc4cb' },
   hero: { ...cellBase, flex: 1.3, background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
