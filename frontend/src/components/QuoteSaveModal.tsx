@@ -382,9 +382,10 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
   },
   modal: {
-    // 예전엔 440px 한 열이라 화면을 넘겨 스크롤해야 했다. 폭을 1.5배로 넓혀
-    // 입력칸을 두 열로 놓으면 한 화면에 들어온다.
-    background: '#fff', borderRadius: 16, width: 660, maxWidth: '94vw', maxHeight: '96vh',
+    // 예전엔 440px 한 열이라 화면을 넘겨 스크롤해야 했다. 두 열로 놓아 한 화면에 담는다.
+    // 폭 760 = 가장 긴 라벨(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가 · 필수」
+    // 342px)이 한 열에 줄바꿈 없이 들어가는 값(342×2 + 열간격 16 + 좌우여백 48 = 748) + 여유.
+    background: '#fff', borderRadius: 16, width: 760, maxWidth: '94vw', maxHeight: '96vh',
     overflowY: 'auto', padding: '18px 24px', boxShadow: '0 10px 40px rgba(0,0,0,.25)',
   },
   /** 입력칸 두 열. 한 줄을 다 쓰는 칸은 gridColumn: '1 / -1'. */
