@@ -220,16 +220,19 @@ const styles: Record<string, React.CSSProperties> = {
   flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },
   op: { fontSize: fit(11, 0.83, 16), color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
   // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
-  first: { ...cellBase, flex: 1.3, background: '#f7fadf', border: '1px solid var(--lime)' },
+  // 테두리 없이 배경색만으로 구분한다 — 선을 두르면 칸마다 굵기가 달라 보여 지저분했다
+  first: { ...cellBase, flex: 1.3, background: '#f7fadf' },
   firstLabel: { fontSize: fit(10, 0.73, 14), color: '#6b7300', fontWeight: 700, ...noSpill },
   firstValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   // 차량·특장 분해는 금액이 길어 좁은 화면에서 한 줄에 안 들어간다.
   // 숫자를 잘라 버리면 안 되므로 이 줄만 두 줄로 접히게 둔다(블록 밖으로는 못 나감).
   firstSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, lineHeight: 1.35, overflow: 'hidden' },
   block: { ...cellBase, position: 'relative' },
-  clickable: { cursor: 'pointer', border: '1px dashed var(--line)' },
+  // 누를 수 있다는 표시는 라벨의 '▸' 로 충분하다(점선 테두리는 뺐다)
+  clickable: { cursor: 'pointer' },
   // 등록·기타는 계산 흐름 밖 — 왼쪽에 구분선을 둬 실구매가와 시각적으로 분리한다
-  aside: { flex: 1.1, marginLeft: fit(4, 0.42, 8), paddingLeft: fit(8, 0.68, 13), borderLeft: '2px solid var(--line)' },
+  // 계산 흐름 밖이라는 구분은 왼쪽 여백으로만 준다
+  aside: { flex: 1.1, marginLeft: fit(10, 0.83, 16) },
   asideNote: { fontSize: fit(7.5, 0.49, 9.5), color: '#a8aeb6', fontWeight: 700 },
   asideSub: { fontSize: fit(7.5, 0.52, 10), color: 'var(--muted)', marginTop: 2, ...noSpill },
   blockLabel: { fontSize: fit(9, 0.57, 11), color: 'var(--muted)', ...noSpill },
@@ -249,8 +252,8 @@ const styles: Record<string, React.CSSProperties> = {
   stackBig: { fontSize: 16, marginTop: 0 },
   stackHero: { fontSize: 20, marginTop: 0 },
   stackSub: { fontSize: 10.5, marginTop: 1 },
-  // 가로 배치의 왼쪽 구분선(marginLeft/borderLeft)은 세로에서 의미가 없다 — 위쪽 선으로
-  asideStack: { marginLeft: 0, paddingLeft: undefined, borderLeft: 'none', marginTop: 4, borderTop: '2px solid var(--line)' },
+  // 세로에서는 위쪽 여백으로 흐름 밖임을 표시한다
+  asideStack: { marginLeft: 0, marginTop: 10 },
   opStack: { fontSize: 12, color: 'var(--muted)', fontWeight: 700, alignSelf: 'center', lineHeight: 1 },
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
   popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
