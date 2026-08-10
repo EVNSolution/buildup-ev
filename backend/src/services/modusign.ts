@@ -154,8 +154,10 @@ export interface ModusignDocStatus {
 
 /** 문서 상태 재조회 (webhook 위조 방어: 이벤트 수신 시 API 로 실제 상태 확인). */
 export async function getDocument(documentId: string): Promise<ModusignDocStatus> {
-  const json = (await req('GET', `/documents/${encodeURIComponent(documentId)}`)) as { status?: string };
-  return { documentId, status: json.status, raw: json };
+  const json = (await req('GET', `/documents/${encodeURIComponent(documentId)}`)) as Record<string, unknown>;
+  // 서명본 다운로드가 signedUrlToken 을 요구한다 — 어디서 오는지 몰라 응답 키를 남긴다.
+  console.info(`[modusign] 문서 응답 키: ${Object.keys(json).join(', ')}`);
+  return { documentId, status: json['status'] as string | undefined, raw: json };
 }
 
 /** 완료된 서명본 PDF 다운로드. (엔드포인트/응답형식은 실 API 로 확정) */

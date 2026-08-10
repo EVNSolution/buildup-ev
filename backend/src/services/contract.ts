@@ -193,6 +193,25 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
 }
 
 /**
+ * 완료된 서명본 PDF 를 내려받아 저장한다. **실패해도 예외를 던지지 않는다**(경로 or null).
+ * 서명 완료 상태 전이가 부수 작업 때문에 막히면 안 된다.
+ */
+async function saveSignedPdf(contractId: number, quoteId: number, documentId: string): Promise<string | null> {
+  try {
+    const pdf = await modusign.downloadSignedPdf(documentId);
+    const dir = path.join(docStorageDir(), 'quotes', String(quoteId));
+    await mkdir(dir, { recursive: true });
+    const filePath = path.join(dir, `contract_signed_${contractId}.pdf`);
+    await writeFile(filePath, pdf);
+    return filePath;
+  } catch (e) {
+    console.error(`[contract] 서명본 저장 실패(상태는 반영함) contract=${contractId}:`,
+      e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
  * 모두싸인 API 로 실제 상태를 다시 읽어 반영한다 — **웹훅 유실 복구용**.
  *
  * 웹훅은 유실되거나(네트워크·배포 중 재시작) 스펙 불일치로 무시될 수 있다.
@@ -216,13 +235,12 @@ export async function refreshContractStatus(quoteId: number): Promise<PurchaseCo
 
   const data: { status: ContractStatus; signed_pdf_path?: string; completed_at?: Date } = { status: mapped };
   if (mapped === 'COMPLETED') {
-    const pdf = await modusign.downloadSignedPdf(contract.modusign_document_id);
-    const dir = path.join(docStorageDir(), 'quotes', String(contract.quote_id));
-    await mkdir(dir, { recursive: true });
-    const filePath = path.join(dir, `contract_signed_${contract.id}.pdf`);
-    await writeFile(filePath, pdf);
-    data.signed_pdf_path = filePath;
     data.completed_at = new Date();
+    // ⚠️ 서명본 저장은 **부수 작업**이다. 실패해도 상태 전이는 반영한다 —
+    //    예전엔 여기서 던져 전체가 롤백돼, 서명이 끝났는데도 계약이 SENT 로 남았다.
+    //    (다운로드는 signedUrlToken 이 필요해 실패했다. 나중에 재조회로 다시 시도할 수 있다)
+    const saved = await saveSignedPdf(contract.id, contract.quote_id, contract.modusign_document_id);
+    if (saved) data.signed_pdf_path = saved;
   }
   console.info(`[contract] 견적 ${quoteId} 상태 재조회 ${contract.status} → ${mapped}`);
   return p.purchaseContract.update({ where: { id: contract.id }, data });
@@ -310,12 +328,8 @@ export async function handleModusignEvent(documentId: string, eventType: string)
   const data: { status: ContractStatus; signed_pdf_path?: string; completed_at?: Date } = { status: mapped };
 
   if (mapped === 'COMPLETED') {
-    const pdf = await modusign.downloadSignedPdf(documentId);
-    const dir = path.join(docStorageDir(), 'quotes', String(contract.quote_id));
-    await mkdir(dir, { recursive: true });
-    const filePath = path.join(dir, `contract_signed_${contract.id}.pdf`);
-    await writeFile(filePath, pdf);
-    data.signed_pdf_path = filePath;
+    const filePath = await saveSignedPdf(contract.id, contract.quote_id, documentId);
+    if (filePath) data.signed_pdf_path = filePath;
     data.completed_at = new Date();
   }
 
