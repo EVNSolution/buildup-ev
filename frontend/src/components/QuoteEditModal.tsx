@@ -6,7 +6,7 @@ import {
   fetchQuoteHistory, type InstallmentRateOption, type QuoteChange,
 } from '../api/quotes'
 import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
-import { computeDisabledGroups, computeHidden, sanitizeSelections } from '../lib/optionRules'
+import { computeDisabledGroups, computeHidden, sanitizeSelections, groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
@@ -155,21 +155,24 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   if (loadErr) return <div style={s.err}>{loadErr}</div>
   if (!bundle) return <div style={s.loading}>옵션 목록을 불러오는 중…</div>
 
-  const byCat = (cat: string) => bundle.groups.filter(g => g.category === cat && !hidden.groups.has(g.code))
+  const byCat = (cat: string) => groupsByCategory(bundle, cat, hidden.groups)
 
   return (
     <>
       <div style={s.scroll}>
+        <div style={s.section}>차량 트림</div>
         <VehicleOptionsTab
-          groups={byCat('vehicle')} selections={sel} onSelect={pick}
+          groups={byCat(OPTION_CATEGORY.vehicle)} selections={sel} onSelect={pick}
           hiddenValueCodes={hidden.values} optionPrices={bundle.option_prices}
         />
+        <div style={s.section}>특장</div>
         <BodyOptionsTab
-          groups={byCat('body')} selections={sel} onSelect={pick}
+          groups={byCat(OPTION_CATEGORY.body)} selections={sel} onSelect={pick}
           disabledGroupCodes={disabled} hiddenValueCodes={hidden.values} optionPrices={bundle.option_prices}
         />
+        <div style={s.section}>옵션</div>
         <InteriorOptionsTab
-          groups={byCat('interior')} selections={sel} onSelect={pick}
+          groups={byCat(OPTION_CATEGORY.interior)} selections={sel} onSelect={pick}
           disabledGroupCodes={disabled} hiddenValueCodes={hidden.values} optionPrices={bundle.option_prices}
         />
       </div>
@@ -386,6 +389,10 @@ const s: Record<string, React.CSSProperties> = {
   scroll: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 2px' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 },
   gridFull: { gridColumn: '1 / -1' },
+  section: {
+    fontSize: 14, fontWeight: 700, color: 'var(--dark)',
+    margin: '14px 0 8px', paddingBottom: 5, borderBottom: '1px solid var(--line)',
+  },
   row: { marginBottom: 10 },
   label: { display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 4 },
   field: {

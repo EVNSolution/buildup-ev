@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { ApiPricingBundle, ApiOptionGroup } from '@shared/types/index'
+import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk } from '@shared/pricing/core'
 import { optionBreakdown } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
+import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 
 type TabKey = 'vehicle' | 'body' | 'interior'
 
@@ -42,9 +43,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'interior', label: '옵션' },
 ]
 
-function groupsByCategory(bundle: ApiPricingBundle, category: string, hidden: Set<string>): ApiOptionGroup[] {
-  return bundle.groups.filter(g => g.category === category && !hidden.has(g.code))
-}
+// 분류·필터는 lib/optionRules.ts 로 옮겼다 — 견적 수정 팝업과 공용.
 
 export function OptionPanel({
   bundle,
@@ -123,7 +122,7 @@ export function OptionPanel({
       <div style={styles.scroll}>
         {activeTab === 'vehicle' && (
           <VehicleOptionsTab
-            groups={groupsByCategory(bundle, '차량옵션', hiddenGroupCodes)}
+            groups={groupsByCategory(bundle, OPTION_CATEGORY.vehicle, hiddenGroupCodes)}
             selections={selections}
             onSelect={onSelect}
             hiddenValueCodes={hiddenValueCodes}
@@ -132,7 +131,7 @@ export function OptionPanel({
         )}
         {activeTab === 'body' && (
           <BodyOptionsTab
-            groups={groupsByCategory(bundle, '특장', hiddenGroupCodes)}
+            groups={groupsByCategory(bundle, OPTION_CATEGORY.body, hiddenGroupCodes)}
             selections={selections}
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
@@ -142,7 +141,7 @@ export function OptionPanel({
         )}
         {activeTab === 'interior' && (
           <InteriorOptionsTab
-            groups={groupsByCategory(bundle, '옵션', hiddenGroupCodes)}
+            groups={groupsByCategory(bundle, OPTION_CATEGORY.interior, hiddenGroupCodes)}
             selections={selections}
             onSelect={onSelect}
             disabledGroupCodes={disabledGroupCodes}
