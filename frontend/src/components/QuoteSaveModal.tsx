@@ -110,8 +110,15 @@ interface Props {
   mode?: 'create' | 'edit'
 }
 
-export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create' }: Props) {
-  const [v, setV] = useState<QuoteSaveValues>(initial)
+/**
+ * 입력칸 본문만 — 저장 팝업과 견적 수정 팝업의 「고객정보」 탭이 **같은 폼**을 쓴다.
+ * 한쪽에만 칸을 더하면 다른 쪽에서 고칠 수 없는 값이 생긴다.
+ */
+export function QuoteCustomerForm({ v, setV, regions }: {
+  v: QuoteSaveValues
+  setV: React.Dispatch<React.SetStateAction<QuoteSaveValues>>
+  regions: string[]
+}) {
   const set = <K extends keyof QuoteSaveValues>(k: K, val: QuoteSaveValues[K]) => setV(p => ({ ...p, [k]: val }))
 
   /** 자동 기입으로 채워진 항목 — 무엇이 저절로 들어갔는지 화면에 드러낸다. */
@@ -166,52 +173,15 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
     setAutofilled(filled)
   }
 
-  const isEdit = mode === 'edit'
   const isCorporate = v.subsidy.business_type === 'corporate'
   // 법인 계약서 필수값은 **상호 + 대표이사** 둘이다.
   // 대표이사는 매수인 법인 줄에 인쇄되고, 대리인이 없으면 서명란에도 대표이사가 들어간다.
   // 대리인은 선택 — 법인도 대표이사가 직접 오는 경우가 더 흔하다.
-  // 백엔드도 같은 기준으로 렌더를 막으므로(missingCorporateFields) 화면에서 미리 잡는다.
-  const missingCeo = isCorporate && !v.ceo_name.trim()
-  // 대리인이 있으면 관계를 받아야 한다 — 위임 관계가 계약서에 남아야 하기 때문.
-  const missingRelation = !!v.buyer_agent.trim() && !v.buyer_relation.trim()
-
-  /**
-   * 저장에 반드시 필요한 값들.
-   * 견적서·계약서·전자서명·보조금 계산이 전부 이 값들에 걸려 있어, 비면 나중에
-   * 서류를 다시 만들거나 보조금이 틀린다. 그래서 저장 단계에서 한 번에 받는다.
-   */
   const filled = (x: string) => !!x.trim()
   const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
-  const required: [boolean, string][] = [
-    [filled(v.name), isCorporate ? '상호' : '성명'],
-    [!missingCeo, '대표이사'],
-    [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
-    [filled(v.phone), '휴대폰'],
-    [filled(v.email), '이메일'],
-    [filled(v.subsidy.region_code), '지역'],
-    [filled(v.address), '주소'],
-    [filled(v.address_detail), '세부주소'],
-    [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
-    [v.subsidy.is_small_business !== null, '소상공인'],
-    [v.subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
-    [!missingRelation, '관계'],
-  ]
-  const missing = required.filter(([ok]) => !ok).map(([, label]) => label)
-  const canSave = missing.length === 0 && !saving
 
-  // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
-  // 닫기는 '취소' 와 ✕ 로만.
   return (
-    <div style={s.overlay}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <h2 style={s.h2}>{isEdit ? '고객정보 수정' : '견적 저장'}</h2>
-        <p style={s.desc}>
-          {isEdit
-            ? '고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.'
-            : '저장 후에도 견적 목록의 고객정보에서 수정할 수 있습니다.'}
-        </p>
-
+    <>
         <div style={s.sectionTitle}>고객 정보</div>
 
         <div style={s.grid}>
@@ -350,6 +320,56 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         </div>
 
         </div>
+
+    </>
+  )
+}
+
+/**
+ * 필수 입력이 다 찼는가 — 폼과 저장 버튼이 같은 기준을 봐야 한다.
+ * 견적서·계약서·전자서명·보조금 계산이 전부 이 값들에 걸려 있어, 비면 나중에
+ * 서류를 다시 만들거나 보조금이 틀린다.
+ */
+export function missingRequired(v: QuoteSaveValues): string[] {
+  const isCorporate = v.subsidy.business_type === 'corporate'
+  const filled = (x: string) => !!x.trim()
+  const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
+  const required: [boolean, string][] = [
+    [filled(v.name), isCorporate ? '상호' : '성명'],
+    [!isCorporate || filled(v.ceo_name), '대표이사'],
+    [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
+    [filled(v.phone), '휴대폰'],
+    [filled(v.email), '이메일'],
+    // 법인은 지방보조금 대상이 아니라 지역 칸 자체가 없다 — 필수에서도 뺀다
+    [isCorporate || filled(v.subsidy.region_code), '지역'],
+    [filled(v.address), '주소'],
+    [filled(v.address_detail), '세부주소'],
+    [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
+    [v.subsidy.is_small_business !== null, '소상공인'],
+    [v.subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
+    [!(v.buyer_agent.trim() && !v.buyer_relation.trim()), '관계'],
+  ]
+  return required.filter(([ok]) => !ok).map(([, label]) => label)
+}
+
+export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create' }: Props) {
+  const [v, setV] = useState<QuoteSaveValues>(initial)
+  const isEdit = mode === 'edit'
+  const canSave = missingRequired(v).length === 0 && !saving
+
+  // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
+  // 닫기는 '취소' 와 ✕ 로만.
+  return (
+    <div style={s.overlay}>
+      <div style={s.modal} onClick={e => e.stopPropagation()}>
+        <h2 style={s.h2}>{isEdit ? '고객정보 수정' : '견적 저장'}</h2>
+        <p style={s.desc}>
+          {isEdit
+            ? '고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.'
+            : '저장 후에도 견적 목록의 「수정」에서 고칠 수 있습니다.'}
+        </p>
+
+        <QuoteCustomerForm v={v} setV={setV} regions={regions} />
 
         {error && <div style={s.error}>{error}</div>}
 

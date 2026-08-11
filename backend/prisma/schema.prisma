@@ -262,6 +262,28 @@ model TaxConfig {
   @@map("tax_config")
 }
 
+/// 견적 수정 이력 — 한 견적 안에서 무엇이 언제 누구에 의해 바뀌었는지.
+///
+/// 견적서·계약서가 오간 뒤에 "왜 금액이 다르냐"는 이야기가 나온다. 그때 되짚을 수
+/// 있어야 하므로 옵션·고객정보·할부조건 변경을 전부 같은 표에 필드 단위로 남긴다.
+/// (기준데이터 변경이력 option_db_change_log 와 같은 구조 — 익숙한 모양을 유지)
+model QuoteChangeLog {
+  id         Int      @id @default(autoincrement())
+  quote_id   Int
+  /// options | customer | inputs — 수정 팝업의 탭과 같은 구분
+  section    String   @db.VarChar(20)
+  field      String   @db.VarChar(60)
+  old_value  String?  @db.VarChar(300)
+  new_value  String?  @db.VarChar(300)
+  changed_by String   @db.VarChar(120)
+  changed_at DateTime @default(now())
+
+  quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+
+  @@index([quote_id, changed_at])
+  @@map("quote_change_log")
+}
+
 /// 옵션DB(기준데이터) 변경 이력 — 관리자 수정 시 필드별 이전값→새값·수정자·수정일시 기록.
 model OptionDbChangeLog {
   id         Int      @id @default(autoincrement())
@@ -387,6 +409,7 @@ model Quote {
 
   customer   Customer?    @relation(fields: [customer_id], references: [id])
   model      VehicleModel @relation(fields: [model_code], references: [code])
+  change_logs QuoteChangeLog[]
   sales_user User?        @relation("QuoteSales", fields: [sales_user_id], references: [email])
   org        Org?         @relation("QuoteOrg", fields: [org_id], references: [code])
   order      Order?

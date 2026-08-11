@@ -14,6 +14,7 @@ import {
 import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js';
 import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
+import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 
 export const quotesRouter = Router();
 
@@ -292,8 +293,11 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     const body = (req.body ?? {}) as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
     for (const k of ALLOWED) if (k in body) patch[k] = body[k];
-    const merged = { ...((quote.inputs ?? {}) as Record<string, unknown>), ...patch };
+    const prev = (quote.inputs ?? {}) as Record<string, unknown>;
+    const merged = { ...prev, ...patch };
     await prisma.quote.update({ where: { id }, data: { inputs: merged as unknown as Prisma.InputJsonValue } });
+    // 바뀐 값만 이력에 남긴다(수정 팝업 「이력」 탭에서 본다)
+    await logQuoteChanges(id, 'inputs', prev, merged, req.auth?.email ?? 'unknown', Object.keys(patch));
 
     // 입력(면세구분·영업용번호판·선수금·할부·재량할인 등)이 바뀌면 실구매가도 달라진다.
     // 목록에 보이는 금액과 견적서 PDF 가 어긋나지 않도록 final_price 를 다시 계산해 저장.
@@ -331,6 +335,93 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
     console.error('[PATCH /quotes/:id/inputs]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '입력 저장 중 오류가 발생했습니다.' } });
   }
+});
+
+// ── PATCH /quotes/:id/selections — 저장된 견적의 옵션 변경 ─────────────────
+//
+// 저장 뒤에 "탑을 표준으로 바꿔 달라" 같은 요청이 온다. 예전엔 견적을 새로 만드는 수밖에
+// 없어 이력이 끊겼다. 여기서 옵션을 갈아끼우고 금액을 다시 계산해 같은 견적에 남긴다.
+// 서류가 고정된 뒤(전자서명 발송)에는 막는다 — 서명한 문서와 어긋나면 안 된다.
+
+quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+
+  const body = (req.body ?? {}) as { selections?: Record<string, string> };
+  const next = body.selections;
+  if (!next || typeof next !== 'object') { res.status(400).json({ error: { code: 'BAD_INPUT', message: 'selections 필요' } }); return; }
+
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id }, include: { customer: true } });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+    }
+    if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
+
+    const prevSel = (quote.selections ?? {}) as Record<string, string>;
+    const inp = (quote.inputs ?? {}) as Record<string, unknown>;
+
+    // 금액 재계산 — 목록 금액과 견적서 PDF 가 어긋나지 않게 저장 시점에 다시 구한다
+    const params = await buildQuoteParams(
+      quote.model_code, next,
+      {
+        biz_type: inp['biz_type'] as string | undefined,
+        is_sosang: inp['is_sosang'] as boolean | undefined,
+        region: inp['region'] as string | undefined,
+        has_transport_license: inp['has_transport_license'] as boolean | undefined,
+        diesel_status: inp['diesel_status'] as string | undefined,
+        diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
+        has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
+        tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
+      },
+      {
+        down_payment_rate: inp['down_payment_rate'] as number | undefined,
+        installment_months: inp['installment_months'] as number | undefined,
+        promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+        local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
+      },
+      quote.created_at.getFullYear(),
+    );
+    const total = calcQuote(params);
+
+    await prisma.quote.update({
+      where: { id },
+      data: { selections: next as unknown as Prisma.InputJsonValue, final_price: total.real_price },
+    });
+
+    // 이력은 **코드가 아니라 사람이 읽는 이름**으로 남긴다(TOP_REEFER_LOW → 냉동/저상).
+    const codes = [...new Set([...Object.values(prevSel), ...Object.values(next)].filter(Boolean))];
+    const values = codes.length
+      ? await prisma.optionValue.findMany({ where: { code: { in: codes } }, select: { code: true, name: true } })
+      : [];
+    const nameOf = new Map(values.map((v) => [v.code, v.name]));
+    const label = (rec: Record<string, string>) =>
+      Object.fromEntries(Object.entries(rec).map(([g, c]) => [g, nameOf.get(c) ?? c]));
+    const groups = [...new Set([...Object.keys(prevSel), ...Object.keys(next)])];
+    const changed = await logQuoteChanges(id, 'options', label(prevSel), label(next),
+      req.auth?.email ?? 'unknown', groups);
+
+    res.json({ data: { ok: true, changed, final_price: total.real_price } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/selections]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '옵션 저장 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── GET /quotes/:id/history — 이 견적의 수정 이력 ──────────────────────────
+
+quotesRouter.get('/:id/history', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true } });
+  if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+  if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+    res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+  }
+  res.json({ data: await listQuoteChanges(id) });
 });
 
 // ── PATCH /quotes/:id/customer — 견적에 연결된 고객정보 수정 ───────────────
@@ -373,7 +464,11 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request,
     }
     if (!Object.keys(data).length) { res.json({ data: { ok: true, changed: 0 } }); return; }
 
+    const before = await prisma.customer.findUnique({ where: { id: quote.customer_id } });
     await prisma.customer.update({ where: { id: quote.customer_id }, data });
+    await logQuoteChanges(id, 'customer',
+      (before ?? {}) as unknown as Record<string, unknown>, data,
+      req.auth?.email ?? 'unknown', Object.keys(data));
     res.json({ data: { ok: true, changed: Object.keys(data).length } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/customer]', e);

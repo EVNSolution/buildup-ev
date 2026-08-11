@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { PricingResult, QuoteResult } from '@shared/pricing/core'
 import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
 import { useIsPortrait } from '../hooks/useIsPortrait'
+import { useIsTouch } from '../hooks/useIsTouch'
 
 interface Props {
   /** 지원여부 판정용(내장탑 미정 등) */
@@ -27,6 +28,8 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
   // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
   // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
   const stack = useIsPortrait()
+  // 태블릿·휴대폰은 세로가 귀하다 — 가격바를 두껍게 하지 않아 옵션 선택 칸을 넓힌다
+  const touch = useIsTouch()
   const [showReg, setShowReg] = useState(false)
   const [showSubsidy, setShowSubsidy] = useState(false)
   const isUnsupported = calc?.status === 'unsupported'
@@ -48,12 +51,12 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
   const netPrice = ok ? ok.real_price - regEtc : 0
 
   // 세로로 쌓을 땐 폭이 넉넉하므로 글자를 줄이지 않는다(가로 배치용 축소는 stack 에서 해제).
-  const row  = stack ? styles.rowCell : styles.cellTall
+  const row  = stack ? styles.rowCell : touch ? null : styles.cellTall
   const big  = stack ? styles.stackBig : null
   const lbl  = stack ? styles.stackLabel : null
 
   return (
-    <div style={stack ? styles.bar : { ...styles.bar, ...styles.barTall }}>
+    <div style={stack || touch ? styles.bar : { ...styles.bar, ...styles.barTall }}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
       <div style={stack ? styles.flowStack : styles.flow}>
@@ -73,7 +76,7 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
         </div>
 
         <Op stack={stack}>−</Op>
-        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} />
+        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} tall={!stack && !touch} />
         <Op stack={stack}>−</Op>
         {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
         <div
@@ -102,14 +105,14 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
 
         <Op stack={stack}>=</Op>
         {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
-        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : styles.cellTall) }}>
+        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : touch ? null : styles.cellTall) }}>
           <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
           <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
         </div>
 
         {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
         <div
-          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : { ...styles.aside, ...styles.cellTall }) }}
+          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : touch ? styles.aside : { ...styles.aside, ...styles.cellTall }) }}
           onClick={() => ok && setShowReg(v => !v)}
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
@@ -128,9 +131,9 @@ function Op({ children, stack }: { children: string; stack?: boolean }) {
   return <div style={stack ? styles.opStack : styles.op}>{children}</div>
 }
 
-function Block({ label, value, show, muted, negative, stack }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean }) {
+function Block({ label, value, show, muted, negative, stack, tall }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean; tall?: boolean }) {
   return (
-    <div style={{ ...styles.block, ...(stack ? styles.rowCell : styles.cellTall) }}>
+    <div style={{ ...styles.block, ...(stack ? styles.rowCell : tall ? styles.cellTall : null) }}>
       <div style={{ ...styles.blockLabel, ...(stack ? styles.stackLabel : null) }}>{label}</div>
       <div style={{ ...styles.blockValue, ...(stack ? styles.stackBig : null), ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }}>
         {show ? (muted ? '미반영' : fmt(value)) : '—'}
@@ -156,7 +159,11 @@ function SubsidyPopup({ value, onChange, regions, onClose }: {
       <div style={{ ...styles.popup, ...styles.popupLeft }} onClick={e => e.stopPropagation()}>
         <div style={styles.popTitle}>보조금 산정 조건</div>
         <SubsidyForm value={value} onChange={onChange} regions={regions} compact hideRequired />
-        <div style={styles.popFoot}>지역을 골라야 지방보조금이 반영됩니다.</div>
+        <div style={styles.popFoot}>
+          {value.business_type === 'corporate'
+            ? '법인사업자는 지방보조금 대상이 아닙니다 — 국고보조금만 반영됩니다.'
+            : '지역을 골라야 지방보조금이 반영됩니다.'}
+        </div>
       </div>
     </>
   )
@@ -267,7 +274,9 @@ const styles: Record<string, React.CSSProperties> = {
   asideStack: { marginLeft: 0, marginTop: 10 },
   opStack: { fontSize: 12, color: 'var(--muted)', fontWeight: 700, alignSelf: 'center', lineHeight: 1 },
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
-  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
+  // 가격바가 화면 맨 아래라 팝업은 위로 열린다. 내용이 길면 화면 위로 넘쳐 잘리므로
+  // 높이를 화면에 맞춰 자르고 안에서 스크롤한다(태블릿에서 위가 잘리던 문제).
+  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 460px)', overflowY: 'auto', background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
   // 보조금 블록은 가격바 왼쪽에 있어 오른쪽 정렬(popup)로 열면 화면 밖으로 나간다.
   // 폭 364 = 가장 긴 줄(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가」)이

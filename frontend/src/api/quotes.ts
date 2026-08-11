@@ -190,3 +190,44 @@ export async function lookupCustomer(name: string, regNo: string): Promise<Custo
   const body = await res.json() as { data: CustomerMasterHit | null }
   return body.data
 }
+
+
+/** 견적 수정 이력 한 줄 */
+export interface QuoteChange {
+  id: number
+  section: 'options' | 'customer' | 'inputs'
+  field: string
+  old_value: string | null
+  new_value: string | null
+  changed_by: string
+  changed_at: string
+}
+
+/** 저장된 견적의 옵션 변경 — 금액도 함께 다시 계산된다. */
+export async function saveQuoteSelections(
+  quoteId: number, selections: Record<string, string>,
+): Promise<{ changed: number; final_price: number }> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/selections`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selections }),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b.error?.message ?? `옵션 저장 실패: ${res.status}`)
+  }
+  const body = await res.json() as { data: { changed: number; final_price: number } }
+  return body.data
+}
+
+/** 이 견적에서 무엇이 언제 바뀌었는지(최근 순). */
+export async function fetchQuoteHistory(quoteId: number): Promise<QuoteChange[]> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/history`, { credentials: 'include' })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b.error?.message ?? `이력 조회 실패: ${res.status}`)
+  }
+  const body = await res.json() as { data: QuoteChange[] }
+  return body.data
+}
