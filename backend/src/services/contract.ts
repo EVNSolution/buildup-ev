@@ -5,6 +5,7 @@
  * 양식은 generateContractPdf 뒤에 격리 — 여기 로직은 양식과 무관.
  */
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { ContractStatus, PurchaseContract, Customer } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
@@ -222,6 +223,29 @@ async function saveSignedPdf(contractId: number, quoteId: number, documentId: st
       e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+/**
+ * 서명본 PDF 를 **확실히 손에 넣는다** — 없으면 지금 받아서 저장한다.
+ *
+ * 서명본 저장은 상태 전이의 부수 작업이라 실패해도 넘어간다(그래야 단계가 막히지 않는다).
+ * 그래서 완료됐는데 파일이 없는 계약이 남을 수 있다 — 실제로 다운로드 방식이 틀려
+ * 한동안 전부 비어 있었다. 열람 시점에 다시 시도해 메꾼다.
+ *
+ * @returns 저장된 파일 경로. 아직 완료 전이거나 받지 못하면 null.
+ */
+export async function ensureSignedPdf(quoteId: number): Promise<string | null> {
+  const p = db();
+  const contract = await getLatestContract(quoteId);
+  if (!contract || contract.status !== 'COMPLETED' || !contract.modusign_document_id) return null;
+
+  if (contract.signed_pdf_path && existsSync(contract.signed_pdf_path)) return contract.signed_pdf_path;
+
+  const saved = await saveSignedPdf(contract.id, quoteId, contract.modusign_document_id);
+  if (!saved) return null;
+  await p.purchaseContract.update({ where: { id: contract.id }, data: { signed_pdf_path: saved } });
+  console.info(`[contract] 견적 ${quoteId} 서명본 저장 완료 — ${saved}`);
+  return saved;
 }
 
 /**

@@ -7,7 +7,7 @@ import type { Request, Response } from 'express';
 import { existsSync, createReadStream } from 'node:fs';
 import { rbac } from '../middleware/rbac.js';
 import {
-  sendContract, getLatestContract, ContractError, refreshContractStatus,
+  sendContract, getLatestContract, ContractError, refreshContractStatus, ensureSignedPdf,
 } from '../services/contract.js';
 import { ModusignConfigError, ModusignApiError } from '../services/modusign.js';
 import { SofficeUnavailableError } from '../lib/soffice.js';
@@ -84,14 +84,15 @@ contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES', 'MAKER'), asy
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
   try {
-    const c = await getLatestContract(id);
-    if (!c || c.status !== 'COMPLETED' || !c.signed_pdf_path || !existsSync(c.signed_pdf_path)) {
+    // 저장돼 있지 않으면 지금 받아서 저장한다 — 열람이 곧 복구 기회다
+    const filePath = await ensureSignedPdf(id);
+    if (!filePath || !existsSync(filePath)) {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '완료된 서명본이 없습니다' } });
       return;
     }
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`구매계약서_서명본_견적${id}.pdf`)}`);
-    createReadStream(c.signed_pdf_path).pipe(res);
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`특장매매계약서_서명본_견적${id}.pdf`)}`);
+    createReadStream(filePath).pipe(res);
   } catch (e) {
     console.error('[GET contract/signed]', e);
     res.status(500).json({ error: { code: 'INTERNAL' } });

@@ -708,6 +708,12 @@ function QuotesTab() {
                   disabled={q.status === 'draft'}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                 >계약서</button>
+                {q.contract?.status === 'COMPLETED' && (
+                  <button
+                    style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }}
+                    onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
+                  >서명본</button>
+                )}
                 {q.status === 'draft' && (
                   <button style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
@@ -781,6 +787,14 @@ function QuotesTab() {
                         title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                       >계약서</button>
+                      {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본(시스템 보관본) */}
+                      {q.contract?.status === 'COMPLETED' && (
+                        <button
+                          style={BTN.rowPrimary}
+                          title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
+                          onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
+                        >서명본</button>
+                      )}
                       {q.status === 'draft' && (
                         <button style={BTN.rowPrimary} onClick={() => handleConfirm(q.id)}>확정</button>
                       )}
