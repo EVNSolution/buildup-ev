@@ -64,7 +64,8 @@ interface Props {
 }
 
 export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
-  const [tab, setTab] = useState<TabKey>('options')
+  // 고정된 견적은 고칠 수 없다 — 열자마자 볼 수 있는 것(이력)을 띄운다
+  const [tab, setTab] = useState<TabKey>(() => (quote.docs_frozen_at ? 'history' : 'options'))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
@@ -85,7 +86,8 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
 
         {frozen && (
           <div style={s.frozen}>
-            전자서명 발송으로 서류가 고정되어 수정할 수 없습니다. 이력만 볼 수 있습니다.
+            전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 — 고객이 받은 문서와 어긋나면 안 되기 때문입니다.
+            조건을 바꿔 다시 내려면 목록의 「복제」로 같은 고객·같은 옵션의 새 견적을 만드세요.
           </div>
         )}
 

@@ -7,7 +7,7 @@ import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { BTN } from '../styles/buttons'
@@ -110,6 +110,26 @@ function MyListView() {
   // 「수정」 = 옵션·고객정보·할부 3탭 팝업 / 「고객정보」 = 조회 전용
   const [editQuote, setEditQuote] = useState<ApiQuote | null>(null)
   const [viewQuote, setViewQuote] = useState<ApiQuote | null>(null)
+  const [dupBusy, setDupBusy] = useState<number | null>(null)
+
+  /**
+   * 같은 고객·같은 옵션으로 새 견적을 만든다.
+   * 전자서명을 보낸 견적은 고정되어 고칠 수 없다 — 조건을 바꿔 다시 내려면 이 길을 쓴다.
+   */
+  async function handleDuplicate(q: ApiQuote) {
+    if (!window.confirm(
+      `${q.quote_no ?? `#${q.id}`} 의 옵션·고객정보·할부 조건을 그대로 복사해\n`
+      + '새 견적(임시저장)을 만듭니다. 진행할까요?',
+    )) return
+    setDupBusy(q.id); setErr('')
+    try {
+      const r = await duplicateQuote(q.id)
+      load()
+      window.alert(`새 견적 ${r.quote_no ?? `#${r.id}`} 을(를) 만들었습니다. 「수정」에서 조건을 고친 뒤 견적서를 생성하세요.`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '견적 복제 실패')
+    } finally { setDupBusy(null) }
+  }
 
   function load() {
     setLoading(true); setErr('')
@@ -222,10 +242,17 @@ function MyListView() {
                           <button
                             style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.docs_frozen_at
-                              ? `전자서명 발송으로 서류가 고정되었습니다 — 이력만 볼 수 있습니다 (${fmtDate(q.docs_frozen_at)})`
-                              : '옵션 · 고객정보 · 할부 수정 및 수정 이력'}
+                              ? `전자서명 발송(${fmtDate(q.docs_frozen_at)})으로 서류가 고정되었습니다 — 이력만 볼 수 있습니다. 조건을 바꾸려면 「복제」로 새 견적을 만드세요.`
+                              : '옵션 · 고객정보 · 할부 수정 및 수정 이력 (전자서명 발송 전까지 가능)'}
                             onClick={() => setEditQuote(q)}
-                          >수정</button>
+                          >{q.docs_frozen_at ? '이력' : '수정'}</button>
+                          {/* 전자서명을 보낸 견적은 고칠 수 없다 — 조건을 바꿔 다시 낼 땐 복제한다 */}
+                          <button
+                            style={dupBusy === q.id ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
+                            disabled={dupBusy === q.id}
+                            title="같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)"
+                            onClick={() => void handleDuplicate(q)}
+                          >{dupBusy === q.id ? '…' : '복제'}</button>
                           {/* 「고객정보」는 조회 전용 — 고치는 곳은 「수정」 한 군데로 모았다 */}
                           <button
                             style={lv.pdfBtn}

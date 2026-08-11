@@ -231,3 +231,15 @@ export async function fetchQuoteHistory(quoteId: number): Promise<QuoteChange[]>
   const body = await res.json() as { data: QuoteChange[] }
   return body.data
 }
+
+
+/** 같은 고객·같은 옵션으로 새 견적을 만든다(새 번호·임시저장부터). */
+export async function duplicateQuote(quoteId: number): Promise<{ id: number; quote_no: string | null }> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/duplicate`, { method: 'POST', credentials: 'include' })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b.error?.message ?? `견적 복제 실패: ${res.status}`)
+  }
+  const body = await res.json() as { data: { id: number; quote_no: string | null } }
+  return body.data
+}

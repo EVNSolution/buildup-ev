@@ -410,6 +410,58 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), async (req: Reques
   }
 });
 
+// ── POST /quotes/:id/duplicate — 같은 고객·같은 옵션으로 새 견적 ──────────
+//
+// 전자서명을 보내면 그 견적은 고정된다(고객이 받은 문서와 어긋나면 안 되므로).
+// 그런데 조건을 바꿔 다시 내는 일은 흔하다. 예전엔 컨피규레이터에서 옵션부터
+// 고객정보까지 전부 다시 입력해야 했다 — 여기서 통째로 복사해 **새 번호**로 만든다.
+//
+// 복사하는 것: 차종 · 옵션 · 입력값(보조금 조건·할부·계약서 입력) · 연결된 고객
+// 복사하지 않는 것: 상태(임시저장부터 다시) · 발송이력 · 서류고정 · 전자서명
+//   — 새 견적은 아직 아무것도 보내지 않은 견적이다.
+
+quotesRouter.post('/:id/duplicate', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+
+  try {
+    const src = await prisma.quote.findUnique({ where: { id } });
+    if (!src) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (req.auth?.role === 'SALES' && src.sales_user_id !== req.auth.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
+    }
+
+    const created = await prisma.quote.create({
+      data: {
+        model_code:  src.model_code,
+        selections:  (src.selections ?? {}) as Prisma.InputJsonValue,
+        inputs:      (src.inputs ?? {}) as Prisma.InputJsonValue,
+        customer_id: src.customer_id,
+        supply_price: src.supply_price,
+        final_price:  src.final_price,
+        // 복제한 사람이 담당이 된다(관리자가 복제하면 관리자 견적이 된다)
+        sales_user_id: req.auth?.email ?? src.sales_user_id,
+        org_id: src.org_id,
+        status: 'draft',
+      },
+    });
+
+    try {
+      const quote_no = await genQuoteNo(prisma, created.created_at.getFullYear());
+      await prisma.quote.update({ where: { id: created.id }, data: { quote_no } });
+      res.json({ data: { id: created.id, quote_no } });
+    } catch (e) {
+      // 번호 부여 실패는 치명적이지 않다 — 견적 자체는 만들어졌다(백필로 복구 가능)
+      console.error('[POST /quotes/:id/duplicate] quote_no 부여 실패', e);
+      res.json({ data: { id: created.id, quote_no: null } });
+    }
+  } catch (e) {
+    console.error('[POST /quotes/:id/duplicate]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 복제 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── GET /quotes/:id/history — 이 견적의 수정 이력 ──────────────────────────
 
 quotesRouter.get('/:id/history', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
