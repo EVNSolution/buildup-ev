@@ -18,6 +18,7 @@ import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
 import { toKakaoPhone } from './modusign.js';
+import { setQuoteStatus } from './quote-status.js';
 
 export class ContractError extends Error {
   constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' | 'NOT_SENDABLE' | 'ALREADY_SENT' | 'NEEDS_REVIEW' = 'NOT_FOUND') {
@@ -204,7 +205,7 @@ async function advanceQuoteToContracted(quoteId: number): Promise<void> {
   const p = db();
   const q = await p.quote.findUnique({ where: { id: quoteId }, select: { status: true } });
   if (!q || !['draft', 'confirmed'].includes(q.status)) return;
-  await p.quote.update({ where: { id: quoteId }, data: { status: 'contracted' } });
+  await setQuoteStatus(quoteId, 'contracted', 'system(전자서명 완료)');
   console.info(`[contract] 견적 ${quoteId} 단계 ${q.status} → contracted(계약완료)`);
 }
 

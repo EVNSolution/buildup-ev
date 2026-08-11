@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 
 export const ordersRouter = Router();
@@ -235,7 +236,7 @@ ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), requirePermission('ord
       const want = status === LAST ? 'completed' : 'ordered';
       const q = await prisma.quote.findUnique({ where: { id: order2.quote_id }, select: { status: true } });
       if (q && ['ordered', 'completed'].includes(q.status) && q.status !== want) {
-        await prisma.quote.update({ where: { id: order2.quote_id }, data: { status: want } });
+        await setQuoteStatus(order2.quote_id, want, req.auth?.email ?? 'unknown');
         console.info(`[orders] 주문 ${id} ${status} → 견적 ${order2.quote_id} 단계 ${q.status} → ${want}`);
       }
     }
@@ -273,7 +274,8 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
       res.status(409).json({ error: { code: 'CONFLICT', message: `배정 상태에서만 수락할 수 있습니다 (현재 ${order.quote.status})` } });
       return;
     }
-    const updated = await prisma.quote.update({ where: { id: order.quote.id }, data: { status: 'ordered' } });
+    await setQuoteStatus(order.quote.id, 'ordered', req.auth?.email ?? 'unknown');
+    const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
     res.json({ data: { quote: updated } });
   } catch (e) {
     console.error('[PATCH /orders/:id/accept]', e);

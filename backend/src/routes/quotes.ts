@@ -15,6 +15,7 @@ import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js'
 import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
+import { setQuoteStatus } from '../services/quote-status.js';
 
 export const quotesRouter = Router();
 
@@ -683,7 +684,8 @@ quotesRouter.patch('/:id/confirm', rbac('SALES', 'ADMIN'), requirePermission('qu
   }
 
   try {
-    const updatedQuote = await prisma.quote.update({ where: { id }, data: { status: 'confirmed' } });
+    await setQuoteStatus(id, 'confirmed', req.auth?.email ?? 'unknown');
+    const updatedQuote = await prisma.quote.findUnique({ where: { id } });
     res.json({ data: { quote: updatedQuote } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/confirm]', e);
@@ -732,8 +734,9 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
   }
 
   try {
+    await setQuoteStatus(id, 'assigned', req.auth?.email ?? 'unknown');
     const [updatedQuote, order] = await prisma.$transaction([
-      prisma.quote.update({ where: { id }, data: { status: 'assigned' } }),
+      prisma.quote.findUnique({ where: { id } }),
       prisma.order.create({
         data: {
           quote_id:    id,
