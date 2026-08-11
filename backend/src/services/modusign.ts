@@ -160,25 +160,31 @@ export async function getDocument(documentId: string): Promise<ModusignDocStatus
   return { documentId, status: json['status'] as string | undefined, raw: json };
 }
 
-/** 완료된 서명본 PDF 다운로드. (엔드포인트/응답형식은 실 API 로 확정) */
+/**
+ * 완료된 서명본 PDF 다운로드 — 도장·서명이 찍힌 정본.
+ *
+ * ⚠️ `/documents/{id}/file` 이 아니다. 그 경로는 `signedUrlToken` 을 따로 요구해
+ *    계속 400 이 났다. 실제 방법은 **문서 상세 조회의 `file.downloadUrl`**(유효 10분)로
+ *    받아 그 주소에서 내려받는 것이다.
+ *    (모두싸인 문서: documentcontroller_getdocument — PdfFileInDocumentResponseDto)
+ */
 export async function downloadSignedPdf(documentId: string): Promise<Buffer> {
-  const res = await fetch(`${BASE_URL}/documents/${encodeURIComponent(documentId)}/file`, {
-    method: 'GET',
-    headers: { 'Authorization': authHeader(), 'Accept': 'application/pdf' },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ModusignApiError(`서명본 다운로드 실패 (${res.status}): ${text.slice(0, 500)}`, res.status);
+  const doc = (await req('GET', `/documents/${encodeURIComponent(documentId)}`)) as {
+    file?: { downloadUrl?: string };
+  };
+  const url = doc.file?.downloadUrl;
+  if (!url) {
+    throw new ModusignApiError('서명본 다운로드 주소(file.downloadUrl)가 응답에 없습니다');
   }
-  const ct = res.headers.get('content-type') || '';
-  // 일부 API 는 { downloadUrl } 를 반환 — 그 경우 한 번 더 받는다.
-  if (ct.includes('application/json')) {
-    const j = (await res.json()) as { downloadUrl?: string; url?: string };
-    const url = j.downloadUrl ?? j.url;
-    if (!url) throw new ModusignApiError('서명본 다운로드 URL 이 응답에 없습니다');
-    const f = await fetch(url);
-    if (!f.ok) throw new ModusignApiError(`서명본 URL 다운로드 실패 (${f.status})`);
-    return Buffer.from(await f.arrayBuffer());
+  // 이 주소는 서명된 URL 이라 인증 헤더를 붙이지 않는다(붙이면 오히려 거부될 수 있다).
+  const f = await fetch(url);
+  if (!f.ok) {
+    throw new ModusignApiError(`서명본 다운로드 실패 (${f.status})`, f.status);
   }
-  return Buffer.from(await res.arrayBuffer());
+  const buf = Buffer.from(await f.arrayBuffer());
+  // 받은 것이 PDF 가 맞는지 확인 — 오류 페이지를 그대로 저장하면 나중에 열리지 않는다.
+  if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') {
+    throw new ModusignApiError('내려받은 파일이 PDF 가 아닙니다');
+  }
+  return buf;
 }

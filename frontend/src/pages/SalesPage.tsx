@@ -274,6 +274,14 @@ function MyListView() {
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                           >계약서</button>
+                          {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본을 시스템에 보관한다 */}
+                          {q.contract?.status === 'COMPLETED' && (
+                            <button
+                              style={lv.confirmBtn}
+                              title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
+                              onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
+                            >서명본</button>
+                          )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           <button
                             style={lv.pdfBtn}
