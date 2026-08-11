@@ -11,8 +11,12 @@ interface Props {
   total: QuoteResult | null
   /** 보조금 산정 입력이 갖춰졌는가(지역 선택 여부). 미선택이면 보조금 금액을 흐리게 보여준다. */
   hasCustomer: boolean
-  /** 차량+특장 세부 (부가세 별도 단가) */
-  breakdown: { trim_price: number; option_sum: number } | null
+  /**
+   * 차량+특장 세부 (부가세 별도 단가).
+   * 지금은 화면에 쓰지 않는다 — 차량/특장을 나눠 보여주던 줄을 뺐다.
+   * 호출부가 이미 넘기고 있고 되살릴 수 있어 자리만 남겨 둔다.
+   */
+  breakdown?: { trim_price: number; option_sum: number } | null
   /** 「보조금」 블록 팝업에서 그 자리에서 고치는 입력값 */
   subsidy: SubsidyInputs
   onSubsidyChange: (v: SubsidyInputs) => void
@@ -24,7 +28,7 @@ function fmt(n: number) {
   return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
-export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsidyChange, regions }: Props) {
+export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions }: Props) {
   // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
   // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
   const stack = useIsPortrait()
@@ -40,8 +44,6 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
   // (견적서는 탁송료를 ② 차량 결제금액에 넣지만, 화면은 블록을 줄이려 등록·기타로 묶는다.
   //  이렇게 해야 위 흐름을 그대로 계산했을 때 실구매가와 정확히 맞는다.)
   const regEtc = ok ? ok.car_reg_cost + ok.body_reg_cost + ok.delivery_fee : 0
-  const vehicleVat = ok ? ok.car_price : (breakdown ? Math.round(breakdown.trim_price * 1.1) : 0)
-  const optionVat  = ok ? ok.body_price : (breakdown ? Math.round(breakdown.option_sum * 1.1) : 0)
   // 일반구매자(비사업자)는 환급 자체가 없다 — vat_refund_price 가 0 으로 내려온다.
   // 이때 차액을 그대로 쓰면 결제금액 전체가 환급액으로 표시되므로 0 으로 둔다.
   const noRefund   = !!ok && ok.vat_refund_price === 0
@@ -66,12 +68,6 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
           <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
           <div style={stack ? styles.stackRight : undefined}>
             <div style={{ ...styles.firstValue, ...big }}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
-            {ok && (
-              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>
-                <div>차량 {fmt(vehicleVat)}</div>
-                <div>특장 {fmt(optionVat)}</div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -84,8 +80,22 @@ export function PriceBar({ calc, total, hasCustomer, breakdown, subsidy, onSubsi
           onClick={() => setShowSubsidy(v => !v)}
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>보조금 ▸</div>
-          <div style={{ ...styles.blockValue, ...big, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
-            {!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
+          <div style={stack ? styles.stackRight : undefined}>
+            <div style={{ ...styles.blockValue, ...big, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
+              {!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
+            </div>
+            {/*
+              합계만 보면 왜 그 금액인지 알 수 없다 — 네 가지 내역을 항상 같은 순서로 보여준다.
+              0원인 항목도 남긴다(빠진 게 아니라 해당 없음이라는 뜻이 드러나야 한다).
+            */}
+            {hasCustomer && ok && (
+              <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>
+                <div>국고 {fmt(ok.subsidy_national)}</div>
+                <div>지방 {fmt(ok.subsidy_local)}</div>
+                <div>소상공인 {fmt(ok.subsidy_sosang)}</div>
+                <div>화물운송 {fmt(ok.subsidy_takbae)}</div>
+              </div>
+            )}
           </div>
           {showSubsidy && (
             <SubsidyPopup
