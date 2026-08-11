@@ -7,6 +7,22 @@ import type { ApiPricingBundle } from '@shared/types/index'
  * 한쪽에만 있으면 저장 후 수정에서 고를 수 없는 조합이 만들어진다.
  */
 
+/**
+ * 옵션 그룹 분류 — **DB(option_group.category) 값 그대로**다(한글).
+ *
+ * 영문 키('vehicle' 등)로 거르면 하나도 걸리지 않아 화면이 통째로 비어 버린다
+ * (실제로 견적 수정 팝업에서 차종만 남는 사고가 있었다). 한 곳에 못 박아 둔다.
+ * '내부'(_PRICEKEY)는 계산용 그룹이라 화면에 내보이지 않는다.
+ */
+export const OPTION_CATEGORY = { vehicle: '차량옵션', body: '특장', interior: '옵션' } as const
+
+/** 분류별 그룹 — 숨김 규칙에 걸린 그룹은 뺀다. */
+export function groupsByCategory(
+  bundle: ApiPricingBundle, category: string, hiddenGroups: Set<string>,
+) {
+  return bundle.groups.filter(g => g.category === category && !hiddenGroups.has(g.code))
+}
+
 /** effect=hide → 현재 선택 기준 숨길 그룹/값 코드 */
 export function computeHidden(sel: Record<string, string>, bundle: ApiPricingBundle) {
   const groups = new Set<string>()
