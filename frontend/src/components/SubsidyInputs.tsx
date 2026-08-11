@@ -69,6 +69,7 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
 }) {
   const set = <K extends keyof SubsidyInputs>(k: K, v: SubsidyInputs[K]) => onChange({ ...value, [k]: v })
   const s = compact ? f.rowTight : f.row
+  const isCorporate = value.business_type === 'corporate'
 
   return (
     <>
@@ -85,10 +86,16 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
         </div>
       )}
 
-      <div style={s}>
-        <label style={f.label}>지역 <span style={f.req}>· 지방보조금 조회 기준</span></label>
-        <RegionPicker regions={regions} value={value.region_code} onChange={v => set('region_code', v)} />
-      </div>
+      {/*
+        법인사업자는 지방보조금 대상이 아니다(계산에서도 0으로 고정된다 — core.ts).
+        받지도 못할 지역을 고르게 하면 금액이 달라질 거라 오해한다 — 칸 자체를 없앤다.
+      */}
+      {!isCorporate && (
+        <div style={s}>
+          <label style={f.label}>지역 <span style={f.req}>· 지방보조금 조회 기준</span></label>
+          <RegionPicker regions={regions} value={value.region_code} onChange={v => set('region_code', v)} />
+        </div>
+      )}
 
       {afterRegion}
 

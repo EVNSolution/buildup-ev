@@ -104,9 +104,10 @@ export function Header({ customer }: Props) {
  * 그래서 한 벌로 못 박되, 좁은 화면에서도 깨지지 않는 선에서 정했다(브라우저 실측):
  *   내용 필요폭 828px — 관리자·특장 화면은 창 900px 부터 여유 있음
  *   영업 화면은 고객 칩이 붙어 1041px 필요 → 칩만 줄어들게 해 좁아도 안 깨진다
- * 바 두께는 107px 고정(예전 53.5px 의 2배). 글자가 바뀌어도 두께는 그대로다.
+ * 두께는 60px. 한때 107px(2배)로 뒀는데 태블릿에서 화면을 너무 잡아먹어 되돌렸다.
+ * 글자는 그대로 두고 위아래 여백만 줄인 값이다(내용 높이 ≒ 49px).
  */
-const HEADER_H = 107
+const HEADER_H = 60
 
 const styles: Record<string, React.CSSProperties> = {
   header: {

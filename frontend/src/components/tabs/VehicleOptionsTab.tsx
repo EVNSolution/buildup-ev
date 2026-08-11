@@ -1,7 +1,7 @@
+import { useState } from 'react'
 import type { ApiOptionGroup } from '@shared/types/index'
 import { valueUnitPrice } from '@shared/pricing/core'
 import { fmtWonVat } from '../OptionRow'
-import { Tooltip } from '../Tooltip'
 // 트림 카드 사진 — 컨피규레이터 3D 자리에 쓰는 것과 같은 이미지.
 // 트림은 사양 차이지 겉모습 차이가 아니라 두 카드 모두 같은 사진이면 된다.
 import trimImg from '../../assets/stego-k-side.jpg'
@@ -15,7 +15,11 @@ interface Props {
 }
 
 /**
- * 트림별 주요 사양 — 카드에 마우스를 올리면 뜬다.
+ * 트림별 주요 사양 — 카드의 「사양 보기」를 누르면 카드 아래로 펼쳐진다.
+ *
+ * 예전엔 커서를 올려야 뜨는 말풍선이었는데, 태블릿에는 커서가 없어 **볼 방법이 없었다**.
+ * 게다가 트림은 고를 때 차이를 반드시 봐야 하는 정보라, 있으면 좋은 보조 설명이 아니라
+ * 선택 근거다 — 화면에 펼쳐 두는 편이 맞다.
  *
  * `b: true` = 기본(Basic) 대비 플러스(Plus)에서 **추가된** 항목. 두 트림의 차이가
  * 무엇인지가 고를 때 궁금한 전부라, 그것만 굵게 보이게 한다.
@@ -46,10 +50,14 @@ const TRIM_SPECS: Record<string, { title: string; lines: Seg[][] }> = {
   },
 }
 
-function SpecTip({ spec }: { spec: { title: string; lines: Seg[][] } }) {
+/** 펼친 사양 — 카드 아래 한 줄 전체를 쓴다(좁은 카드 폭에 욱여넣지 않는다). */
+function SpecPanel({ spec, onClose }: { spec: { title: string; lines: Seg[][] }; onClose: () => void }) {
   return (
-    <div>
-      <div style={tip.title}>{spec.title}</div>
+    <div style={tip.panel}>
+      <div style={tip.head}>
+        <span style={tip.title}>{spec.title} 주요 사양</span>
+        <button type="button" style={tip.close} onClick={onClose}>닫기</button>
+      </div>
       <ul style={tip.list}>
         {spec.lines.map((segs, i) => (
           <li key={i} style={tip.item}>
@@ -66,6 +74,9 @@ function SpecTip({ spec }: { spec: { title: string; lines: Seg[][] } }) {
 
 export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCodes, optionPrices }: Props) {
   const price = (c: string) => optionPrices[c] ?? 0
+  /** 지금 펼쳐 둔 사양(값 코드). 한 번에 하나만 펼친다 — 둘 다 열면 화면만 길어진다. */
+  const [openSpec, setOpenSpec] = useState<string | null>(null)
+
   return (
     <div>
       <div style={styles.row}>
@@ -75,50 +86,56 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
         </select>
       </div>
 
-      {groups.map(group => (
-        <div key={group.code} style={styles.row}>
-          <label style={styles.label}>{group.name}</label>
-          <div style={styles.cardGrid}>
-            {group.values.filter(v => !hiddenValueCodes.has(v.code)).map(v => {
-              const selected = selections[group.code] === v.code
-              const spec = TRIM_SPECS[v.code]
-              const card = (
-                <div
-                  style={selected ? styles.cardOn : styles.card}
-                  onClick={() => onSelect(group.code, v.code)}
-                >
-                  <div style={styles.cardImg}>
-                    <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
+      {groups.map(group => {
+        const values = group.values.filter(v => !hiddenValueCodes.has(v.code))
+        const opened = values.find(v => v.code === openSpec)
+        return (
+          <div key={group.code} style={styles.row}>
+            <label style={styles.label}>{group.name}</label>
+            <div style={styles.cardGrid}>
+              {values.map(v => {
+                const selected = selections[group.code] === v.code
+                const spec = TRIM_SPECS[v.code]
+                const isOpen = openSpec === v.code
+                return (
+                  <div
+                    key={v.code}
+                    style={selected ? styles.cardOn : styles.card}
+                    onClick={() => onSelect(group.code, v.code)}
+                  >
+                    <div style={styles.cardImg}>
+                      <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
+                    </div>
+                    <div style={styles.cardName}>{v.name}</div>
+                    <div style={styles.cardDelta}>{fmtWonVat(valueUnitPrice(group.code, v.code, selections, price))}</div>
+                    {/* 사양이 정의된 트림만 — 카드 선택과 섞이지 않게 클릭을 여기서 멈춘다 */}
+                    {spec && (
+                      <button
+                        type="button"
+                        style={isOpen ? styles.specBtnOn : styles.specBtn}
+                        onClick={e => { e.stopPropagation(); setOpenSpec(isOpen ? null : v.code) }}
+                      >
+                        사양 보기 {isOpen ? '▴' : '▾'}
+                      </button>
+                    )}
                   </div>
-                  <div style={styles.cardName}>{v.name}</div>
-                  <div style={styles.cardDelta}>{fmtWonVat(valueUnitPrice(group.code, v.code, selections, price))}</div>
-                </div>
-              )
-              // 사양이 정의된 트림만 설명을 띄운다
-              return spec ? (
-                <Tooltip
-                  key={v.code}
-                  text={<SpecTip spec={spec} />}
-                  placement="below"
-                  maxWidth={320}
-                  minWidth={260}
-                  wrapperStyle={styles.tipWrap}
-                >
-                  {card}
-                </Tooltip>
-              ) : (
-                <div key={v.code} style={styles.tipWrap}>{card}</div>
-              )
-            })}
+                )
+              })}
+            </div>
+            {/* 펼친 사양은 카드 아래 한 줄 전체 — 카드 폭에 욱여넣으면 읽기 어렵다 */}
+            {opened && TRIM_SPECS[opened.code] && (
+              <SpecPanel spec={TRIM_SPECS[opened.code]!} onClose={() => setOpenSpec(null)} />
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
 const cardBase = {
-  width: '100%',
+  flex: 1,
+  minWidth: 0,
   boxSizing: 'border-box' as const,
   border: '1.5px solid var(--line)',
   borderRadius: 12,
@@ -131,9 +148,7 @@ const cardBase = {
 const styles = {
   row: { marginBottom: 14 },
   label: { display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 7 },
-  cardGrid: { display: 'flex', gap: 10 },
-  // Tooltip 이 감싸는 span 이 카드 대신 flex 항목이 된다 — 늘어나게 해줘야 폭이 유지된다
-  tipWrap: { display: 'flex', flex: 1, minWidth: 0 },
+  cardGrid: { display: 'flex', gap: 10, alignItems: 'stretch' },
   card: cardBase,
   cardOn: {
     ...cardBase,
@@ -156,12 +171,29 @@ const styles = {
   cardName: { fontWeight: 700, fontSize: 15, marginTop: 9, color: 'var(--dark)' },
   cardCode: { fontSize: 13, color: 'var(--muted)', marginTop: 2 },
   cardDelta: { fontSize: 13, color: 'var(--muted)', marginTop: 3, fontWeight: 600 },
+  specBtn: {
+    marginTop: 9, width: '100%', padding: '6px 0', fontSize: 13, fontFamily: 'inherit',
+    border: '1px solid var(--line)', borderRadius: 7, background: '#fff', color: 'var(--muted)', cursor: 'pointer',
+  },
+  specBtnOn: {
+    marginTop: 9, width: '100%', padding: '6px 0', fontSize: 13, fontFamily: 'inherit', fontWeight: 700,
+    border: '1px solid var(--lime)', borderRadius: 7, background: '#f7fadf', color: 'var(--dark)', cursor: 'pointer',
+  },
 }
 
 const tip: Record<string, React.CSSProperties> = {
-  title: { fontWeight: 700, fontSize: 12, marginBottom: 5, color: '#c8d200' },
-  list: { margin: 0, paddingLeft: 15, display: 'flex', flexDirection: 'column', gap: 2 },
-  item: { fontSize: 11.5, lineHeight: 1.5 },
-  strong: { fontWeight: 700 },
-  foot: { fontSize: 10.5, color: '#9aa0a8', marginTop: 7, paddingTop: 5, borderTop: '1px solid rgba(255,255,255,.15)' },
+  panel: {
+    marginTop: 10, background: '#f7f8f3', border: '1px solid var(--line)',
+    borderRadius: 10, padding: '11px 13px',
+  },
+  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 },
+  title: { fontWeight: 700, fontSize: 14, color: 'var(--dark)' },
+  close: {
+    border: '1px solid var(--line)', borderRadius: 7, background: '#fff', color: 'var(--muted)',
+    fontSize: 13, fontFamily: 'inherit', padding: '3px 10px', cursor: 'pointer', flexShrink: 0,
+  },
+  list: { margin: 0, paddingLeft: 17, display: 'flex', flexDirection: 'column', gap: 3 },
+  item: { fontSize: 13, lineHeight: 1.55, color: 'var(--body)' },
+  strong: { fontWeight: 700, color: 'var(--dark)' },
+  foot: { fontSize: 13, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--line)' },
 }

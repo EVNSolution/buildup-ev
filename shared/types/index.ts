@@ -262,6 +262,8 @@ export interface ApiQuote {
   customer: { id: number; name: string; email?: string | null; phone?: string | null; address?: string | null; address_detail?: string | null } | null;
   /** 견적별 입력 스냅샷(사업자구분·보조금조건·계약서 입력 등). 고객정보 수정 팝업이 되읽는다. */
   inputs?: Record<string, unknown> | null;
+  /** 선택한 옵션(그룹코드→값코드). 수정 팝업의 「옵션」 탭이 되읽는다. */
+  selections?: Record<string, string> | null;
   /**
    * 서류 고정 시각. 전자서명 발송이 성공하면 그 시점 문서를 정본으로 굳힌다.
    * 값이 있으면 견적 입력·고객정보를 **더 이상 고칠 수 없다**(백엔드 409 DOCS_FROZEN).

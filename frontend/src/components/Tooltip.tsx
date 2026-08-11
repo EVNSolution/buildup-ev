@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useIsMobile } from '../hooks/useIsMobile'
+import { useIsTouch } from '../hooks/useIsTouch'
 
 interface Props {
   text: React.ReactNode
@@ -25,7 +25,9 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<Pos>({ left: 0 })
   const triggerRef = useRef<HTMLSpanElement>(null)
-  const isMobile = useIsMobile()
+  // 커서가 없는 기기(태블릿·휴대폰)는 hover 가 아예 없다 — 눌러서 여는 「?」 로 바꾼다.
+  // 예전엔 화면 폭 768px 로 판단해, 1024px 태블릿에서는 hover 도 「?」 도 없어 볼 방법이 없었다.
+  const isTouch = useIsTouch()
 
   const calcAndOpen = useCallback(() => {
     if (!triggerRef.current) return
@@ -71,11 +73,11 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
     <span
       ref={triggerRef}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3, ...wrapperStyle }}
-      onMouseEnter={() => !isMobile && calcAndOpen()}
-      onMouseLeave={() => !isMobile && setOpen(false)}
+      onMouseEnter={() => !isTouch && calcAndOpen()}
+      onMouseLeave={() => !isTouch && setOpen(false)}
     >
       {children}
-      {isMobile && (
+      {isTouch && (
         <button
           style={tt.iconBtn}
           onClick={e => { e.stopPropagation(); open ? setOpen(false) : calcAndOpen() }}

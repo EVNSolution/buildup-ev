@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { openPdf } from '../lib/openPdf'
+import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
+import { mapBizType } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE, toDieselStatus } from '@shared/pricing/core'
+import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, saveQuoteCustomer, saveQuoteInputs } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { BTN } from '../styles/buttons'
@@ -17,46 +19,16 @@ import { offValueCode } from '../components/OptionToggle'
 import { QuoteSaveModal, valuesFromCustomer, type QuoteSaveValues } from '../components/QuoteSaveModal'
 import { DEFAULT_SUBSIDY_INPUTS, type SubsidyInputs } from '../components/SubsidyInputs'
 import { ContractPanel } from '../components/ContractPanel'
+import { QuoteEditModal } from '../components/QuoteEditModal'
+import { CustomerViewModal } from '../components/CustomerViewModal'
 import { EmailSendModal } from '../components/EmailSendModal'
 import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
 import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
-function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual' | 'corporation' | 'simplified' | 'consumer' {
-  if (bt === 'corporate') return 'corporation'
-  if (bt === 'simplified') return 'simplified'
-  if (bt === 'consumer') return 'consumer'   // 일반구매자(비사업자) — 부가세 환급 불가
-  return 'individual'
-}
 
-/** option_rule(effect=hide) → 현재 선택 기준 숨길 그룹/값 코드 */
-function computeHidden(sel: Record<string, string>, bundle: ApiPricingBundle) {
-  const groups = new Set<string>()
-  const values = new Set<string>()
-  const selected = new Set(Object.values(sel))
-  for (const rule of bundle.rules) {
-    if (rule.effect !== 'hide' || !selected.has(rule.when_value)) continue
-    if (rule.target_type === 'group') groups.add(rule.target_code)
-    else if (rule.target_type === 'value') values.add(rule.target_code)
-  }
-  return { groups, values }
-}
-
-/** 숨겨진 그룹 선택 제거 + 숨겨진 값 선택 시 첫 노출값으로 대체 */
-function sanitizeSelections(sel: Record<string, string>, bundle: ApiPricingBundle): Record<string, string> {
-  const { groups, values } = computeHidden(sel, bundle)
-  const out = { ...sel }
-  for (const g of bundle.groups) {
-    if (groups.has(g.code)) { delete out[g.code]; continue }
-    if (out[g.code] && values.has(out[g.code])) {
-      const firstVisible = g.values.find(v => !values.has(v.code))
-      if (firstVisible) out[g.code] = firstVisible.code
-      else delete out[g.code]
-    }
-  }
-  return out
-}
+// option_rule 해석(감춤·잠금·정리)은 lib/optionRules.ts 로 옮겼다 — 수정 팝업과 공용.
 
 // ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
 const QUOTE_STATUS_KO: Record<string, string> = {
@@ -122,43 +94,7 @@ function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; co
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string)  { return s ? s.slice(0, 10) : '—' }
 
-/** 프론트 표기('corporate') ← 저장값('corporation') 역매핑. mapBizType 의 반대. */
-function unmapBizType(v: unknown): CustomerInfo['business_type'] {
-  if (v === 'corporation') return 'corporate'
-  if (v === 'simplified') return 'simplified'
-  if (v === 'consumer') return 'consumer'
-  return 'individual'
-}
 
-/**
- * 저장된 견적 → 고객정보 수정 폼 초기값.
- * 고객 행(customer)과 견적 입력 스냅샷(inputs) 두 곳에 나뉘어 있어 여기서 합친다.
- */
-function customerEditValues(q: ApiQuote): QuoteSaveValues {
-  const inp = (q.inputs ?? {}) as Record<string, unknown>
-  const str = (k: string) => String(inp[k] ?? '')
-  return {
-    subsidy: {
-      business_type: unmapBizType(inp['biz_type']),
-      region_code: str('region'),
-      is_small_business: inp['is_sosang'] === true,
-      has_transport_license: inp['has_transport_license'] === true,
-      // 옛 견적은 diesel_status 가 없고 boolean 만 있다 — '유지' 여부로 복원한다.
-      diesel_status: toDieselStatus(inp['diesel_status'], inp['diesel_conversion']),
-    },
-    name: q.customer?.name ?? '',
-    ceo_name: str('ceo_name'),
-    email: q.customer?.email ?? '',
-    phone: q.customer?.phone ?? '',
-    address: q.customer?.address ?? '',
-    address_detail: q.customer?.address_detail ?? '',
-    contract_party: str('contract_party'),
-    buyer_agent: str('buyer_agent'),
-    buyer_relation: str('buyer_relation'),
-    buyer_regno: str('buyer_regno'),
-    buyer_tel: str('buyer_tel'),
-  }
-}
 
 function MyListView() {
   const [quotes, setQuotes]   = useState<ApiQuote[]>([])
@@ -171,49 +107,9 @@ function MyListView() {
     { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
   >(null)
   /** 고객정보 수정 — 저장 모달을 수정 모드로 재사용한다(입력 구성이 같다). */
-  const [customerEdit, setCustomerEdit] = useState<ApiQuote | null>(null)
-  const [editSaving, setEditSaving] = useState(false)
-  const [editErr, setEditErr] = useState('')
-  const [regions, setRegions] = useState<string[]>([])
-
-  useEffect(() => { fetchRegions().then(setRegions).catch(() => setRegions([])) }, [])
-
-  /** 수정 저장 — 고객 행(PATCH /customer)과 견적 입력(PATCH /inputs)을 함께 갱신한다. */
-  async function handleCustomerEditSave(v: QuoteSaveValues) {
-    if (!customerEdit) return
-    setEditSaving(true); setEditErr('')
-    try {
-      // 고객 마스터도 함께 갱신한다 — 다음 견적에서 이 값들이 자동 기입된다.
-      await saveQuoteCustomer(customerEdit.id, {
-        name: v.name.trim(),
-        phone: v.phone,
-        email: v.email.trim(),
-        address: v.address.trim(),
-        address_detail: v.address_detail.trim(),
-        reg_no: v.buyer_regno.trim(),
-        ceo_name: v.subsidy.business_type === 'corporate' ? v.ceo_name.trim() : '',
-        tel: v.buyer_tel,
-      })
-      await saveQuoteInputs(customerEdit.id, {
-        biz_type: mapBizType(v.subsidy.business_type),
-        is_sosang: v.subsidy.is_small_business ?? false,
-        region: v.subsidy.region_code,
-        has_transport_license: v.subsidy.has_transport_license ?? false,
-        diesel_status: v.subsidy.diesel_status || 'none',
-        // 개인으로 되돌리면 대표이사를 비운다 — 계약서 법인 줄이 남아 있으면 안 된다.
-        ceo_name: v.subsidy.business_type === 'corporate' ? v.ceo_name.trim() : '',
-        contract_party: v.contract_party.trim(),
-        buyer_agent: v.buyer_agent.trim(),
-        buyer_relation: v.buyer_relation.trim(),
-        buyer_regno: v.buyer_regno.trim(),
-        buyer_tel: v.buyer_tel,
-      })
-      setCustomerEdit(null)
-      load()
-    } catch (e) {
-      setEditErr(e instanceof Error ? e.message : '고객정보 저장 실패')
-    } finally { setEditSaving(false) }
-  }
+  // 「수정」 = 옵션·고객정보·할부 3탭 팝업 / 「고객정보」 = 조회 전용
+  const [editQuote, setEditQuote] = useState<ApiQuote | null>(null)
+  const [viewQuote, setViewQuote] = useState<ApiQuote | null>(null)
 
   function load() {
     setLoading(true); setErr('')
@@ -255,16 +151,15 @@ function MyListView() {
         onClose={() => setEmailQuote(null)}
       />
     )}
-    {customerEdit && (
-      <QuoteSaveModal
-        mode="edit"
-        initial={customerEditValues(customerEdit)}
-        regions={regions}
-        saving={editSaving}
-        error={editErr}
-        onSave={handleCustomerEditSave}
-        onClose={() => setCustomerEdit(null)}
+    {editQuote && (
+      <QuoteEditModal
+        quote={editQuote}
+        onClose={() => setEditQuote(null)}
+        onSaved={load}
       />
+    )}
+    {viewQuote && (
+      <CustomerViewModal quote={viewQuote} onClose={() => setViewQuote(null)} />
     )}
     {confirmQuoteModal && (
       <ConfirmQuoteModal
@@ -323,25 +218,19 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
-                          {/* 견적서 생성 전(draft) = 견적서 버튼 → 입력 팝업 / 생성 후 = PDF 열람 + 수정 버튼 */}
-                          {q.status !== 'draft' && (
-                            <button
-                              style={lv.pdfBtn}
-                              title="견적서 입력값(선수금·할부·면세 등) 수정"
-                              onClick={() => setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })}
-                            >수정</button>
-                          )}
-                          {/*
-                            고객정보 수정 — 캐피탈 입력(«수정»)과 성격이 달라 버튼을 나눴다.
-                            서류가 고정된 뒤엔 백엔드가 409 로 막으므로, 누르기 전에 비활성으로 알린다.
-                          */}
+                          {/* 「수정」 하나로 옵션·고객정보·할부를 전부 고친다(팝업 안에서 탭으로 나뉜다) */}
                           <button
-                            style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
-                            disabled={!!q.docs_frozen_at}
+                            style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.docs_frozen_at
-                              ? `전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 (${fmtDate(q.docs_frozen_at)})`
-                              : '성명·상호·대표이사·연락처·주소·사업자구분·계약서 정보 수정'}
-                            onClick={() => { setEditErr(''); setCustomerEdit(q) }}
+                              ? `전자서명 발송으로 서류가 고정되었습니다 — 이력만 볼 수 있습니다 (${fmtDate(q.docs_frozen_at)})`
+                              : '옵션 · 고객정보 · 할부 수정 및 수정 이력'}
+                            onClick={() => setEditQuote(q)}
+                          >수정</button>
+                          {/* 「고객정보」는 조회 전용 — 고치는 곳은 「수정」 한 군데로 모았다 */}
+                          <button
+                            style={lv.pdfBtn}
+                            title="고객·계약 정보 조회 (수정 불가)"
+                            onClick={() => setViewQuote(q)}
                           >고객정보</button>
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
@@ -406,7 +295,8 @@ export function SalesPage() {
   const [customer, setCustomer] = useState<CustomerInfo | null>(null)
   const [showSaveModal, setShowSaveModal] = useState(false)
   /** 지방보조금은 지역을 골라야 계산된다 — 그 전까지 보조금 금액을 흐리게 보여준다. */
-  const subsidyReady = !!subsidyInputs.region_code
+  // 법인은 지방보조금이 없어 지역을 묻지 않는다 — 지역 없이도 국고보조금은 계산된다
+  const subsidyReady = subsidyInputs.business_type === 'corporate' || !!subsidyInputs.region_code
 
   const [subsidyLocal, setSubsidyLocal] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
@@ -464,18 +354,10 @@ export function SalesPage() {
   }, [subsidyInputs.region_code])
 
   // option_rule 기준 비활성 그룹 코드
-  const disabledGroupCodes = useMemo<Set<string>>(() => {
-    if (!bundle) return new Set()
-    const disabled = new Set<string>()
-    for (const rule of bundle.rules) {
-      if (rule.effect === 'disable' && rule.target_type === 'group') {
-        if (Object.values(selections).includes(rule.when_value)) {
-          disabled.add(rule.target_code)
-        }
-      }
-    }
-    return disabled
-  }, [bundle, selections])
+  const disabledGroupCodes = useMemo<Set<string>>(
+    () => (bundle ? computeDisabledGroups(selections, bundle) : new Set<string>()),
+    [bundle, selections],
+  )
 
   // option_rule(effect=hide) 기준 숨김 그룹/값 + 옵션별 증감액
   const { hiddenGroupCodes, hiddenValueCodes } = useMemo(() => {
