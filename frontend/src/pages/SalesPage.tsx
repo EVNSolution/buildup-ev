@@ -113,6 +113,10 @@ function MyListView() {
   const [editQuote, setEditQuote] = useState<ApiQuote | null>(null)
   const [viewQuote, setViewQuote] = useState<ApiQuote | null>(null)
   const [dupBusy, setDupBusy] = useState<number | null>(null)
+  // 권한 없는 버튼은 아예 감춘다 — 눌러서 403 을 보게 두면 왜 안 되는지 알 수 없다
+  const canEdit = usePermission('quote.edit')
+  const canEmail = usePermission('doc.send.email')
+  const canSign = usePermission('doc.send.sign')
 
   /**
    * 같은 고객·같은 옵션으로 새 견적을 만든다.
@@ -245,21 +249,24 @@ function MyListView() {
                       <td style={{ ...lv.td, color: 'var(--muted)', fontSize: 12 }}>{fmtDate(q.created_at)}</td>
                       <td style={lv.td}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
-                          {/* 「수정」 하나로 옵션·고객정보·할부를 전부 고친다(팝업 안에서 탭으로 나뉜다) */}
+                          {/* 「수정」 하나로 옵션·고객정보·할부를 전부 고친다(팝업 안에서 탭으로 나뉜다).
+                              권한이 없으면 이력만 볼 수 있게 그대로 두되 라벨을 바꾼다. */}
                           <button
                             style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.docs_frozen_at
                               ? `전자서명 발송(${fmtDate(q.docs_frozen_at)})으로 서류가 고정되었습니다 — 이력만 볼 수 있습니다. 조건을 바꾸려면 「복제」로 새 견적을 만드세요.`
                               : '옵션 · 고객정보 · 할부 수정 및 수정 이력 (전자서명 발송 전까지 가능)'}
                             onClick={() => setEditQuote(q)}
-                          >{q.docs_frozen_at ? '이력' : '수정'}</button>
+                          >{q.docs_frozen_at || !canEdit ? '이력' : '수정'}</button>
                           {/* 전자서명을 보낸 견적은 고칠 수 없다 — 조건을 바꿔 다시 낼 땐 복제한다 */}
+                          {canEdit && (
                           <button
                             style={dupBusy === q.id ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             disabled={dupBusy === q.id}
                             title="같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)"
                             onClick={() => void handleDuplicate(q)}
                           >{dupBusy === q.id ? '…' : '복제'}</button>
+                          )}
                           {/* 「고객정보」는 조회 전용 — 고치는 곳은 「수정」 한 군데로 모았다 */}
                           <button
                             style={lv.pdfBtn}
@@ -290,11 +297,14 @@ function MyListView() {
                             >서명본</button>
                           )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
-                          <button
-                            style={lv.pdfBtn}
-                            title="참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)"
-                            onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
-                          >메일 전달</button>
+                          {canEmail && (
+                            <button
+                              style={lv.pdfBtn}
+                              title="참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)"
+                              onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                            >메일 전달</button>
+                          )}
+                          {canSign && (
                           <button
                             style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft'}
@@ -306,6 +316,7 @@ function MyListView() {
                               customerPhone: q.customer?.phone ?? undefined,
                             })}
                           >서명 요청</button>
+                          )}
                         </div>
                       </td>
                     </tr>

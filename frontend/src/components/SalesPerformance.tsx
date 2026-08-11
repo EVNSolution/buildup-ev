@@ -20,9 +20,9 @@ const STAGE_KO: Record<FunnelStage, string> = {
 }
 
 const KIND_KO: Record<AttentionItem['kind'], { label: string; why: string; tone: 'warn' | 'info' }> = {
-  sign_pending:  { label: '서명 대기', why: '서명 요청은 갔는데 아직 안 끝났습니다', tone: 'warn' },
-  not_requested: { label: '서명 미요청', why: '견적서까지 만들고 서명 요청을 안 했습니다', tone: 'warn' },
-  draft_stale:   { label: '임시저장 방치', why: '견적서를 아직 만들지 않았습니다', tone: 'info' },
+  sign_pending:  { label: '서명 미완료', why: '서명 요청 후 미완료 상태입니다', tone: 'warn' },
+  not_requested: { label: '서명 요청 필요', why: '견적서 생성 후 서명 요청 이력이 없습니다', tone: 'warn' },
+  draft_stale:   { label: '견적서 미생성', why: '임시저장 상태로 견적서가 생성되지 않았습니다', tone: 'info' },
 }
 
 const won = (n: number) => '₩' + Math.round(n).toLocaleString('ko-KR')
@@ -79,32 +79,32 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
         <input type="date" style={s.date} value={to} onChange={e => setTo(e.target.value)} />
         {showUserFilter && (
           <select style={s.select} value={user} onChange={e => setUser(e.target.value)}>
-            <option value="">전체 계정</option>
+            <option value="">전체</option>
             {userOptions.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         )}
         <button style={BTN.barPrimary} onClick={load}>조회</button>
-        <span style={s.hint}>기간은 견적 생성일 기준</span>
+        <span style={s.hint}>기준일: 견적 생성일</span>
       </div>
 
       {err && <div style={s.err}>{err}</div>}
-      {loading && <div style={s.empty}>불러오는 중…</div>}
+      {loading && <div style={s.empty}>조회 중입니다…</div>}
 
       {!loading && attention && (
         <section style={s.section}>
           <div style={s.h}>
-            지금 붙어야 할 건 <span style={s.count}>{attention.length}</span>
+            처리 필요 견적 <span style={s.count}>{attention.length}</span>
           </div>
           {attention.length === 0 ? (
-            <div style={s.ok}>묵혀 둔 건이 없습니다.</div>
+            <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
           ) : (
             <div style={s.tableWrap}>
               <table style={s.table}>
                 <thead>
                   <tr>
-                    <th style={s.th}>사유</th><th style={s.th}>경과</th><th style={s.th}>견적</th>
+                    <th style={s.th}>사유</th><th style={s.th}>경과일</th><th style={s.th}>견적번호</th>
                     <th style={s.th}>고객</th><th style={s.th}>실구매가</th>
-                    {showUserFilter && <th style={s.th}>영업</th>}
+                    {showUserFilter && <th style={s.th}>담당</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -132,17 +132,17 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
         <>
           {total && stats.length > 1 && (
             <section style={s.section}>
-              <div style={s.h}>전체 합계</div>
+              <div style={s.h}>전체 집계</div>
               <Funnel reached={total.reached} />
               <div style={s.cards}>
-                <Card label="확정 금액" value={won(total.amount.confirmed)} />
-                <Card label="계약 금액" value={won(total.amount.contracted)} />
+                <Card label="견적확정 금액" value={won(total.amount.confirmed)} />
+                <Card label="계약완료 금액" value={won(total.amount.contracted)} />
                 <Card label="인도완료 금액" value={won(total.amount.completed)} strong />
               </div>
             </section>
           )}
 
-          {stats.length === 0 && <div style={s.empty}>이 기간에 견적이 없습니다.</div>}
+          {stats.length === 0 && <div style={s.empty}>해당 기간에 생성된 견적이 없습니다.</div>}
 
           {stats.map(st => (
             <section key={st.sales_user_id} style={s.section}>
@@ -150,26 +150,26 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <Funnel reached={st.reached} />
 
               <div style={s.cards}>
-                <Card label="확정 금액" value={won(st.amount.confirmed)} />
-                <Card label="계약 금액" value={won(st.amount.contracted)} />
+                <Card label="견적확정 금액" value={won(st.amount.confirmed)} />
+                <Card label="계약완료 금액" value={won(st.amount.contracted)} />
                 <Card label="인도완료 금액" value={won(st.amount.completed)} strong />
-                <Card label="메일 전달" value={`${st.activity.emailed}건`} />
+                <Card label="메일 발송" value={`${st.activity.emailed}건`} />
                 <Card label="서명 요청" value={`${st.activity.sign_requested}건`} />
                 <Card
                   label="견적당 수정"
                   value={st.edits_per_quote === null ? '—' : `${st.edits_per_quote}회`}
-                  note="높으면 초기 상담에서 조건을 덜 받은 것"
+                  note="견적 1건당 평균 수정 횟수"
                 />
               </div>
 
               <div style={s.cards}>
-                <Lead label="견적 → 확정" v={st.lead.to_confirmed} />
-                <Lead label="견적 → 계약" v={st.lead.to_contracted} />
-                <Lead label="견적 → 완료" v={st.lead.to_completed} />
+                <Lead label="견적확정 소요" v={st.lead.to_confirmed} />
+                <Lead label="계약완료 소요" v={st.lead.to_contracted} />
+                <Lead label="인도완료 소요" v={st.lead.to_completed} />
                 <Card
                   label="서명 완료율"
                   value={signRate(st)}
-                  note={`이메일 ${st.signing.email_done}/${st.signing.email_sent} · 알림톡 ${st.signing.kakao_done}/${st.signing.kakao_sent}`}
+                  note={`이메일 ${st.signing.email_done}/${st.signing.email_sent} · 알림톡 ${st.signing.kakao_done}/${st.signing.kakao_sent} (완료/요청)`}
                 />
               </div>
             </section>
@@ -228,7 +228,7 @@ function Lead({ label, v }: { label: string; v: { days: number | null; n: number
     <div style={s.card}>
       <div style={s.cardLabel}>{label}</div>
       <div style={s.cardVal}>{v.days === null ? '—' : `${v.days}일`}</div>
-      <div style={s.cardNote}>{v.n ? `${v.n}건 평균` : '기록 없음'}</div>
+      <div style={s.cardNote}>{v.n ? `표본 ${v.n}건` : '산출 불가'}</div>
     </div>
   )
 }

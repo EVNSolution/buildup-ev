@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { existsSync, createReadStream } from 'node:fs';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import {
   sendContract, getLatestContract, ContractError, refreshContractStatus, ensureSignedPdf,
 } from '../services/contract.js';
@@ -20,7 +20,7 @@ function quoteId(req: Request): number | null {
 }
 
 // ── POST /:id/contract/send — 계약서 발송 ────────────────────────────────────
-contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
+contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
 

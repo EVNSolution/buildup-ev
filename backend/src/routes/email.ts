@@ -4,7 +4,7 @@
  */
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { sendQuoteDocsEmail, EmailConfigError, EmailError } from '../services/email.js';
 import { ContractError } from '../services/contract.js';
 import { QuotePdfError } from '../services/quote-pdf.js';
@@ -12,7 +12,7 @@ import { SofficeUnavailableError } from '../lib/soffice.js';
 
 export const emailRouter = Router();
 
-emailRouter.post('/:id/email', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
+emailRouter.post('/:id/email', rbac('ADMIN', 'SALES'), requirePermission('doc.send.email'), async (req: Request, res: Response): Promise<void> => {
   const id = Number(req.params['id']);
   if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
 
