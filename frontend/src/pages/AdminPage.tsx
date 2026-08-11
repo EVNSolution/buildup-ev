@@ -10,6 +10,7 @@ import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { OptionDbTab } from '../components/OptionDbTab'
 import { CustomerViewModal } from '../components/CustomerViewModal'
+import { SalesPerformance } from '../components/SalesPerformance'
 import { BTN } from '../styles/buttons'
 import { Tooltip } from '../components/Tooltip'
 import { useAuth } from '../contexts/AuthContext'
@@ -67,7 +68,7 @@ const MODULE_DESC: Record<string, string> = {
   'admin.modules': '기능 모듈 ON/OFF 제어',
   'document.generate': '구조변경 서류 자동 생성',
 }
-type TabKey = 'quotes' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
+type TabKey = 'quotes' | 'perf' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -550,6 +551,19 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
   )
 }
 
+// ── 영업 성과 탭 ──────────────────────────────────────────────────────────
+// 영업의 「마이페이지」와 **같은 화면**을 쓴다 — 관리자는 계정 필터가 더 붙을 뿐이다.
+// 화면을 둘로 나누면 한쪽만 낡는다.
+function PerfTab() {
+  const [users, setUsers] = useState<string[]>([])
+  useEffect(() => {
+    fetchUsers()
+      .then(us => setUsers(us.filter(u => u.role === 'SALES' || u.role === 'ADMIN').map(u => u.email)))
+      .catch(() => setUsers([]))
+  }, [])
+  return <SalesPerformance showUserFilter userOptions={users} />
+}
+
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
 function QuotesTab() {
   const { session } = useAuth()
@@ -904,6 +918,7 @@ export function AdminPage() {
 
   const TABS: { key: TabKey; label: string }[] = [
     { key: 'quotes',   label: '견적 목록' },
+    { key: 'perf',     label: '영업 성과' },
     { key: 'kanban',   label: '주문 칸반' },
     { key: 'toggles',  label: '기능모듈' },
     { key: 'accounts', label: '계정 관리' },
@@ -935,6 +950,7 @@ export function AdminPage() {
         </div>
 
         {activeTab === 'quotes' && <QuotesTab />}
+        {activeTab === 'perf' && <PerfTab />}
         {activeTab === 'kanban' && <KanbanTab />}
 
         {activeTab === 'toggles' && (

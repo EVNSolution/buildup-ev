@@ -20,6 +20,7 @@ import { QuoteSaveModal, valuesFromCustomer, type QuoteSaveValues } from '../com
 import { DEFAULT_SUBSIDY_INPUTS, type SubsidyInputs } from '../components/SubsidyInputs'
 import { ContractPanel } from '../components/ContractPanel'
 import { QuoteEditModal } from '../components/QuoteEditModal'
+import { SalesPerformance } from '../components/SalesPerformance'
 import { CustomerViewModal } from '../components/CustomerViewModal'
 import { EmailSendModal } from '../components/EmailSendModal'
 import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
@@ -324,7 +325,7 @@ function MyListView() {
 export function SalesPage() {
   const { session } = useAuth()
   const canConvert = usePermission('quote.create')
-  const [salesTab, setSalesTab] = useState<'config' | 'list'>('config')
+  const [salesTab, setSalesTab] = useState<'config' | 'list' | 'me'>('config')
 
   const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
   const [bundleLoading, setBundleLoading] = useState(true)
@@ -619,12 +620,19 @@ export function SalesPage() {
 
       <div style={styles.tabBar}>
         <button style={salesTab === 'config' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('config')}>컨피규레이터</button>
-        <button style={salesTab === 'list'   ? styles.tabOn : styles.tab} onClick={() => setSalesTab('list')}>내 견적·주문</button>
+        <button style={salesTab === 'list'   ? styles.tabOn : styles.tab} onClick={() => setSalesTab('list')}>견적·주문</button>
+        {/* 마이페이지 = 내 진행상황·성과. 서버가 본인 것만 내려준다. */}
+        <button style={salesTab === 'me'     ? styles.tabOn : styles.tab} onClick={() => setSalesTab('me')}>마이페이지</button>
       </div>
 
       {salesTab === 'list' && <MyListView />}
+      {salesTab === 'me' && (
+        <div style={styles.meWrap}>
+          <SalesPerformance />
+        </div>
+      )}
 
-      <div style={{ ...styles.body, display: salesTab === 'list' ? 'none' : 'flex' }}>
+      <div style={{ ...styles.body, display: salesTab === 'config' ? 'flex' : 'none' }}>
         <section style={styles.viewer}>
           <div style={styles.vtabs}>
             {['FREE', 'TOP', 'SIDE', 'REAR', 'FRONT'].map(v => (
@@ -711,6 +719,7 @@ const styles = {
     display: 'flex',
     overflow: 'hidden',
   },
+  meWrap: { flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '20px 24px' },
   viewer: {
     // 폭은 옵션 패널과 2:1 로 나눈다. 3D 는 이 폭 안에서 16:9 로 맞춰지고(styles.frame),
     // 남는 자리는 위아래 여백이 된다 — 패널은 고정폭이 아니라 남은 폭을 전부 채운다.
