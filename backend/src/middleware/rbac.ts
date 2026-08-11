@@ -80,6 +80,30 @@ export function orgScope(req: Request, res: Response, next: NextFunction): void 
   next();
 }
 
+/**
+ * 권한 보유 여부만 확인한다(막지는 않는다).
+ * "권한이 있으면 전체, 없으면 본인 것만" 처럼 **결과 범위를 가르는** 데 쓴다.
+ * 역할로 가르면 계정별 토글이 무시되므로 여기서도 같은 판정을 쓴다.
+ */
+export async function hasPermission(req: Request, code: string): Promise<boolean> {
+  if (!req.auth) return false;
+  if (req.auth.is_master) return true;
+  if (!prisma || process.env['NODE_ENV'] === 'test') return true;
+  try {
+    const acs = await prisma.accessControl.findMany({
+      where: {
+        OR: [
+          { subject_type: 'role', subject_ref: req.auth.role },
+          { subject_type: 'user', subject_ref: req.auth.email },
+        ],
+      },
+    });
+    return mergePermissions(req.auth.role, req.auth.email, acs).includes(code);
+  } catch {
+    return false;
+  }
+}
+
 /** 권한 모듈 코드 기반 접근 제어. 역할 체크(rbac) 이후에 체인으로 사용.
  * DEV: is_master=true이면 우회. TEST/DB없음이면 우회. */
 export function requirePermission(code: string) {

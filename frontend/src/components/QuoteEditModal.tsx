@@ -14,6 +14,7 @@ import { QuoteCustomerForm, missingRequired, type QuoteSaveValues } from './Quot
 import { customerEditValues, mapBizType } from '../lib/quoteCustomer'
 import { fetchRegions } from '../api/quotes'
 import { BTN } from '../styles/buttons'
+import { usePermission } from './PermGate'
 
 /**
  * 견적 수정 — 옵션 · 고객정보 · 할부 를 **탭으로 나눠** 고친다.
@@ -70,8 +71,10 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
 
-  // 서류가 고정되면(전자서명 발송) 어떤 탭도 저장할 수 없다 — 서명한 문서와 어긋나면 안 된다
-  const frozen = !!quote.docs_frozen_at
+  // 서류가 고정되면(전자서명 발송) 어떤 탭도 저장할 수 없다 — 서명한 문서와 어긋나면 안 된다.
+  // 수정 권한이 없어도 마찬가지 — 이력은 볼 수 있게 두고 저장만 막는다.
+  const canEdit = usePermission('quote.edit')
+  const frozen = !!quote.docs_frozen_at || !canEdit
 
   function done(text: string) { setMsg(text); setErr(''); onSaved() }
   function fail(e: unknown) { setErr(e instanceof Error ? e.message : '저장 실패'); setMsg('') }
@@ -80,14 +83,17 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
     <div style={s.overlay}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <div style={s.head}>
-          <span style={s.title}>견적 수정 — {quote.quote_no ?? `#${quote.id}`} · {quote.customer?.name ?? '고객 미지정'}</span>
+          <span style={s.title}>
+            {canEdit ? '견적 수정' : '견적 조회'} — {quote.quote_no ?? `#${quote.id}`} · {quote.customer?.name ?? '고객 미지정'}
+          </span>
           <button style={BTN.bar} onClick={onClose}>닫기</button>
         </div>
 
         {frozen && (
           <div style={s.frozen}>
-            전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 — 고객이 받은 문서와 어긋나면 안 되기 때문입니다.
-            조건을 바꿔 다시 내려면 목록의 「복제」로 같은 고객·같은 옵션의 새 견적을 만드세요.
+            {!canEdit
+              ? '견적 수정 권한이 없습니다. 이력만 조회할 수 있습니다.'
+              : '전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 — 고객이 받은 문서와 어긋나면 안 되기 때문입니다. 조건을 바꿔 다시 내려면 목록의 「복제」로 같은 고객·같은 옵션의 새 견적을 만드세요.'}
           </div>
         )}
 

@@ -7,7 +7,7 @@
  */
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
 import { invalidateWeightConstantsCache } from '../services/weight-constants.js';
@@ -190,7 +190,7 @@ optionDbRouter.get('/:table/restore-points', rbac('ADMIN'), async (req: Request,
 });
 
 // ── POST /option-db/:table/rollback — 지정 시각 직전 상태로 복원 ─────────────
-optionDbRouter.post('/:table/rollback', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+optionDbRouter.post('/:table/rollback', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const table = String(req.params['table']);
   const def = TABLES[table];
@@ -260,7 +260,7 @@ optionDbRouter.get('/:table', rbac('ADMIN'), async (req: Request, res): Promise<
 });
 
 // ── PUT /option-db/:table — 행 upsert(단건·다건 일괄) + 감사이력 ─────────────
-optionDbRouter.put('/:table', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+optionDbRouter.put('/:table', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const table = String(req.params['table']);
   const def = TABLES[table];

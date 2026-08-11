@@ -270,7 +270,7 @@ quotesRouter.get('/installment-rates', rbac('SALES', 'ADMIN'), async (_req: Requ
 
 // ── PATCH /quotes/:id/inputs — 총견적서 입력 부분저장(임시저장) ───────────
 
-quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quote.edit'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -344,7 +344,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), async (req: Request, r
 // 없어 이력이 끊겼다. 여기서 옵션을 갈아끼우고 금액을 다시 계산해 같은 견적에 남긴다.
 // 서류가 고정된 뒤(전자서명 발송)에는 막는다 — 서명한 문서와 어긋나면 안 된다.
 
-quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission('quote.edit'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = Number(req.params['id']);
   if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
@@ -421,7 +421,7 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), async (req: Reques
 // 복사하지 않는 것: 상태(임시저장부터 다시) · 발송이력 · 서류고정 · 전자서명
 //   — 새 견적은 아직 아무것도 보내지 않은 견적이다.
 
-quotesRouter.post('/:id/duplicate', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+quotesRouter.post('/:id/duplicate', rbac('SALES', 'ADMIN'), requirePermission('quote.edit'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = Number(req.params['id']);
   if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
@@ -483,7 +483,7 @@ quotesRouter.get('/:id/history', rbac('SALES', 'ADMIN'), async (req: Request, re
 // 새 customer 행이 생길 뿐 견적이 가리키는 행은 그대로라, 견적서·계약서에 옛 값이 나갔다.
 // 여기서는 **견적이 가리키는 customer 행 자체**를 고쳐 모든 서류에 즉시 반영되게 한다.
 
-quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), requirePermission('quote.edit'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -531,7 +531,7 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), async (req: Request,
 
 // ── POST /quotes — 서버 재계산 + 스냅샷 저장 ─────────────────────────────
 
-quotesRouter.post('/', rbac('SALES'), async (req: Request, res): Promise<void> => {
+quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
@@ -758,7 +758,7 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
 // confirmed/ordered: is_master만 삭제 가능 (연결된 order·order_option·document 트랜잭션 cascade)
 // 그 외:     삭제 불가
 
-quotesRouter.delete('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+quotesRouter.delete('/:id', rbac('ADMIN'), requirePermission('quote.delete'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;

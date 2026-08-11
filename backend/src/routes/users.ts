@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, generateTempPassword } from '../lib/password.js';
 import type { Role } from '@buildup-ev/shared/types';
@@ -42,7 +42,7 @@ usersRouter.get('/', rbac('ADMIN'), async (_req: Request, res): Promise<void> =>
 
 // ── POST /users — 계정 발급 ───────────────────────────────────────────────
 
-usersRouter.post('/', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+usersRouter.post('/', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email, name, role, org_code } = req.body as { email?: string; name?: string; role?: string; org_code?: string };
   if (!email || !name || !role || !org_code) {
@@ -86,7 +86,7 @@ usersRouter.post('/', rbac('ADMIN'), async (req: Request, res): Promise<void> =>
 
 // ── PATCH /users/:email ───────────────────────────────────────────────────
 
-usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+usersRouter.patch('/:email', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email } = req.params as { email: string };
   const { role, org_code, status } = req.body as { role?: string; org_code?: string; status?: string };
@@ -124,7 +124,7 @@ usersRouter.patch('/:email', rbac('ADMIN'), async (req: Request, res): Promise<v
 // ?cascade=true: is_master 전용 — 연결 데이터 전체 cascade 삭제 (테스트 정리용)
 // 기본(cascade 없음): 일반 ADMIN — 참조 없는 계정만 삭제
 
-usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+usersRouter.delete('/:email', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email } = req.params as { email: string };
   const cascade = req.query['cascade'] === 'true';
@@ -207,7 +207,7 @@ usersRouter.delete('/:email', rbac('ADMIN'), async (req: Request, res): Promise<
 
 // ── POST /users/:email/reset-password ─────────────────────────────────────
 
-usersRouter.post('/:email/reset-password', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+usersRouter.post('/:email/reset-password', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email } = req.params as { email: string };
 

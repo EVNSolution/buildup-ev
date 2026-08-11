@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 
 export const accessControlRouter = Router();
@@ -15,7 +15,7 @@ accessControlRouter.get('/', rbac('ADMIN'), async (_req: Request, res): Promise<
 
 // ── POST /access-control — upsert ────────────────────────────────────────
 
-accessControlRouter.post('/', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+accessControlRouter.post('/', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { subject_type, subject_ref, module_code, enabled, memo } = req.body as {
     subject_type?: string; subject_ref?: string; module_code?: string; enabled?: boolean; memo?: string;

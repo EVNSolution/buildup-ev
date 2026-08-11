@@ -15,12 +15,12 @@ describe('옵션 분류 — 화면 상수와 DB 값 일치', () => {
   it('화면이 쓰는 분류마다 그룹이 하나 이상 있다', async () => {
     if (!prisma) return;                       // DB 없는 환경
     // DB 에 닿지 못하는 환경(로컬 등)에서는 검사할 대상이 없다 — 조용히 넘어간다.
-    let rows: { category: string }[];
+    let rows: { category: string | null }[];
     try {
-      rows = await prisma.optionGroup.groupBy({ by: ['category'], _count: true });
+      rows = await prisma.optionGroup.findMany({ select: { category: true }, distinct: ['category'] });
     } catch { return; }
     if (!rows.length) return;                  // 시드 전
-    const inDb = new Set(rows.map(r => r.category));
+    const inDb = new Set(rows.map(r => r.category).filter(Boolean));
     for (const [key, value] of Object.entries(OPTION_CATEGORY)) {
       expect(inDb.has(value), `분류 '${value}'(${key}) 가 DB 에 없다 — 화면이 빈 채로 뜬다`).toBe(true);
     }

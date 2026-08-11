@@ -13,6 +13,7 @@ import { CustomerViewModal } from '../components/CustomerViewModal'
 import { SalesPerformance } from '../components/SalesPerformance'
 import { BTN } from '../styles/buttons'
 import { Tooltip } from '../components/Tooltip'
+import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 
@@ -555,13 +556,15 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
 // 영업의 「마이페이지」와 **같은 화면**을 쓴다 — 관리자는 계정 필터가 더 붙을 뿐이다.
 // 화면을 둘로 나누면 한쪽만 낡는다.
 function PerfTab() {
+  // 전체 실적을 볼 권한이 없으면 계정 필터를 숨긴다 — 서버도 본인 것만 내려준다
+  const canSeeAll = usePermission('stats.all')
   const [users, setUsers] = useState<string[]>([])
   useEffect(() => {
     fetchUsers()
       .then(us => setUsers(us.filter(u => u.role === 'SALES' || u.role === 'ADMIN').map(u => u.email)))
       .catch(() => setUsers([]))
   }, [])
-  return <SalesPerformance showUserFilter userOptions={users} />
+  return <SalesPerformance showUserFilter={canSeeAll} userOptions={users} />
 }
 
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
@@ -583,6 +586,8 @@ function QuotesTab() {
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [viewing, setViewing] = useState<ApiQuote | null>(null)
+  // 삭제는 되돌릴 수 없다 — 권한이 없으면 버튼 자체를 감춘다
+  const canDelete = usePermission('quote.delete')
 
   function load() {
     setLoading(true); setErr('')
@@ -738,7 +743,7 @@ function QuotesTab() {
                 {q.status === 'contracted' && (
                   <button style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                 )}
-                {(q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
+                {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                   <button
                     style={{ ...(deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)), flex: 1, minHeight: 44 }}
                     disabled={deletingId === q.id}
@@ -819,7 +824,7 @@ function QuotesTab() {
                       {q.status === 'contracted' && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                       )}
-                      {(q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
+                      {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                         <button
                           style={deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)}
                           disabled={deletingId === q.id}
