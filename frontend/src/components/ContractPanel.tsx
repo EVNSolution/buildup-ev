@@ -17,13 +17,22 @@ const COLOR: Record<ContractInfo['status'], React.CSSProperties> = {
 }
 
 /** 견적 기준 전자서명 계약 패널 — 발송(계약서+견적서 동봉)·상태·서명본. 영업/관리자. */
-export function ContractPanel({ quoteId, customerName }: { quoteId: number; customerName?: string }) {
+export function ContractPanel({ quoteId, customerName, customerEmail, customerPhone }: {
+  quoteId: number
+  customerName?: string
+  /** 어디로 나가는지 보여주기 위한 값 — 발송은 서버가 견적에 저장된 정보로 한다 */
+  customerEmail?: string
+  customerPhone?: string
+}) {
   const [contract, setContract] = useState<ContractInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [method, setMethod] = useState<'EMAIL' | 'KAKAO'>('EMAIL')
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [preview, setPreview] = useState(false)
+
+  // 고른 방식으로 실제 어디에 도착하는지. 비어 있으면 발송 자체를 막는다.
+  const dest = method === 'EMAIL' ? (customerEmail ?? '').trim() : (customerPhone ?? '').trim()
 
   function load() {
     setLoading(true); setErr('')
@@ -96,7 +105,15 @@ export function ContractPanel({ quoteId, customerName }: { quoteId: number; cust
             <label style={s.radio}><input type="radio" checked={method === 'EMAIL'} onChange={() => setMethod('EMAIL')} /> 이메일</label>
             <label style={s.radio}><input type="radio" checked={method === 'KAKAO'} onChange={() => setMethod('KAKAO')} /> 카카오 알림톡</label>
           </div>
-          <button style={s.primary} onClick={handleSend} disabled={sending}>
+          {/* 서명 요청은 1건마다 과금된다 — 어디로 나가는지 누르기 전에 보여준다 */}
+          <div style={dest ? s.dest : s.destWarn}>
+            {dest
+              ? <>받는 곳 <b>{dest}</b></>
+              : method === 'EMAIL'
+                ? '고객 이메일이 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.'
+                : '고객 휴대폰번호가 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.'}
+          </div>
+          <button style={s.primary} onClick={handleSend} disabled={sending || !dest}>
             {sending ? '발송 중…' : (contract ? '재발송' : `계약서 발송${customerName ? ` (${customerName})` : ''}`)}
           </button>
           <div style={s.note}>※ 계약서(전자서명)와 견적서를 함께 발송합니다. 고객 연락처는 견적에 저장된 정보를 사용합니다.</div>
@@ -133,5 +150,7 @@ const s: Record<string, React.CSSProperties> = {
   radio: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' },
   primary: { padding: '9px 16px', border: 'none', borderRadius: 8, background: '#1a1a1a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
   note: { fontSize: 11, color: 'var(--muted)' },
+  dest: { fontSize: 12.5, color: 'var(--muted)', marginTop: 2 },
+  destWarn: { fontSize: 12.5, color: '#c0392b', marginTop: 2, lineHeight: 1.5 },
   err: { marginTop: 10, background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 },
 }

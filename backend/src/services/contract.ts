@@ -17,6 +17,7 @@ import { findSignPositions } from './sign-positions.js';
 import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
+import { toKakaoPhone } from './modusign.js';
 
 export class ContractError extends Error {
   constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' | 'NOT_SENDABLE' | 'ALREADY_SENT' | 'NEEDS_REVIEW' = 'NOT_FOUND') {
@@ -133,7 +134,8 @@ export async function sendContract(quoteId: number, signingMethod: SigningMethod
   }
 
   const { customer } = await buildContractInput(quoteId);
-  const contact = signingMethod === 'EMAIL' ? customer.email : customer.phone;
+  // 알림톡은 숫자만 남긴 번호로 보낸다 — 저장 형식(010-1234-5678)과 다르다.
+  const contact = signingMethod === 'EMAIL' ? customer.email : toKakaoPhone(customer.phone ?? undefined);
   if (!contact) {
     throw new ContractError(signingMethod === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
   }

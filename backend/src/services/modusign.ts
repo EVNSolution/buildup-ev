@@ -80,6 +80,18 @@ export interface SendParams {
 }
 
 /**
+ * 카카오 알림톡 수신번호 — **숫자만** 남긴다.
+ *
+ * 우리는 휴대폰을 `010-1234-5678` 로 저장하는데(입력칸이 세 칸이라 하이픈이 붙는다)
+ * 모두싸인 예시는 `01012345678` 이다. 하이픈을 받아 주는지 문서에 없어, 받아 주더라도
+ * 손해가 없는 쪽으로 맞춘다.
+ */
+export function toKakaoPhone(phone: string | undefined): string | undefined {
+  const d = (phone ?? '').replace(/\D/g, '');
+  return d || undefined;
+}
+
+/**
  * 계약서 발송. POST /documents — 서명대상 PDF(계약서) + 고객 1인 participant + anchor 필드.
  * attachments 는 서명 없이 함께 전달(견적서 동봉). 반환: 모두싸인 문서 id.
  */
@@ -89,7 +101,20 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
       '날인칸 위치를 찾지 못했습니다 — 계약서 양식의 «자필성명» 라벨과 «(인)» 을 확인하세요 (서버 로그에 상세)',
     );
   }
-  const contact = p.participant.signingMethod === 'EMAIL' ? p.participant.email : p.participant.phone;
+  const contact = p.participant.signingMethod === 'EMAIL'
+    ? p.participant.email
+    : toKakaoPhone(p.participant.phone);
+  if (!contact) {
+    throw new ModusignApiError(
+      p.participant.signingMethod === 'EMAIL'
+        ? '고객 이메일이 없어 발송할 수 없습니다'
+        : '고객 휴대폰번호가 없어 알림톡을 보낼 수 없습니다',
+    );
+  }
+  // 실패했을 때 무엇을 어디로 보냈는지 알 수 있어야 한다(번호는 뒷 4자리만 남긴다).
+  console.info(`[modusign] 발송 시도 — 방식 ${p.participant.signingMethod}`
+    + ` · 수신 ${p.participant.signingMethod === 'EMAIL' ? String(contact).replace(/(.{2}).*(@.*)/, '$1***$2') : `****${String(contact).slice(-4)}`}`
+    + ` · 서명필드 ${p.signFields.length}개(${p.signatureType})`);
   // ── 요청 스키마(초안) — 실 API 로 검증 시 이 블록만 보정 ─────────────────────
   // 확장자는 파일명에서 뽑되, 없으면 pdf. (모두싸인은 name 과 별개로 extension 을 요구한다)
   const extOf = (fname: string) => (fname.split('.').pop() ?? '').toLowerCase() || 'pdf';

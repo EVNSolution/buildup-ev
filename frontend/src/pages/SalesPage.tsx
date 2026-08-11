@@ -101,7 +101,8 @@ function MyListView() {
   const [orders, setOrders]   = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
-  const [contractQuote, setContractQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [contractQuote, setContractQuote] = useState<
+    { id: number; customerName?: string; customerEmail?: string; customerPhone?: string } | null>(null)
   const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
     { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
@@ -160,7 +161,12 @@ function MyListView() {
             {/* 팝업 안에서 서명을 요청하면 목록의 상태·발송현황이 달라진다 — 닫을 때 다시 읽는다 */}
             <button style={{ border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 }} onClick={() => { setContractQuote(null); load() }}>✕</button>
           </div>
-          <ContractPanel quoteId={contractQuote.id} customerName={contractQuote.customerName} />
+          <ContractPanel
+            quoteId={contractQuote.id}
+            customerName={contractQuote.customerName}
+            customerEmail={contractQuote.customerEmail}
+            customerPhone={contractQuote.customerPhone}
+          />
         </div>
       </div>
     )}
@@ -292,7 +298,12 @@ function MyListView() {
                             style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft'}
                             title={q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
-                            onClick={() => setContractQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                            onClick={() => setContractQuote({
+                              id: q.id,
+                              customerName: q.customer?.name ?? undefined,
+                              customerEmail: q.customer?.email ?? undefined,
+                              customerPhone: q.customer?.phone ?? undefined,
+                            })}
                           >서명 요청</button>
                         </div>
                       </td>
