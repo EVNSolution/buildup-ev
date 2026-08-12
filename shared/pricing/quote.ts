@@ -206,13 +206,21 @@ export function calcQuote(p: QuoteParams): QuoteResult {
   const total_installment = car_installment + body_installment;                              // L19
   const monthly_payment = pmt(p.installment_rate / 12, p.installment_months, total_installment); // M24
   const installment_interest = monthly_payment * p.installment_months - total_installment;    // M22
+  // ── 부가세 환급 ──
+  // ⚠️ 환급액은 **전기차 보조금을 빼기 전** 금액에서 구한다.
+  //    보조금은 정부가 주는 돈이지 판매가를 깎은 것이 아니라, 세금계산서 금액이 줄지 않는다.
+  //    (Ver1.21 엔진 calcPrice 도 같은 기준이다 — 공급가액 기준으로 vat 를 구해 뒤에 뺀다.
+  //     예전 총견적서 재현판만 보조금 차감 후 금액에서 나눠 환급액이 작게 나왔다.)
+  const vat_base = (p.car_price + p.delivery_fee + purchase_benefit) + body_payment;
+  const vat_refund = floor10(vat_base / 11);
+  const paid_total = car_payment + body_payment;   // 실제 결제금액(보조금 차감 후)
+
   // M26 부가세 환급 시 가격 — 일반구매자(비사업자)는 환급 불가 → 0원 표기
-  const refunded = floor10(((car_payment + body_payment) / 11) * 10);
-  const vat_refund_price = p.no_vat_refund ? 0 : refunded;
+  const vat_refund_price = p.no_vat_refund ? 0 : paid_total - vat_refund;
 
   // 실구매가 = 실제 부담액 + 등록/부대비용.
   // 일반구매자는 환급을 못 받으므로 결제금액(VAT 포함) 그대로가 부담액이 된다.
-  const paid = p.no_vat_refund ? car_payment + body_payment : refunded;
+  const paid = p.no_vat_refund ? paid_total : paid_total - vat_refund;
   const real_price = paid + car_reg_cost + body_reg_cost;
 
   return {
