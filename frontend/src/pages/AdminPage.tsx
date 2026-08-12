@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { openPdf } from '../lib/openPdf'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
@@ -12,6 +12,9 @@ import { OptionDbTab } from '../components/OptionDbTab'
 import { CustomerViewModal } from '../components/CustomerViewModal'
 import { SalesPerformance } from '../components/SalesPerformance'
 import { BTN } from '../styles/buttons'
+import { Tabs } from '../components/ui/Tabs'
+import { Badge, type BadgeTone } from '../components/ui/Badge'
+import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
@@ -465,8 +468,9 @@ function AccountsTab() {
             </thead>
             <tbody>
               {users.map(user => (
-                <>
-                  <tr key={user.email}>
+                // 조각(<>)에 key 가 없으면 React 가 목록 경고를 낸다 — 조각 쪽에 key 를 준다
+                <Fragment key={user.email}>
+                  <tr>
                     <td style={styles.tdModule}>{user.email}</td>
                     <td style={styles.tdModule}>{user.name}</td>
                     <td style={styles.tdToggle}>
@@ -492,7 +496,7 @@ function AccountsTab() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -525,17 +529,10 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
   const signDone = c?.status === SIGN_DONE
   const signDead = !!c && SIGN_DEAD.includes(c.status)
 
+  // 아직 안 한 것은 '대기', 한 것은 '완료', 거절·취소는 '경고'
   const chip = (on: boolean, label: string, tip: string, tone: 'ok' | 'warn' | 'off' = 'ok') => (
     <Tooltip text={tip} placement="below">
-      <span style={{
-        display: 'inline-block', whiteSpace: 'nowrap', padding: '2px 7px', borderRadius: 5, fontSize: 10.5, fontWeight: 700,
-        border: '1px solid',
-        ...(on
-          ? tone === 'warn'
-            ? { background: '#fdecec', borderColor: '#f0b8b8', color: '#a12d2d' }
-            : { background: '#eef7e9', borderColor: '#cfe4c2', color: '#3d6b28' }
-          : { background: '#f6f7f8', borderColor: 'var(--line)', color: '#9aa2ac' }),
-      }}>{label}</span>
+      <Badge tone={on ? (tone === 'warn' ? 'warn' : 'done') : 'wait'}>{label}</Badge>
     </Tooltip>
   )
 
@@ -645,12 +642,12 @@ function QuotesTab() {
     }
   }
 
-  function statusBadgeStyle(status: string) {
-    if (status === 'draft') return qt.badgeDraft
-    if (status === 'confirmed') return qt.badgeConfirmed
+  /** 견적 상태 → 뱃지 뜻 넷 중 하나(진행중·완료·대기·경고). 상태별로 색을 새로 만들지 않는다 */
+  function statusTone(status: string): BadgeTone {
+    if (status === 'draft') return 'wait'
     // 계약완료·완료는 '끝난 단계' 라 한눈에 구분되어야 한다
-    if (status === 'contracted' || status === 'completed') return { ...qt.badgeOther, background: '#eef7e9', color: '#3d6b28' }
-    return qt.badgeOther
+    if (status === 'contracted' || status === 'completed') return 'done'
+    return 'progress'
   }
 
   return (
@@ -679,7 +676,7 @@ function QuotesTab() {
       {loading ? (
         <div style={qt.loading}>로딩 중…</div>
       ) : quotes.length === 0 ? (
-        <div style={qt.empty}>견적이 없습니다.</div>
+        <EmptyState title="조건에 맞는 견적이 없습니다" description="기간이나 상태 조건을 바꿔 다시 조회해 보세요." />
       ) : isMobile ? (
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -688,7 +685,7 @@ function QuotesTab() {
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
                 <Tooltip text={quoteStatusTip(q.status)} placement="below">
-                  <span style={statusBadgeStyle(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</span>
+                  <Badge tone={statusTone(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</Badge>
                 </Tooltip>
               </div>
               <div style={qtMob.rows}>
@@ -780,9 +777,9 @@ function QuotesTab() {
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
                     <Tooltip text={quoteStatusTip(q.status)} placement="below">
-                      <span style={statusBadgeStyle(q.status)}>
+                      <Badge tone={statusTone(q.status)}>
                         {QUOTE_STATUS_LABELS[q.status] ?? q.status}
-                      </span>
+                      </Badge>
                     </Tooltip>
                   </td>
                   <td style={qt.tdMuted}>{q.order?.maker_org?.name ?? '—'}</td>
@@ -954,19 +951,9 @@ export function AdminPage() {
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         <div style={{ ...styles.titleBar, flexDirection: isMobile ? 'column' : undefined, alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? 8 : 16 }}>
           <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>관리자 대시보드</h1>
-          <div style={{ ...styles.tabs, flexWrap: 'wrap', gap: isMobile ? 6 : 4, width: isMobile ? '100%' : undefined }}>
-            {TABS.map(t => (
-              <button
-                key={t.key}
-                style={{
-                  ...(activeTab === t.key ? styles.tabOn : styles.tab),
-                  ...(isMobile ? { flex: '1 0 45%', minHeight: 44, fontSize: 14, textAlign: 'center' } : {}),
-                }}
-                onClick={() => setActiveTab(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
+          {/* 권한이 없는 탭은 TABS 에서 이미 빠져 있다(비활성이 아니라 숨김) */}
+          <div style={{ minWidth: 0, overflowX: 'auto', width: isMobile ? '100%' : undefined }}>
+            <Tabs items={TABS} value={activeTab} onChange={setActiveTab} wrap={isMobile} />
           </div>
         </div>
 
@@ -1079,9 +1066,6 @@ const qt: Record<string, React.CSSProperties> = {
   // 영업 이메일은 길어질 수 있다 — 표 전체를 밀어내지 않게 여기서만 줄임표로 자른다
   tdEmail: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const, maxWidth: 210, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
   tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, whiteSpace: 'nowrap' as const },
-  badgeDraft: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)', display: 'inline-block' as const, whiteSpace: 'nowrap' as const },
-  badgeConfirmed: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)', display: 'inline-block' as const, whiteSpace: 'nowrap' as const },
-  badgeOther: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0', display: 'inline-block' as const, whiteSpace: 'nowrap' as const },
   pdfBtn: { padding: '5px 12px', border: '1px solid var(--line)', borderRadius: 7, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
   sendBtn: { padding: '5px 12px', border: '1px solid #b8c9e0', borderRadius: 7, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 12 },
   confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },

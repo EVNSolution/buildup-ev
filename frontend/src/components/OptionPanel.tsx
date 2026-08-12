@@ -218,12 +218,13 @@ export function OptionPanel({
   )
 }
 
+// 패널 하단 주 버튼 — 크기·모양은 공통 토큰을 따르고, 폭만 패널을 꽉 채운다
 const btnBase = {
   width: '100%',
-  fontSize: 14,
-  fontWeight: 700,
-  padding: 12,
-  borderRadius: 9,
+  fontSize: 'var(--fs-body)',
+  fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
+  minHeight: 'var(--h-control)',
+  borderRadius: 'var(--r-sm)',
   cursor: 'pointer',
   border: 'none',
 }
@@ -245,12 +246,13 @@ const styles = {
     minHeight: 0,
     overflow: 'hidden',
   },
-  tabs: { flexShrink: 0, display: 'flex', borderBottom: '1px solid var(--line)' },
+  // 패널 안 내용 탭 — 화면 탭과 같은 밑줄 방식. 선택 표시는 라임(선택·활성 표시 전용 색)
+  tabs: { flexShrink: 0, display: 'flex', borderBottom: 'var(--hairline)' },
   tab: {
     flex: 1,
     textAlign: 'center' as const,
-    fontSize: 14,
-    padding: '13px 4px',
+    fontSize: 'var(--fs-body)',
+    padding: 'var(--sp-3) var(--sp-1)',
     cursor: 'pointer',
     color: 'var(--muted)',
     borderBottom: '2px solid transparent',
@@ -258,18 +260,18 @@ const styles = {
   tabOn: {
     flex: 1,
     textAlign: 'center' as const,
-    fontSize: 14,
-    padding: '13px 4px',
+    fontSize: 'var(--fs-body)',
+    padding: 'var(--sp-3) var(--sp-1)',
     cursor: 'pointer',
     color: 'var(--dark)',
-    fontWeight: 700,
+    fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
     borderBottom: '2px solid var(--lime)',
   },
   scroll: { flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '18px 16px' },
   extra: {
     flexShrink: 0,
-    borderTop: '1px solid var(--line)',
-    padding: '12px 14px',
+    borderTop: 'var(--hairline)',
+    padding: 'var(--sp-3) var(--sp-4)',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 8,
@@ -292,35 +294,36 @@ const styles = {
   promoZeroed: { color: '#2e7d32', fontWeight: 700 },
   footer: {
     flexShrink: 0,
-    borderTop: '1px solid var(--line)',
-    padding: '12px 14px',
+    borderTop: 'var(--hairline)',
+    padding: 'var(--sp-3) var(--sp-4)',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 6,
   },
   saveError: {
-    fontSize: 13,
+    fontSize: 'var(--fs-label)',
     color: 'var(--warn)',
     background: 'var(--warnbg)',
-    border: '1px solid #f0c9ad',
-    padding: '6px 10px',
-    borderRadius: 7,
+    border: '0.5px solid var(--warn)',
+    padding: 'var(--sp-2) var(--sp-3)',
+    borderRadius: 'var(--r-sm)',
   },
   btnConfirm: {
     ...btnBase,
     background: 'var(--dark)',
     color: '#fff',
   },
+  // 저장이 끝난 상태 — 끝난 일이므로 '완료' 톤(회색)으로 물러난다
   btnSaved: {
     ...btnBase,
-    background: '#e6f4ea',
-    color: '#2e7d32',
+    background: 'var(--card)',
+    color: 'var(--muted)',
     cursor: 'default',
   },
   btnDisabled: {
     ...btnBase,
-    background: '#f0f2f4',
-    color: '#b0b7c0',
+    background: 'var(--card)',
+    color: 'var(--muted)',
     cursor: 'not-allowed',
   },
 }

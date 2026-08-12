@@ -25,6 +25,10 @@ import { CustomerViewModal } from '../components/CustomerViewModal'
 import { EmailSendModal } from '../components/EmailSendModal'
 import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
 import { Tooltip } from '../components/Tooltip'
+import { Tabs } from '../components/ui/Tabs'
+import { Segmented } from '../components/ui/Segmented'
+import { Badge, type BadgeTone } from '../components/ui/Badge'
+import { EmptyState } from '../components/ui/EmptyState'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -62,20 +66,18 @@ function quoteStatusTip(status: string): React.ReactNode {
     </div>
   )
 }
-const ORDER_STATUS_BADGE: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8,
-  background: 'var(--lime)', color: 'var(--dark)',
-}
+
 
 // 전자서명 진행 상태 — 팝업을 열지 않아도 목록에서 바로 보이게 한다.
 const CONTRACT_LABEL: Record<string, string> = {
   DRAFT: '발송 실패', SENT: '서명 대기', VIEWED: '열람', SIGNING: '서명 중',
   COMPLETED: '서명 완료', REJECTED: '거절', CANCELED: '취소',
 }
-const CONTRACT_TONE: Record<string, React.CSSProperties> = {
-  COMPLETED: { background: '#eef7e9', borderColor: '#cfe4c2', color: '#3d6b28' },
-  REJECTED:  { background: '#fdecec', borderColor: '#f0b8b8', color: '#a12d2d' },
-  CANCELED:  { background: '#fdecec', borderColor: '#f0b8b8', color: '#a12d2d' },
+// 계약 상태 → 뱃지 뜻 4가지. 상태마다 색을 새로 만들면 색이 아무 뜻도 갖지 못한다.
+const CONTRACT_TONE: Record<string, BadgeTone> = {
+  COMPLETED: 'done',
+  REJECTED:  'warn',
+  CANCELED:  'warn',
 }
 
 function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; completed_at: string | null } | null }) {
@@ -83,11 +85,7 @@ function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; co
   const when = c.completed_at ?? c.sent_at
   return (
     <Tooltip text={`${CONTRACT_LABEL[c.status] ?? c.status}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
-      <span style={{
-        display: 'inline-block', whiteSpace: 'nowrap', padding: '2px 8px', borderRadius: 6, fontSize: 11.5, fontWeight: 700,
-        border: '1px solid var(--line)', background: '#f6f7f8', color: '#6b7280',
-        ...(CONTRACT_TONE[c.status] ?? {}),
-      }}>{CONTRACT_LABEL[c.status] ?? c.status}</span>
+      <Badge tone={CONTRACT_TONE[c.status] ?? 'progress'}>{CONTRACT_LABEL[c.status] ?? c.status}</Badge>
     </Tooltip>
   )
 }
@@ -206,7 +204,10 @@ function MyListView() {
       <div style={lv.section}>
         <div style={lv.sectionTitle}>내 견적 ({quotes.length})</div>
         {quotes.length === 0 ? (
-          <div style={lv.empty}>저장된 견적이 없습니다.</div>
+          <EmptyState
+            title="아직 저장된 견적이 없습니다"
+            description="컨피규레이터에서 옵션을 고르고 견적을 저장하면 여기에 쌓입니다."
+          />
         ) : (
           <div style={lv.tableWrap}>
             <table style={lv.table}>
@@ -233,15 +234,15 @@ function MyListView() {
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
                         <Tooltip text={quoteStatusTip(q.status)} placement="below">
-                          <span style={q.status === 'draft' ? lv.badgeDraft : (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered') ? lv.badgeActive : lv.badgeMuted}>
+                          <Badge tone={q.status === 'draft' ? 'wait' : (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered') ? 'progress' : 'done'}>
                             {QUOTE_STATUS_KO[q.status] ?? q.status}
-                          </span>
+                          </Badge>
                         </Tooltip>
                       </td>
                       <td style={lv.td}><ContractBadge c={q.contract} /></td>
                       <td style={lv.td}>
                         {order
-                          ? <span style={ORDER_STATUS_BADGE}>{order.status}</span>
+                          ? <Badge tone="progress">{order.status}</Badge>
                           : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                         }
                       </td>
@@ -634,13 +635,17 @@ export function SalesPage() {
 
       <Header customer={customer} />
 
+      {/* 마이페이지(내 진행상황·성과)는 권한이 있을 때만 목록에 넣는다 — 비활성이 아니라 숨김 */}
       <div style={styles.tabBar}>
-        <button style={salesTab === 'config' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('config')}>컨피규레이터</button>
-        <button style={salesTab === 'list'   ? styles.tabOn : styles.tab} onClick={() => setSalesTab('list')}>견적·주문</button>
-        {/* 마이페이지 = 내 진행상황·성과. 서버가 본인 것만 내려준다. */}
-        {canSeeStats && (
-          <button style={salesTab === 'me' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('me')}>마이페이지</button>
-        )}
+        <Tabs
+          items={[
+            { key: 'config' as const, label: '컨피규레이터' },
+            { key: 'list' as const, label: '견적·주문' },
+            ...(canSeeStats ? [{ key: 'me' as const, label: '마이페이지' }] : []),
+          ]}
+          value={salesTab}
+          onChange={setSalesTab}
+        />
       </div>
 
       {salesTab === 'list' && <MyListView />}
@@ -652,10 +657,13 @@ export function SalesPage() {
 
       <div style={{ ...styles.body, display: salesTab === 'config' ? 'flex' : 'none' }}>
         <section style={styles.viewer}>
+          {/* 3D 시점 선택 — 아직 VIVAR 연동 전이라 표시만 한다(고르면 바뀌는 것은 연동 때) */}
           <div style={styles.vtabs}>
-            {['FREE', 'TOP', 'SIDE', 'REAR', 'FRONT'].map(v => (
-              <span key={v} style={v === 'FREE' ? styles.vtabOn : styles.vtab}>{v}</span>
-            ))}
+            <Segmented
+              items={['FREE', 'TOP', 'SIDE', 'REAR', 'FRONT'].map(v => ({ value: v, label: v }))}
+              value="FREE"
+              onChange={() => {}}
+            />
           </div>
 
           <div style={styles.stage}>
@@ -715,21 +723,12 @@ const styles = {
     flexDirection: 'column' as const,
     overflow: 'hidden',
   },
+  // 탭 모양은 components/ui/Tabs 가 갖는다 — 여기선 자리와 좌우 여백만 정한다
   tabBar: {
     flexShrink: 0,
     display: 'flex',
-    gap: 4,
-    padding: '8px 16px',
-    borderBottom: '1px solid var(--line)',
+    padding: '0 var(--sp-4)',
     background: '#fff',
-  },
-  tab: {
-    padding: '6px 14px', border: '1px solid var(--line)', borderRadius: 8,
-    background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)',
-  },
-  tabOn: {
-    padding: '6px 14px', border: '1px solid var(--dark)', borderRadius: 8,
-    background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600,
   },
   body: {
     flex: 1,
@@ -753,14 +752,8 @@ const styles = {
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    padding: '11px 16px',
-    borderBottom: '1px solid var(--line)',
-  },
-  vtab: { fontSize: 12, color: 'var(--muted)', padding: '5px 10px', borderRadius: 6, cursor: 'pointer' },
-  vtabOn: {
-    fontSize: 12, padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
-    background: 'var(--dark)', color: '#fff', fontWeight: 600,
+    padding: 'var(--sp-2) var(--sp-4)',
+    borderBottom: 'var(--hairline)',
   },
   vtabR: {
     marginLeft: 'auto',
@@ -834,9 +827,6 @@ const lv: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap' },
-  badgeDraft:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)', display: 'inline-block', whiteSpace: 'nowrap' },
-  badgeActive: { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)', display: 'inline-block', whiteSpace: 'nowrap' },
-  badgeMuted:  { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#e3f2fd', color: '#1565c0', display: 'inline-block', whiteSpace: 'nowrap' },
   // 버튼 크기·모양은 styles/buttons.ts 한 곳에서 관리한다(영업·관리자 동일)
   pdfBtn: BTN.row,
   sendBtn: BTN.rowSend,
