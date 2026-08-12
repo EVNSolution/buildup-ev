@@ -284,6 +284,19 @@ model QuoteChangeLog {
   @@map("quote_change_log")
 }
 
+/// 견적번호 채번대장 — **한 번 나간 번호는 다시 나오지 않게** 발급 기록을 견적 행과 분리한다.
+/// 예전엔 남아 있는 견적의 최대번호 +1 이라, 견적을 지우면 그 번호가 되살아났다.
+/// 견적서·계약서는 번호를 달고 고객에게 나가므로 번호 재사용은 되돌릴 수 없는 사고가 된다.
+model QuoteNoCounter {
+  /// 4자리 연도(2026)
+  year       Int      @id
+  /// 그 해에 마지막으로 발급한 일련번호
+  last_seq   Int
+  updated_at DateTime @default(now())
+
+  @@map("quote_no_counter")
+}
+
 /// 옵션DB(기준데이터) 변경 이력 — 관리자 수정 시 필드별 이전값→새값·수정자·수정일시 기록.
 model OptionDbChangeLog {
   id         Int      @id @default(autoincrement())
