@@ -337,6 +337,11 @@ export function SalesPage() {
   const { session } = useAuth()
   const canConvert = usePermission('quote.create')
   const [salesTab, setSalesTab] = useState<'config' | 'list' | 'me'>('config')
+  // 권한 없는 탭은 **버튼째** 감춘다. 눌러서 「권한이 없습니다」를 보게 두면
+  // 왜 있는 버튼인지 알 수 없고, 없는 기능을 있는 것처럼 보이게 한다.
+  const canSeeStats = usePermission('stats.own')
+  // 보고 있던 탭이 감춰지면(권한이 도중에 꺼지면) 첫 탭으로 되돌린다
+  useEffect(() => { if (salesTab === 'me' && !canSeeStats) setSalesTab('config') }, [salesTab, canSeeStats])
 
   const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
   const [bundleLoading, setBundleLoading] = useState(true)
@@ -633,11 +638,13 @@ export function SalesPage() {
         <button style={salesTab === 'config' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('config')}>컨피규레이터</button>
         <button style={salesTab === 'list'   ? styles.tabOn : styles.tab} onClick={() => setSalesTab('list')}>견적·주문</button>
         {/* 마이페이지 = 내 진행상황·성과. 서버가 본인 것만 내려준다. */}
-        <button style={salesTab === 'me'     ? styles.tabOn : styles.tab} onClick={() => setSalesTab('me')}>마이페이지</button>
+        {canSeeStats && (
+          <button style={salesTab === 'me' ? styles.tabOn : styles.tab} onClick={() => setSalesTab('me')}>마이페이지</button>
+        )}
       </div>
 
       {salesTab === 'list' && <MyListView />}
-      {salesTab === 'me' && (
+      {salesTab === 'me' && canSeeStats && (
         <div style={styles.meWrap}>
           <SalesPerformance />
         </div>

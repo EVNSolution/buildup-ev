@@ -921,15 +921,31 @@ export function AdminPage() {
     setSaving(null)
   }
 
-  const TABS: { key: TabKey; label: string }[] = [
-    { key: 'quotes',   label: '견적 목록' },
-    { key: 'perf',     label: '영업 성과' },
-    { key: 'kanban',   label: '주문 칸반' },
-    { key: 'toggles',  label: '기능모듈' },
-    { key: 'accounts', label: '계정 관리' },
-    { key: 'weights',  label: '무게상수' },
-    { key: 'optiondb', label: '옵션DB' },
-  ]
+  // 탭마다 필요한 권한 — 없으면 **버튼째** 감춘다.
+  // 눌러서 「권한이 없습니다」를 보게 두면 왜 있는 버튼인지 알 수 없다.
+  const perm = {
+    stats: usePermission('stats.own'),
+    orders: usePermission('order.view'),
+    accounts: usePermission('account.manage'),
+    basedata: usePermission('basedata.manage'),
+  }
+  const TABS: { key: TabKey; label: string; show: boolean }[] = ([
+    { key: 'quotes',   label: '견적 목록', show: true },
+    { key: 'perf',     label: '영업 성과', show: perm.stats },
+    { key: 'kanban',   label: '주문 칸반', show: perm.orders },
+    { key: 'toggles',  label: '기능모듈',  show: perm.accounts },
+    { key: 'accounts', label: '계정 관리', show: perm.accounts },
+    { key: 'weights',  label: '무게상수',  show: perm.basedata },
+    { key: 'optiondb', label: '옵션DB',    show: perm.basedata },
+  ] as const).filter(t => t.show)
+
+  // 보고 있던 탭이 감춰지면(권한이 도중에 꺼지면) 첫 탭으로 되돌린다.
+  // TABS 는 매 렌더 새 배열이라 그대로 의존성에 두면 매번 다시 도는 셈이 된다 — 키 문자열로 본다.
+  const visibleKeys = TABS.map(t => t.key).join(',')
+  useEffect(() => {
+    const keys = visibleKeys.split(',') as TabKey[]
+    if (!keys.includes(activeTab)) setActiveTab(keys[0] ?? 'quotes')
+  }, [visibleKeys, activeTab])
 
   return (
     <div style={styles.root}>
