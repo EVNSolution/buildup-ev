@@ -1,3 +1,4 @@
+import { OPTION_CARD } from '../styles/optionCard'
 import type { ApiOptionGroup } from '@shared/types/index'
 
 interface Props {
@@ -49,16 +50,13 @@ export function OptionSegmentRow({ group, selected, onSelect, disabled = false, 
 const btnBase = {
   flex: 1,
   minWidth: 54,
-  fontSize: 14,
-  padding: '11px 8px',
-  border: '1px solid var(--line)',
-  background: '#fff',
-  borderRadius: 8,
-  cursor: 'pointer',
+  minHeight: 'var(--h-control)',
+  fontSize: 'var(--fs-body)',
   color: 'var(--body)',
   display: 'flex',
   flexDirection: 'column' as const,
   alignItems: 'center',
+  justifyContent: 'center' as const,
   gap: 2,
 }
 
@@ -67,8 +65,8 @@ const styles = {
   label: { display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 7 },
   disabledBadge: { fontSize: 13, color: 'var(--warn)', marginLeft: 4 },
   seg: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
-  segBtn: btnBase,
-  segBtnOn: { ...btnBase, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
-  delta: { fontSize: 13, color: 'var(--muted)', fontWeight: 500 },
-  deltaOn: { fontSize: 13, color: 'var(--muted)', fontWeight: 500 },
+  segBtn: { ...btnBase, ...OPTION_CARD.base },
+  segBtnOn: { ...btnBase, ...OPTION_CARD.on },
+  delta: { fontSize: 'var(--fs-label)', color: 'var(--muted)', fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'] },
+  deltaOn: { fontSize: 'var(--fs-label)', color: 'var(--muted)', fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'] },
 }

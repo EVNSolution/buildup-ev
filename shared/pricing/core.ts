@@ -22,6 +22,10 @@ export {
 } from './quote.js';
 export type { QuoteParams, QuoteResult, DieselStatus } from './quote.js';
 
+// 가격바가 보여줄 파생값(계산은 여기 한 곳에만 — 화면·앱이 공유한다)
+export { priceBarView } from './pricebar.js';
+export type { PriceBarView } from './pricebar.js';
+
 /**
  * 영업 견적 실구매가 계산 코어 — STEGO-K1 견적서_Ver1.21 로직 재현.
  *

@@ -949,12 +949,13 @@ export function AdminPage() {
       <Header />
 
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
-        <div style={{ ...styles.titleBar, flexDirection: isMobile ? 'column' : undefined, alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? 8 : 16 }}>
-          <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>관리자 대시보드</h1>
-          {/* 권한이 없는 탭은 TABS 에서 이미 빠져 있다(비활성이 아니라 숨김) */}
-          <div style={{ minWidth: 0, overflowX: 'auto', width: isMobile ? '100%' : undefined }}>
-            <Tabs items={TABS} value={activeTab} onChange={setActiveTab} wrap={isMobile} />
-          </div>
+        <h1 style={styles.h1}>관리자 대시보드</h1>
+        {/*
+          탭은 제목 아래 한 줄을 통째로 쓴다 — 제목 옆에 붙이면 밑줄이 화면 중간에서
+          시작해 끊어진 선으로 보인다. 권한 없는 탭은 TABS 에서 이미 빠져 있다(숨김).
+        */}
+        <div style={styles.tabBar}>
+          <Tabs items={TABS} value={activeTab} onChange={setActiveTab} wrap={isMobile} />
         </div>
 
         {activeTab === 'quotes' && <QuotesTab />}
@@ -1029,9 +1030,15 @@ export function AdminPage() {
 const styles: Record<string, React.CSSProperties> = {
   root: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   body: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
-  titleBar: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' },
-  h1: { margin: 0, fontSize: 20, color: 'var(--dark)' },
-  tabs: { display: 'flex', gap: 4 },
+  h1: {
+    margin: 0, marginBottom: 'var(--sp-3)',
+    fontSize: 'var(--fs-title)',
+    fontWeight: 'var(--fw-title)' as React.CSSProperties['fontWeight'],
+    letterSpacing: 'var(--ls-tight)',
+    color: 'var(--dark)',
+  },
+  // 본문 좌우 여백만큼 밖으로 빼 밑줄이 화면 끝까지 이어지게 한다
+  tabBar: { display: 'flex', margin: '0 calc(var(--sp-5) * -1) var(--sp-5)' },
   tab: { padding: '6px 14px', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
   tabOn: { padding: '6px 14px', border: '1px solid var(--dark)', borderRadius: 8, background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 },
   content: {},

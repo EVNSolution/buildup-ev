@@ -1,3 +1,4 @@
+import { OPTION_CARD } from '../styles/optionCard'
 import type { ReactNode } from 'react'
 
 /** 부가세 별도 단가 → 부가세 포함(×1.1) 표기 */
@@ -44,16 +45,12 @@ const btnBase = {
   minWidth: 72,
   // 가로로만 길쭉해 보이던 버튼 — 세로를 키워 비율을 잡는다
   minHeight: 62,
-  padding: '13px 10px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  background: '#fff',
   display: 'flex',
   flexDirection: 'column' as const,
   alignItems: 'center',
   // 가격줄이 없는 버튼(냉동·내장)은 이름만 있어 위로 붙었다 — 세로 가운데로 모은다
   justifyContent: 'center' as const,
-  gap: 3,
+  gap: 'var(--sp-1)',
 }
 
 const styles = {
@@ -64,9 +61,9 @@ const styles = {
   badgeReq: { fontSize: 13, fontWeight: 700, color: '#b23c3c', background: '#fdecec', border: '1px solid #f3c3c3', borderRadius: 5, padding: '1px 6px' },
   badgeOpt: { fontSize: 13, fontWeight: 700, color: '#5a6b7a', background: '#eef1f4', border: '1px solid #dbe1e7', borderRadius: 5, padding: '1px 6px' },
   btns: { display: 'flex', gap: 7, flexWrap: 'wrap' as const },
-  btn: { ...btnBase, border: '1px solid var(--line)', color: 'var(--body)' },
-  btnOn: { ...btnBase, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
-  btnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
+  btn: { ...btnBase, ...OPTION_CARD.base, color: 'var(--body)' },
+  btnOn: { ...btnBase, ...OPTION_CARD.on },
+  btnDisabled: OPTION_CARD.disabled,
   btnName: { fontSize: 14 },
   btnPrice: { fontSize: 13, color: 'var(--muted)', fontWeight: 600 },
 }
