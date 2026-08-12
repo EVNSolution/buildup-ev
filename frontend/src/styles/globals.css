@@ -172,8 +172,12 @@ button {
  * 눌림 반응 — 누르면 살짝 들어갔다가 튀어오른다.
  * 인라인 style 로는 :active 를 쓸 수 없어 여기서 한 번에 건다(모든 버튼이 같은 감각을 갖는다).
  */
-button:not(:disabled) { transition: var(--press-out), border-color 160ms ease, background 160ms ease; }
-button:not(:disabled):active { transform: scale(.97); transition: var(--press-in); }
+button:not(:disabled), .pressable { transition: var(--press-out), border-color 160ms ease, background 160ms ease; }
+button:not(:disabled):active, .pressable:active { transform: scale(.97); transition: var(--press-in); }
+
+/* 버튼이 아닌데 눌리는 것(트림 카드처럼 div 로 만든 선택 카드)에 같은 감각을 준다 */
+.pressable { cursor: pointer; }
+.pressable:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 
 /*
  * hover 는 **톤 변화만**. 정보나 기능을 hover 뒤에 숨기지 않는다 —

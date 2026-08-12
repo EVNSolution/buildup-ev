@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { PricingResult, QuoteResult } from '@shared/pricing/core'
+import { priceBarView } from '@shared/pricing/core'
 import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
 import { useIsPortrait } from '../hooks/useIsPortrait'
 import { useIsTouch } from '../hooks/useIsTouch'
@@ -40,17 +41,13 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
   const tbd = isUnsupported ? (calc as { reason: string }).reason : null
   const ok = isUnsupported ? null : total
 
-  // 등록·기타 = 차량 등록/부대 ⑥ + 특장 등록/부대 ⑩ + 탁송료
-  // (견적서는 탁송료를 ② 차량 결제금액에 넣지만, 화면은 블록을 줄이려 등록·기타로 묶는다.
-  //  이렇게 해야 위 흐름을 그대로 계산했을 때 실구매가와 정확히 맞는다.)
-  const regEtc = ok ? ok.car_reg_cost + ok.body_reg_cost + ok.delivery_fee : 0
-  // 일반구매자(비사업자)는 환급 자체가 없다 — vat_refund_price 가 0 으로 내려온다.
-  // 이때 차액을 그대로 쓰면 결제금액 전체가 환급액으로 표시되므로 0 으로 둔다.
-  const noRefund   = !!ok && ok.vat_refund_price === 0
-  const vatRefund  = ok && !noRefund ? (ok.car_payment + ok.body_payment) - ok.vat_refund_price : 0
-  // 실구매가 = 부가세 환급까지만. 등록·기타는 더하지 않고 오른쪽에 따로 보여준다.
-  // real_price(단일 소스)에서 등록·기타를 빼 계산해 견적서 규칙과 어긋나지 않게 한다.
-  const netPrice = ok ? ok.real_price - regEtc : 0
+  // 표시값 계산은 shared/pricing/pricebar.ts 한 곳에만 있다 — 화면은 결과를 받아 쓴다.
+  // (컴포넌트 안에서 금액을 다시 만들면 앱을 붙일 때 같은 식이 한 벌 더 생긴다)
+  const view = ok ? priceBarView(ok) : null
+  const regEtc   = view?.regEtc ?? 0
+  const noRefund = view?.noRefund ?? false
+  const vatRefund = view?.vatRefund ?? 0
+  const netPrice = view?.netPrice ?? 0
 
   // 세로로 쌓을 땐 폭이 넉넉하므로 글자를 줄이지 않는다(가로 배치용 축소는 stack 에서 해제).
   const row  = stack ? styles.rowCell : touch ? null : styles.cellTall
@@ -67,7 +64,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
           <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
           <div style={stack ? styles.stackRight : undefined}>
-            <div style={{ ...styles.firstValue, ...big }}>{ok ? fmt(ok.car_price + ok.body_price) : '—'}</div>
+            <div style={{ ...styles.firstValue, ...big }}>{view ? fmt(view.start) : '—'}</div>
           </div>
         </div>
 
@@ -128,7 +125,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           <div style={{ ...styles.blockLabel, ...lbl }}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
           <div style={stack ? styles.stackRight : undefined}>
             <div style={{ ...styles.blockValue, ...big }}>{ok ? fmt(regEtc) : '—'}</div>
-            {ok && <div style={{ ...styles.asideSub, ...(stack ? styles.stackSub : null) }}>합계 {fmt(netPrice + regEtc)}</div>}
+            {view && <div style={{ ...styles.asideSub, ...(stack ? styles.stackSub : null) }}>합계 {fmt(view.grandTotal)}</div>}
           </div>
           {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
         </div>
@@ -201,7 +198,7 @@ function RegPopup({ ok, onClose }: { ok: QuoteResult; onClose: () => void }) {
         <Line k="특장 등록/부대비용 ⑩" v={fmt(ok.body_reg_cost)} bold />
         <div style={{ height: 8 }} />
         <Line k="탁송료" v={fmt(ok.delivery_fee)} />
-        <Line k="등록·기타 합계" v={fmt(ok.car_reg_cost + ok.body_reg_cost + ok.delivery_fee)} bold />
+        <Line k="등록·기타 합계" v={fmt(priceBarView(ok).regEtc)} bold />
       </div>
     </>
   )
@@ -279,7 +276,9 @@ const styles: Record<string, React.CSSProperties> = {
   // flexDirection 을 명시해야 한다 — 실구매가 칸(hero)이 column 이라 안 그러면 세로 모드에서 그대로 남는다
   rowCell: { display: 'flex', flexDirection: 'row' as const, alignItems: 'center', justifyContent: 'space-between', gap: 10, flex: 'none' },
   stackRight: { textAlign: 'right' as const, minWidth: 0 },
-  stackLabel: { fontSize: 12.5, flexShrink: 0 },
+  // 세로 배치에서는 라벨과 금액이 한 줄에 나란히 선다 — 라벨이 접히면 줄 높이가 들쭉날쭉해진다.
+  // 폭은 넉넉하므로(세로 화면은 가로가 짧지 않다) 접지 않고 그대로 편다.
+  stackLabel: { fontSize: 12.5, flexShrink: 0, whiteSpace: 'nowrap' as const },
   stackBig: { fontSize: 16, marginTop: 0 },
   stackHero: { fontSize: 20, marginTop: 0 },
   stackSub: { fontSize: 10.5, marginTop: 1 },

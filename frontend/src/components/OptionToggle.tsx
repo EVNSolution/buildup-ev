@@ -1,3 +1,4 @@
+import { OPTION_CARD } from '../styles/optionCard'
 import type { ApiOptionGroup } from '@shared/types/index'
 
 export function fmtDelta(d: number): string {
@@ -35,11 +36,7 @@ export function OptionToggleButton({ label, selected, delta, disabled = false, o
 const base = {
   width: '100%',
   minHeight: 48,
-  fontSize: 13,
-  padding: '8px 10px',
-  borderRadius: 9,
-  cursor: 'pointer',
-  background: '#fff',
+  fontSize: 'var(--fs-label)',
   display: 'flex',
   flexDirection: 'column' as const,
   alignItems: 'center',
@@ -48,8 +45,8 @@ const base = {
 }
 
 const styles = {
-  off: { ...base, border: '1px solid var(--line)', color: 'var(--body)' },
-  on:  { ...base, border: '2px solid var(--lime)', boxShadow: '0 0 0 2px rgba(200,210,0,.25)', color: 'var(--dark)', fontWeight: 700 },
-  disabled: { opacity: 0.4, cursor: 'not-allowed' },
-  delta: { fontSize: 13, color: 'var(--muted)', fontWeight: 500 },
+  off: { ...base, ...OPTION_CARD.base, color: 'var(--body)' },
+  on:  { ...base, ...OPTION_CARD.on },
+  disabled: OPTION_CARD.disabled,
+  delta: { fontSize: 'var(--fs-label)', color: 'var(--muted)', fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'] },
 }

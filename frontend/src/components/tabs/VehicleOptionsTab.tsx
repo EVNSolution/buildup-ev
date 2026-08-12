@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { cardStates } from '../../styles/optionCard'
 import type { ApiOptionGroup } from '@shared/types/index'
 import { valueUnitPrice } from '@shared/pricing/core'
 import { fmtWonVat } from '../OptionRow'
@@ -100,8 +101,14 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
                 return (
                   <div
                     key={v.code}
+                    // 카드는 button 이 아니라 div 라 눌림 반응이 안 걸린다 — 공통 class 로 준다
+                    className="pressable"
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selected}
                     style={selected ? styles.cardOn : styles.card}
                     onClick={() => onSelect(group.code, v.code)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(group.code, v.code) } }}
                   >
                     <div style={styles.cardImg}>
                       <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
@@ -133,28 +140,21 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
   )
 }
 
+const TRIM_CARD = cardStates('var(--sp-3)')
+
 const cardBase = {
   flex: 1,
   minWidth: 0,
   boxSizing: 'border-box' as const,
-  border: '1.5px solid var(--line)',
-  borderRadius: 12,
-  padding: 11,
-  cursor: 'pointer',
   textAlign: 'center' as const,
-  transition: '.12s',
 }
 
 const styles = {
   row: { marginBottom: 14 },
   label: { display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 7 },
   cardGrid: { display: 'flex', gap: 10, alignItems: 'stretch' },
-  card: cardBase,
-  cardOn: {
-    ...cardBase,
-    borderColor: 'var(--lime)',
-    boxShadow: '0 0 0 2px rgba(200,210,0,.25)',
-  },
+  card: { ...cardBase, ...TRIM_CARD.base },
+  cardOn: { ...cardBase, ...TRIM_CARD.on },
   cardImg: {
     height: 70,
     background: '#fff',
