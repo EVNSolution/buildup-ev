@@ -10,6 +10,9 @@
  * 실행: npx tsx src/scripts/recalc-quotes.ts [--apply]
  *       기본은 미리보기(무엇이 얼마나 바뀌는지만 출력). --apply 를 줘야 저장한다.
  */
+// ⚠️ 맨 먼저 — config 가 릴리스 루트 .env 를 읽어 process.env 에 넣는다.
+//    이걸 거치지 않으면 DATABASE_URL 이 없어 prisma 가 null 이 된다.
+import '../config.js';
 import { prisma } from '../lib/prisma.js';
 import { buildQuoteParams } from '../services/quote-calc.js';
 import { calcQuote } from '@buildup-ev/shared/pricing';
