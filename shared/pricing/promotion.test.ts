@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { calcPrice } from './core.js';
 import { calcQuote } from './quote.js';
 import { assembleOptionSum, optionBreakdown } from './assemble.js';
-import { REGRESSION_PARAMS, QUOTE_PARAMS } from './fixtures.js';
+import { REGRESSION_PARAMS, QUOTE_PARAMS, QUOTE_EXPECTED } from './fixtures.js';
 
 /**
  * 재량할인(프로모션) · 일반구매자 · 지방보조금 토글 회귀.
@@ -166,7 +166,7 @@ describe('복합 시나리오 (할인 + 토글 + 일반구매자)', () => {
     const r = calcQuote(QUOTE_PARAMS);
     expect(r.car_payment).toBe(27_958_500);
     expect(r.body_payment).toBe(21_619_000);
-    expect(r.vat_refund_price).toBe(45_070_450);
+    expect(r.vat_refund_price).toBe(QUOTE_EXPECTED.vat_refund_price);   // 픽스처 단일 소스
   });
 });
 
