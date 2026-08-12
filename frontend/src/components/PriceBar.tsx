@@ -235,7 +235,8 @@ const cellBase = {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  bar: { flexShrink: 0, borderTop: '1px solid var(--line)', background: '#fff', padding: '12px 16px' },
+  // 가격바는 칸(카드)들이 스스로 영역을 말한다 — 위쪽 구분선을 두면 화면이 토막나 보인다
+  bar: { flexShrink: 0, background: 'var(--bg)', padding: 'var(--sp-3) var(--sp-4)' },
   // 가로 배치일 때만 두께를 키운다 — 세로로 쌓을 땐 이미 충분히 높다.
   barTall: { padding: '34px 16px' },
   // 칸도 같이 두툼하게(가로 배치 전용). 글자는 그대로 두고 위아래 여백만 늘린다.

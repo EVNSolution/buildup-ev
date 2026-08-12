@@ -743,8 +743,7 @@ const styles = {
     minWidth: 0,
     display: 'flex',
     flexDirection: 'column' as const,
-    borderRight: '1px solid var(--line)',
-    background: '#fafbfb',
+    background: 'var(--bg)',
     overflow: 'hidden',
   },
   vtabs: {
@@ -752,7 +751,6 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     padding: 'var(--sp-2) var(--sp-4)',
-    borderBottom: 'var(--hairline)',
   },
   vtabR: {
     marginLeft: 'auto',
@@ -791,9 +789,8 @@ const styles = {
     width: 'min(100cqw, (100cqh - 26px) * 16 / 9)',
     aspectRatio: '16 / 9',
     overflow: 'hidden' as const,
-    borderRadius: 10,
-    border: '1px solid var(--line)',
-    background: '#fff',
+    borderRadius: 'var(--r-md)',
+    background: 'var(--bg)',
   },
   embedTag: {
     position: 'absolute' as const,
