@@ -41,11 +41,20 @@ export function Tabs<T extends string>({ items, value, onChange, wrap }: Props<T
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  /*
+   * 밑줄은 **화면 폭 끝까지** 이어져야 한다. 탭 개수만큼만 그으면 선이 중간에 끊겨,
+   * 그 오른쪽에 있는 것들(옵션 패널 탭 등)이 허공에 떠 보인다.
+   * 그래서 좌우 여백은 부모가 아니라 이 안에서 준다 — 테두리는 여백 바깥까지 그려진다.
+   */
   bar: {
     display: 'flex',
     alignItems: 'flex-end',
     gap: 'var(--sp-1)',
+    flex: 1,
+    minWidth: 0,
+    padding: '0 var(--sp-4)',
     borderBottom: 'var(--hairline)',
+    overflowX: 'auto',
   },
   tab: {
     background: 'transparent',

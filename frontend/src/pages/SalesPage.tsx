@@ -723,11 +723,10 @@ const styles = {
     flexDirection: 'column' as const,
     overflow: 'hidden',
   },
-  // 탭 모양은 components/ui/Tabs 가 갖는다 — 여기선 자리와 좌우 여백만 정한다
+  // 탭 모양·좌우 여백은 components/ui/Tabs 가 갖는다(밑줄이 화면 끝까지 이어지도록)
   tabBar: {
     flexShrink: 0,
     display: 'flex',
-    padding: '0 var(--sp-4)',
     background: '#fff',
   },
   body: {
