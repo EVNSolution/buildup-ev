@@ -171,13 +171,20 @@ const styles = {
   cardName: { fontWeight: 700, fontSize: 15, marginTop: 9, color: 'var(--dark)' },
   cardCode: { fontSize: 13, color: 'var(--muted)', marginTop: 2 },
   cardDelta: { fontSize: 13, color: 'var(--muted)', marginTop: 3, fontWeight: 600 },
+  // 손가락으로 누르는 자리라 높이는 공통 토큰(터치에서 44px)을 따른다
   specBtn: {
-    marginTop: 9, width: '100%', padding: '6px 0', fontSize: 13, fontFamily: 'inherit',
-    border: '1px solid var(--line)', borderRadius: 7, background: '#fff', color: 'var(--muted)', cursor: 'pointer',
+    marginTop: 'var(--sp-2)', width: '100%', minHeight: 'var(--h-control-sm)',
+    fontSize: 'var(--fs-label)', fontFamily: 'inherit',
+    border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
+    color: 'var(--muted)', cursor: 'pointer',
   },
   specBtnOn: {
-    marginTop: 9, width: '100%', padding: '6px 0', fontSize: 13, fontFamily: 'inherit', fontWeight: 700,
-    border: '1px solid var(--lime)', borderRadius: 7, background: '#f7fadf', color: 'var(--dark)', cursor: 'pointer',
+    marginTop: 'var(--sp-2)', width: '100%', minHeight: 'var(--h-control-sm)',
+    fontSize: 'var(--fs-label)', fontFamily: 'inherit',
+    fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'],
+    // 펼쳐진 상태 = 선택 상태 → 라임 테두리 + 옅은 라임 배경(선택 표시 전용 색)
+    border: '1px solid var(--lime)', borderRadius: 'var(--r-sm)', background: 'var(--lime-bg)',
+    color: 'var(--dark)', cursor: 'pointer',
   },
 }
 

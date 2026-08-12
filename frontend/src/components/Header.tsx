@@ -1,6 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { Segmented } from './ui/Segmented'
+import { BTN } from '../styles/buttons'
 import logoUrl from '../assets/logo.png'
 import type { CustomerInfo, Role } from '@shared/types/index'
 
@@ -47,25 +49,26 @@ export function Header({ customer }: Props) {
       flexWrap: isMobile ? 'wrap' : 'nowrap',
       ...(isMobile ? { gap: 8 } : {}),
     }}>
-      <img src={logoUrl} alt="EV&Solution" style={styles.logo} />
+      {/*
+        로고 · 구분선 · 워드마크. 셋을 붙여 하나의 표지로 읽히게 한다 —
+        굵기·자간은 로고(800/-0.05em)가 가장 강하고 워드마크가 반 단계 아래(700/-0.035em)다.
+      */}
+      <div style={styles.brand}>
+        <img src={logoUrl} alt="EV&Solution" style={styles.logo} />
+        <span style={styles.brandLine} aria-hidden />
+        <span style={styles.wordmark}>Buildup-EV</span>
+      </div>
       {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
 
-      {/* DEV: master surface switcher — is_master 계정에만 표시 */}
+      {/* DEV: master surface switcher — is_master 계정에만 표시. 역할 전환이라 세그먼티드 */}
       {user?.is_master && (
-        <div style={{
-          ...styles.surfaceSwitch,
-          ...(isMobile ? { order: 10, width: '100%', justifyContent: 'center' } : {}),
-        }}>
-          {SURFACES.map(s => (
-            <button
-              key={s.path}
-              style={location.pathname === s.path ? styles.surfaceBtnActive : styles.surfaceBtn}
-              onClick={() => navigate(s.path)}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div style={isMobile ? { order: 10, width: '100%', display: 'flex', justifyContent: 'center' } : undefined}>
+          <Segmented
+            items={SURFACES.map(s => ({ value: s.path, label: s.label }))}
+            value={SURFACES.find(s => s.path === location.pathname)?.path ?? SURFACES[0]!.path}
+            onChange={p => navigate(p)}
+          />
         </div>
       )}
 
@@ -84,13 +87,7 @@ export function Header({ customer }: Props) {
         </div>
       )}
 
-      <button
-        style={{
-          ...styles.logoutBtn,
-          ...(isMobile ? { minHeight: 44, padding: '10px 14px' } : {}),
-        }}
-        onClick={logout}
-      >
+      <button style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0 }} onClick={logout}>
         로그아웃
       </button>
     </header>
@@ -114,46 +111,39 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: 18,
+    gap: 'var(--sp-4)',
     height: HEADER_H,
     boxSizing: 'border-box',
-    padding: '0 20px',
-    borderBottom: '1px solid var(--line)',
+    padding: '0 var(--sp-5)',
+    borderBottom: 'var(--hairline)',
     background: '#fff',
     // 어떤 경우에도 내용이 바 밖으로 새어 나가지 않게
     overflow: 'hidden',
   },
-  // 로고 이미지(706x261). 높이만 정하고 폭은 비율대로 — 예전 텍스트 로고와 비슷한 크기.
-  logo: { height: 34, width: 'auto', display: 'block', flexShrink: 0 },
+  brand: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexShrink: 0 },
+  // 로고 이미지(706x261). 높이만 정하고 폭은 비율대로.
+  logo: { height: 28, width: 'auto', display: 'block', flexShrink: 0 },
+  // 로고와 워드마크를 가르는 세로 헤어라인 — 둘이 한 낱말로 붙어 읽히는 것을 막는다
+  brandLine: { width: 1, height: 18, background: 'var(--line)', display: 'block', flexShrink: 0 },
+  wordmark: {
+    fontSize: 'var(--fs-section)', fontWeight: 700, letterSpacing: '-0.035em',
+    color: 'var(--dark)', whiteSpace: 'nowrap',
+  },
   badge: {
     background: 'var(--lime)', color: 'var(--dark)', whiteSpace: 'nowrap', flexShrink: 0,
-    fontWeight: 700, fontSize: 18, padding: '6px 16px', borderRadius: 999,
+    fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
+    fontSize: 'var(--fs-caption)', padding: '3px var(--sp-3)', borderRadius: 'var(--r-pill)',
   },
   // 고객 칩은 이 줄에서 가장 덜 중요하고 가장 길다 — 자리가 모자라면 이것부터 줄인다
   custChip: {
-    fontSize: 16, border: '1px solid var(--line)', borderRadius: 999,
-    padding: '7px 14px', cursor: 'pointer', background: '#fff',
+    fontSize: 'var(--fs-label)', border: 'var(--hairline)', borderRadius: 'var(--r-pill)',
+    padding: '5px var(--sp-3)', background: '#fff', color: 'var(--body)',
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1,
   },
-  userInfo: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 },
-  userName: { fontSize: 19, fontWeight: 600, color: 'var(--dark)', whiteSpace: 'nowrap' },
-  userOrg:  { fontSize: 15, color: 'var(--muted)', whiteSpace: 'nowrap' },
-  logoutBtn: {
-    fontSize: 17, padding: '8px 18px', border: '1px solid var(--line)', whiteSpace: 'nowrap', flexShrink: 0,
-    borderRadius: 8, background: '#fff', cursor: 'pointer', color: 'var(--muted)',
+  userInfo: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 },
+  userName: {
+    fontSize: 'var(--fs-label)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
+    color: 'var(--dark)', whiteSpace: 'nowrap',
   },
-  // DEV: master surface switcher styles
-  surfaceSwitch: {
-    display: 'flex', gap: 2, background: 'var(--card)', borderRadius: 10,
-    padding: 4, border: '1px solid var(--line)', flexShrink: 0,
-  },
-  surfaceBtn: {
-    fontSize: 17, fontWeight: 600, padding: '7px 18px', border: 'none', whiteSpace: 'nowrap',
-    borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--muted)',
-  },
-  surfaceBtnActive: {
-    fontSize: 17, fontWeight: 700, padding: '7px 18px', border: 'none', whiteSpace: 'nowrap',
-    borderRadius: 8, cursor: 'pointer', background: '#fff', color: 'var(--dark)',
-    boxShadow: '0 1px 4px rgba(0,0,0,.1)',
-  },
+  userOrg: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' },
 }

@@ -1,55 +1,87 @@
 /**
- * 버튼 크기·모양 한 곳 — 영업/관리자/특장사 화면이 **같은 버튼**을 쓰게 한다.
+ * 버튼 한 곳 — 영업/관리자/특장사 화면이 **같은 버튼**을 쓰게 한다.
  *
  * 예전에는 화면마다 padding·fontSize·minWidth 를 따로 적어서, 같은 목록의 버튼인데도
  * 폭이 제각각이고 줄이 들쭉날쭉했다. 여기서만 고치면 세 화면이 함께 바뀐다.
  *
- * 두 가지 크기만 쓴다:
- *   row  — 표·카드 안의 액션 버튼 (견적서 / 계약서 / 확정 / 배정 / 삭제)
- *   bar  — 상단 툴바·필터 버튼 (조회 / 검색 / 저장)
- * 팝업 안의 확인·취소는 팝업 자체 스타일(더 큼)을 그대로 둔다.
+ * 종류는 **넷뿐이다**(docs/design-system.md §7):
+ *   primary    다음 단계로 넘기는 동작 — 화면당 하나가 원칙
+ *   secondary  조회·열기·취소 등 대부분
+ *   danger     되돌릴 수 없는 동작(삭제·되돌리기)
+ *   disabled   조건 미충족
+ * 크기는 둘: 기본(--h-control) / 표 안 작은 버튼(--h-control-sm).
+ * 손가락 기기에서는 두 값 모두 44px 로 커진다 — 높이가 CSS 변수라 여기선 신경 쓰지 않아도 된다.
+ *
+ * 눌림·hover 반응은 globals.css 가 모든 button 에 걸어 둔다(인라인 style 은 :active 를 못 쓴다).
+ * 색·크기 숫자를 여기 직접 쓰지 않는다 — 토큰만 참조한다.
  */
 
-const ROW = {
-  padding: '4px 10px',
-  minWidth: 74,
-  textAlign: 'center' as const,
-  borderRadius: 6,
+/** 크기만 정하는 뼈대 — 색은 아래 종류별로 얹는다 */
+const base = {
+  display: 'inline-flex' as const,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  borderRadius: 'var(--r-sm)',
   cursor: 'pointer',
-  fontWeight: 700,
-  fontSize: 11,
-  lineHeight: 1.5,
   whiteSpace: 'nowrap' as const,
+  lineHeight: 1.2,
 }
 
-const BAR = {
-  padding: '7px 16px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  fontWeight: 700,
-  fontSize: 13,
-  lineHeight: 1.4,
-  whiteSpace: 'nowrap' as const,
+/** 기본 크기 — 툴바·모달·폼 */
+const MD = {
+  ...base,
+  minHeight: 'var(--h-control)',
+  padding: '0 var(--sp-4)',
+  fontSize: 'var(--fs-body)',
+  fontWeight: 'var(--fw-label)' as unknown as number,
 }
+
+/** 작은 크기 — 표·카드 안. 손가락 기기에서는 높이만 44px 로 커진다 */
+const SM = {
+  ...base,
+  minHeight: 'var(--h-control-sm)',
+  padding: '0 var(--sp-3)',
+  fontSize: 'var(--fs-caption)',
+  fontWeight: 'var(--fw-label)' as unknown as number,
+  minWidth: 74,
+}
+
+// ── 종류 4가지 (색) ──
+const PRIMARY   = { background: 'var(--dark)', color: '#fff', border: '0.5px solid var(--dark)' }
+const SECONDARY = { background: '#fff', color: 'var(--dark)', border: 'var(--hairline)', boxShadow: 'var(--shadow-1)' }
+const DANGER    = { background: '#fff', color: 'var(--warn)', border: '0.5px solid var(--warn)' }
+const DISABLED  = { background: 'var(--card)', color: 'var(--muted)', border: 'var(--hairline)', cursor: 'not-allowed' }
 
 export const BTN: Record<string, React.CSSProperties> = {
-  // ── 표·카드 안 ──
-  /** 기본(중립) — 문서 열기·조회 */
-  row:        { ...ROW, border: '1px solid var(--line)', background: '#f7f8f3', color: 'var(--dark)' },
-  /** 강조 — 다음 단계로 넘기는 동작(확정·배정) */
-  rowPrimary: { ...ROW, border: '1px solid #1a1a1a', background: '#1a1a1a', color: '#fff' },
-  /** 보조 강조 — 발송 등 외부로 나가는 동작 */
-  rowSend:    { ...ROW, border: '1px solid #b8c9e0', background: '#eaf2ff', color: '#1565c0' },
-  rowDanger:  { ...ROW, border: '1px solid #b71c1c', background: '#b71c1c', color: '#fff' },
-  /** 되돌릴 수 없는 삭제 — 테두리를 굵게 해 한 번 더 눈에 띄게 */
-  rowDangerOutline: { ...ROW, border: '2px solid #b71c1c', background: '#fff', color: '#b71c1c' },
-  rowDisabled: { ...ROW, border: '1px solid var(--line)', background: '#e9ecef', color: '#9e9e9e', cursor: 'not-allowed' },
-  /** 눌러도 되지만 지금은 의미 없는 상태(비활성 대신 흐리게) */
-  rowMuted:   { ...ROW, border: '1px solid var(--line)', background: '#f7f8f3', color: 'var(--dark)', opacity: 0.45, cursor: 'not-allowed' },
+  // ── 지금 쓰는 이름 ──
+  primary:   { ...MD, ...PRIMARY },
+  secondary: { ...MD, ...SECONDARY },
+  danger:    { ...MD, ...DANGER },
+  disabled:  { ...MD, ...DISABLED },
+  /** 표·카드 안 작은 버튼 */
+  smPrimary:   { ...SM, ...PRIMARY },
+  smSecondary: { ...SM, ...SECONDARY },
+  smDanger:    { ...SM, ...DANGER },
+  smDisabled:  { ...SM, ...DISABLED },
 
-  // ── 상단 툴바 ──
-  bar:         { ...BAR, border: '1px solid var(--line)', background: '#fff', color: 'var(--dark)', fontWeight: 600 },
-  barPrimary:  { ...BAR, border: '1px solid var(--dark)', background: 'var(--dark)', color: '#fff' },
-  barDanger:   { ...BAR, border: '1px solid #b71c1c', background: '#fff', color: '#b71c1c' },
-  barDisabled: { ...BAR, border: '1px solid var(--line)', background: '#f0f2f4', color: '#b0b7c0', cursor: 'not-allowed', fontWeight: 600 },
+  /*
+   * ── 예전 이름(화면들이 아직 이 이름으로 부른다) ──
+   * 화면 로직을 건드리지 않고 모양만 바꾸기 위해 남겨 둔다. 화면을 순차 개편하면서
+   * 위의 네 이름으로 옮기고, 다 옮기면 아래는 지운다.
+   *   rowSend(파란 발송 버튼)·rowDangerOutline(2px 빨강)처럼 체계 밖이던 색은
+   *   여기서 4종 안으로 흡수된다 — 그래서 화면을 안 고쳐도 톤이 정리된다.
+   */
+  row:              { ...SM, ...SECONDARY },
+  rowPrimary:       { ...SM, ...PRIMARY },
+  rowSend:          { ...SM, ...SECONDARY },
+  rowDanger:        { ...SM, ...DANGER },
+  rowDangerOutline: { ...SM, ...DANGER },
+  rowDisabled:      { ...SM, ...DISABLED },
+  /** 눌러도 되지만 지금은 의미 없는 상태 */
+  rowMuted:         { ...SM, ...DISABLED, opacity: .6 },
+
+  bar:         { ...MD, ...SECONDARY },
+  barPrimary:  { ...MD, ...PRIMARY },
+  barDanger:   { ...MD, ...DANGER },
+  barDisabled: { ...MD, ...DISABLED },
 }

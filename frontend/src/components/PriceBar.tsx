@@ -229,8 +229,11 @@ const fit = (min: number, vw: number, max: number) => `clamp(${min}px, ${vw}vw, 
 const noSpill = { overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const }
 
 const cellBase = {
-  background: 'var(--card)', borderRadius: 10,
-  padding: `${fit(6, 0.47, 9)} ${fit(8, 0.68, 13)}`,
+  background: 'var(--card)', borderRadius: 'var(--r-md)',
+  // ⚠️ padding 축약형을 쓰면 안 된다 — 아래 cellTall 이 위아래 여백만 덮어쓰는데,
+  //    한 요소에서 축약형과 개별속성이 섞이면 React 가 렌더마다 경고를 뱉는다.
+  paddingTop: fit(6, 0.47, 9), paddingBottom: fit(6, 0.47, 9),
+  paddingLeft: fit(8, 0.68, 13), paddingRight: fit(8, 0.68, 13),
   flex: 1, minWidth: 0,
 }
 

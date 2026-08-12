@@ -1,13 +1,112 @@
+/*
+ * 본문 폰트 = Pretendard (자체 호스팅, SIL OFL — 라이선스 전문 public/fonts/LICENSE-Pretendard.txt)
+ *
+ * 시스템 폰트에 맡기면 기기마다 글자가 달라진다. macOS 는 Apple SD Gothic Neo, Windows 는
+ * 맑은 고딕, Android 는 Noto Sans KR 로 떨어지는데 한글은 폰트별 글자 폭 차이가 커서
+ * 표 헤더가 두 줄로 접히고 버튼 라벨이 줄바꿈된다. 화면을 한 화면에 가두는 이 구조에서는
+ * 바로 티가 나므로 폰트를 못 박는다.
+ *
+ * CDN 을 쓰지 않는다 — 현장 네트워크·차단 위험. Caddy 가 서빙하는 우리 도메인에서만 받는다.
+ * 굵기는 400/500/600 셋만 받는다(용량). 700 은 파일을 더 받지 않고 600 이 대신 받아낸다
+ * — 지금 코드에 남아 있는 fontWeight:700 이 **가짜 굵게(synthetic bold)** 로 뭉개지는 것을 막는다.
+ */
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Pretendard-Regular.subset.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Pretendard-Medium.subset.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Pretendard';
+  /* 600~700 을 이 한 벌이 받는다(위 주석 참고) */
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/Pretendard-SemiBold.subset.woff2') format('woff2');
+}
+
+/*
+ * 디자인 토큰 — 값의 단일 출처. 컴포넌트는 **숫자를 직접 쓰지 않고 변수만 참조**한다.
+ * 스펙 = docs/design-system.md. 새 값이 필요하면 여기에 먼저 추가한다.
+ */
 :root {
-  --lime: #C8D200;
-  --dark: #1A1A1A;
+  /* ── 색 ── */
+  --lime: #C8D200;      /* EV& 브랜드. 선택·활성 표시 전용(버튼 채움색 아님) */
+  --dark: #1A1A1A;      /* 주 액션 버튼·강조 텍스트 */
   --bg: #FFF;
   --body: #333;
-  --muted: #8A8F98;
-  --line: #E6E8EB;
-  --card: #F6F7F4;
-  --warn: #B3471F;
+  --muted: #8A8F98;     /* 보조 텍스트·라벨·비활성 */
+  --line: #E6E8EB;      /* 헤어라인 */
+  --card: #F6F7F4;      /* 카드·섹션 배경 */
+  --warn: #B3471F;      /* 위험 액션·경고 */
   --warnbg: #FFF3E8;
+  /* 파생 */
+  --lime-bg: rgba(200, 210, 0, .10);   /* 선택 항목의 옅은 배경 */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .04);   /* 카드 — 종이처럼 아주 얕게 */
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, .08);  /* 모달·팝오버 */
+  --track: #EFEFF2;     /* 세그먼티드 컨트롤 트랙 */
+
+  /* ── 타이포 5단계 ── */
+  --fs-title: 20px;    --fw-title: 600;
+  --fs-section: 15px;  --fw-section: 600;
+  --fs-body: 14px;     --fw-body: 400;
+  --fs-label: 13px;    --fw-label: 500;
+  --fs-caption: 12px;  --fw-caption: 400;
+  --ls-tight: -0.01em;      /* 제목 자간 — SF Pro 특유의 조여진 느낌 */
+  --lh-title: 1.3;
+  --lh-body: 1.5;
+
+  /* ── 간격 4의 배수 6단계 ── */
+  --sp-1: 4px;   /* 아이콘–텍스트 */
+  --sp-2: 8px;   /* 요소 내부 */
+  --sp-3: 12px;  /* 폼 필드 사이 */
+  --sp-4: 16px;  /* 카드 패딩 */
+  --sp-5: 24px;  /* 섹션 사이, 페이지 좌우 여백 */
+  --sp-6: 32px;  /* 페이지 상하 여백 */
+
+  /* ── 모서리 ── */
+  --r-sm: 6px;      /* 입력창·버튼·뱃지 */
+  --r-md: 10px;     /* 카드·패널·옵션 박스 */
+  --r-pill: 999px;  /* 세그먼티드 컨트롤·카운트 뱃지 */
+
+  /* ── 테두리 ── */
+  --hairline: 0.5px solid var(--line);   /* 굵은 선은 구조를 무겁게 만든다 */
+
+  /*
+   * ── 눌림 모션 ──
+   * 누를 때는 빠르게 붙고, 뗄 때는 느리게 튀어오른다(비대칭). 같은 속도로 하면
+   * 기계적으로 느껴진다 — macOS 컨트롤의 감각은 이 비대칭에서 나온다.
+   */
+  --press-in: transform 90ms ease;
+  --press-out: transform 260ms cubic-bezier(.34, 1.4, .64, 1);
+
+  /*
+   * ── 컨트롤 높이 ──
+   * 손가락 기기에서는 44px 로 커진다. 인라인 style 은 미디어쿼리를 쓸 수 없어,
+   * 값 자체를 변수로 두고 여기서 한 번에 바꾼다(컴포넌트는 var() 만 참조).
+   */
+  --h-control: 36px;   /* 일반 버튼·입력 */
+  --h-control-sm: 28px;/* 표 안 작은 버튼 */
+}
+
+@media (pointer: coarse) {
+  :root {
+    /*
+     * 손가락 기준은 44×44px 인데, 아래에서 #root 에 zoom: .88 이 걸린다.
+     * 44 를 그대로 쓰면 화면에는 39px 로 그려져 기준을 못 맞춘다(실측).
+     * 그래서 zoom 을 되돌린 값(44 ÷ 0.88 = 50)을 쓴다 — 결과가 44px 이 된다.
+     */
+    --h-control: 50px;
+    --h-control-sm: 50px;   /* 표 안 버튼도 예외 없음 — 손가락은 28px 를 못 맞춘다 */
+  }
 }
 
 *, *::before, *::after {
@@ -21,25 +120,79 @@ html, body, #root {
 }
 
 body {
-  font-family: -apple-system, 'Apple SD Gothic Neo', Arial, sans-serif;
+  /* 폴백은 Pretendard 를 받지 못했을 때만 쓰인다(로딩 전·차단·구형 브라우저) */
+  font-family: 'Pretendard', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   color: var(--body);
   background: var(--bg);
+  /*
+   * 한글은 단어 중간에서 끊지 않는다. 이걸 안 하면 "냉장/냉동 이동식 격 / 벽" 처럼 깨진다.
+   * (영문·URL 처럼 한 덩어리가 칸보다 길면 넘칠 수 있으나, 그런 칸은 말줄임으로 처리한다)
+   */
+  word-break: keep-all;
+  /*
+   * 숫자를 고정폭으로 — 금액이 세로로 줄맞춤된다. 표에서 자릿수가 어긋나 보이던 것이 사라지고,
+   * 숫자가 바뀌어도 폭이 흔들리지 않는다(견적 금액이 실시간으로 바뀌는 화면이 있다).
+   */
+  font-variant-numeric: tabular-nums;
 }
 
 select, input[type='text'] {
   width: 100%;
-  font-size: 13px;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  font-size: var(--fs-body);
+  padding: 0 var(--sp-3);
+  min-height: var(--h-control);
+  border: var(--hairline);
+  border-radius: var(--r-sm);
   background: #fff;
   color: var(--body);
   font-family: inherit;
+}
+/* 여러 줄 입력은 높이를 강제하지 않는다 — 좌우 여백만 맞춘다 */
+textarea {
+  font-size: var(--fs-body);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--hairline);
+  border-radius: var(--r-sm);
+  background: #fff;
+  color: var(--body);
+}
+/* 초점은 라임으로 — 어디에 입력하고 있는지가 한눈에 보인다(테두리만 바뀌므로 칸 크기는 그대로) */
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none;
+  border-color: var(--lime);
+  box-shadow: 0 0 0 3px var(--lime-bg);
 }
 
 button {
   font-family: inherit;
   cursor: pointer;
+}
+
+/*
+ * 눌림 반응 — 누르면 살짝 들어갔다가 튀어오른다.
+ * 인라인 style 로는 :active 를 쓸 수 없어 여기서 한 번에 건다(모든 버튼이 같은 감각을 갖는다).
+ */
+button:not(:disabled) { transition: var(--press-out), border-color 160ms ease, background 160ms ease; }
+button:not(:disabled):active { transform: scale(.97); transition: var(--press-in); }
+
+/*
+ * hover 는 **톤 변화만**. 정보나 기능을 hover 뒤에 숨기지 않는다 —
+ * 손가락 기기에는 hover 가 없어 영영 못 보게 된다(docs/design-system.md §4-1).
+ * 마우스가 있는 기기에서만 건다.
+ */
+@media (hover: hover) {
+  button:not(:disabled):hover { filter: brightness(.97); }
+}
+
+/*
+ * 폼 컨트롤은 브라우저 기본 글꼴을 쓴다 — 본문 규칙을 다시 물려준다.
+ * (위 select/input[type=text] 규칙은 텍스트 입력만 덮고 있어 비밀번호·날짜·이메일 칸이
+ *  시스템 폰트로 남아 있었다. 입력칸 안 금액도 여기서 함께 줄맞춤된다)
+ */
+input, select, textarea, button {
+  font-family: inherit;
+  font-variant-numeric: inherit;
+  word-break: inherit;
 }
 
 /* PDF 모달 로딩 스피너 */
