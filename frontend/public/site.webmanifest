@@ -1,0 +1,14 @@
+{
+  "name": "Buildup-EV",
+  "short_name": "Buildup-EV",
+  "description": "전기 특장차 컨피규레이터 · 견적 · 발주 · 구조변경 서류 자동화",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-1024.png", "sizes": "1024x1024", "type": "image/png" }
+  ],
+  "theme_color": "#FFFFFF",
+  "background_color": "#FFFFFF",
+  "display": "standalone",
+  "lang": "ko"
+}
