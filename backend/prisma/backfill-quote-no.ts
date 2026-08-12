@@ -1,5 +1,8 @@
 // 기존 견적에 quote_no(YY-NNNN)를 created_at 순서로 일괄 부여하는 1회성 스크립트
+// 채번은 운영 경로와 같은 채번대장(quote_no_counter)을 쓴다 — 여기서만 따로 세면
+// 이 스크립트가 준 번호가 나중에 신규 견적에 다시 나갈 수 있다.
 import { PrismaClient } from '@prisma/client'
+import { nextQuoteNo } from '../src/services/quote-no.js'
 
 const prisma = new PrismaClient()
 
@@ -24,19 +27,10 @@ async function main() {
 
   let total = 0
   for (const [year, yearQuotes] of Array.from(byYear.entries()).sort(([a], [b]) => a - b)) {
-    const prefix = String(year).slice(-2)
-    const existing = await prisma.quote.findFirst({
-      where: { quote_no: { startsWith: `${prefix}-` } },
-      orderBy: { quote_no: 'desc' },
-      select: { quote_no: true },
-    })
-    let seq = existing?.quote_no ? parseInt(existing.quote_no.split('-')[1] ?? '0', 10) + 1 : 1
-
     for (const q of yearQuotes) {
-      const quote_no = `${prefix}-${String(seq).padStart(4, '0')}`
+      const quote_no = await nextQuoteNo(prisma, year)
       await prisma.quote.update({ where: { id: q.id }, data: { quote_no } })
       console.log(`견적 #${q.id} → ${quote_no}`)
-      seq++
       total++
     }
   }

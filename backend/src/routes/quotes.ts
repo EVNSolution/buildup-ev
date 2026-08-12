@@ -16,6 +16,7 @@ import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 import { setQuoteStatus } from '../services/quote-status.js';
+import { nextQuoteNo } from '../services/quote-no.js';
 
 export const quotesRouter = Router();
 
@@ -23,16 +24,10 @@ export const quotesRouter = Router();
 
 
 // ── 연도별 순차 견적번호 생성 (YY-NNNN) ─────────────────────────────────────
-async function genQuoteNo(prismaClient: NonNullable<typeof prisma>, year: number): Promise<string> {
-  const prefix = String(year).slice(-2);
-  const last = await prismaClient.quote.findFirst({
-    where: { quote_no: { startsWith: `${prefix}-` } },
-    orderBy: { quote_no: 'desc' },
-    select: { quote_no: true },
-  });
-  const seq = last?.quote_no ? parseInt(last.quote_no.split('-')[1] ?? '0', 10) + 1 : 1;
-  return `${prefix}-${String(seq).padStart(4, '0')}`;
-}
+// 채번은 quote_no_counter(채번대장)가 맡는다 — 견적을 지워도 번호가 되살아나지 않는다.
+// (예전 구현은 "남아 있는 견적의 최대번호 +1" 이라 삭제 후 같은 번호가 다시 나갔다)
+const genQuoteNo = (prismaClient: NonNullable<typeof prisma>, year: number): Promise<string> =>
+  nextQuoteNo(prismaClient, year);
 
 async function buildParams(
   model_code: string,
