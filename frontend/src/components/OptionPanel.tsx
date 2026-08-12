@@ -247,7 +247,7 @@ const styles = {
     overflow: 'hidden',
   },
   // 패널 안 내용 탭 — 화면 탭과 같은 밑줄 방식. 선택 표시는 라임(선택·활성 표시 전용 색)
-  tabs: { flexShrink: 0, display: 'flex', borderBottom: 'var(--hairline)' },
+  tabs: { flexShrink: 0, display: 'flex' },
   tab: {
     flex: 1,
     textAlign: 'center' as const,
@@ -270,8 +270,8 @@ const styles = {
   scroll: { flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '18px 16px' },
   extra: {
     flexShrink: 0,
-    borderTop: 'var(--hairline)',
-    padding: 'var(--sp-3) var(--sp-4)',
+    // 선 대신 여백으로 나눈다 — 좁은 패널에 가로선을 여러 개 그으면 화면이 토막나 보인다
+    padding: 'var(--sp-4)',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 8,
@@ -281,8 +281,8 @@ const styles = {
   extraLabel: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
   hint: { fontSize: 13, color: 'var(--muted)', fontWeight: 400 },
   memo: {
-    width: '100%', boxSizing: 'border-box' as const, fontSize: 14, padding: '9px 11px',
-    border: '1px solid var(--line)', borderRadius: 7, resize: 'vertical' as const, fontFamily: 'inherit',
+    width: '100%', boxSizing: 'border-box' as const, fontSize: 'var(--fs-body)',
+    resize: 'vertical' as const, fontFamily: 'inherit',
   },
   promoToggle: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' },
   cbox: { width: 15, height: 15, accentColor: 'var(--lime)' } as React.CSSProperties,
@@ -294,8 +294,7 @@ const styles = {
   promoZeroed: { color: '#2e7d32', fontWeight: 700 },
   footer: {
     flexShrink: 0,
-    borderTop: 'var(--hairline)',
-    padding: 'var(--sp-3) var(--sp-4)',
+    padding: '0 var(--sp-4) var(--sp-4)',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 6,
