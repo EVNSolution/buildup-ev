@@ -243,3 +243,19 @@ export async function duplicateQuote(quoteId: number): Promise<{ id: number; quo
   const body = await res.json() as { data: { id: number; quote_no: string | null } }
   return body.data
 }
+
+/**
+ * 공개 문의를 영업사원에게 배정한다(관리자).
+ * 배정되는 순간 견적번호가 처음 발급되고, 그 영업의 「내 견적」에 나타난다.
+ */
+export async function assignSalesQuote(quoteId: number, salesUserId: string): Promise<{ quote_no: string }> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/assign-sales`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sales_user_id: salesUserId }),
+  })
+  const body = await res.json().catch(() => ({})) as { data?: { quote_no: string }; error?: { message?: string } }
+  if (!res.ok) throw new Error(body.error?.message ?? `배정 실패: ${res.status}`)
+  return body.data!
+}

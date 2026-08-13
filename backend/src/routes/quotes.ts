@@ -691,6 +691,68 @@ quotesRouter.patch('/:id/confirm', rbac('SALES', 'ADMIN'), requirePermission('qu
 // ── PATCH /quotes/:id/assign — 배정 (confirmed→assigned + 특장사 배정 + 주문 생성) ──
 // 관리자가 제작 특장사를 선정. Order 생성(status='제작착수', 특장사 수락 대기).
 
+// ── PATCH /quotes/:id/assign-sales — 공개 문의를 영업사원에게 배정 ────────
+//
+// 공개 화면(비로그인)에서 들어온 문의는 주인이 없다(sales_user_id = null).
+// 관리자가 담당 영업을 지정하는 순간부터 그 영업의 「내 견적」에 나타난다.
+//
+// ⚠️ **견적번호는 여기서 처음 나간다.** 접수 단계에서 번호를 주면, 상담으로 이어지지 않은
+//    문의가 번호를 먹어 실제 계약 번호가 듬성듬성해진다(번호는 재사용하지 않는 자원이다).
+
+quotesRouter.patch('/:id/assign-sales', rbac('ADMIN'), requirePermission('quote.confirm'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+
+  const { sales_user_id } = req.body as { sales_user_id?: string };
+  if (!sales_user_id) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '담당 영업(sales_user_id) 필수' } }); return; }
+
+  try {
+    const [quote, user] = await Promise.all([
+      prisma.quote.findUnique({ where: { id }, select: { id: true, quote_no: true, sales_user_id: true, created_at: true } }),
+      prisma.user.findUnique({ where: { email: sales_user_id }, select: { email: true, org_code: true, role: true, extra_roles: true, active: true, status: true } }),
+    ]);
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (!user || !user.active || user.status !== 'active') {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '활성 상태의 계정이 아닙니다' } }); return;
+    }
+    // 영업 역할이 있는 계정에만 배정한다(겸직 포함) — 특장사 계정에 배정하면 열지도 못한다
+    const roles = [user.role, ...(user.extra_roles ?? [])];
+    if (!roles.includes('SALES')) {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '영업 역할이 있는 계정에만 배정할 수 있습니다' } }); return;
+    }
+
+    // 번호가 없으면(공개 문의) 이때 채번한다. 이미 있으면 그대로 둔다 — 번호는 바뀌지 않는다.
+    let quote_no = quote.quote_no;
+    if (!quote_no) {
+      try {
+        quote_no = await nextQuoteNo(prisma, quote.created_at.getFullYear());
+      } catch (e) {
+        console.error('[PATCH /quotes/:id/assign-sales] 채번 실패', e);
+        res.status(500).json({ error: { code: 'INTERNAL', message: '견적번호 발급에 실패했습니다.' } });
+        return;
+      }
+    }
+
+    const prev = { sales_user_id: quote.sales_user_id ?? '' };
+    await prisma.quote.update({
+      where: { id },
+      data: { sales_user_id: user.email, org_id: user.org_code, quote_no },
+    });
+    // 누가 누구에게 넘겼는지 남긴다 — 배정은 되돌리기·문의 응대에서 자주 되짚는다
+    await logQuoteChanges(id, 'inputs', prev, { sales_user_id: user.email },
+      req.auth?.email ?? 'unknown', ['sales_user_id']);
+
+    res.json({ data: { ok: true, quote_no, sales_user_id: user.email } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/assign-sales]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '배정 중 오류가 발생했습니다.' } });
+  }
+});
+
 quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });

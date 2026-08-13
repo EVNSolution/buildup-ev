@@ -407,6 +407,8 @@ model Quote {
   supply_price  Int?
   final_price   Int?
   status        QuoteStatus @default(draft)
+  /// sales = 영업 작성 상담 견적 / public = 고객이 공개 화면에서 직접 접수한 문의
+  source        String      @default("sales") @db.VarChar(10)
   sales_user_id String?     @db.VarChar(120)
   org_id        String?     @db.VarChar(30)
   created_at    DateTime    @default(now())

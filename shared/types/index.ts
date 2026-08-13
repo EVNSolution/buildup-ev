@@ -282,6 +282,8 @@ export interface ApiQuote {
   final_price: number;
   sales_user_id: string | null;
   org_id: string | null;
+  /** 'sales' = 영업 작성 / 'public' = 고객이 공개 화면에서 직접 접수한 문의 */
+  source?: string;
   customer_id: number | null;
   created_at: string;
   customer: { id: number; name: string; email?: string | null; phone?: string | null; address?: string | null; address_detail?: string | null } | null;

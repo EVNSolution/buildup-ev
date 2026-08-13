@@ -4,7 +4,7 @@ import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User 
 import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, confirmQuote, assignQuote, deleteQuote } from '../api/quotes'
+import { fetchQuotes, confirmQuote, assignQuote, assignSalesQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -106,6 +106,39 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
         <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
           <option value="">— 특장사 선택 (필수) —</option>
           {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
+        </select>
+        {error && <div style={modal.error}>{error}</div>}
+        <div style={modal.actions}>
+          <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
+          <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
+            {loading ? '처리 중…' : '배정'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 영업 배정 모달(공개 문의) ──────────────────────────────────────────────
+//
+// 공개 화면에서 들어온 문의는 주인이 없다. 관리자가 담당 영업을 지정하는 순간
+// **견적번호가 처음 발급되고** 그 영업의 「내 견적」에 나타난다.
+interface AssignSalesModalProps {
+  quoteId: number; users: User[]; loading: boolean; error: string
+  onConfirm: (email: string) => void; onClose: () => void
+}
+function AssignSalesModal({ quoteId, users, loading, error, onConfirm, onClose }: AssignSalesModalProps) {
+  const [selected, setSelected] = useState('')
+  // 영업 역할이 있는 활성 계정만 — 특장사 계정에 배정하면 열지도 못한다(서버도 막는다)
+  const candidates = users.filter(u => u.status === 'active' && u.active && rolesOf(u).includes('SALES'))
+  return (
+    <div style={modal.overlay} onClick={onClose}>
+      <div style={modal.box} onClick={e => e.stopPropagation()}>
+        <div style={modal.title}>문의 #{quoteId} — 영업 배정</div>
+        <div style={modal.desc}>담당 영업사원을 지정하면 견적번호가 발급되고, 해당 영업의 「내 견적」에 나타납니다.</div>
+        <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
+          <option value="">— 담당 영업 선택 (필수) —</option>
+          {candidates.map(u => <option key={u.email} value={u.email}>{u.name} ({u.email})</option>)}
         </select>
         {error && <div style={modal.error}>{error}</div>}
         <div style={modal.actions}>
@@ -662,6 +695,11 @@ function QuotesTab() {
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  // 공개 문의 → 영업 배정
+  const [assignSalesId, setAssignSalesId] = useState<number | null>(null)
+  const [salesUsers, setSalesUsers] = useState<User[]>([])
+  const [assignSalesBusy, setAssignSalesBusy] = useState(false)
+  const [assignSalesErr, setAssignSalesErr] = useState('')
   const [makerOrgs, setMakerOrgs] = useState<Org[]>([])
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState('')
@@ -708,6 +746,27 @@ function QuotesTab() {
     } finally {
       setConfirmLoading(false)
     }
+  }
+
+  async function handleOpenAssignSales(id: number) {
+    setAssignSalesId(id); setAssignSalesErr('')
+    // 후보 목록은 열 때 한 번만 받는다(목록을 그릴 때마다 부를 이유가 없다)
+    if (salesUsers.length === 0) {
+      try { setSalesUsers(await fetchUsers()) } catch { setSalesUsers([]) }
+    }
+  }
+
+  async function handleAssignSales(email: string) {
+    if (assignSalesId === null) return
+    setAssignSalesBusy(true); setAssignSalesErr('')
+    try {
+      const r = await assignSalesQuote(assignSalesId, email)
+      setAssignSalesId(null)
+      load()
+      window.alert(`견적번호 ${r.quote_no} 로 배정했습니다.`)
+    } catch (e: unknown) {
+      setAssignSalesErr(e instanceof Error ? e.message : '배정 실패')
+    } finally { setAssignSalesBusy(false) }
   }
 
   async function handleDelete(id: number, status: string) {
@@ -815,6 +874,10 @@ function QuotesTab() {
                     onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
                   >서명본</button>
                 )}
+                {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
+                {q.source === 'public' && !q.sales_user_id && (
+                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
+                )}
                 {q.status === 'draft' && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
@@ -896,6 +959,9 @@ function QuotesTab() {
                           onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
                         >서명본</button>
                       )}
+                      {q.source === 'public' && !q.sales_user_id && (
+                        <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
+                      )}
                       {q.status === 'draft' && (
                         <button style={BTN.rowPrimary} onClick={() => handleConfirm(q.id)}>확정</button>
                       )}
@@ -926,6 +992,17 @@ function QuotesTab() {
       )}
 
       {viewing && <CustomerViewModal quote={viewing} onClose={() => setViewing(null)} />}
+
+      {assignSalesId !== null && (
+        <AssignSalesModal
+          quoteId={assignSalesId}
+          users={salesUsers}
+          loading={assignSalesBusy}
+          error={assignSalesErr}
+          onConfirm={handleAssignSales}
+          onClose={() => { setAssignSalesId(null); setAssignSalesErr('') }}
+        />
+      )}
 
       {confirmingId !== null && (
         <ConfirmModal
