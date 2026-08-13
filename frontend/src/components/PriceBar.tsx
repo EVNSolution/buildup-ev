@@ -427,6 +427,13 @@ const CELL_MIN = 132
 /** 넓은 화면 가격바의 한 줄 높이 — 위 2줄 합이 아래 실구매가 줄과 같아진다 */
 const ROW_H = 34
 
+/**
+ * 왼쪽 칸과 오른쪽 칸 사이 — 왼쪽 **금액**과 오른쪽 **제목**이 맞닿는 자리다.
+ * 칸 안쪽 여백(14+14)만으로는 「₩68,758,000 구매 혜택」 이 한 덩어리로 붙어 읽혔다.
+ * 열 간격을 주면 금액은 왼쪽으로, 제목은 오른쪽으로 **같은 만큼** 밀린다.
+ */
+const COL_GAP = 28
+
 
 const cellBase = {
   // 금액 글자가 이 칸 폭(cqi)에 맞춰 커지고 작아진다 — FitValue 참고
@@ -516,6 +523,7 @@ const styles: Record<string, React.CSSProperties> = {
    */
   grid4: {
     display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: `${ROW_H}px ${ROW_H}px`,
+    columnGap: COL_GAP,
   },
   /** 아랫줄 — 한 칸짜리 긴 줄. 왼쪽이 결론, 오른쪽이 곁다리 */
   /** 결론 줄 — 윗줄과 같은 2열, 다만 한 줄뿐이라 높이는 낮다 */
@@ -525,8 +533,9 @@ const styles: Record<string, React.CSSProperties> = {
    * 다섯 번째 항목처럼 읽힌다.
    */
   resultRow: {
+    // 윗줄과 **같은 열 간격** — 다르면 왼쪽 금액들(차량+특장·보조금·기타)의 끝선이 어긋난다
     display: 'grid', gridTemplateColumns: '1fr 1fr', alignItems: 'start',
-    minHeight: ROW_H,
+    minHeight: ROW_H, columnGap: COL_GAP,
   },
   resultRight: {
     paddingRight: 14,

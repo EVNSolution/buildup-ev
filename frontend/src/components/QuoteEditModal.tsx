@@ -165,7 +165,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
 
   return (
     <>
-      <div style={s.scroll}>
+      <div className="scroll-hint" style={s.scroll}>
         <div style={s.section}>차량 트림</div>
         <VehicleOptionsTab
           groups={byCat(OPTION_CATEGORY.vehicle)} selections={sel} onSelect={pick}

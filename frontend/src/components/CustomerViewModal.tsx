@@ -61,7 +61,7 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
 
   return (
     <div style={modal.overlay} onClick={onClose}>
-      <div style={{ ...modal.box, width: 520, maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div className="scroll-hint" style={{ ...modal.box, width: 520, maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>고객 정보 — {quote.quote_no ?? `#${quote.id}`}</div>
         <div style={modal.desc}>조회 전용입니다. 값을 고치려면 영업 견적 목록의 「수정」을 이용하세요.</div>
         {groups.map(g => (
