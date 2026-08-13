@@ -741,8 +741,12 @@ export function SalesPage() {
             subsidy={subsidyInputs}
             onSubsidyChange={setSubsidyInputs}
             regions={regions}
-            compact={!phone}
-            summary={phone}
+            /*
+             * 좁은 창은 폰이든 태블릿 창 모드든 **요약 한 줄**을 쓴다.
+             * 6칸을 가로로 두면 670px 짜리 창에서 오른쪽이 잘려 나간다(실제 제보).
+             * 옆으로 밀어 볼 수는 있었지만, 잘린 화면은 고장으로 읽힌다.
+             */
+            summary
           />
         )}
       </div>
@@ -784,9 +788,9 @@ const styles = {
   // 좁은 창 배치 — 3D → 옵션 → 가격바 순으로 쌓는다
   bodyCompact: { flexDirection: 'column' as const },
   viewerCompact: {
-    // 3D 는 화면의 1/3 정도만 차지하고 나머지는 옵션에 넘긴다(고를 것이 더 중요하다)
+    // 3D 는 화면 위쪽 조금만 차지하고 나머지는 옵션에 넘긴다(고를 것이 더 중요하다)
     flex: '0 0 auto' as const,
-    maxHeight: '34%',
+    maxHeight: '28%',
   },
   vtabs: {
     flexShrink: 0,

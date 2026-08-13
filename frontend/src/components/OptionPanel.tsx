@@ -287,7 +287,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 8,
-    maxHeight: 'min(260px, 34%)',
+    maxHeight: 'min(220px, 26%)',
     overflowY: 'auto' as const,
   },
   extraLabel: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
