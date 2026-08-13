@@ -130,10 +130,23 @@ export type Role = 'SALES' | 'ADMIN' | 'MAKER';
 
 export type UserStatus = 'active' | 'invited' | 'suspended';
 
+export const ALL_ROLES: readonly Role[] = ['SALES', 'ADMIN', 'MAKER'];
+
 export interface User {
   email: string;
   org_code: string;
+  /**
+   * 주 역할 — 로그인 직후 여는 화면과 배지의 기준. **하나뿐**이다.
+   * 겸직은 아래 extra_roles 로 더한다(주 역할을 배열로 바꾸면 "어디로 보낼지"가 사라진다).
+   */
   role: Role;
+  /**
+   * 겸직 — 주 역할 외에 더 가진 역할.
+   *
+   * 관리자가 영업 화면까지 쓰거나, 관리자가 특장 화면까지 봐야 하는 일이 실제로 있다.
+   * 계정을 두 개 만들면 견적·주문이 다른 사람 것으로 쌓이므로 **한 계정에 역할을 더한다**.
+   */
+  extra_roles?: Role[];
   name: string;
   phone?: string;
   status: UserStatus;
@@ -142,6 +155,18 @@ export interface User {
   active: boolean;
   // DEV: master surface switcher — true일 때 헤더에 surface 전환 토글 표시
   is_master?: boolean;
+}
+
+/**
+ * 이 계정이 가진 역할 전부 — 주 역할이 늘 맨 앞이다(중복은 지운다).
+ *
+ * 화면 전환 토글·권한 합산·라우팅이 모두 이 목록 하나를 본다. 각자 [role, ...extra] 을
+ * 다시 만들면 한 곳만 고쳐졌을 때 화면과 권한이 어긋난다.
+ * 마스터 계정은 전 역할을 가진 것으로 본다(테스트용 계정 — 서버도 같은 판단을 한다).
+ */
+export function rolesOf(u: { role: Role; extra_roles?: Role[] | null; is_master?: boolean }): Role[] {
+  if (u.is_master) return [...ALL_ROLES];
+  return [...new Set<Role>([u.role, ...(u.extra_roles ?? [])])];
 }
 
 /** F3. 기능 모듈 카탈로그 */

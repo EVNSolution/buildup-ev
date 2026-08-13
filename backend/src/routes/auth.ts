@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { signToken } from '../lib/jwt.js';
 import { verifyPassword, hashPassword } from '../lib/password.js';
 import { mergePermissions } from '../lib/permissions.js';
+import { rolesOf } from '@buildup-ev/shared/types';
 import type { Role } from '@buildup-ev/shared/types';
 
 export const authRouter = Router();
@@ -124,10 +125,11 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     permissions = allMods.map(m => m.code);
   } else {
+    const roles = rolesOf({ role: dbUser.role as Role, extra_roles: dbUser.extra_roles as Role[] });
     const acs = await prisma.accessControl.findMany({
-      where: { OR: [{ subject_type: 'role', subject_ref: dbUser.role }, { subject_type: 'user', subject_ref: email }] },
+      where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
     });
-    permissions = mergePermissions(dbUser.role as Role, email, acs);
+    permissions = mergePermissions(roles, email, acs);
   }
   res.json({
     data: {
@@ -135,6 +137,7 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
         email: dbUser.email,
         org_code: dbUser.org_code,
         role: dbUser.role,
+        extra_roles: dbUser.extra_roles,
         name: dbUser.name,
         phone: dbUser.phone ?? undefined,
         status: dbUser.status,
@@ -161,16 +164,16 @@ authRouter.get('/me/permissions', rbac('SALES', 'ADMIN', 'MAKER'), async (req: R
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } });
     return;
   }
-  const { email, role, is_master } = req.auth!;
+  const { email, roles, is_master } = req.auth!;
   let perms: string[];
   if (is_master) {
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     perms = allMods.map(m => m.code);
   } else {
     const acs = await prisma.accessControl.findMany({
-      where: { OR: [{ subject_type: 'role', subject_ref: role }, { subject_type: 'user', subject_ref: email }] },
+      where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
     });
-    perms = mergePermissions(role, email, acs);
+    perms = mergePermissions(roles, email, acs);
   }
   res.json({ data: { permissions: perms } });
 });

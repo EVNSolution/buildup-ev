@@ -49,7 +49,10 @@ enum UserStatus {
 model User {
   email          String     @id @db.VarChar(120)
   org_code       String     @db.VarChar(30)
+  /// 주 역할 — 로그인 후 첫 화면·배지의 기준(하나뿐)
   role           Role
+  /// 겸직 — 주 역할 외에 더 가진 역할. 권한은 역할들의 합집합으로 본다.
+  extra_roles    Role[]
   name           String     @db.VarChar(60)
   phone          String?    @db.VarChar(20)
   status         UserStatus @default(invited)
