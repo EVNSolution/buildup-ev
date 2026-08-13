@@ -89,7 +89,8 @@ function SubLine({ label, value, fit: doFit, cols = 2 }: { label: string; value:
   return (
     <div style={{
       ...styles.subLine,
-      ...(doFit ? { fontSize: `min(13px, ${(100 / textEm(text) / cols).toFixed(2)}cqi)` } : null),
+      // 하한 9px — 칸이 좁다고 6~7px 까지 줄어들면 있으나 마나 한 글자가 된다
+      ...(doFit ? { fontSize: `clamp(9px, ${(100 / textEm(text) / cols).toFixed(2)}cqi, 13px)` } : null),
     }}>{text}</div>
   )
 }
@@ -122,6 +123,10 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
   // 세로로 쌓을 땐 폭이 넉넉하므로 글자를 줄이지 않는다(가로 배치용 축소는 stack 에서 해제).
   // 칸 공통 얹기 — 세로배치/두툼하게/좁은창(고정폭) 세 갈래
   const row  = stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall
+  // 가로 배치에서는 칸 사이를 세로선으로만 나눈다(연산자는 라벨 앞에 붙는다)
+  const sep  = stack ? null : styles.sep
+  // 세로 배치는 칸이 위아래로 서므로 연산자를 줄 사이에 그대로 둔다
+  const sign = (op: string) => (stack ? '' : `${op} `)
   const big  = stack ? styles.stackBig : null
   const lbl  = stack ? styles.stackLabel : null
 
@@ -134,7 +139,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         ...(summary ? { ...styles.flowSheet, display: openFlow ? 'flex' : 'none' } : null),
       }}>
         {/* ① 차량+특장 (부가세 포함) */}
-        <div style={{ ...styles.first, ...row }}>
+        <div style={{ ...styles.first, ...row, ...sep }}>
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
           <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
           <div style={stack ? styles.stackRight : undefined}>
@@ -143,15 +148,15 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           </div>
         </div>
 
-        <Op stack={stack}>−</Op>
-        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} tall={!stack && !touch} compact={compact} />
-        <Op stack={stack}>−</Op>
+        {stack && <Op stack={stack}>−</Op>}
+        <Block label={`${sign('−')}구매 혜택`} value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} tall={!stack && !touch} compact={compact} sep={sep} />
+        {stack && <Op stack={stack}>−</Op>}
         {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
         <div
-          style={{ ...styles.block, ...styles.clickable, ...row }}
+          style={{ ...styles.block, ...styles.clickable, ...row, ...sep, ...(stack ? null : styles.blockWide) }}
           onClick={() => setShowSubsidy(v => !v)}
         >
-          <div style={{ ...styles.blockLabel, ...lbl }}>보조금 ▸</div>
+          <div style={{ ...styles.blockLabel, ...lbl }}>{sign('−')}보조금 ▸</div>
           <div style={stack ? styles.stackRight : undefined}>
             <FitValue
               text={!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
@@ -183,17 +188,17 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
             />
           )}
         </div>
-        <Op stack={stack}>−</Op>
+        {stack && <Op stack={stack}>−</Op>}
         {/* ④ 부가세 환급 — 일반구매자는 환급 대상이 아니다 */}
-        <div style={{ ...styles.block, ...row }}>
-          <div style={{ ...styles.blockLabel, ...lbl }}>부가세 환급</div>
+        <div style={{ ...styles.block, ...row, ...sep }}>
+          <div style={{ ...styles.blockLabel, ...lbl }}>{sign('−')}부가세 환급</div>
           <FitValue
             text={!ok ? '—' : noRefund ? '환급 불가' : fmt(vatRefund)}
             max={24} active={!stack}
             style={{ ...styles.blockValue, ...big, ...(noRefund ? styles.mutedVal : styles.negVal) }} />
         </div>
 
-        {!summary && <Op stack={stack}>=</Op>}
+        {stack && !summary && <Op stack={stack}>=</Op>}
         {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
         {/* 휴대폰 요약 모드에서는 아래 고정 줄이 이 자리를 대신한다(같은 숫자를 두 번 두지 않는다) */}
         {!summary && (
@@ -239,10 +244,10 @@ function Op({ children, stack }: { children: string; stack?: boolean }) {
   return <div style={stack ? styles.opStack : styles.op}>{children}</div>
 }
 
-function Block({ label, value, show, muted, negative, stack, tall, compact }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean; tall?: boolean; compact?: boolean }) {
+function Block({ label, value, show, muted, negative, stack, tall, compact, sep }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean; tall?: boolean; compact?: boolean; sep?: React.CSSProperties | null }) {
   return (
     // 좁은 창(가로 스크롤)에서는 칸이 줄어들면 안 된다 — 줄어드는 순간 금액이 잘린다
-    <div style={{ ...styles.block, ...(stack ? styles.rowCell : compact ? styles.cellFixed : tall ? styles.cellTall : null) }}>
+    <div style={{ ...styles.block, ...(stack ? styles.rowCell : compact ? styles.cellFixed : tall ? styles.cellTall : null), ...sep }}>
       <div style={{ ...styles.blockLabel, ...(stack ? styles.stackLabel : null) }}>{label}</div>
       <FitValue
         text={show ? (muted ? '미반영' : fmt(value)) : '—'}
@@ -344,7 +349,11 @@ const cellBase = {
   display: 'flex' as const,
   flexDirection: 'column' as const,
   justifyContent: 'center' as const,
-  background: 'var(--card)', borderRadius: 'var(--r-md)',
+  /*
+   * 칸마다 회색 배경을 깔면 덩어리 여섯 개가 같은 무게로 보여, 정작 결과인 실구매가가
+   * 묻힌다. 배경을 걷고 **얇은 세로선**으로만 나눈다 — 강조는 실구매가 한 칸에만 남긴다.
+   */
+  background: 'transparent', borderRadius: 0,
   // ⚠️ padding 축약형을 쓰면 안 된다 — 아래 cellTall 이 위아래 여백만 덮어쓰는데,
   //    한 요소에서 축약형과 개별속성이 섞이면 React 가 렌더마다 경고를 뱉는다.
   paddingTop: fit(6, 0.47, 9), paddingBottom: fit(6, 0.47, 9),
@@ -389,9 +398,9 @@ const styles: Record<string, React.CSSProperties> = {
   op: { fontSize: fit(11, 0.83, 16), color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
   // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
   // 테두리 없이 배경색만으로 구분한다 — 선을 두르면 칸마다 굵기가 달라 보여 지저분했다
-  first: { ...cellBase, flex: 1.3, background: '#f7fadf' },
+  first: { ...cellBase, flex: 1.3 },
   // 잘라서 없애기보다 접히게 둔다 — '(VAT 포함)'이 사라지면 무슨 금액인지 알 수 없다
-  firstLabel: { fontSize: fit(11, 0.73, 14), color: '#6b7300', fontWeight: 700, overflow: 'hidden' },
+  firstLabel: { fontSize: fit(11, 0.73, 14), color: 'var(--muted)', fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'], overflow: 'hidden' },
   firstValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   // 차량·특장 분해는 금액이 길어 좁은 화면에서 한 줄에 안 들어간다.
   // 숫자를 잘라 버리면 안 되므로 이 줄만 두 줄로 접히게 둔다(블록 밖으로는 못 나감).
@@ -409,6 +418,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subLine: { whiteSpace: 'nowrap' as const, overflow: 'hidden' as const },
   block: { ...cellBase, position: 'relative' },
+  /** 보조금 칸 — 안에 내역 4항목이 들어가 다른 칸보다 조금 넓어야 한다 */
+  blockWide: { flex: 1.5 },
+  /** 칸 사이 얇은 세로선 — 배경 대신 이것으로만 나눈다(가로 배치 전용) */
+  sep: { borderRight: 'var(--hairline)' },
   // 누를 수 있다는 표시는 라벨의 '▸' 로 충분하다(점선 테두리는 뺐다)
   clickable: { cursor: 'pointer' },
   // 등록·기타는 계산 흐름 밖 — 왼쪽에 구분선을 둬 실구매가와 시각적으로 분리한다
@@ -422,7 +435,12 @@ const styles: Record<string, React.CSSProperties> = {
   blockValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   negVal: { color: '#c0392b' },
   mutedVal: { color: '#bfc4cb' },
-  hero: { ...cellBase, flex: 1.3, background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
+  // 유일하게 배경을 갖는 칸 — 상담의 결론이라 여기만 강조한다
+  hero: {
+    ...cellBase, flex: 1.4, background: 'var(--dark)', borderRadius: 'var(--r-md)',
+    display: 'flex', flexDirection: 'column', justifyContent: 'center',
+    paddingLeft: fit(10, 0.83, 16), paddingRight: fit(10, 0.83, 16),
+  },
   heroLabel: { fontSize: fit(11, 0.73, 14), color: 'var(--lime)', fontWeight: 700, ...noSpill },
   heroValue: { fontSize: fit(13, 1.14, 22), fontWeight: 700, color: '#fff', marginTop: 2, ...noSpill },
   // ── 세로 배치(화면이 1:1 보다 세로로 길 때) ──────────────────────────────
