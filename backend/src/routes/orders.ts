@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac, requirePermission, isAdmin, ownOrgOnly } from '../middleware/rbac.js';
+import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
@@ -43,6 +43,16 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     };
   }
 
+  /*
+   * ⚠️ **어느 행을 볼지(where)와 어느 칸을 볼지(select)는 다른 문제다.**
+   *    여기는 오래도록 where 만 좁혀 두어, 특장사에게도 공급가·실구매가가 그대로 나갔다.
+   *    상세(GET /orders/:id)는 처음부터 금액을 빼고 있었으므로 목록만 어긋나 있던 것이다.
+   *    화면이 그 값을 그리지 않아 눈에 띄지 않았을 뿐, 응답에는 실려 브라우저까지 갔다.
+   *
+   *    자격 판정은 rbac 의 canSeeQuotePrices 하나만 본다(라우트마다 손으로 적지 않는다).
+   */
+  const showPrice = canSeeQuotePrices(auth);
+
   try {
     const orders = await prisma.order.findMany({
       where,
@@ -50,7 +60,11 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
       include: {
         quote: {
           select: {
-            model_code: true, supply_price: true, final_price: true,
+            model_code: true,
+            // 금액은 자격이 있을 때만 **조회 자체를 하지 않는다**(응답에서 지우는 방식은
+            // 지우는 곳을 하나 빠뜨리면 그대로 새어 나간다)
+            supply_price: showPrice,
+            final_price: showPrice,
             status: true, customer_id: true,
             customer: { select: { id: true, name: true } },
           },
