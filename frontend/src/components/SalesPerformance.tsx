@@ -98,7 +98,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           {attention.length === 0 ? (
             <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
           ) : (
-            <div style={s.tableWrap}>
+            <div className="scroll-hint-x" style={s.tableWrap}>
               <table style={s.table}>
                 <thead>
                   <tr>
@@ -246,17 +246,31 @@ const s: Record<string, React.CSSProperties> = {
   ok: { padding: '12px 14px', background: '#eef7e9', border: '1px solid #cfe4c2', color: '#3d6b28', borderRadius: 8, fontSize: 14 },
   err: { padding: '10px 12px', background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', borderRadius: 8, fontSize: 14, marginBottom: 12 },
 
-  funnel: { display: 'flex', alignItems: 'stretch', flexWrap: 'wrap', gap: 2, marginBottom: 12 },
-  stepWrap: { display: 'flex', alignItems: 'stretch' },
-  step: {
-    background: 'var(--card)', borderRadius: 10, padding: '10px 14px', minWidth: 84, textAlign: 'center',
+  /*
+   * 깔때기 — **한 줄을 지킨다**. 예전엔 칸 폭을 못 박고(84px) 남으면 접히게 두어,
+   * 좁은 화면에서 「배정완료 › 주문진행 › 완료」가 둘째 줄로 내려갔다. 그러면 흐름이
+   * 두 갈래처럼 보인다(실제 제보) — 순서대로 읽히는 것이 이 그림의 전부다.
+   * 그래서 칸은 남는 폭을 나눠 갖고, 글자는 칸 폭(cqi)에 맞춰 스스로 줄어든다.
+   */
+  funnel: {
+    display: 'flex', alignItems: 'stretch', flexWrap: 'nowrap', gap: 2, marginBottom: 12,
+    width: '100%', containerType: 'inline-size' as const,
   },
-  stepName: { fontSize: 13, color: 'var(--muted)' },
-  stepNum: { fontSize: 20, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
-  arrow: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 6px' },
-  arrowMark: { fontSize: 16, color: '#c2c8cf', lineHeight: 1 },
-  rate: { fontSize: 12.5, color: 'var(--muted)', fontWeight: 700 },
-  rateLow: { fontSize: 12.5, color: '#c0392b', fontWeight: 700 },
+  stepWrap: { display: 'flex', alignItems: 'stretch', flex: '1 1 0', minWidth: 0 },
+  step: {
+    background: 'var(--card)', borderRadius: 10, padding: '10px 4px', textAlign: 'center',
+    flex: '1 1 0', minWidth: 0,
+  },
+  // 6칸이라 한 칸이 대략 컨테이너의 1/8~1/6 — 그 폭 안에서 네 글자가 접히지 않는 크기로 묶는다
+  stepName: { fontSize: 'clamp(9px, 1.9cqi, 13px)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
+  stepNum: { fontSize: 'clamp(13px, 3.1cqi, 20px)', fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
+  arrow: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    padding: '0 2px', flexShrink: 0,
+  },
+  arrowMark: { fontSize: 'clamp(11px, 2.4cqi, 16px)', color: '#c2c8cf', lineHeight: 1 },
+  rate: { fontSize: 'clamp(9px, 1.9cqi, 12.5px)', color: 'var(--muted)', fontWeight: 700, whiteSpace: 'nowrap' as const },
+  rateLow: { fontSize: 'clamp(9px, 1.9cqi, 12.5px)', color: '#c0392b', fontWeight: 700, whiteSpace: 'nowrap' as const },
 
   cards: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
   card: { flex: '1 1 150px', minWidth: 150, background: 'var(--card)', borderRadius: 10, padding: '10px 13px' },
