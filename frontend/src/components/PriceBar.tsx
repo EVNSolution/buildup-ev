@@ -613,7 +613,9 @@ const styles: Record<string, React.CSSProperties> = {
     width: 'auto' as const, maxHeight: '78vh',
     fontSize: 13,
     zIndex: 60,
-  },
+    // 이 안의 입력칸은 한 단계 낮게 — 변수 하나로 select·input·예/아니오가 함께 맞춰진다
+    ['--h-control' as string]: '40px',
+  } as React.CSSProperties,
   popFoot: { fontSize: 10.5, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--line)' },
   line: { display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--body)', padding: '2px 0' },
   lineBold: { fontWeight: 700, color: 'var(--dark)', borderTop: '1px solid var(--line)', marginTop: 3, paddingTop: 4 },

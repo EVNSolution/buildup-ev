@@ -171,11 +171,11 @@ const f: Record<string, React.CSSProperties> = {
   needTag: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
   yesNo: { display: 'flex', gap: 6 },
   ynOff: {
-    flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
+    flex: 1, minHeight: 'var(--h-control)', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
     border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
   },
   ynOn: {
-    flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
+    flex: 1, minHeight: 'var(--h-control)', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
     border: '1px solid var(--lime)', borderRadius: 8, background: '#f7fadf', color: 'var(--dark)',
   },
   row: { marginBottom: 8 },
@@ -184,13 +184,18 @@ const f: Record<string, React.CSSProperties> = {
   req: { fontSize: 14, color: '#b0b7c0' },
   hint: { fontSize: 14, color: '#b0b7c0' },
   field: {
-    width: '100%', boxSizing: 'border-box', height: 36, padding: '0 9px', fontSize: 14,
+    // 높이는 공통 토큰 — globals.css 의 input 규칙과 같은 값이라야 나란히 놓았을 때 어긋나지 않는다
+    width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 9px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
   check: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', padding: '4px 0' },
-  /** 좁은 화면에서 한 단계 작게 — 글자 14→13, 컨트롤 높이 36→32 */
+  /**
+   * 좁은 화면에서 한 단계 작게 — **글자만** 줄인다.
+   * 높이는 컨테이너가 정한 --h-control 을 따른다(팝업이 그 변수를 낮춰 잡는다).
+   * 여기서 높이를 따로 박으면 옆 칸(전역 규칙을 쓰는 입력)과 높이가 어긋난다.
+   */
   dense: { fontSize: 13 },
-  denseControl: { height: 32, fontSize: 13 },
+  denseControl: { fontSize: 13 },
   checkbox: { width: 15, height: 15, accentColor: 'var(--lime)' },
 }

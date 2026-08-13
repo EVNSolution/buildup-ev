@@ -82,7 +82,8 @@ export function RegionPicker({ regions, value, onChange }: {
 
 const rp: Record<string, React.CSSProperties> = {
   wrap: { position: 'relative' },
-  input: { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', fontSize: 13, fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', outline: 'none' },
+  // 높이는 공통 토큰 — 옆 칸(사업자 구분 select 등)과 나란히 놓이므로 어긋나면 바로 보인다
+  input: { width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 10px', fontSize: 14, fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', outline: 'none' },
   list: {
     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, marginTop: 3,
     background: '#fff', border: '1px solid var(--line)', borderRadius: 8,

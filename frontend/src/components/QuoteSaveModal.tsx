@@ -397,11 +397,15 @@ const s: Record<string, React.CSSProperties> = {
     // 예전엔 440px 한 열이라 화면을 넘겨 스크롤해야 했다. 두 열로 놓아 한 화면에 담는다.
     // 폭 760 = 가장 긴 라벨(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가 · 필수」
     // 342px)이 한 열에 줄바꿈 없이 들어가는 값(342×2 + 열간격 16 + 좌우여백 48 = 748) + 여유.
-    background: '#fff', borderRadius: 16, width: 760, maxWidth: '94vw', maxHeight: '96vh',
+    background: '#fff', borderRadius: 16, width: 760, maxWidth: '94vw', maxHeight: '92vh',
     overflowY: 'auto', padding: '18px 24px', boxShadow: '0 10px 40px rgba(0,0,0,.25)',
   },
-  /** 입력칸 두 열. 한 줄을 다 쓰는 칸은 gridColumn: '1 / -1'. */
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 },
+  /**
+   * 입력칸 두 열. 한 줄을 다 쓰는 칸은 gridColumn: '1 / -1'.
+   * ⚠️ 폭이 좁으면 **한 열**로 내려간다 — 두 열을 고집하면 라벨이 세 줄로 접히고
+   *    칸이 손가락으로 누르기 어려울 만큼 좁아진다(휴대폰 제보).
+   */
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', columnGap: 16 },
   gridFull: { gridColumn: '1 / -1' },
   h2: { margin: '0 0 3px', fontSize: 17, color: 'var(--dark)' },
   desc: { margin: '0 0 10px', fontSize: 14, color: 'var(--muted)' },
@@ -417,12 +421,13 @@ const s: Record<string, React.CSSProperties> = {
   tagOff: { fontSize: 14, color: '#b0b7c0', fontWeight: 400 },
   addrRow: { display: 'flex', gap: 6 },
   addrBtn: {
-    flexShrink: 0, height: 36, padding: '0 12px', fontSize: 14, fontWeight: 700,
+    flexShrink: 0, minHeight: 'var(--h-control)', padding: '0 12px', fontSize: 14, fontWeight: 700,
     border: '1px solid var(--line)', borderRadius: 8, background: '#f7f8f3',
     color: 'var(--dark)', cursor: 'pointer', whiteSpace: 'nowrap',
   },
   field: {
-    width: '100%', boxSizing: 'border-box', height: 36, padding: '0 10px', fontSize: 14,
+    // 높이는 공통 토큰 — 옆 칸(전역 규칙을 쓰는 select·input)과 어긋나지 않게
+    width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 10px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
@@ -434,12 +439,12 @@ const s: Record<string, React.CSSProperties> = {
   error: { fontSize: 14, color: '#c0392b', marginTop: 12 },
   btnRow: { display: 'flex', gap: 8, marginTop: 14 },
   btnOk: {
-    flex: 1, fontSize: 14, fontWeight: 700, padding: 11, borderRadius: 9,
+    flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,
     cursor: 'pointer', border: 'none', background: 'var(--lime)', color: 'var(--dark)',
   },
   btnOff: { opacity: .5, cursor: 'not-allowed' },
   btnCancel: {
-    flex: 1, fontSize: 14, fontWeight: 700, padding: 11, borderRadius: 9,
+    flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,
     cursor: 'pointer', border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
   },
 }
