@@ -210,6 +210,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           {showSubsidy && (
             <SubsidyPopup
               value={subsidy} onChange={onSubsidyChange} regions={regions} ok={ok}
+              sheet={!wide}
               onClose={() => setShowSubsidy(false)}
             />
           )}
@@ -246,7 +247,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
               style={{ ...styles.blockValue, ...big }} />
             {view && <div style={{ ...styles.asideSub, ...(stack ? styles.stackSub : null) }}>기타 포함 {fmt(view.grandTotal)}</div>}
           </div>
-          {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
+          {showReg && ok && <RegPopup ok={ok} sheet={!wide} onClose={() => setShowReg(false)} />}
         </div>
       </div>
       )}
@@ -319,21 +320,26 @@ function Block({ label, value, show, muted, negative, stack, tall, compact, sep 
  * 보조금 산정 입력 팝업 — 등록·기타 상세 팝업과 같은 여닫이 방식.
  * 여기 값이 바뀌면 화면 금액이 즉시 다시 계산된다(견적 저장 전에도).
  */
-function SubsidyPopup({ value, onChange, regions, onClose, ok }: {
+function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
   value: SubsidyInputs
   onChange: (v: SubsidyInputs) => void
   regions: string[]
   onClose: () => void
   /** 산정 결과 — 조건을 고치는 자리에서 결과도 바로 보여준다 */
   ok: QuoteResult | null
+  /** 좁은 화면 — 칸에 붙이지 않고 화면에 고정해 띄운다(안 그러면 잘린다) */
+  sheet?: boolean
 }) {
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
       {/* 입력칸이라 클릭이 블록 토글로 새어 나가면 안 된다 */}
-      <div style={{ ...styles.popup, ...styles.popupLeft }} onClick={e => e.stopPropagation()}>
+      <div
+        style={{ ...styles.popup, ...styles.popupLeft, ...(sheet ? styles.popupSheet : null) }}
+        onClick={e => e.stopPropagation()}
+      >
         <div style={styles.popTitle}>보조금 산정 조건</div>
-        <SubsidyForm value={value} onChange={onChange} regions={regions} compact hideRequired />
+        <SubsidyForm value={value} onChange={onChange} regions={regions} compact hideRequired dense={sheet} />
         {/*
           내역은 여기에 둔다 — 화면 칸에 네 줄로 박아 두면 그 칸만 키가 커지고 글자도 작아
           읽히지 않았다. 조건을 고치는 자리에서 결과를 함께 보는 편이 자연스럽다.
@@ -359,11 +365,11 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok }: {
 }
 
 /** 견적서 PDF 의 ⑥ 차량 등록/부대 · ⑩ 특장 등록/부대 와 동일 항목 */
-function RegPopup({ ok, onClose }: { ok: QuoteResult; onClose: () => void }) {
+function RegPopup({ ok, onClose, sheet }: { ok: QuoteResult; onClose: () => void; sheet?: boolean }) {
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
-      <div style={styles.popup} onClick={e => e.stopPropagation()}>
+      <div style={{ ...styles.popup, ...(sheet ? styles.popupSheet : null) }} onClick={e => e.stopPropagation()}>
         <div style={styles.popTitle}>차량 등록/부대비용 ⑥</div>
         <Line k="차량 취득세 (감면 후)" v={fmt(ok.car_acq_tax)} />
         <Line k="공채할인액" v={fmt(ok.bond_discount)} />
@@ -588,7 +594,7 @@ const styles: Record<string, React.CSSProperties> = {
   // 세로에서는 위쪽 여백으로 흐름 밖임을 표시한다
   asideStack: { marginLeft: 0, marginTop: 10 },
   opStack: { fontSize: 12, color: 'var(--muted)', fontWeight: 700, alignSelf: 'center', lineHeight: 1 },
-  popOverlay: { position: 'fixed', inset: 0, zIndex: 40 },
+  popOverlay: { position: 'fixed', inset: 0, zIndex: 59, background: 'rgba(0,0,0,.18)' },
   // 가격바가 화면 맨 아래라 팝업은 위로 열린다. 내용이 길면 화면 위로 넘쳐 잘리므로
   // 높이를 화면에 맞춰 자르고 안에서 스크롤한다(태블릿에서 위가 잘리던 문제).
   popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 460px)', overflowY: 'auto', background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
@@ -597,6 +603,17 @@ const styles: Record<string, React.CSSProperties> = {
   // 폭 364 = 가장 긴 줄(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가」)이
   // 체크박스까지 포함해 344px 필요 + 여유. 좁으면 이 줄이 두 줄로 접혀 지저분했다.
   popupLeft: { right: 'auto' as const, left: 0, width: 364 },
+  /*
+   * 좁은 화면 — 팝업을 칸 안에 붙이면 **스크롤 영역에 갇혀 잘린다**(휴대폰 제보 사진).
+   * 화면 기준으로 띄우고 폭·높이를 화면에 맞춘다. 글자도 한 단계 줄여 한 화면에 담는다.
+   */
+  popupSheet: {
+    position: 'fixed' as const,
+    left: 'var(--sp-3)', right: 'var(--sp-3)', bottom: 'var(--sp-3)', top: 'auto' as const,
+    width: 'auto' as const, maxHeight: '78vh',
+    fontSize: 13,
+    zIndex: 60,
+  },
   popFoot: { fontSize: 10.5, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--line)' },
   line: { display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--body)', padding: '2px 0' },
   lineBold: { fontWeight: 700, color: 'var(--dark)', borderTop: '1px solid var(--line)', marginTop: 3, paddingTop: 4 },
