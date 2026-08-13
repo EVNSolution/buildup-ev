@@ -21,7 +21,7 @@ interface Props<T extends string> {
 
 export function Tabs<T extends string>({ items, value, onChange, wrap }: Props<T>) {
   return (
-    <div className="scroll-hint-x" style={{ ...styles.bar, ...(wrap ? { flexWrap: 'wrap' } : {}) }} role="tablist">
+    <div style={{ ...styles.bar, ...(wrap ? { flexWrap: 'wrap' } : {}) }} role="tablist">
       {items.map(t => {
         const on = t.key === value
         return (

@@ -178,7 +178,6 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         </div>
       ) : (
       <div
-        className={summary ? 'scroll-hint' : undefined}
         style={{
           ...(stack ? styles.flowStack : compact ? { ...styles.flow, ...styles.flowScroll } : styles.flow),
           ...(summary ? { ...styles.flowSheet, display: openFlow ? 'flex' : 'none' } : null),
@@ -342,7 +341,6 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
       {/* 입력칸이라 클릭이 블록 토글로 새어 나가면 안 된다 */}
       <div
-        className="scroll-hint"
         style={{ ...styles.popup, ...styles.popupLeft, ...(sheet ? styles.popupSheet : null) }}
         onClick={e => e.stopPropagation()}
       >
@@ -377,7 +375,7 @@ function RegPopup({ ok, onClose, sheet }: { ok: QuoteResult; onClose: () => void
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
-      <div className="scroll-hint" style={{ ...styles.popup, ...(sheet ? styles.popupSheet : null) }} onClick={e => e.stopPropagation()}>
+      <div style={{ ...styles.popup, ...(sheet ? styles.popupSheet : null) }} onClick={e => e.stopPropagation()}>
         <div style={styles.popTitle}>차량 등록/부대비용 ⑥</div>
         <Line k="차량 취득세 (감면 후)" v={fmt(ok.car_acq_tax)} />
         <Line k="공채할인액" v={fmt(ok.bond_discount)} />
@@ -625,11 +623,11 @@ const styles: Record<string, React.CSSProperties> = {
   popOverlay: { position: 'fixed', inset: 0, zIndex: 40, background: 'transparent' },
   // 가격바가 화면 맨 아래라 팝업은 위로 열린다. 내용이 길면 화면 위로 넘쳐 잘리므로
   // 높이를 화면에 맞춰 자르고 안에서 스크롤한다(태블릿에서 위가 잘리던 문제).
-  // 흰 바탕은 .scroll-hint(globals.css)가 준다 — 여기서 background 를 쓰면 인라인이
-  // 클래스를 덮어 「더 있다」 그림자가 사라진다(실제로 한 번 덮여 있었다)
+  // ⚠️ 흰 배경은 **여기 인라인으로** 둔다. 한때 클래스(다층 배경)에 얹었더니 그 선언이
+  //    통째로 무시되는 브라우저에서 팝업이 투명해져 뒤 화면이 비쳤다(실제 사고).
   // 높이 한도 560 = 보조금 팝업이 산정 결과까지 **스크롤 없이** 들어가는 높이(실측 535).
   // 여기서 아끼면 화면이 넉넉한데도 결과가 잘려 스크롤해야 한다.
-  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 560px)', overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
+  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 560px)', overflowY: 'auto', background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
   // 보조금 블록은 가격바 왼쪽에 있어 오른쪽 정렬(popup)로 열면 화면 밖으로 나간다.
   // 폭 364 = 가장 긴 줄(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가」)이

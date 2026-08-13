@@ -51,7 +51,7 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
   const colWidth = isMobile ? 170 : 160
 
   return (
-    <div className="scroll-hint-x" style={{ ...kb.board, WebkitOverflowScrolling: 'touch' as unknown as undefined }}>
+    <div style={{ ...kb.board, WebkitOverflowScrolling: 'touch' as unknown as undefined }}>
       {ORDER_STATUS_SEQ.map((status, colIdx) => (
         <div key={status} style={{ ...kb.column, minWidth: colWidth, flex: `0 0 ${colWidth}px` }}>
           <div style={kb.colHeader}>

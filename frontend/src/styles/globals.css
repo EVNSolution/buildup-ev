@@ -131,81 +131,15 @@
  *
  * 얇게 만들어 보았지만 회색 막대가 여전히 눈에 걸렸고, 스크롤바가 자리를 차지하는
  * 브라우저(윈도우 Chrome·Edge)에서는 둥근 모서리가 그 폭만큼 직각으로 잘려 보였다.
- * 막대를 없애는 대신 「더 있다」는 아래 .scroll-hint 그림자로 알린다.
+ * 대신 스크롤되는 칸은 **내용이 잘려 보이도록** 두어(칸 끝에 반쯤 걸친 줄) 더 있다는 것을 알린다.
+ * 그림자 띠를 얹어 보았지만 다른 요소와 겹치고, 흰 배경을 그 선언에 얹은 곳이 함께
+ * 무너져 팝업이 투명해졌다 — 배경 같은 필수 값을 장식 선언에 얹지 않는다.
  */
 * {
   scrollbar-width: none;                 /* Firefox */
   -ms-overflow-style: none;              /* 구형 Edge */
 }
 ::-webkit-scrollbar { width: 0; height: 0; }
-
-/*
- * 「더 볼 게 있다」를 알리는 그림자 — 스크롤되는 **모든** 칸에 같은 방식으로 붙인다.
- *
- * ⚠️ 배경(background)으로 그리면 칸 안의 카드·버튼이 그 위를 덮어 가려진다(실제 제보).
- *    그래서 sticky 로 띄운 얇은 띠를 쓴다 — 내용 위(z-index)에 그려지고, 자리는
- *    음수 margin 으로 반납해 레이아웃을 밀지 않는다.
- * ⚠️ 끝에 닿으면 사라져야 한다. 그건 CSS 만으로 알 수 없어 lib/scrollHint.ts 가
- *    data-scroll-top / data-scroll-bottom 을 붙여 준다(스크립트가 없으면 늘 보인다 —
- *    보이는 쪽이 안전하다. 잘린 화면은 고장으로 읽히기 때문이다).
- */
-.scroll-hint { position: relative; }
-.scroll-hint::before,
-.scroll-hint::after {
-  content: '';
-  display: block;
-  position: sticky;
-  z-index: 3;
-  height: 12px;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 140ms ease;
-}
-.scroll-hint::before {
-  top: 0;
-  margin-bottom: -12px;
-  background: linear-gradient(rgba(20, 20, 20, .13), rgba(20, 20, 20, 0));
-}
-.scroll-hint::after {
-  bottom: 0;
-  margin-top: -12px;
-  background: linear-gradient(rgba(20, 20, 20, 0), rgba(20, 20, 20, .13));
-}
-/* 맨 위·맨 아래에 닿았으면 그쪽 그림자는 지운다 */
-.scroll-hint[data-scroll-top='1']::before { opacity: 0; }
-.scroll-hint[data-scroll-bottom='1']::after { opacity: 0; }
-
-/*
- * 가로로 미는 칸(표·칸반·탭 줄)도 같은 규칙 — 왼쪽/오른쪽 끝에 그림자.
- * 칸을 flex 로 두어야 띠가 칸 높이만큼 늘어난다. 자식의 크기는 건드리지 않는다
- * (인라인 style 로 flex 를 정한 자식은 그대로 — 인라인이 더 세다).
- */
-.scroll-hint-x { position: relative; display: flex; align-items: stretch; }
-.scroll-hint-x > * { flex: 0 0 auto; }
-.scroll-hint-x::before,
-.scroll-hint-x::after {
-  content: '';
-  position: sticky;
-  z-index: 3;
-  flex: 0 0 12px;
-  width: 12px;
-  align-self: stretch;
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 140ms ease;
-}
-.scroll-hint-x::before {
-  left: 0;
-  margin-right: -12px;
-  background: linear-gradient(90deg, rgba(20, 20, 20, .13), rgba(20, 20, 20, 0));
-}
-.scroll-hint-x::after {
-  right: 0;
-  margin-left: -12px;
-  background: linear-gradient(90deg, rgba(20, 20, 20, 0), rgba(20, 20, 20, .13));
-}
-.scroll-hint-x[data-scroll-left='1']::before { opacity: 0; }
-.scroll-hint-x[data-scroll-right='1']::after { opacity: 0; }
 
 html, body, #root {
   height: 100%;
