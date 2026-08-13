@@ -594,7 +594,7 @@ const styles: Record<string, React.CSSProperties> = {
   // 세로에서는 위쪽 여백으로 흐름 밖임을 표시한다
   asideStack: { marginLeft: 0, marginTop: 10 },
   opStack: { fontSize: 12, color: 'var(--muted)', fontWeight: 700, alignSelf: 'center', lineHeight: 1 },
-  popOverlay: { position: 'fixed', inset: 0, zIndex: 59, background: 'rgba(0,0,0,.18)' },
+  popOverlay: { position: 'fixed', inset: 0, zIndex: 59, background: 'var(--scrim)' },
   // 가격바가 화면 맨 아래라 팝업은 위로 열린다. 내용이 길면 화면 위로 넘쳐 잘리므로
   // 높이를 화면에 맞춰 자르고 안에서 스크롤한다(태블릿에서 위가 잘리던 문제).
   popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 460px)', overflowY: 'auto', background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },

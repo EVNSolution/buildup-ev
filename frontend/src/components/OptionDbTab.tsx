@@ -446,7 +446,7 @@ const s: Record<string, React.CSSProperties> = {
   trDirty: { background: '#fffbe6' },
   input: { width: '100%', minWidth: 90, padding: '5px 7px', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12.5 },
   count: { padding: '6px 10px', color: 'var(--muted)', fontSize: 11.5 },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
+  overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
   modal: { width: 'min(900px, 94vw)', maxHeight: '80vh', background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column' },
   modalHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 15, fontWeight: 700 },

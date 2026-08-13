@@ -368,7 +368,7 @@ function SaveBar({ frozen, busy, onSave, note }: { frozen: boolean; busy: boolea
 
 const s: Record<string, React.CSSProperties> = {
   overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(20,20,20,.5)',
+    position: 'fixed', inset: 0, background: 'var(--scrim)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60,
   },
   modal: {

@@ -53,7 +53,7 @@ export function PdfModal({ previewUrl, downloadUrl, title, subtitle, onClose }: 
 const s: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed', inset: 0,
-    background: 'rgba(0,0,0,0.55)',
+    background: 'var(--scrim)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     zIndex: 2000,
   },
