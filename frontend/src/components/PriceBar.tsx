@@ -80,13 +80,16 @@ function FitValue({ text, max, min = 11, active, style }: {
   return <span style={{ ...style, display: 'block', fontSize: size, whiteSpace: 'nowrap' }}>{text}</span>
 }
 
-/** 보조금 내역 한 줄 — 칸이 좁아도 줄바꿈하지 않게 글자 크기를 칸 폭에 맞춘다 */
-function SubLine({ label, value, fit: doFit }: { label: string; value: number; fit: boolean }) {
+/**
+ * 보조금 내역 한 칸 — 2열로 놓이므로 **칸 폭의 절반**을 기준으로 글자 크기를 잡는다.
+ * (칸 전체 폭으로 잡으면 두 배로 커져 옆 칸을 밀어낸다)
+ */
+function SubLine({ label, value, fit: doFit, cols = 2 }: { label: string; value: number; fit: boolean; cols?: number }) {
   const text = `${label} ${fmt(value)}`
   return (
     <div style={{
       ...styles.subLine,
-      ...(doFit ? { fontSize: `min(13px, ${(100 / textEm(text)).toFixed(2)}cqi)` } : null),
+      ...(doFit ? { fontSize: `min(13px, ${(100 / textEm(text) / cols).toFixed(2)}cqi)` } : null),
     }}>{text}</div>
   )
 }
@@ -328,12 +331,19 @@ const noSpill = { overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSp
 /** 좁은 창에서 칸이 찌그러지지 않게 지키는 최소 폭 — 이보다 좁아지면 금액이 잘린다 */
 const CELL_MIN = 132
 
-/** 보조금 내역 4줄이 차지하는 고정 높이(13px × 1.35 × 4줄 + 위 여백) */
-const SUB_H = 74
+/**
+ * 보조금 내역이 차지하는 고정 높이 — **2열 2행**(13px × 1.35 × 2줄 + 위 여백).
+ * 4줄로 세우면 이 칸만 키가 커져 나머지 칸이 전부 빈 공간을 떠안았다.
+ */
+const SUB_H = 39
 
 const cellBase = {
   // 금액 글자가 이 칸 폭(cqi)에 맞춰 커지고 작아진다 — FitValue 참고
   containerType: 'inline-size' as const,
+  // 칸마다 내용 높이가 달라도(보조금만 내역 2줄) 빈자리가 위아래로 고르게 나뉜다
+  display: 'flex' as const,
+  flexDirection: 'column' as const,
+  justifyContent: 'center' as const,
   background: 'var(--card)', borderRadius: 'var(--r-md)',
   // ⚠️ padding 축약형을 쓰면 안 된다 — 아래 cellTall 이 위아래 여백만 덮어쓰는데,
   //    한 요소에서 축약형과 개별속성이 섞이면 React 가 렌더마다 경고를 뱉는다.
@@ -345,10 +355,13 @@ const cellBase = {
 const styles: Record<string, React.CSSProperties> = {
   // 가격바는 칸(카드)들이 스스로 영역을 말한다 — 위쪽 구분선을 두면 화면이 토막나 보인다
   bar: { flexShrink: 0, background: 'var(--bg)', padding: 'var(--sp-3) var(--sp-4)' },
-  // 가로 배치일 때만 두께를 키운다 — 세로로 쌓을 땐 이미 충분히 높다.
-  barTall: { padding: '34px 16px' },
-  // 칸도 같이 두툼하게(가로 배치 전용). 글자는 그대로 두고 위아래 여백만 늘린다.
-  cellTall: { paddingTop: fit(20, 1.6, 30), paddingBottom: fit(20, 1.6, 30) },
+  /*
+   * 예전엔 칸을 두툼하게(위아래 20~30px) 만들어 바를 채웠다. 그런데 보조금 내역이 붙으면서
+   * 바가 이미 충분히 높아졌고, 그 여백은 **아래쪽 빈 공간**으로만 남았다.
+   * 이제 여백은 한 벌(cellBase)만 쓰고, 칸 안에서는 내용을 세로 가운데로 모은다.
+   */
+  barTall: { padding: 'var(--sp-4)' },
+  cellTall: {},
   warn: { background: 'var(--warnbg)', border: '1px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
   warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
   flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },
@@ -392,6 +405,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: fit(10, 0.68, 13), color: 'var(--muted)', marginTop: 3,
     lineHeight: 1.35, overflow: 'hidden',
     height: SUB_H,
+    display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 8,
   },
   subLine: { whiteSpace: 'nowrap' as const, overflow: 'hidden' as const },
   block: { ...cellBase, position: 'relative' },
