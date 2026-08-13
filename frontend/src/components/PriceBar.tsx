@@ -40,6 +40,57 @@ function fmt(n: number) {
   return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
+/**
+ * 글자의 대략적인 폭(em) — 폰트를 직접 재지 않고 어림한다.
+ * 숫자는 tabular-nums 라 폭이 고정이고 한글은 정사각형에 가깝다. 이 둘만 알면
+ * "칸을 채우려면 몇 px 이어야 하는가" 를 충분히 정확하게 구할 수 있다.
+ */
+function textEm(t: string): number {
+  let em = 0
+  for (const ch of t) {
+    if (/[가-힣ㄱ-ㆎ]/.test(ch)) em += 1        // 한글
+    else if (ch === ' ') em += 0.32
+    else em += 0.6                                              // 숫자·₩·쉼표
+  }
+  return em || 1
+}
+
+/**
+ * 칸 폭에 맞춰 **금액 글자 크기가 스스로 맞춰지는** 표시.
+ *
+ * 예전엔 화면 폭에 비례한 clamp 하나로 모든 칸의 글자를 정해서, 자릿수가 짧은 칸은
+ * 오른쪽이 휑하게 비고 긴 칸은 빠듯했다. 이제 칸 폭(cqi)을 글자 길이로 나눠 채운다.
+ *
+ * ⚠️ 폭을 **재서** 맞추지 않는다(ResizeObserver). 칸이 flex 라 글자가 줄면 칸도 줄고,
+ *    그러면 다시 글자를 키우는 되먹임이 생겨 크기가 튄다(실측: 일부 칸만 맞고 나머지는 잘렸다).
+ *    컨테이너 쿼리 단위는 브라우저가 한 번에 풀어 주므로 그 문제가 없다.
+ * ⚠️ 세로로 쌓는 배치에서는 끈다 — 거기선 라벨과 금액이 한 줄에 나란히 서므로,
+ *    폭을 채우려 들면 글자만 커졌다 작아졌다 해 오히려 어수선해진다.
+ */
+function FitValue({ text, max, min = 11, active, style }: {
+  text: string
+  max: number
+  min?: number
+  active: boolean
+  style?: React.CSSProperties
+}) {
+  const size = active
+    ? `clamp(${min}px, ${(100 / textEm(text)).toFixed(2)}cqi, ${max}px)`
+    : undefined
+  return <span style={{ ...style, display: 'block', fontSize: size, whiteSpace: 'nowrap' }}>{text}</span>
+}
+
+/** 보조금 내역 한 줄 — 칸이 좁아도 줄바꿈하지 않게 글자 크기를 칸 폭에 맞춘다 */
+function SubLine({ label, value, fit: doFit }: { label: string; value: number; fit: boolean }) {
+  const text = `${label} ${fmt(value)}`
+  return (
+    <div style={{
+      ...styles.subLine,
+      ...(doFit ? { fontSize: `min(13px, ${(100 / textEm(text)).toFixed(2)}cqi)` } : null),
+    }}>{text}</div>
+  )
+}
+
 export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions, compact = false, summary = false }: Props) {
   // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
   // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
@@ -84,7 +135,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
           <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
           <div style={stack ? styles.stackRight : undefined}>
-            <div style={{ ...styles.firstValue, ...big }}>{view ? fmt(view.start) : '—'}</div>
+            <FitValue text={view ? fmt(view.start) : '—'} max={24} active={!stack}
+              style={{ ...styles.firstValue, ...big }} />
           </div>
         </div>
 
@@ -98,21 +150,28 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>보조금 ▸</div>
           <div style={stack ? styles.stackRight : undefined}>
-            <div style={{ ...styles.blockValue, ...big, ...(hasCustomer ? styles.negVal : styles.mutedVal) }}>
-              {!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
-            </div>
+            <FitValue
+              text={!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
+              max={24} active={!stack}
+              style={{ ...styles.blockValue, ...big, ...(hasCustomer ? styles.negVal : styles.mutedVal) }} />
             {/*
               합계만 보면 왜 그 금액인지 알 수 없다 — 네 가지 내역을 항상 같은 순서로 보여준다.
               0원인 항목도 남긴다(빠진 게 아니라 해당 없음이라는 뜻이 드러나야 한다).
             */}
-            {hasCustomer && ok && (
+            {hasCustomer && ok ? (
               <div style={{ ...styles.firstSub, ...(stack ? styles.stackSub : null) }}>
-                <div>국고 {fmt(ok.subsidy_national)}</div>
-                <div>지방 {fmt(ok.subsidy_local)}</div>
-                <div>소상공인 {fmt(ok.subsidy_sosang)}</div>
-                <div>화물운송 {fmt(ok.subsidy_takbae)}</div>
+                <SubLine label="국고" value={ok.subsidy_national} fit={!stack} />
+                <SubLine label="지방" value={ok.subsidy_local} fit={!stack} />
+                <SubLine label="소상공인" value={ok.subsidy_sosang} fit={!stack} />
+                <SubLine label="화물운송" value={ok.subsidy_takbae} fit={!stack} />
               </div>
-            )}
+            ) : !stack ? (
+              /*
+               * 산정 전에도 같은 높이를 비워 둔다 — 산정하는 순간 가격바가 들썩이지 않게.
+               * (칸 높이는 styles.firstSub 의 height 로 고정돼 있다)
+               */
+              <div aria-hidden style={styles.firstSub} />
+            ) : null}
           </div>
           {showSubsidy && (
             <SubsidyPopup
@@ -125,9 +184,10 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {/* ④ 부가세 환급 — 일반구매자는 환급 대상이 아니다 */}
         <div style={{ ...styles.block, ...row }}>
           <div style={{ ...styles.blockLabel, ...lbl }}>부가세 환급</div>
-          <div style={{ ...styles.blockValue, ...big, ...(noRefund ? styles.mutedVal : styles.negVal) }}>
-            {!ok ? '—' : noRefund ? '환급 불가' : fmt(vatRefund)}
-          </div>
+          <FitValue
+            text={!ok ? '—' : noRefund ? '환급 불가' : fmt(vatRefund)}
+            max={24} active={!stack}
+            style={{ ...styles.blockValue, ...big, ...(noRefund ? styles.mutedVal : styles.negVal) }} />
         </div>
 
         {!summary && <Op stack={stack}>=</Op>}
@@ -136,7 +196,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {!summary && (
           <div style={{ ...styles.hero, ...(stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall) }}>
             <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
-            <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
+            <FitValue text={tbd ? '미정' : ok ? fmt(netPrice) : '—'} max={30} min={13} active={!stack}
+              style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }} />
           </div>
         )}
 
@@ -147,7 +208,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
           <div style={stack ? styles.stackRight : undefined}>
-            <div style={{ ...styles.blockValue, ...big }}>{ok ? fmt(regEtc) : '—'}</div>
+            <FitValue text={ok ? fmt(regEtc) : '—'} max={24} active={!stack}
+              style={{ ...styles.blockValue, ...big }} />
             {view && <div style={{ ...styles.asideSub, ...(stack ? styles.stackSub : null) }}>합계 {fmt(view.grandTotal)}</div>}
           </div>
           {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
@@ -179,9 +241,10 @@ function Block({ label, value, show, muted, negative, stack, tall, compact }: { 
     // 좁은 창(가로 스크롤)에서는 칸이 줄어들면 안 된다 — 줄어드는 순간 금액이 잘린다
     <div style={{ ...styles.block, ...(stack ? styles.rowCell : compact ? styles.cellFixed : tall ? styles.cellTall : null) }}>
       <div style={{ ...styles.blockLabel, ...(stack ? styles.stackLabel : null) }}>{label}</div>
-      <div style={{ ...styles.blockValue, ...(stack ? styles.stackBig : null), ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }}>
-        {show ? (muted ? '미반영' : fmt(value)) : '—'}
-      </div>
+      <FitValue
+        text={show ? (muted ? '미반영' : fmt(value)) : '—'}
+        max={24} active={!stack}
+        style={{ ...styles.blockValue, ...(stack ? styles.stackBig : null), ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }} />
     </div>
   )
 }
@@ -265,7 +328,12 @@ const noSpill = { overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSp
 /** 좁은 창에서 칸이 찌그러지지 않게 지키는 최소 폭 — 이보다 좁아지면 금액이 잘린다 */
 const CELL_MIN = 132
 
+/** 보조금 내역 4줄이 차지하는 고정 높이(13px × 1.35 × 4줄 + 위 여백) */
+const SUB_H = 74
+
 const cellBase = {
+  // 금액 글자가 이 칸 폭(cqi)에 맞춰 커지고 작아진다 — FitValue 참고
+  containerType: 'inline-size' as const,
   background: 'var(--card)', borderRadius: 'var(--r-md)',
   // ⚠️ padding 축약형을 쓰면 안 된다 — 아래 cellTall 이 위아래 여백만 덮어쓰는데,
   //    한 요소에서 축약형과 개별속성이 섞이면 React 가 렌더마다 경고를 뱉는다.
@@ -314,7 +382,18 @@ const styles: Record<string, React.CSSProperties> = {
   firstValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   // 차량·특장 분해는 금액이 길어 좁은 화면에서 한 줄에 안 들어간다.
   // 숫자를 잘라 버리면 안 되므로 이 줄만 두 줄로 접히게 둔다(블록 밖으로는 못 나감).
-  firstSub: { fontSize: fit(10, 0.68, 13), color: 'var(--muted)', marginTop: 3, lineHeight: 1.35, overflow: 'hidden' },
+  /*
+   * 보조금 내역 4줄 — **높이를 못 박는다**.
+   * 값이 길어 줄바꿈되면(좁은 칸에서 「소상공인 ₩3,450,000」) 이 칸만 키가 커지고,
+   * 가로 배치는 가장 큰 칸에 맞춰 늘어나 가격바 전체가 들썩였다.
+   * 각 줄은 nowrap + 칸 폭에 맞춘 글자 크기라 4줄에서 벗어나지 않는다.
+   */
+  firstSub: {
+    fontSize: fit(10, 0.68, 13), color: 'var(--muted)', marginTop: 3,
+    lineHeight: 1.35, overflow: 'hidden',
+    height: SUB_H,
+  },
+  subLine: { whiteSpace: 'nowrap' as const, overflow: 'hidden' as const },
   block: { ...cellBase, position: 'relative' },
   // 누를 수 있다는 표시는 라벨의 '▸' 로 충분하다(점선 테두리는 뺐다)
   clickable: { cursor: 'pointer' },
