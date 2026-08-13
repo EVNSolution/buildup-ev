@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { calcQuote } from './shared/pricing/quote.js';
-import { priceBarView as bar } from './shared/pricing/pricebar.js';
-import { QUOTE_PARAMS } from './shared/pricing/fixtures.js';
+import { calcQuote } from './quote.js';
+import { priceBarView as bar } from './pricebar.js';
+import { QUOTE_PARAMS } from './fixtures.js';
 
 /**
  * 가격바 표시 규칙 — 화면에 보이는 사칙연산이 실제로 맞아떨어지는지.
