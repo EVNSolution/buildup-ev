@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import type { Role } from '@shared/types/index'
-
-const ROLE_HOME: Record<Role, string> = {
-  SALES: '/sales',
-  ADMIN: '/admin',
-  MAKER: '/maker',
-}
+import { homeFor } from '../lib/surfaces'
 
 export function LoginPage() {
   const { login, session, loading } = useAuth()
@@ -19,7 +13,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!loading && session) {
-      navigate(ROLE_HOME[session.user.role] ?? '/sales', { replace: true })
+      navigate(homeFor(session.user.role), { replace: true })
     }
   }, [session, loading, navigate])
 

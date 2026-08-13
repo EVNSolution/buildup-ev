@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { Segmented } from './ui/Segmented'
+import { surfacesFor } from '../lib/surfaces'
 import { BTN } from '../styles/buttons'
 import logoUrl from '../assets/logo.png'
 import type { CustomerInfo, Role } from '@shared/types/index'
@@ -17,13 +18,6 @@ interface Props {
   customer?: CustomerInfo | null
 }
 
-// DEV: master surface switcher — surface별 경로·레이블 정의
-const SURFACES: { path: string; label: string }[] = [
-  { path: '/sales', label: '영업' },
-  { path: '/admin', label: '관리' },
-  { path: '/maker', label: '특장' },
-]
-
 export function Header({ customer }: Props) {
   const { session, logout } = useAuth()
   const navigate = useNavigate()
@@ -34,6 +28,9 @@ export function Header({ customer }: Props) {
 
   // 고객 칩을 감출 폭 기준 — 헤더 내용 필요폭(칩 포함 1041px)에서 나온 값
   const isNarrow = useIsMobile(1100)
+
+  // 이 계정이 쓸 수 있는 화면(겸직 포함). 하나뿐이면 전환 토글 자체를 띄우지 않는다.
+  const mySurfaces = user ? surfacesFor(user) : []
 
   // 저장된 고객 표시 전용. 예전엔 눌러서 진입 팝업을 다시 열었지만, 고객정보 입력이
   // 견적 저장 단계로 옮겨가면서 여는 대상이 사라졌다(보조금 조건은 가격바에서 고친다).
@@ -55,19 +52,33 @@ export function Header({ customer }: Props) {
       */}
       <div style={styles.brand}>
         <img src={logoUrl} alt="EV&Solution" style={styles.logo} />
-        <span style={styles.brandLine} aria-hidden />
-        <span style={styles.wordmark}>Buildup-EV</span>
+        {/*
+          휴대폰에서 전환 토글까지 있으면 한 줄에 다 들어가지 않아 로그아웃이 둘째 줄로 밀린다.
+          그때는 워드마크를 접는다 — 로고만으로도 어느 서비스인지 알 수 있고,
+          토글은 접으면 다른 화면으로 갈 길이 사라진다(중요도가 다르다).
+        */}
+        {!(isMobile && mySurfaces.length > 1) && (
+          <>
+            <span style={styles.brandLine} aria-hidden />
+            <span style={styles.wordmark}>Buildup-EV</span>
+          </>
+        )}
       </div>
       {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
 
-      {/* DEV: master surface switcher — is_master 계정에만 표시. 역할 전환이라 세그먼티드 */}
-      {user?.is_master && (
-        <div style={isMobile ? { order: 10, width: '100%', display: 'flex', justifyContent: 'center' } : undefined}>
+      {/*
+        화면 전환 — **가진 역할이 둘 이상일 때만** 나온다.
+        역할이 하나면 고를 것이 없어 자리만 차지한다(빈 토글은 "뭔가 더 있나" 하고 누르게 된다).
+        겸직을 준 계정과 마스터 계정이 대상이다.
+      */}
+      {mySurfaces.length > 1 && (
+        <div style={{ flexShrink: 0 }}>
           <Segmented
-            items={SURFACES.map(s => ({ value: s.path, label: s.label }))}
-            value={SURFACES.find(s => s.path === location.pathname)?.path ?? SURFACES[0]!.path}
+            items={mySurfaces.map(s => ({ value: s.path, label: s.label }))}
+            value={mySurfaces.find(s => s.path === location.pathname)?.path ?? mySurfaces[0]!.path}
             onChange={p => navigate(p)}
+            size={isMobile ? 'sm' : undefined}
           />
         </div>
       )}

@@ -1,4 +1,4 @@
-import type { AuthMe, FeatureModule, AccessControl, User, Org } from '@shared/types/index'
+import type { AuthMe, FeatureModule, AccessControl, User, Org, Role } from '@shared/types/index'
 
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -47,13 +47,25 @@ export async function fetchOrgs(type?: string): Promise<Org[]> {
   return apiFetch(url)
 }
 
-export interface CreateUserInput { email: string; name: string; role: string; org_code: string }
+export interface CreateUserInput {
+  email: string
+  name: string
+  /** 주 역할 — 로그인 후 첫 화면 기준 */
+  role: string
+  org_code: string
+  /** 겸직 — 발급 시점부터 여러 화면을 쓸 계정 */
+  extra_roles?: Role[]
+}
 
 export async function createUser(data: CreateUserInput): Promise<{ user: User; temp_password: string }> {
   return apiFetch('/api/v1/users', { method: 'POST', body: JSON.stringify(data) })
 }
 
-export async function updateUser(email: string, data: { role?: string; org_code?: string; status?: string }): Promise<User> {
+export async function updateUser(
+  email: string,
+  // extra_roles 는 **통째로 덮어쓴다**(추가·해제를 한 번에) — 서버가 주 역할을 빼고 저장한다
+  data: { role?: string; extra_roles?: Role[]; org_code?: string; status?: string },
+): Promise<User> {
   return apiFetch(`/api/v1/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
 

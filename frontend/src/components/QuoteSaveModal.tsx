@@ -412,7 +412,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
         <div style={s.btnRow}>
           <button style={{ ...s.btnOk, ...(canSave ? null : s.btnOff) }} onClick={() => canSave && onSave(v)} disabled={!canSave}>
-            {saving ? '저장 중…' : forContract ? '확인 완료 · 계약서로' : isEdit ? '저장' : '견적 저장'}
+            {saving ? '저장 중…' : forContract ? '확인 완료' : isEdit ? '저장' : '견적 저장'}
           </button>
           <button style={s.btnCancel} onClick={onClose} disabled={saving}>취소</button>
         </div>

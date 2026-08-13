@@ -18,9 +18,16 @@ interface Props<T extends string> {
   onChange: (v: T) => void
   /** 좁은 화면에서 한 줄을 다 쓰게 할 때 */
   fullWidth?: boolean
+  /**
+   * 'sm' — 휴대폰용 한 단 작은 크기.
+   * 기본 크기로 두면 최상단바에서 자리를 못 찾고 **혼자 둘째 줄로 내려간다**(실제 제보).
+   * 손가락이 닿는 최소치(44px)는 지키되 좌우 여백과 글자만 줄인다.
+   */
+  size?: 'sm'
 }
 
-export function Segmented<T extends string>({ items, value, onChange, fullWidth }: Props<T>) {
+export function Segmented<T extends string>({ items, value, onChange, fullWidth, size }: Props<T>) {
+  const sm = size === 'sm'
   return (
     <div style={{ ...styles.track, ...(fullWidth ? { width: '100%' } : {}) }} role="tablist">
       {items.map(it => {
@@ -30,7 +37,12 @@ export function Segmented<T extends string>({ items, value, onChange, fullWidth 
             key={it.value}
             role="tab"
             aria-selected={on}
-            style={{ ...styles.item, ...(on ? styles.itemOn : {}), ...(fullWidth ? { flex: 1 } : {}) }}
+            style={{
+              ...styles.item,
+              ...(sm ? styles.itemSm : {}),
+              ...(on ? styles.itemOn : {}),
+              ...(fullWidth ? { flex: 1 } : {}),
+            }}
             onClick={() => onChange(it.value)}
           >
             {it.label}
@@ -63,6 +75,14 @@ const styles: Record<string, React.CSSProperties> = {
     // 알약 자체가 손가락이 닿는 자리다 — 트랙이 아니라 여기서 높이를 맞춘다
     minHeight: 'var(--h-control)',
     whiteSpace: 'nowrap',
+  },
+  /*
+   * 휴대폰 — 좌우 여백과 글자만 줄인다. **높이는 그대로 둔다**:
+   * 둘째 줄로 밀려나는 건 가로 폭 문제이고, 높이를 줄이면 손가락이 닿는 자리가 작아진다.
+   */
+  itemSm: {
+    padding: '0 var(--sp-2)',
+    fontSize: 'var(--fs-caption)',
   },
   itemOn: {
     background: '#fff',
