@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsTouch } from '../hooks/useIsTouch'
 
@@ -21,6 +21,15 @@ interface Pos {
   left: number
 }
 
+/**
+ * 지금 열려 있는 설명창을 닫는 함수 — **화면에 하나만** 떠 있게 한다.
+ *
+ * 툴팁마다 자기 상태만 갖고 있으면 서로의 존재를 모른다. 손가락 기기에서는 「?」 를
+ * 눌러 열고 다시 눌러야만 닫혔기 때문에, 칸반 열 제목처럼 나란히 놓인 「?」 를 차례로
+ * 누르면 설명창이 세 개씩 겹쳐 떴다(실제로 그렇게 됐다).
+ */
+let closeOpenTooltip: (() => void) | null = null
+
 export function Tooltip({ text, children, placement = 'below', maxWidth = 220, minWidth = 150, wrapperStyle }: Props) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<Pos>({ left: 0 })
@@ -29,8 +38,15 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
   // 예전엔 화면 폭 768px 로 판단해, 1024px 태블릿에서는 hover 도 「?」 도 없어 볼 방법이 없었다.
   const isTouch = useIsTouch()
 
+  const close = useCallback(() => {
+    setOpen(false)
+    if (closeOpenTooltip === close) closeOpenTooltip = null
+  }, [])
+
   const calcAndOpen = useCallback(() => {
     if (!triggerRef.current) return
+    // 다른 설명창이 떠 있으면 먼저 닫는다 — 한 번에 하나만 본다
+    if (closeOpenTooltip && closeOpenTooltip !== close) closeOpenTooltip()
     const r = triggerRef.current.getBoundingClientRect()
     const cx = r.left + r.width / 2
     // left edge of tooltip, clamped to stay inside viewport
@@ -41,7 +57,36 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
       setPos({ top: r.bottom + 6, left })
     }
     setOpen(true)
-  }, [placement, maxWidth])
+    closeOpenTooltip = close
+  }, [placement, maxWidth, close])
+
+  /**
+   * 열려 있는 동안에는 **다음 동작 아무거나** 하면 닫힌다.
+   * 닫는 방법이 「?」 하나뿐이면, 설명을 본 뒤 하려던 일을 하기 전에 한 번 더 눌러야 한다.
+   * 스크롤·회전에서도 닫는 이유는 말풍선이 고정 좌표라 기준 위치를 잃기 때문이다.
+   */
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      // 「?」 자신을 누른 경우는 토글 동작이 처리한다
+      if (triggerRef.current?.contains(e.target as Node)) return
+      close()
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', close, true)   // 안쪽 스크롤 영역까지 잡으려면 capture
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open, close])
+
+  // 화면에서 사라질 때(탭 전환 등) 남은 말풍선을 정리한다
+  useEffect(() => close, [close])
 
   const bubble = open ? createPortal(
     <div style={{
@@ -74,13 +119,15 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
       ref={triggerRef}
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 3, ...wrapperStyle }}
       onMouseEnter={() => !isTouch && calcAndOpen()}
-      onMouseLeave={() => !isTouch && setOpen(false)}
+      onMouseLeave={() => !isTouch && close()}
     >
       {children}
       {isTouch && (
         <button
+          type="button"
+          aria-expanded={open}
           style={tt.iconBtn}
-          onClick={e => { e.stopPropagation(); open ? setOpen(false) : calcAndOpen() }}
+          onClick={e => { e.stopPropagation(); open ? close() : calcAndOpen() }}
         >
           ?
         </button>
@@ -92,6 +139,7 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
 
 const tt: Record<string, React.CSSProperties> = {
   iconBtn: {
+    // 손가락으로 누르는 자리 — 보이는 크기는 그대로 두고 눌리는 범위만 넓힌다
     width: 15, height: 15, borderRadius: '50%',
     border: '1px solid rgba(0,0,0,0.2)',
     background: 'rgba(0,0,0,0.08)', color: 'inherit',

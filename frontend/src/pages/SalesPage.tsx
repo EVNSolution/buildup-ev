@@ -29,6 +29,8 @@ import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
+import { useIsCompact } from '../hooks/useIsCompact'
+import { useIsPhone } from '../hooks/useIsPhone'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -337,6 +339,10 @@ function MyListView() {
 export function SalesPage() {
   const { session } = useAuth()
   const canConvert = usePermission('quote.create')
+  // 좁거나 짧은 창(창 모드 태블릿 등)에서는 좌우 2단 대신 위아래로 쌓는다
+  const compact = useIsCompact()
+  // 휴대폰은 3D 를 접는다 — 그 크기의 차량 그림은 보여 주는 것이 없고, 자리는 옵션에 필요하다
+  const phone = useIsPhone()
   const [salesTab, setSalesTab] = useState<'config' | 'list' | 'me'>('config')
   // 권한 없는 탭은 **버튼째** 감춘다. 눌러서 「권한이 없습니다」를 보게 두면
   // 왜 있는 버튼인지 알 수 없고, 없는 기능을 있는 것처럼 보이게 한다.
@@ -655,8 +661,18 @@ export function SalesPage() {
         </div>
       )}
 
-      <div style={{ ...styles.body, display: salesTab === 'config' ? 'flex' : 'none' }}>
-        <section style={styles.viewer}>
+      {/*
+        넓은 창: 좌(3D+가격바) | 우(옵션)  ·  좁거나 짧은 창: 3D → 옵션 → 가격바 세로 배치.
+        창 모드로 띄우면 폭·높이가 모두 모자라, 2단을 고집하면 옵션이 라벨만 남는다.
+      */}
+      <div style={{
+        ...styles.body,
+        display: salesTab === 'config' ? 'flex' : 'none',
+        ...(compact ? styles.bodyCompact : null),
+      }}>
+        {/* 휴대폰에서는 3D 칸을 통째로 접는다(시점 탭 포함) — 남는 자리를 옵션이 쓴다 */}
+        {!phone && (
+        <section style={{ ...styles.viewer, ...(compact ? styles.viewerCompact : null) }}>
           {/* 3D 시점 선택 — 아직 VIVAR 연동 전이라 표시만 한다(고르면 바뀌는 것은 연동 때) */}
           <div style={styles.vtabs}>
             <Segmented
@@ -677,18 +693,22 @@ export function SalesPage() {
            <div style={styles.stageNote}>3D 미리보기 연동 예정</div>
           </div>
 
-          <PriceBar
-            calc={displayCalc}
-            total={liveTotal}
-            hasCustomer={subsidyReady}
-            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
-            subsidy={subsidyInputs}
-            onSubsidyChange={setSubsidyInputs}
-            regions={regions}
-          />
+          {!compact && (
+            <PriceBar
+              calc={displayCalc}
+              total={liveTotal}
+              hasCustomer={subsidyReady}
+              breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
+              subsidy={subsidyInputs}
+              onSubsidyChange={setSubsidyInputs}
+              regions={regions}
+            />
+          )}
         </section>
+        )}
 
         <OptionPanel
+          compact={compact}
           bundle={bundle}
           selections={selections}
           disabledGroupCodes={disabledGroupCodes}
@@ -710,6 +730,21 @@ export function SalesPage() {
           localSubsidyOff={localSubsidyOff}
           onToggleLocalSubsidy={setLocalSubsidyOff}
         />
+
+        {/* 좁은 창에서는 가격바가 폭 전체를 쓴다 — 좁은 칸에 욱여넣으면 금액이 잘린다 */}
+        {compact && (
+          <PriceBar
+            calc={displayCalc}
+            total={liveTotal}
+            hasCustomer={subsidyReady}
+            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
+            subsidy={subsidyInputs}
+            onSubsidyChange={setSubsidyInputs}
+            regions={regions}
+            compact={!phone}
+            summary={phone}
+          />
+        )}
       </div>
     </div>
   )
@@ -746,11 +781,20 @@ const styles = {
     background: 'var(--bg)',
     overflow: 'hidden',
   },
+  // 좁은 창 배치 — 3D → 옵션 → 가격바 순으로 쌓는다
+  bodyCompact: { flexDirection: 'column' as const },
+  viewerCompact: {
+    // 3D 는 화면의 1/3 정도만 차지하고 나머지는 옵션에 넘긴다(고를 것이 더 중요하다)
+    flex: '0 0 auto' as const,
+    maxHeight: '34%',
+  },
   vtabs: {
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
     padding: 'var(--sp-2) var(--sp-4)',
+    // 좁으면 알약이 잘린다 — 잘라 없애지 말고 옆으로 밀어 볼 수 있게 한다
+    overflowX: 'auto' as const,
   },
   vtabR: {
     marginLeft: 'auto',
@@ -763,7 +807,8 @@ const styles = {
   },
   stage: {
     flex: 1,
-    minHeight: 260,
+    // 좁은 창에서는 viewerCompact 의 maxHeight 가 우선한다(최소치를 낮게 잡아 옵션 자리를 남긴다)
+    minHeight: 140,
     display: 'flex',
     flexDirection: 'column' as const,   // 3D 칸 아래에 안내 문구가 온다
     alignItems: 'center',

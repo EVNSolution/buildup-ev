@@ -21,6 +21,8 @@ interface Props {
   /** 저장 완료 후 새 견적을 시작한다(저장 상태 해제). */
   onStartNew: () => void
   isSaving: boolean
+  /** 좁거나 짧은 창 — 폭을 전부 쓰고, 메모·프로모션은 더 접는다 */
+  compact?: boolean
   savedQuote: { quote_id: number; pricing: PricingOk } | null
   saveError: string
   isUnsupported: boolean
@@ -56,6 +58,7 @@ export function OptionPanel({
   onSave,
   onStartNew,
   isSaving,
+  compact = false,
   savedQuote,
   saveError,
   isUnsupported,
@@ -106,7 +109,7 @@ export function OptionPanel({
   const btnDisabled = isSaving || (!savedQuote && (isUnsupported || unseen.length > 0))
 
   return (
-    <aside style={styles.panel}>
+    <aside style={{ ...styles.panel, ...(compact ? styles.panelCompact : null) }}>
       <div style={styles.tabs}>
         {TABS.map(tab => (
           <div
@@ -246,6 +249,8 @@ const styles = {
     minHeight: 0,
     overflow: 'hidden',
   },
+  // 좁은 창에서는 폭을 전부 쓴다(2단이 아니므로 최소폭을 지킬 이유가 없다)
+  panelCompact: { minWidth: 0, flex: 1 },
   // 패널 안 내용 탭 — 화면 탭과 같은 밑줄 방식. 선택 표시는 라임(선택·활성 표시 전용 색)
   tabs: { flexShrink: 0, display: 'flex' },
   tab: {
@@ -267,15 +272,22 @@ const styles = {
     fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
     borderBottom: '2px solid var(--lime)',
   },
-  scroll: { flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '18px 16px' },
+  // 옵션 목록 — 이 패널의 주인공. 자리가 모자라면 **맨 마지막에** 줄어든다
+  scroll: { flex: 3, minHeight: 120, overflowY: 'auto' as const, padding: '18px 16px' },
   extra: {
-    flexShrink: 0,
+    /*
+     * 메모·프로모션은 곁다리다. 예전엔 flexShrink:0 + maxHeight:260 이라 창이 짧아지면
+     * **옵션만 줄어들어 라벨만 남았다**(창 모드 태블릿에서 실제로 그랬다).
+     * 이제 옵션(flex 3)과 함께 줄어들되 옵션보다 먼저 양보한다.
+     */
+    flex: '0 1 auto' as const,
+    minHeight: 0,
     // 선 대신 여백으로 나눈다 — 좁은 패널에 가로선을 여러 개 그으면 화면이 토막나 보인다
     padding: 'var(--sp-4)',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 8,
-    maxHeight: 260,
+    maxHeight: 'min(260px, 34%)',
     overflowY: 'auto' as const,
   },
   extraLabel: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
