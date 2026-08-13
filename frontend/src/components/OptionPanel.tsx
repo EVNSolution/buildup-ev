@@ -23,6 +23,13 @@ interface Props {
   isSaving: boolean
   /** 좁거나 짧은 창 — 폭을 전부 쓰고, 메모·프로모션은 더 접는다 */
   compact?: boolean
+  /**
+   * 공개 화면(비로그인) — 메모·프로모션·지방보조금 소진을 **감춘다**.
+   * 셋 다 영업 재량 값이라 고객이 만질 자리가 아니다.
+   */
+  publicMode?: boolean
+  /** 주 버튼 문구를 갈아끼운다(공개 화면 = 「상담 신청」). 미지정이면 기존 문구. */
+  saveLabel?: string
   savedQuote: { quote_id: number; pricing: PricingOk } | null
   saveError: string
   isUnsupported: boolean
@@ -57,6 +64,8 @@ export function OptionPanel({
   onStartNew,
   isSaving,
   compact = false,
+  publicMode = false,
+  saveLabel,
   savedQuote,
   saveError,
   isUnsupported,
@@ -74,6 +83,8 @@ export function OptionPanel({
   const unseen = TABS.filter((t) => !visited.has(t.key))
   const btnLabel = isSaving
     ? '저장 중…'
+    : saveLabel && !unseen.length && !isUnsupported
+    ? saveLabel
     : savedQuote
     ? '새 견적 작성'
     : isUnsupported
@@ -132,6 +143,7 @@ export function OptionPanel({
       </div>
 
       {/* 메모·지방보조금 소진·프로모션 — 견적 수정 팝업과 **같은 조각**(QuoteExtras) */}
+      {!publicMode && (
       <div style={styles.extra}>
         <QuoteExtras
           bundle={bundle}
@@ -145,6 +157,7 @@ export function OptionPanel({
           onTogglePromotion={onTogglePromotion}
         />
       </div>
+      )}
 
       {/* 좁은 창은 바로 아래 실구매가 한 줄이 붙는다 — 사이가 벌어지면 남의 화면처럼 읽힌다 */}
       <div style={compact ? { ...styles.footer, paddingBottom: 'var(--sp-2)' } : styles.footer}>

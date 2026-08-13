@@ -20,6 +20,7 @@ import { featureModulesRouter } from './routes/feature-modules.js';
 import { subsidyRouter } from './routes/subsidy.js';
 import { orgsRouter } from './routes/orgs.js';
 import { regionsRouter } from './routes/regions.js';
+import { publicRouter } from './routes/public.js';
 
 export function createApp() {
   const app = express();
@@ -28,6 +29,9 @@ export function createApp() {
   // BigInt → Number (Prisma의 BigInt 컬럼이 JSON.stringify를 막는 문제 해결)
   app.set('json replacer', (_: string, v: unknown) => typeof v === 'bigint' ? Number(v) : v);
   app.use(injectJwtAuth);
+
+  // 공개(비로그인) — 카탈로그 조회·계산·상담 접수만. 기존 라우트는 그대로 잠겨 있다.
+  app.use('/api/v1/public', publicRouter);
 
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', usersRouter);

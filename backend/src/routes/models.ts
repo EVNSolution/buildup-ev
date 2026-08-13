@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { loadPricingBundle } from '../services/catalog.js';
 import type { TaxConfig } from '@buildup-ev/shared/pricing';
 
 export const modelsRouter = Router();
@@ -35,71 +36,15 @@ modelsRouter.get('/:modelCode/pricing-bundle', rbac('SALES', 'ADMIN'), async (re
   const modelCode = req.params['modelCode'] as string;
   const calcYear = Number(req.query['year'] ?? new Date().getFullYear());
 
-  const model = await prisma.vehicleModel.findUnique({ where: { code: modelCode }, select: { code: true } });
-  if (!model) {
+  // 공개 화면(/public)과 **같은 조회**를 쓴다 — 가격표가 한쪽만 낡는 일이 없도록
+  const bundle = await loadPricingBundle(modelCode, calcYear);
+  if (!bundle) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '차종을 찾을 수 없습니다' } });
     return;
   }
-
-  const [ogms, rules, optPrices, taxRows, subsidyNat] = await Promise.all([
-    prisma.optionGroupModel.findMany({
-      where: { model_code: modelCode, group: { active: true } },
-      include: {
-        group: {
-          include: { values: { where: { active: true }, orderBy: { sort_order: 'asc' } } },
-        },
-      },
-      orderBy: { group: { sort_order: 'asc' } },
-    }),
-    prisma.optionRule.findMany(),
-    prisma.optionPrice.findMany({ where: { model_code: modelCode } }),
-    prisma.taxConfig.findMany(),
-    prisma.subsidyNational.findFirst({ where: { model_code: modelCode, year: calcYear } }),
-  ]);
-
-  const groups = ogms.map(gm => ({
-    code:        gm.group.code,
-    category:    gm.group.category,
-    name:        gm.group.name,
-    select_type: gm.group.select_type,
-    required:    gm.group.required,
-    values:      gm.group.values.map(v => ({
-      code: v.code, name: v.name, vivar_code: v.vivar_code, sort_order: v.sort_order,
-    })),
-  }));
-
-  const option_prices: Record<string, number> = {};
-  for (const op of optPrices) option_prices[op.value_code] = op.supply_price;
-
-  const taxMap: Record<string, number> = {};
-  for (const t of taxRows) taxMap[t.param_key] = Number(t.value);
-  const tax: TaxConfig = {
-    acq_tax_rate:         taxMap['acq_tax_rate']         ?? 0.05,
-    special_acq_tax_rate: taxMap['special_acq_tax_rate'] ?? 0.02,
-    acq_tax_relief_cap:   taxMap['acq_tax_relief_cap']   ?? 1_400_000,
-    stamp:        taxMap['stamp']        ?? 2_500,
-    plate:        taxMap['plate']        ?? 25_000,
-    reg_agency:   taxMap['reg_agency']   ?? 50_000,
-    delivery_fee: taxMap['delivery_fee'] ?? 179_000,
-    etc_fee:      taxMap['etc_fee']      ?? 50_000,
-  };
-
-  res.json({
-    data: {
-      groups,
-      rules,
-      option_prices,
-      tax,
-      // 총견적서 계산(calcQuote)에 필요한 전체 세율·부대비용 — 화면이 견적서와 같은 규칙을 쓰도록.
-      tax_all: taxMap,
-      subsidy_national: subsidyNat
-        ? { amount: subsidyNat.amount, sosang_rate: Number(subsidyNat.sosang_rate ?? 0) }
-        : null,
-    },
-  });
+  res.json({ data: bundle });
 });
 
-// GET /models/:code/spec — 하중계산용 차종 제원 (wheelbase·공차축하중·GVW·타이어)
 modelsRouter.get('/:modelCode/spec', rbac('SALES', 'ADMIN', 'MAKER'), async (req, res): Promise<void> => {
   const modelCode = req.params['modelCode'] as string;
 

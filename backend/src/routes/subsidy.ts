@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { findLocalSubsidy } from '../services/catalog.js';
 
 export const subsidyRouter = Router();
 
@@ -18,10 +19,5 @@ subsidyRouter.get('/local', rbac('SALES', 'ADMIN'), async (req, res): Promise<vo
     return;
   }
 
-  const row = await prisma.subsidyLocal.findFirst({ where: { region, year } });
-  res.json({
-    data: row
-      ? { region, year, amount: row.amount, extra: row.extra ?? null }
-      : null,
-  });
+  res.json({ data: await findLocalSubsidy(region, year) });
 });
