@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { openPdf } from '../lib/openPdf'
+import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
-import { mapBizType } from '../lib/quoteCustomer'
+import { mapBizType, customerEditValues } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { BTN } from '../styles/buttons'
@@ -16,7 +16,7 @@ import { Header } from '../components/Header'
 import { PriceBar } from '../components/PriceBar'
 import { OptionPanel } from '../components/OptionPanel'
 import { offValueCode } from '../components/OptionToggle'
-import { QuoteSaveModal, valuesFromCustomer, type QuoteSaveValues } from '../components/QuoteSaveModal'
+import { QuoteSaveModal, valuesFromCustomer, missingForContract, type QuoteSaveValues } from '../components/QuoteSaveModal'
 import { DEFAULT_SUBSIDY_INPUTS, type SubsidyInputs } from '../components/SubsidyInputs'
 import { ContractPanel } from '../components/ContractPanel'
 import { QuoteEditModal } from '../components/QuoteEditModal'
@@ -104,6 +104,16 @@ function MyListView() {
   const [err, setErr]         = useState('')
   const [contractQuote, setContractQuote] = useState<
     { id: number; customerName?: string; customerEmail?: string; customerPhone?: string } | null>(null)
+  /**
+   * 계약서 만들기 직전 확인 — 견적서 단계에서 안 받은 값(생년월일·주소·세부주소)을 여기서 받는다.
+   * 이미 다 채워져 있어도 **한 번은 띄운다** — 계약서에 그대로 박히는 값이라 눈으로 확인하고 넘어간다.
+   */
+  const [contractPrep, setContractPrep] = useState<{ quote: ApiQuote; next: 'pdf' | 'sign' } | null>(null)
+  const [prepSaving, setPrepSaving] = useState(false)
+  const [prepErr, setPrepErr] = useState('')
+  // 확인 팝업 안에서 지역을 고칠 수 있어야 한다(보조금이 걸린 값)
+  const [regions, setRegions] = useState<string[]>([])
+  useEffect(() => { fetchRegions().then(setRegions).catch(() => setRegions([])) }, [])
   const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
     { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
@@ -158,7 +168,7 @@ function MyListView() {
     
     {contractQuote && (
       <div
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+        style={{ position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
       >
         <div style={{ width: 'min(460px, 94vw)', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -191,6 +201,69 @@ function MyListView() {
     )}
     {viewQuote && (
       <CustomerViewModal quote={viewQuote} onClose={() => setViewQuote(null)} />
+    )}
+    {/*
+      계약서 만들기 직전 확인 — 견적서 단계에서 안 받은 값(생년월일·주소·세부주소)을 받는다.
+      이미 채워져 있어도 한 번은 띄운다. 계약서에 그대로 박히는 값이라 눈으로 보고 넘어가야 한다.
+    */}
+    {contractPrep && (
+      <QuoteSaveModal
+        mode="contract"
+        initial={customerEditValues(contractPrep.quote)}
+        regions={regions}
+        saving={prepSaving}
+        error={prepErr}
+        onClose={() => setContractPrep(null)}
+        onSave={async values => {
+          // ⚠️ 저장(await) 뒤에 window.open 을 부르면 팝업 차단에 걸린다.
+          //    클릭한 지금 빈 탭을 먼저 잡아 두고, 저장이 끝나면 주소만 바꾼다.
+          const pdfTab = contractPrep.next === 'pdf' ? reservePdfTab() : null
+          setPrepSaving(true); setPrepErr('')
+          try {
+            const q = contractPrep.quote
+            await saveQuoteCustomer(q.id, {
+              name: values.name.trim(),
+              phone: values.phone,
+              email: values.email.trim(),
+              address: values.address.trim(),
+              address_detail: values.address_detail.trim(),
+              reg_no: values.buyer_regno.trim(),
+              ceo_name: values.subsidy.business_type === 'corporate' ? values.ceo_name.trim() : '',
+              tel: values.buyer_tel,
+            })
+            await saveQuoteInputs(q.id, {
+              biz_type: mapBizType(values.subsidy.business_type),
+              is_sosang: values.subsidy.is_small_business ?? false,
+              region: values.subsidy.region_code,
+              has_transport_license: values.subsidy.has_transport_license ?? false,
+              diesel_status: values.subsidy.diesel_status || 'none',
+              ceo_name: values.subsidy.business_type === 'corporate' ? values.ceo_name.trim() : '',
+              contract_party: values.contract_party.trim(),
+              buyer_agent: values.buyer_agent.trim(),
+              buyer_relation: values.buyer_relation.trim(),
+              buyer_regno: values.buyer_regno.trim(),
+              buyer_tel: values.buyer_tel,
+            })
+            const next = contractPrep.next
+            setContractPrep(null)
+            load()
+            if (next === 'sign') {
+              setContractQuote({
+                id: q.id,
+                customerName: values.name.trim() || (q.customer?.name ?? undefined),
+                customerEmail: values.email.trim() || (q.customer?.email ?? undefined),
+                customerPhone: values.phone || (q.customer?.phone ?? undefined),
+              })
+            } else {
+              // 확인한 값으로 계약서를 새로 만들어 연다
+              openPdfIn(pdfTab, `/api/v1/quotes/${q.id}/contract-pdf`)
+            }
+          } catch (e) {
+            closeReservedTab(pdfTab)
+            setPrepErr(e instanceof Error ? e.message : '저장 실패')
+          } finally { setPrepSaving(false) }
+        }}
+      />
     )}
     {confirmQuoteModal && (
       <ConfirmQuoteModal
@@ -283,14 +356,19 @@ function MyListView() {
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                           >{q.status === 'draft' ? '견적 생성' : '견적서'}</button>
-                          {/* 계약서 = 견적서와 같은 입력(팝업)으로 함께 만들어진다. 생성 전엔 같은 팝업으로 유도 */}
+                          {/*
+                            계약서는 **견적서 다음 단계**다. 견적서가 나오기 전에는 만들 수 없고,
+                            누르면 계약서에만 필요한 값(생년월일·주소·세부주소)을 확인하는 팝업이 먼저 뜬다.
+                            다 채워져 있어도 한 번은 보여 준다 — 계약서에 그대로 박히는 값이라서.
+                          */}
                           <button
-                            style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
-                            title={q.status === 'draft' ? '견적서 생성 시 계약서도 함께 만들어집니다' : '특장 매매계약서 열람·다운로드'}
-                            onClick={() => q.status === 'draft'
-                              ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
-                              : openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
-                          >계약서</button>
+                            style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
+                            disabled={q.status === 'draft'}
+                            title={q.status === 'draft'
+                              ? '견적서를 먼저 만들어야 계약서를 만들 수 있습니다'
+                              : '계약 정보를 확인하고 특장 매매계약서를 만듭니다'}
+                            onClick={() => { setPrepErr(''); setContractPrep({ quote: q, next: 'pdf' }) }}
+                          >{q.status === 'draft' ? '계약서' : '계약서 생성'}</button>
                           {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본을 시스템에 보관한다 */}
                           {q.contract?.status === 'COMPLETED' && (
                             <button
@@ -312,12 +390,20 @@ function MyListView() {
                             style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft'}
                             title={q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
-                            onClick={() => setContractQuote({
-                              id: q.id,
-                              customerName: q.customer?.name ?? undefined,
-                              customerEmail: q.customer?.email ?? undefined,
-                              customerPhone: q.customer?.phone ?? undefined,
-                            })}
+                            onClick={() => {
+                              setPrepErr('')
+                              // 계약서에 필요한 값이 비어 있으면 확인 팝업부터 — 서명은 그 계약서를 보내는 일이다
+                              if (missingForContract(customerEditValues(q)).length) {
+                                setContractPrep({ quote: q, next: 'sign' })
+                              } else {
+                                setContractQuote({
+                                  id: q.id,
+                                  customerName: q.customer?.name ?? undefined,
+                                  customerEmail: q.customer?.email ?? undefined,
+                                  customerPhone: q.customer?.phone ?? undefined,
+                                })
+                              }
+                            }}
                           >서명 요청</button>
                           )}
                         </div>

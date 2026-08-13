@@ -65,7 +65,12 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
  * 필수는 **비어 있는 동안만 빨강**이고, 채우면 회색으로 가라앉는다 — 남은 할 일만
  * 눈에 띄게 하려는 것.
  */
-function Tag({ need, done }: { need?: boolean; done?: boolean }) {
+function Tag({ need, done, contract }: { need?: boolean; done?: boolean; contract?: boolean }) {
+  /*
+   * 계약서에서만 필요한 값은 「· 계약서 필수」로 표시한다(회색).
+   * 견적만 뽑아 보려는 사람을 붙잡지 않으면서, 나중에 무엇이 더 필요한지는 알려 준다.
+   */
+  if (contract) return <span style={done ? s.tagOff : s.tagLater}> · 계약서 필수</span>
   if (!need) return <span style={s.tagOff}> · 선택</span>
   return <span style={done ? s.tagOff : s.tagOn}> · 필수</span>
 }
@@ -107,17 +112,24 @@ interface Props {
    * 'create' = 견적 저장 / 'edit' = 저장된 견적의 고객정보 수정.
    * 입력 구성이 완전히 같아 같은 폼을 쓴다 — 저장·수정 화면이 따로 놀면 한쪽만 낡는다.
    */
-  mode?: 'create' | 'edit'
+  /**
+   * create  견적 저장(견적서 기준 필수)
+   * edit    고객정보 수정
+   * contract 계약서 만들기 직전 확인 — 생년월일·주소·세부주소가 여기서 필수가 된다
+   */
+  mode?: 'create' | 'edit' | 'contract'
 }
 
 /**
  * 입력칸 본문만 — 저장 팝업과 견적 수정 팝업의 「고객정보」 탭이 **같은 폼**을 쓴다.
  * 한쪽에만 칸을 더하면 다른 쪽에서 고칠 수 없는 값이 생긴다.
  */
-export function QuoteCustomerForm({ v, setV, regions }: {
+export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
   v: QuoteSaveValues
   setV: React.Dispatch<React.SetStateAction<QuoteSaveValues>>
   regions: string[]
+  /** 계약서 단계 — 생년월일·주소·세부주소가 여기서 필수가 된다 */
+  forContract?: boolean
 }) {
   const set = <K extends keyof QuoteSaveValues>(k: K, val: QuoteSaveValues[K]) => setV(p => ({ ...p, [k]: val }))
 
@@ -213,7 +225,7 @@ export function QuoteCustomerForm({ v, setV, regions }: {
         <div style={s.row}>
           <label style={s.label}>
             {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
-            <Tag need done={regNoOk} />
+            <Tag need={forContract} contract={!forContract} done={regNoOk} />
           </label>
           <input
             style={s.field} type="text" value={v.buyer_regno}
@@ -268,7 +280,7 @@ export function QuoteCustomerForm({ v, setV, regions }: {
           afterRegion={<>
             {/* 지역 바로 다음이 주소 — 두 칸으로 나눠 놓아야 팝업이 한 화면에 들어온다 */}
             <div style={s.row}>
-              <label style={s.label}>주소<Tag need done={filled(v.address)} /></label>
+              <label style={s.label}>주소<Tag need={forContract} contract={!forContract} done={filled(v.address)} /></label>
               <div style={s.addrRow}>
                 <input
                   style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
@@ -279,7 +291,7 @@ export function QuoteCustomerForm({ v, setV, regions }: {
               {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
             </div>
             <div style={s.row}>
-              <label style={s.label}>세부주소<Tag need done={filled(v.address_detail)} /></label>
+              <label style={s.label}>세부주소<Tag need={forContract} contract={!forContract} done={filled(v.address_detail)} /></label>
               <input
                 ref={addrRef}
                 style={s.field} type="text" value={v.address_detail}
@@ -326,24 +338,24 @@ export function QuoteCustomerForm({ v, setV, regions }: {
 }
 
 /**
- * 필수 입력이 다 찼는가 — 폼과 저장 버튼이 같은 기준을 봐야 한다.
- * 견적서·계약서·전자서명·보조금 계산이 전부 이 값들에 걸려 있어, 비면 나중에
- * 서류를 다시 만들거나 보조금이 틀린다.
+ * 필수 입력 — **견적서와 계약서가 요구하는 양이 다르다.**
+ *
+ * 견적서는 금액을 뽑는 서류다. 금액을 가르는 것(사업자 구분·지역·소상공인·화물운송·
+ * 경유차)과 서류를 보낼 곳(휴대폰·이메일)만 있으면 나온다.
+ * 계약서는 사람을 특정하는 서류라 생년월일(사업자번호)과 주소가 있어야 한다.
+ *
+ * 예전엔 둘을 한 벌로 묶어, 가볍게 금액만 뽑아 보려 해도 주소까지 받아야 했다.
  */
-export function missingRequired(v: QuoteSaveValues): string[] {
+function missingBase(v: QuoteSaveValues): string[] {
   const isCorporate = v.subsidy.business_type === 'corporate'
   const filled = (x: string) => !!x.trim()
-  const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
   const required: [boolean, string][] = [
     [filled(v.name), isCorporate ? '상호' : '성명'],
     [!isCorporate || filled(v.ceo_name), '대표이사'],
-    [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
     [filled(v.phone), '휴대폰'],
     [filled(v.email), '이메일'],
     // 법인은 지방보조금 대상이 아니라 지역 칸 자체가 없다 — 필수에서도 뺀다
     [isCorporate || filled(v.subsidy.region_code), '지역'],
-    [filled(v.address), '주소'],
-    [filled(v.address_detail), '세부주소'],
     [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
     [v.subsidy.is_small_business !== null, '소상공인'],
     [v.subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
@@ -352,30 +364,55 @@ export function missingRequired(v: QuoteSaveValues): string[] {
   return required.filter(([ok]) => !ok).map(([, label]) => label)
 }
 
+/** 견적서를 만들기 위해 필요한 것 — 금액에 걸리는 값과 보낼 곳 */
+export function missingForQuote(v: QuoteSaveValues): string[] {
+  return missingBase(v)
+}
+
+/** 계약서를 만들기 위해 추가로 필요한 것 — 사람을 특정하는 값 */
+export function missingForContract(v: QuoteSaveValues): string[] {
+  const isCorporate = v.subsidy.business_type === 'corporate'
+  const filled = (x: string) => !!x.trim()
+  const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
+  const extra: [boolean, string][] = [
+    [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
+    [filled(v.address), '주소'],
+    [filled(v.address_detail), '세부주소'],
+  ]
+  return [...missingBase(v), ...extra.filter(([ok]) => !ok).map(([, label]) => label)]
+}
+
+/** 예전 이름 — 견적 기준. 남은 호출부가 다 옮겨지면 지운다. */
+export const missingRequired = missingForQuote
+
 export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create' }: Props) {
   const [v, setV] = useState<QuoteSaveValues>(initial)
   const isEdit = mode === 'edit'
-  const canSave = missingRequired(v).length === 0 && !saving
+  // 계약서 단계에서는 사람을 특정하는 값(생년월일·주소)까지 있어야 한다
+  const forContract = mode === 'contract'
+  const canSave = (forContract ? missingForContract(v) : missingForQuote(v)).length === 0 && !saving
 
   // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
   // 닫기는 '취소' 와 ✕ 로만.
   return (
     <div style={s.overlay}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <h2 style={s.h2}>{isEdit ? '고객정보 수정' : '견적 저장'}</h2>
+        <h2 style={s.h2}>{forContract ? '계약서 정보 확인' : isEdit ? '고객정보 수정' : '견적 저장'}</h2>
         <p style={s.desc}>
-          {isEdit
+          {forContract
+            ? '계약서에 그대로 들어갑니다. 견적서에 입력한 값은 이미 채워져 있습니다 — 확인하고 빈 칸만 채우세요.'
+            : isEdit
             ? '고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.'
             : '저장 후에도 견적 목록의 「수정」에서 고칠 수 있습니다.'}
         </p>
 
-        <QuoteCustomerForm v={v} setV={setV} regions={regions} />
+        <QuoteCustomerForm v={v} setV={setV} regions={regions} forContract={forContract} />
 
         {error && <div style={s.error}>{error}</div>}
 
         <div style={s.btnRow}>
           <button style={{ ...s.btnOk, ...(canSave ? null : s.btnOff) }} onClick={() => canSave && onSave(v)} disabled={!canSave}>
-            {saving ? '저장 중…' : isEdit ? '저장' : '견적 저장'}
+            {saving ? '저장 중…' : forContract ? '확인 완료 · 계약서로' : isEdit ? '저장' : '견적 저장'}
           </button>
           <button style={s.btnCancel} onClick={onClose} disabled={saving}>취소</button>
         </div>
@@ -390,7 +427,7 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 14, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
   },
   overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(20,20,20,.5)',
+    position: 'fixed', inset: 0, background: 'var(--scrim)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
   },
   modal: {
@@ -419,6 +456,8 @@ const s: Record<string, React.CSSProperties> = {
   // 「· 필수」는 아직 안 채운 동안만 빨강 / 「· 선택」과 채운 필수는 회색
   tagOn: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
   tagOff: { fontSize: 14, color: '#b0b7c0', fontWeight: 400 },
+  /** 지금은 없어도 되지만 계약서 단계에서 필요한 값 */
+  tagLater: { fontSize: 14, color: '#8a7a3d', fontWeight: 700 },
   addrRow: { display: 'flex', gap: 6 },
   addrBtn: {
     flexShrink: 0, minHeight: 'var(--h-control)', padding: '0 12px', fontSize: 14, fontWeight: 700,
