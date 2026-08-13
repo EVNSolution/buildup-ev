@@ -29,22 +29,30 @@ interface Props {
    * 대신 한 줄로 두고 옆으로 밀어 보게 한다 — 높이를 아끼는 쪽이 낫다.
    */
   compact?: boolean
+  /**
+   * 휴대폰 — 6칸을 다 펼칠 자리가 없다. **실구매가 한 줄**만 늘 보이게 두고,
+   * 나머지 흐름은 눌러서 펼친다. 상담 중 가장 자주 보는 숫자가 실구매가라 그 하나를 남겼다.
+   */
+  summary?: boolean
 }
 
 function fmt(n: number) {
   return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
-export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions, compact = false }: Props) {
+export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions, compact = false, summary = false }: Props) {
   // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
   // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
   const portrait = useIsPortrait()
-  // 단 좁은 창(위아래 배치)에서는 가격바가 세로 자리를 다 먹으면 안 되므로 한 줄로 둔다
-  const stack = compact ? false : portrait
+  // 좁은 창(위아래 배치)에서는 가격바가 세로 자리를 다 먹으면 안 되므로 한 줄로 둔다.
+  // 휴대폰 요약 모드는 펼쳤을 때만 보이므로 읽기 쉬운 세로 배치를 쓴다.
+  const stack = summary ? true : compact ? false : portrait
   // 태블릿·휴대폰은 세로가 귀하다 — 가격바를 두껍게 하지 않아 옵션 선택 칸을 넓힌다
   const touch = useIsTouch()
   const [showReg, setShowReg] = useState(false)
   const [showSubsidy, setShowSubsidy] = useState(false)
+  // 요약 모드에서 흐름을 펼쳤는가(휴대폰 전용)
+  const [openFlow, setOpenFlow] = useState(false)
   const isUnsupported = calc?.status === 'unsupported'
   const tbd = isUnsupported ? (calc as { reason: string }).reason : null
   const ok = isUnsupported ? null : total
@@ -67,7 +75,10 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
     <div style={stack || touch ? styles.bar : { ...styles.bar, ...styles.barTall }}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
-      <div style={stack ? styles.flowStack : compact ? { ...styles.flow, ...styles.flowScroll } : styles.flow}>
+      <div style={{
+        ...(stack ? styles.flowStack : compact ? { ...styles.flow, ...styles.flowScroll } : styles.flow),
+        ...(summary ? { ...styles.flowSheet, display: openFlow ? 'flex' : 'none' } : null),
+      }}>
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={{ ...styles.first, ...row }}>
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
@@ -119,12 +130,15 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           </div>
         </div>
 
-        <Op stack={stack}>=</Op>
+        {!summary && <Op stack={stack}>=</Op>}
         {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
-        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall) }}>
-          <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
-          <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
-        </div>
+        {/* 휴대폰 요약 모드에서는 아래 고정 줄이 이 자리를 대신한다(같은 숫자를 두 번 두지 않는다) */}
+        {!summary && (
+          <div style={{ ...styles.hero, ...(stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall) }}>
+            <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
+            <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
+          </div>
+        )}
 
         {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
         <div
@@ -139,6 +153,19 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           {showReg && ok && <RegPopup ok={ok} onClose={() => setShowReg(false)} />}
         </div>
       </div>
+
+      {/*
+        휴대폰 — 늘 보이는 것은 실구매가 한 줄. 「내역」을 누르면 위로 펼친다.
+        여섯 칸을 다 펼쳐 두면 화면 절반을 먹어 정작 옵션을 고를 자리가 없어진다.
+        펼친 내역은 이 줄 위에서 끝나므로 「… − 부가세 환급 = 실구매가」로 이어 읽힌다.
+      */}
+      {summary && (
+        <button style={styles.summaryBar} onClick={() => setOpenFlow(v => !v)}>
+          <span style={styles.summaryLabel}>실구매가</span>
+          <span style={styles.summaryValue}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</span>
+          <span style={styles.summaryMore}>내역 {openFlow ? '▾' : '▴'}</span>
+        </button>
+      )}
     </div>
   )
 }
@@ -261,6 +288,17 @@ const styles: Record<string, React.CSSProperties> = {
    * 좁은 창 — 칸을 줄이지 않고 옆으로 민다. 금액을 잘라 「₩1,…」 로 보여 주느니
    * 손가락으로 밀어 보게 하는 편이 낫다(잘린 금액은 정보가 아니라 오해를 만든다).
    */
+  /** 휴대폰에서 늘 보이는 한 줄 — 이것만으로 상담이 굴러가야 한다 */
+  summaryBar: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', width: '100%',
+    minHeight: 'var(--h-control)', padding: '0 var(--sp-3)',
+    background: 'var(--dark)', color: '#fff', border: 'none', borderRadius: 'var(--r-md)',
+  },
+  summaryLabel: { fontSize: 'var(--fs-label)', color: 'var(--lime)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
+  summaryValue: { flex: 1, textAlign: 'right' as const, fontSize: 17, fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
+  summaryMore: { fontSize: 'var(--fs-caption)', color: '#c9ccd2', whiteSpace: 'nowrap' as const },
+  /** 펼친 내역 — 화면을 다 덮지 않게 높이를 묶고 안에서 스크롤한다 */
+  flowSheet: { maxHeight: '46vh', overflowY: 'auto' as const, marginBottom: 'var(--sp-2)' },
   flowScroll: {
     overflowX: 'auto' as const,
     scrollbarWidth: 'none' as const,

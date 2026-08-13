@@ -30,6 +30,7 @@ import { Segmented } from '../components/ui/Segmented'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useIsCompact } from '../hooks/useIsCompact'
+import { useIsPhone } from '../hooks/useIsPhone'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -340,6 +341,8 @@ export function SalesPage() {
   const canConvert = usePermission('quote.create')
   // 좁거나 짧은 창(창 모드 태블릿 등)에서는 좌우 2단 대신 위아래로 쌓는다
   const compact = useIsCompact()
+  // 휴대폰은 3D 를 접는다 — 그 크기의 차량 그림은 보여 주는 것이 없고, 자리는 옵션에 필요하다
+  const phone = useIsPhone()
   const [salesTab, setSalesTab] = useState<'config' | 'list' | 'me'>('config')
   // 권한 없는 탭은 **버튼째** 감춘다. 눌러서 「권한이 없습니다」를 보게 두면
   // 왜 있는 버튼인지 알 수 없고, 없는 기능을 있는 것처럼 보이게 한다.
@@ -667,6 +670,8 @@ export function SalesPage() {
         display: salesTab === 'config' ? 'flex' : 'none',
         ...(compact ? styles.bodyCompact : null),
       }}>
+        {/* 휴대폰에서는 3D 칸을 통째로 접는다(시점 탭 포함) — 남는 자리를 옵션이 쓴다 */}
+        {!phone && (
         <section style={{ ...styles.viewer, ...(compact ? styles.viewerCompact : null) }}>
           {/* 3D 시점 선택 — 아직 VIVAR 연동 전이라 표시만 한다(고르면 바뀌는 것은 연동 때) */}
           <div style={styles.vtabs}>
@@ -700,6 +705,7 @@ export function SalesPage() {
             />
           )}
         </section>
+        )}
 
         <OptionPanel
           compact={compact}
@@ -735,7 +741,8 @@ export function SalesPage() {
             subsidy={subsidyInputs}
             onSubsidyChange={setSubsidyInputs}
             regions={regions}
-            compact
+            compact={!phone}
+            summary={phone}
           />
         )}
       </div>
