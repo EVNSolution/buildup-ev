@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk } from '@shared/pricing/core'
-import { optionBreakdown } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
+import { QuoteExtras } from './QuoteExtras'
 
 type TabKey = 'vehicle' | 'body' | 'interior'
 
@@ -36,8 +36,6 @@ interface Props {
   localSubsidyOff: boolean
   onToggleLocalSubsidy: (v: boolean) => void
 }
-
-const wonVat = (supply: number) => '₩' + Math.round(supply * 1.1).toLocaleString('ko-KR')
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'vehicle', label: '차량 트림' },
@@ -74,27 +72,6 @@ export function OptionPanel({
   // 견적 저장 전에 모든 단계를 확인하게 강제한다. 기본 화면인 트림(vehicle)은 이미 본 것으로 친다.
   const [visited, setVisited] = useState<Set<TabKey>>(new Set<TabKey>(['vehicle']))
   const unseen = TABS.filter((t) => !visited.has(t.key))
-  const [showPromo, setShowPromo] = useState(false)
-
-  // 재량할인 대상: 가격이 있는 **선택 옵션**만(필수 옵션은 제외 — 탑 등 기본 사양).
-  // 예외로 도어종류(DOORTYPE)는 필수지만 할인 대상 — 목록에는 '기본도어' 로 표기한다.
-  const PROMO_EXCEPTIONS: Record<string, string> = { DOORTYPE: '기본도어' }
-  const breakdown = optionBreakdown(selections, (c) => optionPrices[c] ?? 0)
-  const zeroable = (Object.entries(breakdown) as [string, number][])
-    .filter(([, v]) => v > 0)
-    .map(([group, supply]) => {
-      const g = bundle.groups.find((x) => x.code === group)
-      const val = g?.values.find((v) => v.code === selections[group])
-      const exception = PROMO_EXCEPTIONS[group]
-      return {
-        group, supply,
-        required: (g?.required ?? false) && !exception,
-        label: exception ?? g?.name ?? group,
-        value: val?.name ?? '',
-      }
-    })
-    .filter((z) => !z.required)
-
   const btnLabel = isSaving
     ? '저장 중…'
     : savedQuote
@@ -154,50 +131,19 @@ export function OptionPanel({
         )}
       </div>
 
+      {/* 메모·지방보조금 소진·프로모션 — 견적 수정 팝업과 **같은 조각**(QuoteExtras) */}
       <div style={styles.extra}>
-        <label style={styles.extraLabel}>메모 / 안내문</label>
-        <textarea
-          style={styles.memo}
-          rows={3}
-          value={memo}
-          onChange={(e) => onMemoChange(e.target.value)}
+        <QuoteExtras
+          bundle={bundle}
+          selections={selections}
+          optionPrices={optionPrices}
+          memo={memo}
+          onMemoChange={onMemoChange}
+          localSubsidyOff={localSubsidyOff}
+          onToggleLocalSubsidy={onToggleLocalSubsidy}
+          promotionZeroed={promotionZeroed}
+          onTogglePromotion={onTogglePromotion}
         />
-
-        <label style={styles.promoToggle}>
-          <input
-            type="checkbox"
-            checked={localSubsidyOff}
-            onChange={(e) => onToggleLocalSubsidy(e.target.checked)}
-            style={styles.cbox}
-          />
-          지방보조금 소진
-        </label>
-
-        <label style={styles.promoToggle}>
-          <input type="checkbox" checked={showPromo} onChange={(e) => setShowPromo(e.target.checked)} style={styles.cbox} />
-          프로모션
-        </label>
-        {showPromo && (
-          <div style={styles.promoList}>
-            {zeroable.length === 0
-              ? <div style={styles.promoEmpty}>할인 가능한 옵션이 없습니다.</div>
-              : zeroable.map((z) => (
-                <label key={z.group} style={styles.promoItem}>
-                  <input
-                    type="checkbox"
-                    checked={promotionZeroed.has(z.group)}
-                    onChange={() => onTogglePromotion(z.group)}
-                    style={styles.cbox}
-                  />
-                  <span style={styles.promoName}>{z.label}{z.value ? ` · ${z.value}` : ''}</span>
-                  <span style={promotionZeroed.has(z.group) ? styles.promoZeroed : styles.promoPrice}>
-                    {promotionZeroed.has(z.group) ? '0원' : wonVat(z.supply)}
-                  </span>
-                </label>
-              ))
-            }
-          </div>
-        )}
       </div>
 
       {/* 좁은 창은 바로 아래 실구매가 한 줄이 붙는다 — 사이가 벌어지면 남의 화면처럼 읽힌다 */}
