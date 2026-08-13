@@ -23,16 +23,24 @@ interface Props {
   onSubsidyChange: (v: SubsidyInputs) => void
   /** 지역 선택 목록(지방보조금 조회 기준) */
   regions: string[]
+  /**
+   * 좁은 창 — 폭 전체를 쓰되 **세로로 쌓지 않는다**.
+   * 세로로 쌓으면 6칸이 300px 가까이 되어 옵션 패널이 통째로 밀려난다(실측: 패널 높이 0).
+   * 대신 한 줄로 두고 옆으로 밀어 보게 한다 — 높이를 아끼는 쪽이 낫다.
+   */
+  compact?: boolean
 }
 
 function fmt(n: number) {
   return '₩' + Math.round(Math.abs(n)).toLocaleString('ko-KR')
 }
 
-export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions }: Props) {
+export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions, compact = false }: Props) {
   // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
   // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
-  const stack = useIsPortrait()
+  const portrait = useIsPortrait()
+  // 단 좁은 창(위아래 배치)에서는 가격바가 세로 자리를 다 먹으면 안 되므로 한 줄로 둔다
+  const stack = compact ? false : portrait
   // 태블릿·휴대폰은 세로가 귀하다 — 가격바를 두껍게 하지 않아 옵션 선택 칸을 넓힌다
   const touch = useIsTouch()
   const [showReg, setShowReg] = useState(false)
@@ -50,7 +58,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
   const netPrice = view?.netPrice ?? 0
 
   // 세로로 쌓을 땐 폭이 넉넉하므로 글자를 줄이지 않는다(가로 배치용 축소는 stack 에서 해제).
-  const row  = stack ? styles.rowCell : touch ? null : styles.cellTall
+  // 칸 공통 얹기 — 세로배치/두툼하게/좁은창(고정폭) 세 갈래
+  const row  = stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall
   const big  = stack ? styles.stackBig : null
   const lbl  = stack ? styles.stackLabel : null
 
@@ -58,7 +67,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
     <div style={stack || touch ? styles.bar : { ...styles.bar, ...styles.barTall }}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
-      <div style={stack ? styles.flowStack : styles.flow}>
+      <div style={stack ? styles.flowStack : compact ? { ...styles.flow, ...styles.flowScroll } : styles.flow}>
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={{ ...styles.first, ...row }}>
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
@@ -69,7 +78,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         </div>
 
         <Op stack={stack}>−</Op>
-        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} tall={!stack && !touch} />
+        <Block label="구매 혜택" value={ok ? ok.purchase_benefit : 0} show={!!ok} negative stack={stack} tall={!stack && !touch} compact={compact} />
         <Op stack={stack}>−</Op>
         {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
         <div
@@ -112,14 +121,14 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
 
         <Op stack={stack}>=</Op>
         {/* ⑤ 실구매가 — 부가세 환급까지. 등록·기타는 포함하지 않는다 */}
-        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : touch ? null : styles.cellTall) }}>
+        <div style={{ ...styles.hero, ...(stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall) }}>
           <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
           <div style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</div>
         </div>
 
         {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
         <div
-          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : touch ? styles.aside : { ...styles.aside, ...styles.cellTall }) }}
+          style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : compact ? { ...styles.aside, ...styles.cellFixed } : touch ? styles.aside : { ...styles.aside, ...styles.cellTall }) }}
           onClick={() => ok && setShowReg(v => !v)}
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>등록·기타 ▸ <span style={styles.asideNote}>별도</span></div>
@@ -138,9 +147,10 @@ function Op({ children, stack }: { children: string; stack?: boolean }) {
   return <div style={stack ? styles.opStack : styles.op}>{children}</div>
 }
 
-function Block({ label, value, show, muted, negative, stack, tall }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean; tall?: boolean }) {
+function Block({ label, value, show, muted, negative, stack, tall, compact }: { label: string; value: number; show: boolean; muted?: boolean; negative?: boolean; stack?: boolean; tall?: boolean; compact?: boolean }) {
   return (
-    <div style={{ ...styles.block, ...(stack ? styles.rowCell : tall ? styles.cellTall : null) }}>
+    // 좁은 창(가로 스크롤)에서는 칸이 줄어들면 안 된다 — 줄어드는 순간 금액이 잘린다
+    <div style={{ ...styles.block, ...(stack ? styles.rowCell : compact ? styles.cellFixed : tall ? styles.cellTall : null) }}>
       <div style={{ ...styles.blockLabel, ...(stack ? styles.stackLabel : null) }}>{label}</div>
       <div style={{ ...styles.blockValue, ...(stack ? styles.stackBig : null), ...(muted ? styles.mutedVal : negative ? styles.negVal : null) }}>
         {show ? (muted ? '미반영' : fmt(value)) : '—'}
@@ -225,6 +235,9 @@ const fit = (min: number, vw: number, max: number) => `clamp(${min}px, ${vw}vw, 
 /** 글자가 어떤 경우에도 블록 밖으로 나가지 않게. 팝업은 블록에 달려 있으므로 여기서만 자른다. */
 const noSpill = { overflow: 'hidden', textOverflow: 'ellipsis' as const, whiteSpace: 'nowrap' as const }
 
+/** 좁은 창에서 칸이 찌그러지지 않게 지키는 최소 폭 — 이보다 좁아지면 금액이 잘린다 */
+const CELL_MIN = 132
+
 const cellBase = {
   background: 'var(--card)', borderRadius: 'var(--r-md)',
   // ⚠️ padding 축약형을 쓰면 안 된다 — 아래 cellTall 이 위아래 여백만 덮어쓰는데,
@@ -244,6 +257,16 @@ const styles: Record<string, React.CSSProperties> = {
   warn: { background: 'var(--warnbg)', border: '1px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
   warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
   flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },
+  /*
+   * 좁은 창 — 칸을 줄이지 않고 옆으로 민다. 금액을 잘라 「₩1,…」 로 보여 주느니
+   * 손가락으로 밀어 보게 하는 편이 낫다(잘린 금액은 정보가 아니라 오해를 만든다).
+   */
+  flowScroll: {
+    overflowX: 'auto' as const,
+    scrollbarWidth: 'none' as const,
+  },
+  /** 가로 스크롤일 때 칸은 줄어들지 않는다(줄어들면 잘린다) */
+  cellFixed: { flex: `0 0 ${CELL_MIN}px` as const, minWidth: CELL_MIN },
   op: { fontSize: fit(11, 0.83, 16), color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
   // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
   // 테두리 없이 배경색만으로 구분한다 — 선을 두르면 칸마다 굵기가 달라 보여 지저분했다
