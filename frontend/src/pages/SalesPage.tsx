@@ -159,7 +159,13 @@ function MyListView() {
   // order_id 빠른 조회용 (quote_id → order)
   const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
 
-  if (loading) return <div style={lv.empty}>로딩 중…</div>
+  /*
+   * ⚠️ 첫 로드에서만 「로딩 중…」으로 갈아친다.
+   *    저장 뒤 목록을 다시 읽을 때도 갈아치웠더니, 이 컴포넌트 안에 있는 **수정 팝업이
+   *    통째로 사라졌다 다시 열려** 저장 메시지가 보이지 않고 화면이 깜빡였다.
+   *    이미 한 번 받아 둔 목록이 있으면 그대로 두고 조용히 갱신한다.
+   */
+  if (loading && quotes.length === 0) return <div style={lv.empty}>로딩 중…</div>
   if (err)     return <div style={{ ...lv.empty, color: 'var(--warn)' }}>{err}</div>
 
   return (

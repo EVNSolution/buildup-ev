@@ -11,6 +11,7 @@ import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { QuoteCustomerForm, missingRequired, type QuoteSaveValues } from './QuoteSaveModal'
+import { QuoteExtras } from './QuoteExtras'
 import { customerEditValues, mapBizType } from '../lib/quoteCustomer'
 import { fetchRegions } from '../api/quotes'
 import { BTN } from '../styles/buttons'
@@ -127,6 +128,18 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   const [sel, setSel] = useState<Record<string, string>>({})
   const [loadErr, setLoadErr] = useState('')
 
+  /*
+   * 메모·지방보조금 소진·프로모션도 여기서 고친다.
+   * 컨피규레이터에서 옵션 바로 아래에 있던 값들이고, 둘(프로모션·지방보조금)은
+   * **금액을 바꾼다** — 저장 후 고칠 방법이 없으면 견적을 새로 만들어야 했다(실제 제보).
+   */
+  const inp = (quote.inputs ?? {}) as Record<string, unknown>
+  const [memo, setMemo] = useState<string>((inp['memo'] as string) ?? '')
+  const [localOff, setLocalOff] = useState<boolean>((inp['local_subsidy_off'] as boolean) ?? false)
+  const [promoZeroed, setPromoZeroed] = useState<Set<string>>(
+    () => new Set(((inp['promotion_zeroed'] as string[]) ?? [])),
+  )
+
   useEffect(() => {
     fetchPricingBundle(quote.model_code)
       .then(b => {
@@ -153,8 +166,28 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   async function save() {
     setBusy(true)
     try {
+      /*
+       * 순서가 중요하다 — 옵션을 먼저 저장하고 메모·할인을 저장한다.
+       * 둘 다 실구매가를 다시 계산하는데, 나중 저장이 **바뀐 옵션까지 반영한** 값을 남긴다.
+       * (반대로 하면 옵션 저장이 옛 할인으로 계산한 금액을 덮어쓴다)
+       */
       const r = await saveQuoteSelections(quote.id, sel)
-      onDone(r.changed ? `옵션 ${r.changed}건 변경 · 실구매가 ₩${r.final_price.toLocaleString('ko-KR')}` : '바뀐 옵션이 없습니다')
+      const extrasChanged =
+        memo.trim() !== ((inp['memo'] as string) ?? '').trim()
+        || localOff !== ((inp['local_subsidy_off'] as boolean) ?? false)
+        || [...promoZeroed].sort().join(',') !== [...((inp['promotion_zeroed'] as string[]) ?? [])].sort().join(',')
+      await saveQuoteInputs(quote.id, {
+        memo: memo.trim(),
+        local_subsidy_off: localOff,
+        promotion_zeroed: [...promoZeroed],
+      })
+      // 할인·보조금을 함께 바꿨으면 여기 금액은 이미 지난 값이다(서버가 뒤에 다시 계산한다).
+      // 그럴 땐 금액을 말하지 않는다 — 틀린 숫자를 보여 주느니 목록에서 확인하는 편이 낫다.
+      onDone(
+        extrasChanged ? '저장했습니다 — 목록에서 실구매가를 확인하세요'
+        : r.changed ? `옵션 ${r.changed}건 변경 · 실구매가 ₩${r.final_price.toLocaleString('ko-KR')}`
+        : '바뀐 값이 없습니다',
+      )
     } catch (e) { onFail(e) } finally { setBusy(false) }
   }
 
@@ -181,8 +214,27 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
           groups={byCat(OPTION_CATEGORY.interior)} selections={sel} onSelect={pick}
           disabledGroupCodes={disabled} hiddenValueCodes={hidden.values} optionPrices={bundle.option_prices}
         />
+
+        {/* 컨피규레이터와 **같은 조각** — 한쪽에만 칸을 두면 다른 쪽에서 못 고치는 값이 생긴다 */}
+        <div style={s.section}>메모 · 할인</div>
+        <div style={s.extras}>
+          <QuoteExtras
+            bundle={bundle}
+            selections={sel}
+            optionPrices={bundle.option_prices}
+            memo={memo} onMemoChange={setMemo}
+            localSubsidyOff={localOff} onToggleLocalSubsidy={setLocalOff}
+            promotionZeroed={promoZeroed}
+            onTogglePromotion={g => setPromoZeroed(prev => {
+              const next = new Set(prev)
+              if (next.has(g)) next.delete(g); else next.add(g)
+              return next
+            })}
+            disabled={frozen}
+          />
+        </div>
       </div>
-      <SaveBar frozen={frozen} busy={busy} onSave={save} note="옵션을 바꾸면 실구매가가 다시 계산됩니다." />
+      <SaveBar frozen={frozen} busy={busy} onSave={save} note="옵션·할인을 바꾸면 실구매가가 다시 계산됩니다." />
     </>
   )
 }
@@ -395,6 +447,8 @@ const s: Record<string, React.CSSProperties> = {
   scroll: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 2px' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 },
   gridFull: { gridColumn: '1 / -1' },
+  // 메모·할인 묶음 — 옵션 목록과 같은 좌우 여백을 쓰되 세로로 쌓는다
+  extras: { display: 'flex', flexDirection: 'column' as const, gap: 8, paddingBottom: 4 },
   section: {
     fontSize: 14, fontWeight: 700, color: 'var(--dark)',
     margin: '14px 0 8px', paddingBottom: 5, borderBottom: '1px solid var(--line)',
