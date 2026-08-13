@@ -605,7 +605,15 @@ const styles: Record<string, React.CSSProperties> = {
   // 세로에서는 위쪽 여백으로 흐름 밖임을 표시한다
   asideStack: { marginLeft: 0, marginTop: 10 },
   opStack: { fontSize: 12, color: 'var(--muted)', fontWeight: 700, alignSelf: 'center', lineHeight: 1 },
-  popOverlay: { position: 'fixed', inset: 0, zIndex: 59, background: 'var(--scrim)' },
+  /*
+   * 바깥을 눌러 닫기 위한 **투명한** 판.
+   *
+   * ⚠️ 색을 칠하지 않는다. 가격바 팝업은 화면을 붙잡는 모달이 아니라 그 자리에서 값을
+   *    고치는 창이다 — 뒤를 어둡게 하면 화면 전체가 회색이 되고, 무엇보다 이 판의
+   *    z-index(59)가 팝업(41)보다 높아 **팝업 위를 덮어 입력이 막혔다**(실제 사고).
+   *    팝업보다 아래에 두고 색을 지운다.
+   */
+  popOverlay: { position: 'fixed', inset: 0, zIndex: 40, background: 'transparent' },
   // 가격바가 화면 맨 아래라 팝업은 위로 열린다. 내용이 길면 화면 위로 넘쳐 잘리므로
   // 높이를 화면에 맞춰 자르고 안에서 스크롤한다(태블릿에서 위가 잘리던 문제).
   // 흰 바탕은 .scroll-hint(globals.css)가 준다 — 여기서 background 를 쓰면 인라인이
