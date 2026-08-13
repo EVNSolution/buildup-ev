@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac, requirePermission } from '../middleware/rbac.js';
+import { rbac, requirePermission, isAdmin, ownOrgOnly } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
@@ -24,10 +24,16 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
   const { status, from, to } = req.query as Record<string, string | undefined>;
 
   const where: Prisma.OrderWhereInput = {};
-  if (auth.role === 'MAKER' && !auth.is_master) {
-    where.maker_org_id = auth.org_code;
-  } else if (auth.role === 'SALES') {
-    where.quote = { sales_user_id: auth.email };
+  /*
+   * 범위는 **가진 역할 전부**로 정한다. 관리자면 전체, 아니면 겸직한 역할만큼 넓힌다
+   * (영업+특장 겸직이면 자기 견적의 주문 ∪ 자기 조직에 배정된 주문).
+   */
+  if (!isAdmin(auth)) {
+    const scopes: Prisma.OrderWhereInput[] = [];
+    if (auth.roles.includes('MAKER')) scopes.push({ maker_org_id: auth.org_code });
+    if (auth.roles.includes('SALES')) scopes.push({ quote: { sales_user_id: auth.email } });
+    if (scopes.length === 1) Object.assign(where, scopes[0]);
+    else if (scopes.length > 1) where.OR = scopes;
   }
   if (status) where.status = status;
   if (from || to) {
@@ -75,7 +81,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
   try {
     const auth = req.auth!;
 
-    if (auth.role === 'MAKER') {
+    if (ownOrgOnly(auth)) {
       // MAKER: 사양·서류만 — 가격·영업 필드 제외
       const order = await prisma.order.findUnique({
         where: { id },
@@ -221,7 +227,7 @@ ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), requirePermission('ord
     }
 
     // MAKER는 자기 org 주문만 변경 가능
-    if (req.auth!.role === 'MAKER' && order.maker_org_id !== req.auth!.org_code) {
+    if (ownOrgOnly(req.auth!) && order.maker_org_id !== req.auth!.org_code) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 변경할 수 있습니다' } });
       return;
     }
@@ -266,7 +272,7 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
       return;
     }
-    if (req.auth!.role === 'MAKER' && order.maker_org_id !== req.auth!.org_code) {
+    if (ownOrgOnly(req.auth!) && order.maker_org_id !== req.auth!.org_code) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 수락할 수 있습니다' } });
       return;
     }
@@ -297,7 +303,7 @@ ordersRouter.get('/:orderId/documents', rbac('ADMIN', 'MAKER'), requirePermissio
   }
   try {
     // MAKER: 자기 org 주문만
-    if (req.auth!.role === 'MAKER') {
+    if (ownOrgOnly(req.auth!)) {
       const order = await prisma.order.findUnique({ where: { id: orderId }, select: { maker_org_id: true } });
       if (!order || order.maker_org_id !== req.auth!.org_code) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });

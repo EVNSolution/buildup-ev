@@ -122,7 +122,7 @@ export function OptionPanel({
         ))}
       </div>
 
-      <div className="scroll-hint" style={styles.scroll}>
+      <div style={styles.scroll}>
         {activeTab === 'vehicle' && (
           <VehicleOptionsTab
             groups={groupsByCategory(bundle, OPTION_CATEGORY.vehicle, hiddenGroupCodes)}

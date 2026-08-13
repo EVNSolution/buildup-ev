@@ -11,7 +11,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { createReadStream } from 'node:fs';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, ownOrgOnly } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { generateContractDoc, ContractDocError } from '../services/contract-docgen.js';
 import {
@@ -41,7 +41,7 @@ async function loadOrderScoped(req: Request, res: Response): Promise<{ id: numbe
     return null;
   }
   const auth = req.auth!;
-  if (auth.role === 'MAKER' && !auth.is_master && order.maker_org_id !== auth.org_code) {
+  if (ownOrgOnly(auth) && order.maker_org_id !== auth.org_code) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
     return null;
   }
@@ -166,7 +166,7 @@ docsRouter.get('/:id/docs', rbac('ADMIN', 'MAKER'), async (req: Request, res: Re
 
   try {
     const docs = await listGeneratedDocs(order.id);
-    const visible = req.auth?.role === 'MAKER'
+    const visible = ownOrgOnly(req.auth!)
       ? docs.filter(d => !MAKER_HIDDEN_DOC_TYPES.has(d.type))
       : docs;
     res.json({ data: visible.map(d => ({ id: d.id, type: d.type, version: d.version, generated_at: d.generated_at })) });
@@ -193,7 +193,7 @@ docsRouter.get('/:id/docs/:docId/download', rbac('ADMIN', 'MAKER'), async (req: 
     return;
   }
   // 특장사는 구조변경 서류만 — 계약서 id 를 직접 넣어도 내려주지 않는다(목록 필터만으론 못 막음)
-  if (req.auth?.role === 'MAKER' && MAKER_HIDDEN_DOC_TYPES.has(doc.type)) {
+  if (ownOrgOnly(req.auth!) && MAKER_HIDDEN_DOC_TYPES.has(doc.type)) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '서류를 찾을 수 없습니다' } });
     return;
   }

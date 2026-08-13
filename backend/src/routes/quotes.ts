@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac, requirePermission } from '../middleware/rbac.js';
+import { rbac, requirePermission, ownQuotesOnly } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
@@ -105,7 +105,7 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
   const { status, from, to } = req.query as Record<string, string | undefined>;
 
   const where: Prisma.QuoteWhereInput = {};
-  if (auth.role === 'SALES') where.sales_user_id = auth.email;
+  if (ownQuotesOnly(auth)) where.sales_user_id = auth.email;
   if (status) where.status = status as QuoteStatus;
   if (from || to) {
     where.created_at = {
@@ -215,7 +215,7 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
   try {
     const quote = await prisma.quote.findUnique({ where: { id }, include: { customer: true } });
     if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+    if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
     const inp = (quote.inputs ?? {}) as Record<string, unknown>;
@@ -275,7 +275,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
   try {
     const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true, inputs: true } });
     if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+    if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
@@ -351,7 +351,7 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission(
   try {
     const quote = await prisma.quote.findUnique({ where: { id }, include: { customer: true } });
     if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+    if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
@@ -424,7 +424,7 @@ quotesRouter.post('/:id/duplicate', rbac('SALES', 'ADMIN'), requirePermission('q
   try {
     const src = await prisma.quote.findUnique({ where: { id } });
     if (!src) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-    if (req.auth?.role === 'SALES' && src.sales_user_id !== req.auth.email) {
+    if (ownQuotesOnly(req.auth!) && src.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
 
@@ -466,7 +466,7 @@ quotesRouter.get('/:id/history', rbac('SALES', 'ADMIN'), async (req: Request, re
   if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
   const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true } });
   if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-  if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+  if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
   }
   res.json({ data: await listQuoteChanges(id) });
@@ -488,7 +488,7 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), requirePermission('q
   try {
     const quote = await prisma.quote.findUnique({ where: { id }, select: { sales_user_id: true, customer_id: true } });
     if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-    if (req.auth?.role === 'SALES' && quote.sales_user_id !== req.auth.email) {
+    if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }); return;
     }
     if (!quote.customer_id) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '견적에 고객이 연결되어 있지 않습니다' } }); return; }
@@ -669,7 +669,7 @@ quotesRouter.patch('/:id/confirm', rbac('SALES', 'ADMIN'), requirePermission('qu
     return;
   }
   // SALES 는 본인 견적만 확정 가능(ADMIN 은 전체)
-  if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
+  if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 확정할 수 있습니다' } });
     return;
   }
@@ -772,7 +772,7 @@ quotesRouter.delete('/:id', rbac('ADMIN'), requirePermission('quote.delete'), as
 
     if (quote.status === 'draft') {
       // SALES는 본인 draft만
-      if (req.auth!.role === 'SALES' && quote.sales_user_id !== req.auth!.email) {
+      if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
         return;
       }
@@ -853,7 +853,7 @@ quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): 
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
       return;
     }
-    if (req.auth!.role === 'SALES' && own.sales_user_id !== req.auth!.email) {
+    if (ownQuotesOnly(req.auth!) && own.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 출력할 수 있습니다' } });
       return;
     }
@@ -903,7 +903,7 @@ quotesRouter.get('/:id/contract-pdf', rbac('SALES', 'ADMIN'), async (req: Reques
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
       return;
     }
-    if (req.auth!.role === 'SALES' && own.sales_user_id !== req.auth!.email) {
+    if (ownQuotesOnly(req.auth!) && own.sales_user_id !== req.auth!.email) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 출력할 수 있습니다' } });
       return;
     }

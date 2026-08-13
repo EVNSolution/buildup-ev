@@ -7,11 +7,25 @@ import type { Role } from '@buildup-ev/shared/types';
 
 export const usersRouter = Router();
 
-function safeUser(u: { email: string; org_code: string; role: string; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; is_master: boolean; created_at: Date; org?: { code: string; name: string; type: string } }) {
+const ROLES = ['SALES', 'ADMIN', 'MAKER'] as const;
+
+/**
+ * 겸직 역할 입력 정리 — 유효하지 않은 값이 하나라도 있으면 null(=400).
+ * 주 역할은 겸직 목록에서 지운다(한 역할이 두 자리에 있으면 해제할 때 한쪽만 지워진다).
+ */
+function normalizeExtraRoles(input: string[] | undefined, primary: string): Role[] | null {
+  if (input === undefined) return [];
+  if (!Array.isArray(input)) return null;
+  if (input.some(r => !ROLES.includes(r as typeof ROLES[number]))) return null;
+  return [...new Set(input)].filter(r => r !== primary) as Role[];
+}
+
+function safeUser(u: { email: string; org_code: string; role: string; extra_roles?: string[]; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; is_master: boolean; created_at: Date; org?: { code: string; name: string; type: string } }) {
   return {
     email: u.email,
     org_code: u.org_code,
     role: u.role,
+    extra_roles: u.extra_roles ?? [],
     name: u.name,
     phone: u.phone ?? undefined,
     status: u.status,
@@ -44,13 +58,19 @@ usersRouter.get('/', rbac('ADMIN'), async (_req: Request, res): Promise<void> =>
 
 usersRouter.post('/', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
-  const { email, name, role, org_code } = req.body as { email?: string; name?: string; role?: string; org_code?: string };
+  const { email, name, role, org_code, extra_roles } = req.body as
+    { email?: string; name?: string; role?: string; org_code?: string; extra_roles?: string[] };
   if (!email || !name || !role || !org_code) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'email, name, role, org_code 필수' } });
     return;
   }
   if (!['SALES', 'ADMIN', 'MAKER'].includes(role)) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 역할' } });
+    return;
+  }
+  const extra = normalizeExtraRoles(extra_roles, role);
+  if (extra === null) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 겸직 역할' } });
     return;
   }
 
@@ -63,6 +83,7 @@ usersRouter.post('/', rbac('ADMIN'), requirePermission('account.manage'), async 
         email,
         name,
         role: role as Role,
+        extra_roles: extra,
         org_code,
         status: 'invited',
         must_change_pw: true,
@@ -89,10 +110,25 @@ usersRouter.post('/', rbac('ADMIN'), requirePermission('account.manage'), async 
 usersRouter.patch('/:email', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email } = req.params as { email: string };
-  const { role, org_code, status } = req.body as { role?: string; org_code?: string; status?: string };
+  const { role, org_code, status, extra_roles } = req.body as
+    { role?: string; org_code?: string; status?: string; extra_roles?: string[] };
 
   const data: Record<string, unknown> = {};
   if (role)     { if (!['SALES','ADMIN','MAKER'].includes(role)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 역할' } }); return; } data['role'] = role; }
+  /*
+   * 겸직 역할 — 통째로 덮어쓴다(추가·삭제를 한 번에). 주 역할은 목록에서 빼 둔다:
+   * 둘 다 들고 있으면 나중에 주 역할이 바뀔 때 지워야 할 자리가 두 곳이 된다.
+   */
+  if (extra_roles !== undefined) {
+    const base = role ?? (await prisma.user.findUnique({ where: { email } }))?.role;
+    const extra = normalizeExtraRoles(extra_roles, base ?? '');
+    if (extra === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 겸직 역할' } }); return; }
+    data['extra_roles'] = extra;
+  } else if (role) {
+    // 주 역할만 바꿀 때 — 새 주 역할이 겸직에 남아 있으면 같은 역할이 두 자리에 생긴다
+    const cur = await prisma.user.findUnique({ where: { email } });
+    if (cur) data['extra_roles'] = (cur.extra_roles as Role[]).filter(r => r !== role);
+  }
   if (org_code) data['org_code'] = org_code;
   if (status)   { if (!['active','invited','suspended'].includes(status)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 상태' } }); return; } data['status'] = status; }
 
@@ -146,8 +182,11 @@ usersRouter.delete('/:email', rbac('ADMIN'), requirePermission('account.manage')
     }
 
     // 공통 가드: 마지막 ADMIN 삭제 금지
-    if (target.role === 'ADMIN') {
-      const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+    if (target.role === 'ADMIN' || (target.extra_roles as Role[]).includes('ADMIN')) {
+      // 겸직으로 관리자인 계정도 관리자로 센다 — 안 그러면 마지막 관리자가 지워질 수 있다
+      const adminCount = await prisma.user.count({
+        where: { OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }] },
+      });
       if (adminCount <= 1) {
         res.status(409).json({ error: { code: 'LAST_ADMIN', message: '마지막 관리자 계정은 삭제할 수 없습니다.' } });
         return;

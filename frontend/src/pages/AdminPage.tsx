@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { openPdf } from '../lib/openPdf'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
+import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, confirmQuote, assignQuote, deleteQuote } from '../api/quotes'
@@ -29,6 +30,13 @@ function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[
   return modules
     .filter(m => m.surface.split(',').map(s => s.trim()).includes(surface))
     .sort((a, b) => a.sort_order - b.sort_order)
+}
+
+/** 겸직 계정 — 가진 역할들의 모듈을 합쳐서 본다(같은 모듈이 두 번 나오지 않게 코드로 묶는다). */
+function getModulesForRoles(modules: FeatureModule[], roles: Role[]): FeatureModule[] {
+  const seen = new Map<string, FeatureModule>()
+  for (const r of roles) for (const m of getModulesForRole(modules, r)) seen.set(m.code, m)
+  return [...seen.values()].sort((a, b) => a.sort_order - b.sort_order)
 }
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
@@ -118,6 +126,8 @@ interface CreateUserModalProps {
 }
 function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
   const [form, setForm] = useState<CreateUserInput>({ email: '', name: '', role: 'SALES', org_code: '' })
+  /** 겸직 — 발급할 때부터 여러 화면을 쓰는 계정이 있다(관리자가 영업까지 등) */
+  const [extraRoles, setExtraRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<{ user: User; temp_password: string } | null>(null)
@@ -131,7 +141,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
     if (!form.email || !form.name || !form.role || !form.org_code) { setError('모든 항목을 입력해 주세요.'); return }
     setLoading(true); setError('')
     try {
-      const res = await createUser(form)
+      const res = await createUser({ ...form, extra_roles: extraRoles.filter(r => r !== form.role) })
       setResult(res)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '계정 발급 실패')
@@ -179,6 +189,25 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
             </select>
           </div>
           <div>
+            <label style={acc.label}>겸직 역할 · 선택</label>
+            <div style={acc.roleRow}>
+              {ROLES.filter(r => r !== form.role).map(r => {
+                const on = extraRoles.includes(r)
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    style={on ? acc.roleChipOn : acc.roleChipOff}
+                    onClick={() => setExtraRoles(prev => on ? prev.filter(x => x !== r) : [...prev, r])}
+                    disabled={loading}
+                  >
+                    {ROLE_KO[r]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
             <label style={acc.label}>소속 조직</label>
             <select value={form.org_code} onChange={e => setField('org_code', e.target.value)} style={acc.input} disabled={loading}>
               <option value="">— 조직 선택 —</option>
@@ -216,6 +245,7 @@ function AccountsTab() {
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [cascadeDeleting, setCascadeDeleting] = useState<string | null>(null)
+  const [roleSaving, setRoleSaving] = useState<string | null>(null)
 
   function loadAll() {
     setLoading(true); setErr('')
@@ -281,6 +311,26 @@ function AccountsTab() {
     }
   }
 
+  /**
+   * 겸직 역할 켜고 끄기 — 주 역할은 건드리지 않는다(그건 계정의 소속을 바꾸는 일이라 따로 둔다).
+   * 서버가 목록을 통째로 받아 주 역할을 빼고 저장하므로, 여기서도 통째로 보낸다.
+   */
+  async function handleToggleExtraRole(user: User, role: Role) {
+    if (role === user.role) return
+    const cur = user.extra_roles ?? []
+    const next = cur.includes(role) ? cur.filter(r => r !== role) : [...cur, role]
+    setRoleSaving(user.email)
+    setErr('')
+    try {
+      const saved = await updateUser(user.email, { extra_roles: next })
+      setUsers(prev => prev.map(u => u.email === user.email ? { ...u, extra_roles: saved.extra_roles ?? next } : u))
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : '역할 변경 실패')
+    } finally {
+      setRoleSaving(null)
+    }
+  }
+
   async function handleUserModuleToggle(email: string, code: string, current: boolean) {
     const entry: Omit<AccessControl, 'id'> = { subject_type: 'user', subject_ref: email, module_code: code, enabled: !current }
     try {
@@ -305,14 +355,42 @@ function AccountsTab() {
   const isDeleteDisabled = (u: User) => u.email === myEmail || (u.role === 'ADMIN' && adminCount <= 1)
 
   function renderModuleExpand(user: User) {
+    const myRoles = rolesOf(user)
     return (
       <div style={acc.expandCell}>
+        {/*
+          역할 — 한 계정이 여러 화면을 쓸 수 있다(관리자가 영업까지, 관리자가 특장까지).
+          계정을 하나 더 만들면 견적·주문이 다른 사람 것으로 쌓이므로 역할을 더한다.
+        */}
+        {!user.is_master && (
+          <>
+            <div style={acc.expandHeader}>역할 — 주 역할 + 겸직 (여러 화면을 한 계정으로)</div>
+            <div style={acc.roleRow}>
+              {ROLES.map(r => {
+                const isPrimary = r === user.role
+                const on = myRoles.includes(r)
+                return (
+                  <button
+                    key={r}
+                    style={{ ...(on ? acc.roleChipOn : acc.roleChipOff), ...(isPrimary ? acc.roleChipPrimary : null) }}
+                    onClick={() => handleToggleExtraRole(user, r)}
+                    disabled={isPrimary || roleSaving === user.email}
+                    title={isPrimary ? '주 역할 — 로그인 후 첫 화면 기준이라 여기서 끄지 않는다' : '겸직 역할 켜기/끄기'}
+                  >
+                    {ROLE_KO[r]}{isPrimary ? ' · 주' : ''}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
         <div style={acc.expandHeader}>
-          {user.is_master ? '마스터 — 8개 모듈 전체' : `계정 모듈 override — ${ROLE_KO[user.role]} 역할 기준`}
+          {user.is_master ? '마스터 — 전체 모듈' : `계정 모듈 override — ${myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
         </div>
         <div style={acc.moduleGrid}>
-          {(user.is_master ? modules : getModulesForRole(modules, user.role)).map(mod => {
-            const roleEnabled = isEnabled(ac, 'role', user.role, mod.code)
+          {(user.is_master ? modules : getModulesForRoles(modules, myRoles)).map(mod => {
+            // 겸직이면 역할 중 하나라도 켜 두었으면 켜진 것 — 서버 판정(mergePermissions)과 같다
+            const roleEnabled = myRoles.some(r => isEnabled(ac, 'role', r, mod.code))
             const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
             const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
             const hasOverride = userOverride !== undefined
@@ -431,7 +509,9 @@ function AccountsTab() {
                   {user.is_master && <span style={acc.masterBadge}>마스터</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={acc.roleBadge}>{ROLE_KO[user.role]}</span>
+                  {rolesOf(user).map(r => (
+                    <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{ROLE_KO[r]}</span>
+                  ))}
                   <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
                     {STATUS_LABEL[user.status] ?? user.status}
                   </span>
@@ -474,7 +554,10 @@ function AccountsTab() {
                     <td style={styles.tdModule}>{user.email}</td>
                     <td style={styles.tdModule}>{user.name}</td>
                     <td style={styles.tdToggle}>
-                      <span style={acc.roleBadge}>{ROLE_KO[user.role]}</span>
+                      {/* 겸직이면 가진 역할을 모두 보여준다 — 하나만 보이면 왜 다른 화면이 열리는지 알 수 없다 */}
+                      {rolesOf(user).map(r => (
+                        <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{ROLE_KO[r]}</span>
+                      ))}
                       {user.is_master && <span style={acc.masterBadge}>마스터</span>}
                     </td>
                     <td style={styles.tdModule}>{user.org_code}</td>
@@ -1113,6 +1196,24 @@ const acc: Record<string, React.CSSProperties> = {
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
   input: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 },
   roleBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
+  // 겸직은 주 역할보다 한 단 여리게 — 어느 것이 이 계정의 자리인지 한눈에 갈린다
+  roleBadgeExtra: {
+    fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, marginLeft: 4,
+    background: 'var(--lime-bg)', color: 'var(--dark)', border: '1px solid var(--lime)',
+  },
+  roleRow: { display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 12 },
+  roleChipOff: {
+    minHeight: 'var(--h-control)', padding: '0 var(--sp-4)', borderRadius: 'var(--r-pill)',
+    border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
+    fontSize: 'var(--fs-label)', fontFamily: 'inherit', cursor: 'pointer',
+  },
+  roleChipOn: {
+    minHeight: 'var(--h-control)', padding: '0 var(--sp-4)', borderRadius: 'var(--r-pill)',
+    border: '1px solid var(--lime)', background: 'var(--lime-bg)', color: 'var(--dark)',
+    fontSize: 'var(--fs-label)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+  },
+  // 주 역할은 끌 수 없다 — 눌리지 않는다는 것을 커서로도 알린다
+  roleChipPrimary: { cursor: 'default', background: 'var(--lime)', borderColor: 'var(--lime)' },
   masterBadge: { fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: '#1a1a1a', color: '#c8d200', marginLeft: 4 },
   statusBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8 },
   actions: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' as const },

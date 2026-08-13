@@ -74,6 +74,37 @@ describe('mergePermissions — 권한 머지 로직', () => {
     expect(perms).toContain('quote.create');
     expect(perms).not.toContain('order.confirm');
   });
+
+  // ── 겸직(여러 역할) ──────────────────────────────────────────────────
+  it('관리+영업 겸직 — 두 역할의 모듈을 합쳐서 가진다', () => {
+    const perms = mergePermissions(['ADMIN', 'SALES'], 'both@evnsolution.com', ROLE_ACS);
+    expect(perms).toContain('quote.create');   // 영업 쪽
+    expect(perms).toContain('account.manage'); // 관리 쪽
+    expect(perms).toContain('order.view');
+  });
+
+  it('겸직 — 한 역할이 껐어도 다른 역할이 켰으면 켜진 것으로 본다', () => {
+    const acs: AccessControl[] = [
+      ...ROLE_ACS,
+      { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'quote.create', enabled: false },
+    ];
+    // 영업 역할로 준 quote.create 를 관리 역할의 끔이 되돌리면, 겸직을 준 의미가 없다
+    expect(mergePermissions(['ADMIN', 'SALES'], 'both@evnsolution.com', acs)).toContain('quote.create');
+    expect(mergePermissions(['SALES', 'ADMIN'], 'both@evnsolution.com', acs)).toContain('quote.create');
+  });
+
+  it('겸직이어도 계정 override 는 마지막 말 — 막으면 막힌다', () => {
+    const acs: AccessControl[] = [
+      ...ROLE_ACS,
+      { subject_type: 'user', subject_ref: 'both@evnsolution.com', module_code: 'quote.create', enabled: false },
+    ];
+    expect(mergePermissions(['ADMIN', 'SALES'], 'both@evnsolution.com', acs)).not.toContain('quote.create');
+  });
+
+  it('역할 하나를 배열로 줘도 결과가 같다 — 호출부가 갈리지 않는다', () => {
+    expect(mergePermissions(['SALES'], 'x@test.com', ROLE_ACS).sort())
+      .toEqual(mergePermissions('SALES', 'x@test.com', ROLE_ACS).sort());
+  });
 });
 
 // ── API 통합 테스트 (JWT 쿠키, DB 필요 없음 — NODE_ENV=test 경로) ────────

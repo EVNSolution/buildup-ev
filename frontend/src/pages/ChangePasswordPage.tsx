@@ -2,12 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { Role } from '@shared/types/index'
-
-const ROLE_HOME: Record<Role, string> = {
-  SALES: '/sales',
-  ADMIN: '/admin',
-  MAKER: '/maker',
-}
+import { homeFor } from '../lib/surfaces'
 
 async function apiChangePassword(current: string, next: string): Promise<void> {
   const res = await fetch('/api/v1/auth/change-password', {
@@ -44,7 +39,7 @@ export function ChangePasswordPage() {
       await apiChangePassword(current, next)
       await refreshSession()
       const role = session?.user.role ?? 'SALES'
-      navigate(ROLE_HOME[role as Role] ?? '/sales', { replace: true })
+      navigate(homeFor(role as Role), { replace: true })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '비밀번호 변경 실패')
     } finally {
