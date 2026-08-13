@@ -51,13 +51,15 @@ const TRIM_SPECS: Record<string, { title: string; lines: Seg[][] }> = {
   },
 }
 
-/** 펼친 사양 — 카드 아래 한 줄 전체를 쓴다(좁은 카드 폭에 욱여넣지 않는다). */
-function SpecPanel({ spec, onClose }: { spec: { title: string; lines: Seg[][] }; onClose: () => void }) {
+/**
+ * 펼친 사양 — 카드 아래 한 줄 전체를 쓴다(좁은 카드 폭에 욱여넣지 않는다).
+ * 닫는 버튼은 두지 않는다 — 펼친 그 자리의 「사양 보기 ▴」 가 곧 닫는 버튼이다.
+ */
+function SpecPanel({ spec }: { spec: { title: string; lines: Seg[][] } }) {
   return (
     <div style={tip.panel}>
       <div style={tip.head}>
         <span style={tip.title}>{spec.title} 주요 사양</span>
-        <button type="button" style={tip.close} onClick={onClose}>닫기</button>
       </div>
       <ul style={tip.list}>
         {spec.lines.map((segs, i) => (
@@ -131,7 +133,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
             </div>
             {/* 펼친 사양은 카드 아래 한 줄 전체 — 카드 폭에 욱여넣으면 읽기 어렵다 */}
             {opened && TRIM_SPECS[opened.code] && (
-              <SpecPanel spec={TRIM_SPECS[opened.code]!} onClose={() => setOpenSpec(null)} />
+              <SpecPanel spec={TRIM_SPECS[opened.code]!} />
             )}
           </div>
         )
@@ -193,12 +195,8 @@ const tip: Record<string, React.CSSProperties> = {
     marginTop: 10, background: '#f7f8f3', border: '1px solid var(--line)',
     borderRadius: 10, padding: '11px 13px',
   },
-  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 },
+  head: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 },
   title: { fontWeight: 700, fontSize: 14, color: 'var(--dark)' },
-  close: {
-    border: '1px solid var(--line)', borderRadius: 7, background: '#fff', color: 'var(--muted)',
-    fontSize: 13, fontFamily: 'inherit', padding: '3px 10px', cursor: 'pointer', flexShrink: 0,
-  },
   list: { margin: 0, paddingLeft: 17, display: 'flex', flexDirection: 'column', gap: 3 },
   item: { fontSize: 13, lineHeight: 1.55, color: 'var(--body)' },
   strong: { fontWeight: 700, color: 'var(--dark)' },

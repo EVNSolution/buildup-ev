@@ -122,7 +122,7 @@ export function OptionPanel({
         ))}
       </div>
 
-      <div style={styles.scroll}>
+      <div className="scroll-hint" style={styles.scroll}>
         {activeTab === 'vehicle' && (
           <VehicleOptionsTab
             groups={groupsByCategory(bundle, OPTION_CATEGORY.vehicle, hiddenGroupCodes)}
@@ -200,7 +200,8 @@ export function OptionPanel({
         )}
       </div>
 
-      <div style={styles.footer}>
+      {/* 좁은 창은 바로 아래 실구매가 한 줄이 붙는다 — 사이가 벌어지면 남의 화면처럼 읽힌다 */}
+      <div style={compact ? { ...styles.footer, paddingBottom: 'var(--sp-2)' } : styles.footer}>
         {saveError && <div style={styles.saveError}>{saveError}</div>}
         {savedQuote && !saveError && (
           <div style={styles.savedNote}>

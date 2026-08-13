@@ -118,7 +118,11 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
   const lbl  = stack ? styles.stackLabel : null
 
   return (
-    <div style={stack || touch ? styles.bar : { ...styles.bar, ...styles.barTall }}>
+    <div style={{
+      ...(stack || touch ? styles.bar : { ...styles.bar, ...styles.barTall }),
+      // 요약 한 줄은 바로 위 「견적 저장」 버튼과 한 덩어리로 읽혀야 한다 — 위 여백을 줄인다
+      ...(summary ? styles.barSummary : null),
+    }}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
       {wide ? (
@@ -173,10 +177,13 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           </div>
         </div>
       ) : (
-      <div style={{
-        ...(stack ? styles.flowStack : compact ? { ...styles.flow, ...styles.flowScroll } : styles.flow),
-        ...(summary ? { ...styles.flowSheet, display: openFlow ? 'flex' : 'none' } : null),
-      }}>
+      <div
+        className={summary ? 'scroll-hint' : undefined}
+        style={{
+          ...(stack ? styles.flowStack : compact ? { ...styles.flow, ...styles.flowScroll } : styles.flow),
+          ...(summary ? { ...styles.flowSheet, display: openFlow ? 'flex' : 'none' } : null),
+        }}
+      >
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={{ ...styles.first, ...row, ...sep }}>
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
@@ -335,6 +342,7 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
       {/* 입력칸이라 클릭이 블록 토글로 새어 나가면 안 된다 */}
       <div
+        className="scroll-hint"
         style={{ ...styles.popup, ...styles.popupLeft, ...(sheet ? styles.popupSheet : null) }}
         onClick={e => e.stopPropagation()}
       >
@@ -369,7 +377,7 @@ function RegPopup({ ok, onClose, sheet }: { ok: QuoteResult; onClose: () => void
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
-      <div style={{ ...styles.popup, ...(sheet ? styles.popupSheet : null) }} onClick={e => e.stopPropagation()}>
+      <div className="scroll-hint" style={{ ...styles.popup, ...(sheet ? styles.popupSheet : null) }} onClick={e => e.stopPropagation()}>
         <div style={styles.popTitle}>차량 등록/부대비용 ⑥</div>
         <Line k="차량 취득세 (감면 후)" v={fmt(ok.car_acq_tax)} />
         <Line k="공채할인액" v={fmt(ok.bond_discount)} />
@@ -443,6 +451,8 @@ const styles: Record<string, React.CSSProperties> = {
   // 가격바는 칸(카드)들이 스스로 영역을 말한다 — 위쪽 구분선을 두면 화면이 토막나 보인다
   // 아래 여백을 줄여 내용을 전체적으로 내린다(가격바는 화면 맨 아래라 아래쪽 여백이 덜 필요하다)
   bar: { flexShrink: 0, background: 'var(--bg)', padding: 'var(--sp-4) var(--sp-4) var(--sp-2)' },
+  /** 요약 한 줄 — 위 버튼과 붙여 둔다(둘 사이가 벌어지면 다른 화면처럼 읽힌다) */
+  barSummary: { padding: 'var(--sp-2) var(--sp-4) var(--sp-2)' },
   /*
    * 예전엔 칸을 두툼하게(위아래 20~30px) 만들어 바를 채웠다. 그런데 보조금 내역이 붙으면서
    * 바가 이미 충분히 높아졌고, 그 여백은 **아래쪽 빈 공간**으로만 남았다.
@@ -460,11 +470,12 @@ const styles: Record<string, React.CSSProperties> = {
   /** 휴대폰에서 늘 보이는 한 줄 — 이것만으로 상담이 굴러가야 한다 */
   summaryBar: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', width: '100%',
-    minHeight: 'var(--h-control)', padding: '0 var(--sp-3)',
+    // 화면에서 가장 중요한 한 줄 — 입력칸보다 한 단 크게 둔다
+    minHeight: 'calc(var(--h-control) + 8px)', padding: '0 var(--sp-4)',
     background: 'var(--dark)', color: '#fff', border: 'none', borderRadius: 'var(--r-md)',
   },
-  summaryLabel: { fontSize: 'var(--fs-label)', color: 'var(--lime)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
-  summaryValue: { flex: 1, textAlign: 'right' as const, fontSize: 17, fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
+  summaryLabel: { fontSize: 'var(--fs-body)', color: 'var(--lime)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
+  summaryValue: { flex: 1, textAlign: 'right' as const, fontSize: 20, fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
   summaryMore: { fontSize: 'var(--fs-caption)', color: '#c9ccd2', whiteSpace: 'nowrap' as const },
   /** 펼친 내역 — 화면을 다 덮지 않게 높이를 묶고 안에서 스크롤한다 */
   flowSheet: { maxHeight: '46vh', overflowY: 'auto' as const, marginBottom: 'var(--sp-2)' },
@@ -597,7 +608,11 @@ const styles: Record<string, React.CSSProperties> = {
   popOverlay: { position: 'fixed', inset: 0, zIndex: 59, background: 'var(--scrim)' },
   // 가격바가 화면 맨 아래라 팝업은 위로 열린다. 내용이 길면 화면 위로 넘쳐 잘리므로
   // 높이를 화면에 맞춰 자르고 안에서 스크롤한다(태블릿에서 위가 잘리던 문제).
-  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 460px)', overflowY: 'auto', background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
+  // 흰 바탕은 .scroll-hint(globals.css)가 준다 — 여기서 background 를 쓰면 인라인이
+  // 클래스를 덮어 「더 있다」 그림자가 사라진다(실제로 한 번 덮여 있었다)
+  // 높이 한도 560 = 보조금 팝업이 산정 결과까지 **스크롤 없이** 들어가는 높이(실측 535).
+  // 여기서 아끼면 화면이 넉넉한데도 결과가 잘려 스크롤해야 한다.
+  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 560px)', overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
   popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
   // 보조금 블록은 가격바 왼쪽에 있어 오른쪽 정렬(popup)로 열면 화면 밖으로 나간다.
   // 폭 364 = 가장 긴 줄(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가」)이

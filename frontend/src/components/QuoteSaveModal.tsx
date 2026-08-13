@@ -396,7 +396,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   // 닫기는 '취소' 와 ✕ 로만.
   return (
     <div style={s.overlay}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
+      <div className="scroll-hint" style={s.modal} onClick={e => e.stopPropagation()}>
         <h2 style={s.h2}>{forContract ? '계약서 정보 확인' : isEdit ? '고객정보 수정' : '견적 저장'}</h2>
         <p style={s.desc}>
           {forContract
@@ -434,7 +434,8 @@ const s: Record<string, React.CSSProperties> = {
     // 예전엔 440px 한 열이라 화면을 넘겨 스크롤해야 했다. 두 열로 놓아 한 화면에 담는다.
     // 폭 760 = 가장 긴 라벨(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가 · 필수」
     // 342px)이 한 열에 줄바꿈 없이 들어가는 값(342×2 + 열간격 16 + 좌우여백 48 = 748) + 여유.
-    background: '#fff', borderRadius: 16, width: 760, maxWidth: '94vw', maxHeight: '92vh',
+    /* 흰 바탕은 .scroll-hint 가 준다(인라인으로 덮으면 스크롤 그림자가 사라진다) */
+    borderRadius: 16, width: 760, maxWidth: '94vw', maxHeight: '92vh',
     overflowY: 'auto', padding: '18px 24px', boxShadow: '0 10px 40px rgba(0,0,0,.25)',
   },
   /**
