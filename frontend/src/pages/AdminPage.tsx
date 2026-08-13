@@ -419,11 +419,12 @@ function AccountsTab() {
   }
 
   function renderActionButtons(user: User) {
-    const btnH = isMobile ? { minHeight: 44 } : {}
+    // 높이는 BTN(--h-control-sm)이 정한다 — 손가락 기기에서 이미 50px 로 커진다.
+    // 여기서 44 를 덧씌우면 오히려 기준보다 작아진다(zoom .88 → 39px).
     if (user.is_master) {
       return isMaster ? (
         <button
-          style={{ ...BTN.row, ...btnH }}
+          style={{ ...BTN.row }}
           onClick={() => handleResetPw(user.email)}
           disabled={resetting === user.email}
         >
@@ -434,27 +435,27 @@ function AccountsTab() {
     return (
       <>
         <button
-          style={{ ...BTN.row, ...btnH }}
+          style={{ ...BTN.row }}
           onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
         >
           {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
         </button>
         <button
-          style={{ ...BTN.row, ...btnH }}
+          style={{ ...BTN.row }}
           onClick={() => handleResetPw(user.email)}
           disabled={resetting === user.email}
         >
           {resetting === user.email ? '…' : '비번재설정'}
         </button>
         <button
-          style={{ ...(user.status === 'active' ? BTN.rowDanger : BTN.rowPrimary), ...btnH }}
+          style={{ ...(user.status === 'active' ? BTN.rowDanger : BTN.rowPrimary) }}
           onClick={() => handleToggleStatus(user)}
           disabled={togglingStatus === user.email}
         >
           {user.status === 'active' ? '정지' : '활성화'}
         </button>
         <button
-          style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDanger), ...btnH }}
+          style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDanger) }}
           onClick={() => handleDelete(user.email)}
           disabled={isDeleteDisabled(user) || deleting === user.email}
           title={
@@ -467,7 +468,7 @@ function AccountsTab() {
         </button>
         {isMaster && (
           <button
-            style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDangerOutline), ...btnH }}
+            style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDangerOutline) }}
             onClick={() => handleCascadeDelete(user.email)}
             disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
             title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
@@ -495,7 +496,8 @@ function AccountsTab() {
 
       <div style={acc.toolbar}>
         <span style={acc.count}>{users.length}명</span>
-        <button style={{ ...BTN.barPrimary, minHeight: isMobile ? 44 : undefined }} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
+        {/* 높이는 BTN 이 정한다 — 여기서 minHeight 를 덮으면(undefined) 값이 지워져 납작해진다 */}
+        <button style={BTN.barPrimary} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
       </div>
 
       {isMobile ? (
@@ -736,7 +738,7 @@ function QuotesTab() {
   return (
     <div>
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1 } : {}) }}>
           <option value="">전체 상태</option>
           <option value="draft">임시저장</option>
           <option value="confirmed">견적확정</option>
@@ -747,11 +749,11 @@ function QuotesTab() {
           <option value="expired">만료</option>
         </select>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...qt.dateInput, ...(isMobile ? { minHeight: 44 } : {}) }} />
+          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...qt.dateInput }} />
           <span style={qt.dateSep}>~</span>
-          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput, ...(isMobile ? { minHeight: 44 } : {}) }} />
+          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput }} />
         </div>
-        <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1, minHeight: 44 } : {}) }}>조회</button>
+        <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
@@ -795,37 +797,37 @@ function QuotesTab() {
               </div>
               <div style={qtMob.actions}>
                 <button
-                  style={{ ...BTN.row, flex: 1, minHeight: 44 }}
+                  style={{ ...BTN.row, width: '100%' }}
                   onClick={() => setViewing(q)}
                 >고객정보</button>
                 <button
-                  style={{ ...BTN.row, flex: 1, minHeight: 44 }}
+                  style={{ ...BTN.row, width: '100%' }}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
                 >견적서</button>
                 <button
-                  style={{ ...(q.status === 'draft' ? BTN.rowMuted : BTN.row), flex: 1, minHeight: 44 }}
+                  style={{ ...(q.status === 'draft' ? BTN.rowMuted : BTN.row), width: '100%' }}
                   disabled={q.status === 'draft'}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
                 >계약서</button>
                 {q.contract?.status === 'COMPLETED' && (
                   <button
-                    style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }}
+                    style={{ ...BTN.rowPrimary, width: '100%' }}
                     onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
                   >서명본</button>
                 )}
                 {q.status === 'draft' && (
-                  <button style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }} onClick={() => handleConfirm(q.id)}>확정</button>
+                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleConfirm(q.id)}>확정</button>
                 )}
                 {/* 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
                 {q.status === 'confirmed' && (
-                  <button style={{ ...BTN.rowMuted, flex: 1, minHeight: 44 }} disabled title="전자서명이 완료되어야 배정할 수 있습니다">배정</button>
+                  <button style={{ ...BTN.rowMuted, width: '100%' }} disabled title="전자서명이 완료되어야 배정할 수 있습니다">배정</button>
                 )}
                 {q.status === 'contracted' && (
-                  <button style={{ ...BTN.rowPrimary, flex: 1, minHeight: 44 }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
                 )}
                 {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                   <button
-                    style={{ ...(deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)), flex: 1, minHeight: 44 }}
+                    style={{ ...(deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)), width: '100%' }}
                     disabled={deletingId === q.id}
                     onClick={() => handleDelete(q.id, q.status)}
                   >{deletingId === q.id ? '…' : '삭제'}</button>
@@ -1134,8 +1136,9 @@ const styles: Record<string, React.CSSProperties> = {
   tdToggle: { textAlign: 'center' as const, padding: '10px 12px', borderBottom: '1px solid var(--line)' },
   modName: { fontSize: 13, color: 'var(--dark)' },
   modCode: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
-  toggleOn: { padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--lime)', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
-  toggleOff: { padding: '4px 12px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
+  // 높이·폭은 표 안 버튼과 같은 값으로 — 한 화면에서 버튼 크기가 갈리지 않게
+  toggleOn: { ...BTN.smPrimary, background: 'var(--lime)', color: 'var(--dark)', border: 'none', fontWeight: 700 },
+  toggleOff: { ...BTN.smSecondary, color: 'var(--muted)' },
 }
 
 const qt: Record<string, React.CSSProperties> = {
@@ -1156,12 +1159,13 @@ const qt: Record<string, React.CSSProperties> = {
   // 영업 이메일은 길어질 수 있다 — 표 전체를 밀어내지 않게 여기서만 줄임표로 자른다
   tdEmail: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const, maxWidth: 210, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
   tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, whiteSpace: 'nowrap' as const },
-  pdfBtn: { padding: '5px 12px', border: '1px solid var(--line)', borderRadius: 7, cursor: 'pointer', background: '#f7f8f3', color: 'var(--dark)', fontWeight: 700, fontSize: 12 },
-  sendBtn: { padding: '5px 12px', border: '1px solid #b8c9e0', borderRadius: 7, cursor: 'pointer', background: '#eaf2ff', color: '#1565c0', fontWeight: 700, fontSize: 12 },
-  confirmBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12 },
-  deleteBtn: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontWeight: 700, fontSize: 12 },
-  deleteBtnStrong: { padding: '5px 12px', border: '2px solid #b71c1c', borderRadius: 7, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontWeight: 700, fontSize: 12 },
-  deleteBtnDisabled: { padding: '5px 12px', border: 'none', borderRadius: 7, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontWeight: 700, fontSize: 12 },
+  // 표 안 버튼 — 영업 화면 목록과 **같은 크기**(BTN.sm*). 색만 역할에 맞게 얹는다
+  pdfBtn: BTN.smSecondary,
+  sendBtn: BTN.smSecondary,
+  confirmBtn: BTN.smPrimary,
+  deleteBtn: BTN.smDanger,
+  deleteBtnStrong: BTN.smDanger,
+  deleteBtnDisabled: BTN.smDisabled,
 }
 
 // 모바일 견적 카드 스타일
@@ -1172,7 +1176,8 @@ const qtMob: Record<string, React.CSSProperties> = {
   rows: { display: 'flex', flexDirection: 'column', gap: 6 },
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13 },
   label: { color: 'var(--muted)', fontSize: 12, flexShrink: 0, marginRight: 8 },
-  actions: { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
+  // 세 칸 격자 — flex 로 늘리면 마지막 줄에 하나만 남았을 때 그 버튼만 줄 전체가 된다
+  actions: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
 }
 
 const modal: Record<string, React.CSSProperties> = {
@@ -1183,9 +1188,10 @@ const modal: Record<string, React.CSSProperties> = {
   select: { fontSize: 14, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 9, width: '100%' },
   error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '1px solid #f0c9ad', padding: '7px 10px', borderRadius: 7 },
   actions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
-  cancelBtn: { padding: '9px 18px', border: '1px solid var(--line)', borderRadius: 9, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
-  confirmBtn: { padding: '9px 20px', border: 'none', borderRadius: 9, background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' },
-  confirmBtnDisabled: { padding: '9px 20px', border: 'none', borderRadius: 9, background: '#f0f2f4', color: '#b0b7c0', fontWeight: 700, fontSize: 13, cursor: 'not-allowed' },
+  // 나란히 서는 버튼은 **같은 크기** — 공통 BTN 을 쓰고 최소폭만 맞춘다
+  cancelBtn: { ...BTN.secondary, minWidth: 108, color: 'var(--muted)' },
+  confirmBtn: { ...BTN.primary, minWidth: 108 },
+  confirmBtnDisabled: { ...BTN.disabled, minWidth: 108 },
 }
 
 const acc: Record<string, React.CSSProperties> = {
@@ -1202,13 +1208,14 @@ const acc: Record<string, React.CSSProperties> = {
     background: 'var(--lime-bg)', color: 'var(--dark)', border: '1px solid var(--lime)',
   },
   roleRow: { display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 12 },
+  // 폭을 못 박는다 — 「영업」·「관리자 · 주」처럼 글자 수가 달라도 칩 크기는 같아야 한다
   roleChipOff: {
-    minHeight: 'var(--h-control)', padding: '0 var(--sp-4)', borderRadius: 'var(--r-pill)',
+    minHeight: 'var(--h-control)', width: 108, padding: '0 var(--sp-3)', borderRadius: 'var(--r-pill)',
     border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
     fontSize: 'var(--fs-label)', fontFamily: 'inherit', cursor: 'pointer',
   },
   roleChipOn: {
-    minHeight: 'var(--h-control)', padding: '0 var(--sp-4)', borderRadius: 'var(--r-pill)',
+    minHeight: 'var(--h-control)', width: 108, padding: '0 var(--sp-3)', borderRadius: 'var(--r-pill)',
     border: '1px solid var(--lime)', background: 'var(--lime-bg)', color: 'var(--dark)',
     fontSize: 'var(--fs-label)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
   },
@@ -1232,8 +1239,8 @@ const acc: Record<string, React.CSSProperties> = {
   modMeta: { marginBottom: 4 },
   overrideTag: { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#fff3e0', color: '#e65100' },
   roleTag: { fontSize: 10, color: 'var(--muted)', padding: '1px 0' },
-  toggleOn: { padding: '3px 10px', border: 'none', borderRadius: 5, cursor: 'pointer', background: 'var(--lime)', color: 'var(--dark)', fontWeight: 700, fontSize: 11 },
-  toggleOff: { padding: '3px 10px', border: '1px solid var(--line)', borderRadius: 5, cursor: 'pointer', background: '#fff', color: 'var(--muted)', fontWeight: 600, fontSize: 11 },
+  toggleOn: { ...BTN.smPrimary, background: 'var(--lime)', color: 'var(--dark)', border: 'none', fontWeight: 700 },
+  toggleOff: { ...BTN.smSecondary, color: 'var(--muted)' },
   tempPwBox: { background: '#f8f9fa', border: '1px solid var(--line)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 },
   tempPwLabel: { fontSize: 11, fontWeight: 700, color: 'var(--muted)' },
   tempPw: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', fontFamily: 'monospace', letterSpacing: 1 },
@@ -1251,5 +1258,6 @@ const accMob: Record<string, React.CSSProperties> = {
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13 },
   label: { color: 'var(--muted)', fontSize: 12, flexShrink: 0, marginRight: 8 },
   value: { fontSize: 12, color: 'var(--body)', textAlign: 'right' as const, wordBreak: 'break-all' as const },
-  actions: { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
+  // 세 칸 격자 — flex 로 늘리면 마지막 줄에 하나만 남았을 때 그 버튼만 줄 전체가 된다
+  actions: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 },
 }

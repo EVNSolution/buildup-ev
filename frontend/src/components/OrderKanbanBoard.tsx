@@ -96,7 +96,8 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
                         <button
                           style={{
                             ...(busy ? kb.revBtnDisabled : kb.revBtn),
-                            ...(isMobile ? { minHeight: 44, fontSize: 12 } : {}),
+                            // 높이는 BTN 이 정한다(손가락 기기에서 이미 커진다) — 글자만 한 단 줄인다
+                            ...(isMobile ? { fontSize: 12 } : {}),
                           }}
                           disabled={busy}
                           onClick={() => handleMove(order, 'prev')}
@@ -109,7 +110,8 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
                         <button
                           style={{
                             ...(busy ? kb.advBtnDisabled : kb.advBtn),
-                            ...(isMobile ? { minHeight: 44, fontSize: 12 } : {}),
+                            // 높이는 BTN 이 정한다(손가락 기기에서 이미 커진다) — 글자만 한 단 줄인다
+                            ...(isMobile ? { fontSize: 12 } : {}),
                           }}
                           disabled={busy}
                           onClick={() => handleMove(order, 'next')}

@@ -36,14 +36,29 @@ const MD = {
   fontWeight: 'var(--fw-label)' as unknown as number,
 }
 
-/** 작은 크기 — 표·카드 안. 손가락 기기에서는 높이만 44px 로 커진다 */
+/**
+ * 작은 크기 — 표·카드 안. 손가락 기기에서는 높이만 44px 로 커진다.
+ *
+ * ⚠️ 폭은 **고정**이다(하한선이 아니라). 예전엔 minWidth 74 만 두어 글자 수가 많은 버튼은
+ *    제 폭대로 늘어났다. 크롬에서는 대부분 74 안에 들어와 나란해 보였지만, 한글을 조금
+ *    넓게 그리는 사파리에서는 「고객정보」·「견적 생성」이 삐져나와 한 줄의 버튼들이
+ *    제각각 크기가 됐다(맥 사파리 제보 사진).
+ *    92 = 가장 긴 라벨(「계약서 생성」 79px, 좌우 여백 포함)에 엔진 차이 여유를 더한 값.
+ */
+const SM_W = 92
+
 const SM = {
   ...base,
   minHeight: 'var(--h-control-sm)',
   padding: '0 var(--sp-3)',
   fontSize: 'var(--fs-caption)',
   fontWeight: 'var(--fw-label)' as unknown as number,
-  minWidth: 74,
+  width: SM_W,
+  minWidth: SM_W,
+  // 폭을 못 박았으니 혹시 더 긴 라벨이 생겨도 줄을 밀지 않고 말줄임으로 끝낸다
+  overflow: 'hidden' as const,
+  textOverflow: 'ellipsis' as const,
+  flexShrink: 0,
 }
 
 // ── 종류 4가지 (색) ──
