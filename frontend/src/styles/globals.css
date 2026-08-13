@@ -176,6 +176,23 @@ button {
 }
 
 /*
+ * 손가락으로 누를 때 안드로이드 브라우저가 덧그리는 **파란 상자·번짐**을 없앤다.
+ * 우리는 누름 반응(scale)과 선택 표시(라임 테두리)를 따로 갖고 있어, 브라우저가 더 그리면
+ * 무엇이 선택된 것인지 오히려 헷갈린다(갤럭시탭 영상 제보).
+ */
+* { -webkit-tap-highlight-color: transparent; }
+
+/*
+ * 눌러서 생긴 초점 테두리는 지우되, **키보드로 옮겨 다닐 때는 남긴다**(:focus-visible).
+ * 초점을 아예 없애면 키보드만 쓰는 사람은 지금 어디에 있는지 알 수 없다.
+ */
+button:focus, [role='button']:focus, select:focus, input:focus, textarea:focus { outline: none; }
+button:focus-visible, [role='button']:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+
+/*
  * 눌림 반응 — 누르면 살짝 들어갔다가 튀어오른다.
  * 인라인 style 로는 :active 를 쓸 수 없어 여기서 한 번에 건다(모든 버튼이 같은 감각을 갖는다).
  */
