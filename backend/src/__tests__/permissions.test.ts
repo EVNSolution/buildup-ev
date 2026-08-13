@@ -12,6 +12,8 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { mergePermissions } from '../lib/permissions.js';
+import { canSeeQuotePrices, isAdmin, ownOrgOnly } from '../middleware/rbac.js';
+import type { AuthContext } from '../middleware/rbac.js';
 import type { AccessControl } from '@buildup-ev/shared/types';
 import { authCookie } from './helpers.js';
 
@@ -104,6 +106,43 @@ describe('mergePermissions — 권한 머지 로직', () => {
   it('역할 하나를 배열로 줘도 결과가 같다 — 호출부가 갈리지 않는다', () => {
     expect(mergePermissions(['SALES'], 'x@test.com', ROLE_ACS).sort())
       .toEqual(mergePermissions('SALES', 'x@test.com', ROLE_ACS).sort());
+  });
+});
+
+// ── 금액 노출 자격 ────────────────────────────────────────────────────
+//
+// 특장사에게 견적 금액(공급가·실구매가)이 나가면 안 된다. 위탁 범위(개인정보 처리방침)
+// 밖이고, 특장사는 원가 협상 상대라 우리 마진이 그대로 드러난다.
+// 예전에 주문 **목록**만 이 판정을 빠뜨려 응답에 금액이 실려 나갔다 — 그 재발을 막는다.
+
+const ctx = (roles: AuthContext['roles'], extra: Partial<AuthContext> = {}): AuthContext => ({
+  email: 'x@evnsolution.com', role: roles[0]!, roles, org_code: 'ORG_X', ...extra,
+});
+
+describe('canSeeQuotePrices — 금액을 볼 자격', () => {
+  it('특장사만 있는 계정은 금액을 볼 수 없다', () => {
+    expect(canSeeQuotePrices(ctx(['MAKER']))).toBe(false);
+  });
+
+  it('관리자·영업은 볼 수 있다', () => {
+    expect(canSeeQuotePrices(ctx(['ADMIN']))).toBe(true);
+    expect(canSeeQuotePrices(ctx(['SALES']))).toBe(true);
+  });
+
+  it('겸직 — 특장사라도 영업·관리자를 겸하면 볼 수 있다', () => {
+    expect(canSeeQuotePrices(ctx(['MAKER', 'SALES']))).toBe(true);
+    expect(canSeeQuotePrices(ctx(['MAKER', 'ADMIN']))).toBe(true);
+  });
+
+  it('마스터 계정은 볼 수 있다', () => {
+    expect(canSeeQuotePrices(ctx(['MAKER'], { is_master: true }))).toBe(true);
+  });
+
+  it('자료 범위 판정과 어긋나지 않는다 — 순수 특장사는 자기 org 만·금액 없음', () => {
+    const maker = ctx(['MAKER']);
+    expect(ownOrgOnly(maker)).toBe(true);
+    expect(isAdmin(maker)).toBe(false);
+    expect(canSeeQuotePrices(maker)).toBe(false);
   });
 });
 

@@ -91,6 +91,20 @@ export function ownOrgOnly(auth: AuthContext): boolean {
   return !isAdmin(auth) && auth.roles.includes('MAKER');
 }
 
+/**
+ * 견적 금액(공급가·실구매가)을 볼 자격이 있는가.
+ *
+ * 관리자이거나 영업이면 본다. 둘 다 아니면(= 순수 특장사) 보지 못한다 —
+ * 특장 제작에 고객이 얼마에 샀는지는 필요 없고, 특장사는 원가 협상 상대이기도 하다.
+ * 개인정보 처리방침의 위탁 범위("작업 진행에 필요한 범위")와도 이 판정이 맞물린다.
+ *
+ * ⚠️ 판정을 라우트마다 손으로 적지 말 것. 예전에 주문 **목록**만 이 판정을 빠뜨려
+ *    특장사 응답에 금액이 그대로 실려 나갔다(상세는 처음부터 빼고 있었다).
+ */
+export function canSeeQuotePrices(auth: AuthContext): boolean {
+  return isAdmin(auth) || auth.roles.includes('SALES');
+}
+
 /** 역할 기반 접근 제어. 허용 역할 목록에 없으면 403.
  * DEV: is_master=true인 계정은 역할 체크 우회 (surface 전환 테스트용). */
 export function rbac(...allowed: Role[]) {
