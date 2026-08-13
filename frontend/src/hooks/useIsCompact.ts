@@ -12,7 +12,12 @@ import { useState, useEffect } from 'react'
  * 같은 태블릿도 전체화면일 때와 창 모드일 때가 다르기 때문이다.
  */
 export function useIsCompact(): boolean {
-  const query = '(max-width: 900px), (max-height: 620px)'
+  /*
+   * ⚠️ 기준은 **폭**이 먼저다. 높이로 먼저 걸렀더니 태블릿 가로 전체화면(1024×~560,
+   *    주소창을 빼면 600 아래)까지 좁은 창으로 잡혀 **멀쩡한 화면이 통째로 바뀌었다**.
+   *    높이 조건은 정말 납작한 창(≤480)만 잡도록 낮춰 둔다.
+   */
+  const query = '(max-width: 820px), (max-height: 480px)'
   const [compact, setCompact] = useState(
     () => (typeof window !== 'undefined' ? window.matchMedia(query).matches : false),
   )

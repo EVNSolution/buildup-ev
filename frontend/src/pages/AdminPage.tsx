@@ -1093,7 +1093,7 @@ const qtMob: Record<string, React.CSSProperties> = {
 }
 
 const modal: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+  overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16 },
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)' },
   desc: { fontSize: 13, color: 'var(--muted)' },

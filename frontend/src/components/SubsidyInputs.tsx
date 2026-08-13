@@ -52,7 +52,7 @@ export const DIESEL_OPTIONS: { value: DieselStatusCode; label: string; note?: st
 ]
 
 /** 보조금 입력 폼(팝업·모달 공용). 라벨 폭이 좁은 팝업에서도 쓰도록 단일 열. */
-export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType, afterRegion, hideRequired }: {
+export function SubsidyForm({ value, onChange, regions, compact, hideBusinessType, afterRegion, hideRequired, dense }: {
   value: SubsidyInputs
   onChange: (v: SubsidyInputs) => void
   regions: string[]
@@ -66,18 +66,27 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
    * 저장 전에 채워야 할 목록이 아니다 — 거기서 필수라고 하면 겁만 준다.
    */
   hideRequired?: boolean
+  /**
+   * 좁은 화면 — 글자와 입력칸을 한 단계 줄인다(14→13px, 높이 36→32).
+   * 화면이 작을 때 같은 크기를 고집하면 팝업이 화면 밖으로 나가 잘린다.
+   * 다른 요소와 너무 벌어지지 않게 **한 단계만** 줄인다.
+   */
+  dense?: boolean
 }) {
   const set = <K extends keyof SubsidyInputs>(k: K, v: SubsidyInputs[K]) => onChange({ ...value, [k]: v })
   const s = compact ? f.rowTight : f.row
+  // 한 단계 작은 치수 — 값 자체를 갈아끼우지 않고 덧씌운다(넓은 화면은 그대로)
+  const d = dense ? f.dense : null
+  const dh = dense ? f.denseControl : null
   const isCorporate = value.business_type === 'corporate'
 
   return (
     <>
       {!hideBusinessType && (
         <div style={s}>
-          <label style={f.label}>사업자 구분</label>
+          <label style={{ ...f.label, ...d }}>사업자 구분</label>
           <select
-            style={f.field}
+            style={{ ...f.field, ...dh }}
             value={value.business_type}
             onChange={e => set('business_type', e.target.value as BusinessType)}
           >
@@ -92,7 +101,7 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       */}
       {!isCorporate && (
         <div style={s}>
-          <label style={f.label}>지역 <span style={f.req}>· 지방보조금 조회 기준</span></label>
+          <label style={{ ...f.label, ...d }}>지역 <span style={{ ...f.req, ...d }}>· 지방보조금 조회 기준</span></label>
           <RegionPicker regions={regions} value={value.region_code} onChange={v => set('region_code', v)} />
         </div>
       )}
@@ -100,9 +109,9 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       {afterRegion}
 
       <div style={s}>
-        <label style={f.label}>경유차 폐차여부</label>
+        <label style={{ ...f.label, ...d }}>경유차 폐차여부</label>
         <select
-          style={f.field}
+          style={{ ...f.field, ...dh }}
           value={value.diesel_status}
           onChange={e => set('diesel_status', e.target.value as DieselStatusCode)}
         >
@@ -115,11 +124,11 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       </div>
 
       <YesNo
-        label="소상공인" hint="국고 30% 추가" tight={!!compact} hideRequired={!!hideRequired}
+        label="소상공인" hint="국고 30% 추가" tight={!!compact} hideRequired={!!hideRequired} dense={dense}
         value={value.is_small_business} onChange={v => set('is_small_business', v)}
       />
       <YesNo
-        label="화물자동차 운송사업허가증" hint="개인사업자 국고 10% 추가" tight={!!compact} hideRequired={!!hideRequired}
+        label="화물자동차 운송사업허가증" hint="개인사업자 국고 10% 추가" tight={!!compact} hideRequired={!!hideRequired} dense={dense}
         value={value.has_transport_license} onChange={v => set('has_transport_license', v)}
       />
     </>
@@ -131,25 +140,28 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
  * 체크박스는 '아니오'와 '아직 안 고름'이 구분되지 않아, 보조금처럼 금액이 갈리는
  * 조건에는 쓸 수 없다. 고르기 전에는 둘 다 눌리지 않은 상태로 남는다.
  */
-function YesNo({ label, hint, value, onChange, tight, hideRequired }: {
+function YesNo({ label, hint, value, onChange, tight, hideRequired, dense }: {
   label: string
   hint?: string
   value: boolean | null
   onChange: (v: boolean) => void
   tight: boolean
   hideRequired?: boolean
+  dense?: boolean
 }) {
+  const d = dense ? f.dense : null
+  const dh = dense ? f.denseControl : null
   return (
     <div style={tight ? f.rowTight : f.row}>
-      <label style={f.label}>
+      <label style={{ ...f.label, ...d }}>
         {label}
-        {hint ? <span style={f.hint}> · {hint}</span> : null}
+        {hint ? <span style={{ ...f.hint, ...d }}> · {hint}</span> : null}
         {hideRequired ? null
-          : value === null ? <span style={f.needTag}> · 필수</span> : <span style={f.hint}> · 필수</span>}
+          : value === null ? <span style={{ ...f.needTag, ...d }}> · 필수</span> : <span style={{ ...f.hint, ...d }}> · 필수</span>}
       </label>
       <div style={f.yesNo}>
-        <button type="button" style={value === true ? f.ynOn : f.ynOff} onClick={() => onChange(true)}>예</button>
-        <button type="button" style={value === false ? f.ynOn : f.ynOff} onClick={() => onChange(false)}>아니오</button>
+        <button type="button" style={{ ...(value === true ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(true)}>예</button>
+        <button type="button" style={{ ...(value === false ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(false)}>아니오</button>
       </div>
     </div>
   )
@@ -159,11 +171,11 @@ const f: Record<string, React.CSSProperties> = {
   needTag: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
   yesNo: { display: 'flex', gap: 6 },
   ynOff: {
-    flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
+    flex: 1, minHeight: 'var(--h-control)', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
     border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
   },
   ynOn: {
-    flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
+    flex: 1, minHeight: 'var(--h-control)', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
     border: '1px solid var(--lime)', borderRadius: 8, background: '#f7fadf', color: 'var(--dark)',
   },
   row: { marginBottom: 8 },
@@ -172,10 +184,18 @@ const f: Record<string, React.CSSProperties> = {
   req: { fontSize: 14, color: '#b0b7c0' },
   hint: { fontSize: 14, color: '#b0b7c0' },
   field: {
-    width: '100%', boxSizing: 'border-box', height: 36, padding: '0 9px', fontSize: 14,
+    // 높이는 공통 토큰 — globals.css 의 input 규칙과 같은 값이라야 나란히 놓았을 때 어긋나지 않는다
+    width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 9px', fontSize: 14,
     fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
   check: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', padding: '4px 0' },
+  /**
+   * 좁은 화면에서 한 단계 작게 — **글자만** 줄인다.
+   * 높이는 컨테이너가 정한 --h-control 을 따른다(팝업이 그 변수를 낮춰 잡는다).
+   * 여기서 높이를 따로 박으면 옆 칸(전역 규칙을 쓰는 입력)과 높이가 어긋난다.
+   */
+  dense: { fontSize: 13 },
+  denseControl: { fontSize: 13 },
   checkbox: { width: 15, height: 15, accentColor: 'var(--lime)' },
 }

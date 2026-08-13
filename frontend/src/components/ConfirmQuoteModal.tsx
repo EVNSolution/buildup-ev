@@ -114,7 +114,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 }
 
 const s: Record<string, React.CSSProperties> = {
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
+  overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
   box: { width: 'min(420px, 94vw)', maxHeight: '88vh', overflowY: 'auto', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' },
   divider: { display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--line)' },
   dividerText: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },

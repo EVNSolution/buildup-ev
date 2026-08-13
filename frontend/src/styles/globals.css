@@ -60,6 +60,12 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .04);   /* 카드 — 종이처럼 아주 얕게 */
   --shadow-2: 0 4px 12px rgba(0, 0, 0, .08);  /* 모달·팝오버 */
   --track: #EFEFF2;     /* 세그먼티드 컨트롤 트랙 */
+  /*
+   * 팝업 뒤에 까는 막(scrim) — **한 값으로 통일**한다.
+   * 어떤 팝업은 0.18, 어떤 것은 0.55 로 제각각이라 같은 앱인데 다른 무게로 열렸다.
+   * 뒤가 확실히 가라앉아야 팝업이 밝게 떠 보이고, 어디를 눌러야 닫히는지도 드러난다.
+   */
+  --scrim: rgba(20, 20, 20, .5);
 
   /* ── 타이포 5단계 ── */
   --fs-title: 20px;    --fw-title: 600;
@@ -120,6 +126,56 @@
   box-sizing: border-box;
 }
 
+/*
+ * 스크롤바 — 얇게, 트랙 없이, 모서리에 닿지 않게.
+ *
+ * ⚠️ 스크롤바가 **자리를 차지하는** 브라우저(윈도우 Chrome·Edge)에서는 스크롤되는 칸의
+ *    둥근 모서리가 스크롤바 폭만큼 잘려 직각으로 끊겨 보인다. 트랙에 위아래 여백을 주어
+ *    막대가 모서리에 닿기 전에 끝나게 하면, 잘린 모서리가 눈에 띄지 않는다.
+ * ⚠️ 트랙(홈)에 색을 주면 회색 띠가 화면에 하나 더 생긴다 — 투명으로 둔다.
+ *    막대는 평소에 옅게 두고, 실제로 만질 때(hover)만 진해진다.
+ */
+* {
+  scrollbar-width: thin;                       /* Firefox */
+  scrollbar-color: rgba(20, 20, 20, .18) transparent;
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; margin: 10px 0; }
+::-webkit-scrollbar-track:horizontal { margin: 0 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(20, 20, 20, .18);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(20, 20, 20, .32); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/*
+ * 「더 있다」를 스크롤바 대신 알리는 그림자.
+ *
+ * 스크롤바를 얇게·투명하게 만들면 **내용이 잘린 것처럼** 보인다(실제 제보: 팝업 아래
+ * 산정 결과가 끊겨 보임). 위/아래 끝에 옅은 그림자를 깔아 두면, 더 볼 게 있을 때만
+ * 그림자가 보이고 끝에 닿으면 저절로 사라진다 — JS 없이 배경만으로 된다.
+ * (앞의 두 겹은 흰 가림막이라 스크롤을 따라 움직이고 local, 뒤의 두 겹은 고정 scroll)
+ */
+.scroll-hint {
+  background:
+    linear-gradient(#fff 30%, rgba(255, 255, 255, 0)) top    / 100% 22px no-repeat local,
+    linear-gradient(rgba(255, 255, 255, 0), #fff 70%) bottom / 100% 22px no-repeat local,
+    radial-gradient(farthest-side at 50% 0,    rgba(20, 20, 20, .10), transparent) top    / 100% 9px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, rgba(20, 20, 20, .10), transparent) bottom / 100% 9px no-repeat scroll,
+    #fff;   /* 가림막이 흰 바탕을 전제하므로 바탕색도 여기서 못 박는다 */
+}
+
+/*
+ * 손가락으로 미는 기기에서는 스크롤바를 아예 감춘다.
+ * 터치는 관성 스크롤로 위치를 몸이 알고, 화면도 좁아 6px 이 아깝다.
+ * (마우스가 붙은 기기에서만 위의 얇은 막대가 보인다)
+ */
+@media (pointer: coarse) {
+  * { scrollbar-width: none; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -173,6 +229,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 button {
   font-family: inherit;
   cursor: pointer;
+}
+
+/*
+ * 손가락으로 누를 때 안드로이드 브라우저가 덧그리는 **파란 상자·번짐**을 없앤다.
+ * 우리는 누름 반응(scale)과 선택 표시(라임 테두리)를 따로 갖고 있어, 브라우저가 더 그리면
+ * 무엇이 선택된 것인지 오히려 헷갈린다(갤럭시탭 영상 제보).
+ */
+* { -webkit-tap-highlight-color: transparent; }
+
+/*
+ * 눌러서 생긴 초점 테두리는 지우되, **키보드로 옮겨 다닐 때는 남긴다**(:focus-visible).
+ * 초점을 아예 없애면 키보드만 쓰는 사람은 지금 어디에 있는지 알 수 없다.
+ */
+button:focus, [role='button']:focus, select:focus, input:focus, textarea:focus { outline: none; }
+button:focus-visible, [role='button']:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
 }
 
 /*

@@ -12,9 +12,9 @@
 import type { QuoteResult } from './quote.js';
 
 export interface PriceBarView {
-  /** ① 차량 + 특장 (VAT 포함) */
+  /** ① 차량 + 특장 (VAT 포함, **탁송료 포함**) */
   start: number;
-  /** ⑥ 등록·기타 = 차량 등록/부대 + 특장 등록/부대 + 탁송료 (흐름 밖, 별도 표기) */
+  /** ⑥ 별도 비용 = 차량 등록/부대 + 특장 등록/부대 (흐름 밖, 별도 표기 — 탁송료는 제외) */
   regEtc: number;
   /** ④ 부가세 환급액. 환급 대상이 아니면 0 */
   vatRefund: number;
@@ -27,14 +27,19 @@ export interface PriceBarView {
 }
 
 export function priceBarView(q: QuoteResult): PriceBarView {
-  const regEtc = q.car_reg_cost + q.body_reg_cost + q.delivery_fee;
+  /*
+   * ⚠️ 탁송료는 **차량값 쪽**이다. 부가세 환급 계산이 (차량가 + 탁송료 + 구매혜택) 기준이라
+   *    화면에서만 '별도 비용'으로 빼 두면, 같은 돈이 계산과 표시에서 다른 자리에 있게 된다.
+   *    그래서 시작 금액(차량+특장)에 녹이고 별도 비용에서는 뺀다.
+   */
+  const regEtc = q.car_reg_cost + q.body_reg_cost;
   // 일반구매자(비사업자)는 환급 자체가 없다 — vat_refund_price 가 0 으로 내려온다.
   // 이때 차액을 그대로 쓰면 결제금액 전체가 환급액으로 보이므로 0 으로 둔다.
   const noRefund = q.vat_refund_price === 0;
   const vatRefund = noRefund ? 0 : (q.car_payment + q.body_payment) - q.vat_refund_price;
   const netPrice = q.real_price - regEtc;
   return {
-    start: q.car_price + q.body_price,
+    start: q.car_price + q.body_price + q.delivery_fee,
     regEtc,
     vatRefund,
     noRefund,
