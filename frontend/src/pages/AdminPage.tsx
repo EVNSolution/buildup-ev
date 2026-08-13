@@ -534,7 +534,7 @@ function AccountsTab() {
         </div>
       ) : (
         // ── 데스크톱: 표 ──
-        <div className="scroll-hint-x" style={acc.tableWrap}>
+        <div style={acc.tableWrap}>
           <table style={styles.table}>
             <thead>
               <tr>
@@ -836,7 +836,7 @@ function QuotesTab() {
         </div>
       ) : (
         // ── 데스크톱: 표 ──
-        <div className="scroll-hint-x" style={qt.tableWrap}>
+        <div style={qt.tableWrap}>
           <table style={qt.table}>
             <thead>
               <tr>
@@ -1031,7 +1031,7 @@ export function AdminPage() {
     <div style={styles.root}>
       <Header />
 
-      <div className="scroll-hint" style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
+      <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         <h1 style={styles.h1}>관리자 대시보드</h1>
         {/*
           탭은 제목 아래 한 줄을 통째로 쓴다 — 제목 옆에 붙이면 밑줄이 화면 중간에서

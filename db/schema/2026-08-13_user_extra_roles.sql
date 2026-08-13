@@ -6,7 +6,9 @@
 -- 실행: sudo docker exec -i buildup-ev-postgres psql -U buildup -d buildup_ev -f - < 이 파일
 -- ⚠️ 실행 전 pg_dump 백업.
 
+-- DEFAULT 를 ARRAY[]::"Role"[] 로 쓴다 — 따옴표가 없어 SSM(JSON) 으로 그대로 보낼 수 있다.
+-- '{}' 와 같은 뜻이다.
 ALTER TABLE "user"
-  ADD COLUMN IF NOT EXISTS extra_roles "Role"[] NOT NULL DEFAULT '{}';
+  ADD COLUMN IF NOT EXISTS extra_roles "Role"[] NOT NULL DEFAULT ARRAY[]::"Role"[];
 
 COMMENT ON COLUMN "user".extra_roles IS '겸직 역할 — 주 역할(role) 외에 추가로 가진 역할. 권한은 역할들의 합집합.';

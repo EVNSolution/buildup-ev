@@ -275,7 +275,7 @@ function MyListView() {
         onDone={load}
       />
     )}
-    <div className="scroll-hint" style={lv.root}>
+    <div style={lv.root}>
       <div style={lv.section}>
         <div style={lv.sectionTitle}>내 견적 ({quotes.length})</div>
         {quotes.length === 0 ? (
@@ -284,7 +284,7 @@ function MyListView() {
             description="컨피규레이터에서 옵션을 고르고 견적을 저장하면 여기에 쌓입니다."
           />
         ) : (
-          <div className="scroll-hint-x" style={lv.tableWrap}>
+          <div style={lv.tableWrap}>
             <table style={lv.table}>
               <thead>
                 <tr>
@@ -742,7 +742,7 @@ export function SalesPage() {
 
       {salesTab === 'list' && <MyListView />}
       {salesTab === 'me' && canSeeStats && (
-        <div className="scroll-hint" style={styles.meWrap}>
+        <div style={styles.meWrap}>
           <SalesPerformance />
         </div>
       )}

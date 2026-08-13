@@ -52,7 +52,7 @@ export function MakerPage() {
     <div style={styles.root}>
       <Header />
 
-      <div className="scroll-hint" style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
+      <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         {selectedId !== null ? (
           <OrderDetail orderId={selectedId} onBack={() => setSelectedId(null)} makerView />
         ) : (

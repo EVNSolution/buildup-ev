@@ -98,7 +98,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           {attention.length === 0 ? (
             <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
           ) : (
-            <div className="scroll-hint-x" style={s.tableWrap}>
+            <div style={s.tableWrap}>
               <table style={s.table}>
                 <thead>
                   <tr>

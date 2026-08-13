@@ -260,7 +260,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
       {loading && !data && <div style={s.empty}>로딩 중…</div>}
 
       {data && (
-        <div className="scroll-hint-x" style={s.tableWrap}>
+        <div style={s.tableWrap}>
           <table style={s.table}>
             <thead>
               <tr>
@@ -350,7 +350,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
               되돌릴 시점을 고르세요. 고른 <b>수정 직전</b> 상태로 값이 복원되며,
               그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.
             </div>
-            <div className="scroll-hint" style={s.logWrap}>
+            <div style={s.logWrap}>
               {points.length === 0 ? <div style={s.empty}>되돌릴 수 있는 수정 기록이 없습니다.</div> : (
                 <table style={s.table}>
                   <thead>
@@ -389,7 +389,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
               <span style={s.modalTitle}>변경 이력 — {OPTION_DB_TABLES.find((t) => t.name === table)?.label}</span>
               <button style={BTN.bar} onClick={() => setLogs(null)}>✕</button>
             </div>
-            <div className="scroll-hint" style={s.logWrap}>
+            <div style={s.logWrap}>
               {logs.length === 0 ? <div style={s.empty}>기록이 없습니다.</div> : (
                 <table style={s.table}>
                   <thead>
