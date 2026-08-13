@@ -14,10 +14,26 @@ import { BTN } from '../styles/buttons'
  *   · 그래서 받는 항목을 최소로 둔다 — 연락에 필요한 것과 보조금 산정에 필요한 것뿐.
  *     생년월일·사업자번호·주소는 여기서 받지 않는다(계약 단계 항목이다).
  *
- * ⚠️ 동의 문구는 **아직 확정 전이다**(아래 CONSENT_TEXT). 자리만 잡아 두었다.
- *    공개 전에 문구를 확정해 넣고, 처리방침(/privacy) 링크를 노출해야 한다.
+ * ⚠️ 동의를 받을 때는 **네 가지를 반드시 알려야 한다**(개인정보 보호법 제15조 제2항):
+ *      ① 수집 항목  ② 이용 목적  ③ 보유·이용 기간  ④ 거부할 권리와 거부 시 불이익
+ *    체크박스 한 줄만 두고 나머지를 방침 링크로 넘기면 고지 누락이 된다 —
+ *    그래서 넷을 화면에 그대로 펼쳐 두고, 체크는 그 아래에 둔다.
+ *
+ * ⚠️ 항목·목적·기간은 **실제 동작과 같아야 한다**. 여기 적힌 항목은 이 폼이 서버로
+ *    보내는 값과 일치한다(성명·휴대폰·이메일·지역·사업자 구분, 선택으로 남기실 말씀).
+ *    보유 기간 문구는 처리방침 제4조와 같은 표현을 쓴다 — 둘이 갈리면 안 된다.
  */
-const CONSENT_TEXT = '[문구 확정 전] 개인정보 수집·이용에 동의합니다.'
+const CONSENT_ITEMS: [string, string][] = [
+  ['수집 항목', '성명, 휴대전화번호, 전자우편주소, 지역(시·군·구), 사업자 구분 · (선택) 남기실 말씀'],
+  ['이용 목적', '상담 신청 접수, 견적 안내 및 상담 연락, 담당 영업사원 배정'],
+  ['보유·이용 기간', '처리 목적 달성 시 또는 정보주체의 삭제 요청 시까지'],
+]
+
+const CONSENT_TEXT = '위 내용을 확인하였으며, 개인정보 수집·이용에 동의합니다.'
+/** 거부할 권리와 그 불이익 — 동의받을 때 함께 알려야 하는 항목이다. */
+const CONSENT_REFUSAL = '동의를 거부하실 수 있으며, 거부하시는 경우 상담 신청이 접수되지 않습니다.'
+/** 처리방침 제3조⑤ — 만 14세 미만은 대상이 아니다. */
+const CONSENT_AGE = '본 서비스는 만 14세 이상을 대상으로 합니다.'
 
 interface Props {
   modelCode: string
@@ -114,13 +130,25 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           style={s.honeypot} aria-hidden
         />
 
-        <label style={s.consent}>
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={s.cbox} />
-          <span>
-            {CONSENT_TEXT}{' '}
+        <div style={s.consentBox}>
+          <div style={s.consentTitle}>개인정보 수집·이용 동의 <span style={s.req}>(필수)</span></div>
+          <dl style={s.consentList}>
+            {CONSENT_ITEMS.map(([k, v]) => (
+              <div key={k} style={s.consentRow}>
+                <dt style={s.consentKey}>{k}</dt>
+                <dd style={s.consentVal}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <label style={s.consentCheck}>
+            <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={s.cbox} />
+            <span>{CONSENT_TEXT}</span>
+          </label>
+          <div style={s.consentNote}>
+            {CONSENT_REFUSAL} {CONSENT_AGE}{' '}
             <Link to="/privacy" target="_blank" style={s.link}>개인정보 처리방침</Link>
-          </span>
-        </label>
+          </div>
+        </div>
 
         {err && <div style={s.err}>{err}</div>}
         {!!missing.length && <div style={s.hint}>{missing.join(', ')} 을(를) 입력해 주세요.</div>}
@@ -165,12 +193,22 @@ const s: Record<string, React.CSSProperties> = {
     padding: 8, border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', resize: 'vertical',
   },
   honeypot: { position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 },
-  consent: {
-    display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer',
-    fontSize: 'var(--fs-label)', color: 'var(--body)', lineHeight: 1.5,
-    background: 'var(--card)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-3)',
-    margin: 'var(--sp-4) 0 var(--sp-3)',
+  // 동의 상자 — 알려야 할 넷(항목·목적·기간·거부권)을 한 덩어리로 묶어 둔다
+  consentBox: {
+    background: 'var(--card)', border: 'var(--hairline)', borderRadius: 'var(--r-sm)',
+    padding: 'var(--sp-3)', margin: 'var(--sp-4) 0 var(--sp-3)',
   },
+  consentTitle: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', marginBottom: 'var(--sp-2)' },
+  consentList: { margin: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+  consentRow: { display: 'flex', gap: 8, alignItems: 'flex-start' },
+  consentKey: { flex: '0 0 82px', fontSize: 'var(--fs-caption)', color: 'var(--muted)', margin: 0 },
+  consentVal: { flex: 1, fontSize: 'var(--fs-caption)', color: 'var(--body)', lineHeight: 1.55, margin: 0 },
+  consentCheck: {
+    display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer',
+    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', lineHeight: 1.5,
+    borderTop: 'var(--hairline)', marginTop: 'var(--sp-3)', paddingTop: 'var(--sp-3)',
+  },
+  consentNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.55, marginTop: 6 },
   cbox: { width: 16, height: 16, accentColor: 'var(--lime)', flexShrink: 0, marginTop: 1 },
   link: { color: 'var(--dark)', textDecoration: 'underline' },
   err: { fontSize: 'var(--fs-label)', color: 'var(--warn)', marginBottom: 'var(--sp-2)' },
