@@ -62,7 +62,12 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
     [filled(name), '성명'],
     [phone.replace(/\D/g, '').length >= 10, '휴대폰'],
     [/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()), '이메일'],
+    // 보조금 조건은 **전부** 필수 — 하나라도 비면 화면에 보인 실구매가가 달라진다.
+    // 「· 필수」라고 써 놓고 비운 채 보내지게 두면 그 표시가 거짓말이 된다.
     [regionOk, '지역'],
+    [subsidy.diesel_status !== '', '경유차 폐차여부'],
+    [subsidy.is_small_business !== null, '소상공인'],
+    [subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
   ].filter(([ok]) => !ok).map(([, k]) => k as string)
 
   const canSubmit = missing.length === 0 && agreed && !busy
@@ -121,7 +126,11 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           여기서 고른 값이 곧 화면에 보이는 금액의 근거라, 신청 직전에 한 번 더 보여 준다.
         */}
         <div style={s.section}>보조금 조건</div>
-        <SubsidyForm value={subsidy} onChange={onSubsidyChange} regions={regions} compact hideRequired />
+        {/*
+          여기서는 「· 필수」를 감추지 않는다 — 신청 전에 **채워야 하는 목록**이기 때문이다.
+          (가격바 팝업만 감춘다. 거기는 지금 값을 바꿔 보는 자리다)
+        */}
+        <SubsidyForm value={subsidy} onChange={onSubsidyChange} regions={regions} compact />
 
         {/* 봇 잡이 — 사람 눈에 보이지 않는다 */}
         <input
