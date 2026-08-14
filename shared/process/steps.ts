@@ -137,7 +137,7 @@ export const STEPS: StepDef[] = [
    * 서명본은 관청에 내는 정본이라, 열어 보지 않고 넘기면 잘못 서명된 것을 뒤늦게 안다.
    */
   { code: 'tuning_signed', track: 'tuning', label: '서명 완료', actor: 'MAKER',
-    requires: ['tuning_sign_sent'], evidence: [], ackLabel: '서명본 내려받기' },
+    requires: ['tuning_sign_sent'], evidence: [], ackLabel: '서명본 확인' },
   { code: 'tuning_approved', track: 'tuning', label: '승인서 수령', actor: 'MAKER',
     requires: ['tuning_signed'], evidence: ['tuning_approval'] },
 
@@ -199,13 +199,13 @@ export function canComplete(
   const missing = def.requires.filter(r => byCode.get(r)?.status !== 'done');
   if (missing.length > 0) {
     const names = missing.map(m => STEP_BY_CODE[m]?.label ?? m).join(' · ');
-    return { ok: false, reason: `먼저 끝나야 하는 단계가 있습니다 — ${names}` };
+    return { ok: false, reason: `선행 단계가 완료되지 않았습니다 — ${names}` };
   }
 
   const lackEvidence = def.evidence.filter(e => !uploadedKinds.includes(e));
   if (lackEvidence.length > 0) {
     const names = lackEvidence.map(e => EVIDENCE_LABEL[e]).join(' · ');
-    return { ok: false, reason: `증빙을 올려야 완료할 수 있습니다 — ${names}` };
+    return { ok: false, reason: `증빙 등록 후 완료할 수 있습니다 — ${names}` };
   }
 
   return { ok: true };
@@ -243,14 +243,14 @@ export function canUndo(code: string, states: StepState[]): StepGate {
   const def = STEP_BY_CODE[code];
   if (!def) return { ok: false, reason: '알 수 없는 단계입니다' };
   if (states.find(s => s.code === code)?.status !== 'done') {
-    return { ok: false, reason: '완료된 단계만 되돌릴 수 있습니다' };
+    return { ok: false, reason: '완료된 단계만 취소할 수 있습니다' };
   }
   const done = new Set(states.filter(s => s.status === 'done').map(s => s.code));
   // 이 단계를 선행으로 삼는 단계 중 이미 끝난 것
   const blockers = STEPS.filter(s => s.requires.includes(code) && done.has(s.code));
   if (blockers.length > 0) {
     const names = blockers.map(b => b.label).join(' · ');
-    return { ok: false, reason: `뒤 단계를 먼저 되돌려야 합니다 — ${names}` };
+    return { ok: false, reason: `후속 단계를 먼저 취소하십시오 — ${names}` };
   }
   return { ok: true };
 }
