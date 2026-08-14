@@ -4,7 +4,7 @@ import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User 
 import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, confirmQuote, assignQuote, assignSalesQuote, deleteQuote } from '../api/quotes'
+import { fetchQuotes, assignQuote, assignSalesQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -101,8 +101,8 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
   return (
     <div style={modal.overlay} onClick={onClose}>
       <div style={modal.box} onClick={e => e.stopPropagation()}>
-        <div style={modal.title}>견적 #{quoteId} — 특장사 배정</div>
-        <div style={modal.desc}>배정할 특장사를 선택하세요. 배정하면 주문이 생성되고 특장사 수락 대기 상태가 됩니다.</div>
+        <div style={modal.title}>견적 #{quoteId} — 제작 배정</div>
+        <div style={modal.desc}>제작을 맡길 특장사를 선택하세요. 배정하면 주문이 생성되고 특장사 수락 대기 상태가 됩니다.</div>
         <label style={modal.label}>특장사<span style={modal.req}> · 필수</span></label>
         <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
           <option value="">선택하세요</option>
@@ -112,12 +112,26 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
           <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
-            {loading ? '처리 중…' : '배정'}
+            {loading ? '처리 중…' : '제작 배정'}
           </button>
         </div>
       </div>
     </div>
   )
+}
+
+/**
+ * 관리자가 **지금 손대야 하는 행** — 목록에서 한 줄 통째로 라임으로 띄운다.
+ *
+ * 두 가지뿐이다:
+ *   · 공개 창구로 들어온 문의 — 담당 영업을 지정해야 진행된다(이때 견적번호가 발급된다)
+ *   · 계약완료 — 제작할 특장사를 지정해야 한다
+ *
+ * 둘 다 「누가 받을지 정해 주기 전까지는 아무도 손대지 않는 상태」다. 관리자가 이 목록에서
+ * 가장 먼저 찾아야 하는 것이 그 둘이라, 같은 표시를 준다(무엇을 배정할지는 액션 버튼이 말한다).
+ */
+function needsAssign(q: ApiQuote): boolean {
+  return q.source === 'public' || q.status === 'contracted'
 }
 
 // ── 영업 배정 모달(공개 문의) ──────────────────────────────────────────────
@@ -146,7 +160,7 @@ function AssignSalesModal({ quoteId, users, loading, error, onConfirm, onClose }
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
           <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
-            {loading ? '처리 중…' : '배정'}
+            {loading ? '처리 중…' : '영업 배정'}
           </button>
         </div>
       </div>
@@ -760,17 +774,15 @@ function QuotesTab() {
     fetchMakerOrgs().then(setMakerOrgs).catch(() => setMakerOrgs([])).finally(() => setMakerOrgsLoading(false))
   }
 
-  // 확정 (임시저장→확정) — 모달 없이 즉시
-  async function handleConfirm(id: number) {
-    setErr('')
-    try {
-      await confirmQuote(id); load()
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '확정 실패')
-    }
-  }
+  /*
+   * 견적 확정(임시저장→견적확정)은 **영업의 업무**다 — 관리자 화면에는 두지 않는다.
+   *
+   * CLAUDE.md 주문흐름: 견적확정/주문전환(영업) → **관리자 검증** → 특장사 제작.
+   * 관리자가 여기서도 확정할 수 있으면 「누가 확정했는지」가 흐려지고, 관리자의 관문이
+   * 앞으로 당겨져 검증 단계가 사라진다. 관리자의 관문은 다음 단계인 **제작 배정**이다.
+   */
 
-  // 배정 (확정→배정) — 특장사 선택 모달
+  // 제작 배정 (계약완료→배정) — 특장사 선택 모달
   async function handleAssign(makerOrgId: string) {
     if (!confirmingId) return
     setConfirmLoading(true); setConfirmError('')
@@ -861,7 +873,7 @@ function QuotesTab() {
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {quotes.map(q => (
-            <div key={q.id} style={q.source === 'public' ? qtMob.cardPublic : qtMob.card}>
+            <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
                 <Tooltip text={quoteStatusTip(q.status)} placement="below">
@@ -914,15 +926,12 @@ function QuotesTab() {
                 {q.source === 'public' && !q.sales_user_id && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                 )}
-                {q.status === 'draft' && (
-                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleConfirm(q.id)}>확정</button>
-                )}
-                {/* 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
+                {/* 제작 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
                 {q.status === 'confirmed' && (
-                  <button style={{ ...BTN.rowMuted, width: '100%' }} disabled title="전자서명이 완료되어야 배정할 수 있습니다">배정</button>
+                  <button style={{ ...BTN.rowMuted, width: '100%' }} disabled title="전자서명이 완료되어야 제작 배정을 할 수 있습니다">제작 배정</button>
                 )}
                 {q.status === 'contracted' && (
-                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                 )}
                 {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                   <button
@@ -954,8 +963,8 @@ function QuotesTab() {
             </thead>
             <tbody>
               {quotes.map(q => (
-                <tr key={q.id} style={q.source === 'public' ? qt.rowPublic : undefined}>
-                  <td style={q.source === 'public' ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}</td>
+                <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
+                  <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}</td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
                   <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>{q.sales_user_id ?? '—'}</td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
@@ -998,15 +1007,12 @@ function QuotesTab() {
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                       )}
-                      {q.status === 'draft' && (
-                        <button style={BTN.rowPrimary} onClick={() => handleConfirm(q.id)}>확정</button>
-                      )}
-                      {/* 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
+                      {/* 제작 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
                       {q.status === 'confirmed' && (
-                        <button style={BTN.rowMuted} disabled title="전자서명이 완료되어야 배정할 수 있습니다">배정</button>
+                        <button style={BTN.rowMuted} disabled title="전자서명이 완료되어야 제작 배정을 할 수 있습니다">제작 배정</button>
                       )}
                       {q.status === 'contracted' && (
-                        <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>배정</button>
+                        <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                       )}
                       {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
                         <button
