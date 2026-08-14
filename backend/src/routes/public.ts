@@ -163,8 +163,19 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
   if (!body.model_code || !body.selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '차종·사양이 필요합니다' } }); return;
   }
+  /*
+   * ⚠️ 지역은 **법인사업자에게 요구하지 않는다.**
+   *
+   * 법인은 지방보조금 대상이 아니라(계산에서도 0 고정) 화면에서 지역 칸 자체를 없앤다.
+   * 그런데 여기서는 모두에게 요구하고 있어, 법인을 고른 고객은 채울 칸이 없는 값을
+   * 채우라는 400 을 받고 **상담 신청을 아예 넣을 수 없었다**(실제 제보).
+   * 화면이 안 받는 값을 서버가 요구하면 그 조합은 통째로 막힌다.
+   */
+  const needRegion = bizType !== 'corporation';
   const missing = [
-    [name, '성명'], [phone, '휴대폰'], [email, '이메일'], [region, '지역'], [bizType, '사업자 구분'],
+    [name, '성명'], [phone, '휴대폰'], [email, '이메일'],
+    ...(needRegion ? [[region, '지역']] : []),
+    [bizType, '사업자 구분'],
   ].filter(([v]) => !v).map(([, k]) => k);
   if (missing.length) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: `${missing.join(', ')} 을(를) 입력해 주세요.` } });

@@ -82,9 +82,14 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
 
   return (
     <>
+      {/*
+        보조금 조건은 **전부 필수**다. 하나라도 비면 실구매가가 달라지는 값이라,
+        「선택해도 되는 것」이 하나도 없다. `hideRequired` 는 가격바 팝업 전용
+        (거기서는 지금 값을 바꿔 보는 것이지 채워 넣는 자리가 아니다).
+      */}
       {!hideBusinessType && (
         <div style={s}>
-          <label style={{ ...f.label, ...d }}>사업자 구분</label>
+          <label style={{ ...f.label, ...d }}>사업자 구분{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}</label>
           <select
             style={{ ...f.field, ...dh }}
             value={value.business_type}
@@ -101,7 +106,7 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       */}
       {!isCorporate && (
         <div style={s}>
-          <label style={{ ...f.label, ...d }}>지역 <span style={{ ...f.req, ...d }}>· 지방보조금 조회 기준</span></label>
+          <label style={{ ...f.label, ...d }}>지역{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}<span style={{ ...f.hint, ...d }}> · 지방보조금 조회 기준</span></label>
           <RegionPicker regions={regions} value={value.region_code} onChange={v => set('region_code', v)} />
         </div>
       )}
@@ -109,7 +114,7 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       {afterRegion}
 
       <div style={s}>
-        <label style={{ ...f.label, ...d }}>경유차 폐차여부</label>
+        <label style={{ ...f.label, ...d }}>경유차 폐차여부{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}</label>
         <select
           style={{ ...f.field, ...dh }}
           value={value.diesel_status}
@@ -181,7 +186,6 @@ const f: Record<string, React.CSSProperties> = {
   row: { marginBottom: 8 },
   rowTight: { marginBottom: 9 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 5 },
-  req: { fontSize: 14, color: 'var(--muted)' },
   hint: { fontSize: 14, color: 'var(--muted)' },
   field: {
     // 높이는 공통 토큰 — globals.css 의 input 규칙과 같은 값이라야 나란히 놓았을 때 어긋나지 않는다

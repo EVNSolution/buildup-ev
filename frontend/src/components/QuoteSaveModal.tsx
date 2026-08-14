@@ -200,7 +200,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
           뒤의 두 값이 **고객 마스터를 찾는 키**라, 먼저 받아야 나머지를 자동으로 채울 수 있다.
         */}
         <div style={{ ...s.row, ...s.gridFull }}>
-          <label style={s.label}>사업자 구분</label>
+          <label style={s.label}>사업자 구분<Tag need /></label>
           <select
             style={s.field}
             value={v.subsidy.business_type}
@@ -264,7 +264,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
             이메일<Tag need={forContract} />
             <Note>{forContract
               ? (isCorporate && !v.buyer_agent.trim() ? '법인 직인을 찍을 사람 · 전자서명용' : '전자서명을 위한 이메일')
-              : '없으면 메일 발송·이메일 서명 요청을 쓸 수 없습니다'}</Note>
+              : '견적서·계약서를 메일로 받아 보시려면 입력을 권장합니다'}</Note>
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
