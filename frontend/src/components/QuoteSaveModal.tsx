@@ -264,10 +264,10 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            이메일<Tag need done={filled(v.email)} />
-            <Note>{isCorporate && !v.buyer_agent.trim()
-              ? '법인 직인을 찍을 사람 · 전자서명용'
-              : '전자서명을 위한 이메일'}</Note>
+            이메일<Tag need={forContract} contract={!forContract} done={filled(v.email)} />
+            <Note>{forContract
+              ? (isCorporate && !v.buyer_agent.trim() ? '법인 직인을 찍을 사람 · 전자서명용' : '전자서명을 위한 이메일')
+              : '없으면 메일 발송·이메일 서명 요청을 쓸 수 없습니다'}</Note>
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
@@ -353,7 +353,6 @@ function missingBase(v: QuoteSaveValues): string[] {
     [filled(v.name), isCorporate ? '상호' : '성명'],
     [!isCorporate || filled(v.ceo_name), '대표이사'],
     [filled(v.phone), '휴대폰'],
-    [filled(v.email), '이메일'],
     // 법인은 지방보조금 대상이 아니라 지역 칸 자체가 없다 — 필수에서도 뺀다
     [isCorporate || filled(v.subsidy.region_code), '지역'],
     [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
@@ -364,7 +363,14 @@ function missingBase(v: QuoteSaveValues): string[] {
   return required.filter(([ok]) => !ok).map(([, label]) => label)
 }
 
-/** 견적서를 만들기 위해 필요한 것 — 금액에 걸리는 값과 보낼 곳 */
+/*
+ * ⚠️ 이메일은 **견적 단계 필수가 아니다.**
+ *    견적서에 들어가는 값이 아니라 **보내는 수단**이고, 이메일을 안 주고 문자로 받길
+ *    원하는 고객이 많다. 영업이 견적만 빠르게 만들어 파일·사진으로 건네는 길을 막지 않는다.
+ *    대신 이메일이 없으면 **메일 발송 기능이 잠긴다**(화면에서 버튼 비활성 + 서버도 거절).
+ */
+
+/** 견적서를 만들기 위해 필요한 것 — 금액에 걸리는 값과 연락처 */
 export function missingForQuote(v: QuoteSaveValues): string[] {
   return missingBase(v)
 }
@@ -375,6 +381,8 @@ export function missingForContract(v: QuoteSaveValues): string[] {
   const filled = (x: string) => !!x.trim()
   const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
   const extra: [boolean, string][] = [
+    // 계약 단계에서는 이메일이 필요하다 — 전자서명·서류 발송이 여기서 시작된다
+    [filled(v.email), '이메일'],
     [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
     [filled(v.address), '주소'],
     [filled(v.address_detail), '세부주소'],
@@ -423,7 +431,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
 const s: Record<string, React.CSSProperties> = {
   signNote: {
-    background: '#eef2e6', border: '1px solid #d5e0bf', color: '#42502a',
+    background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', color: 'var(--dark)',
     fontSize: 14, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
   },
   overlay: {
@@ -449,34 +457,34 @@ const s: Record<string, React.CSSProperties> = {
   desc: { margin: '0 0 10px', fontSize: 14, color: 'var(--muted)' },
   sectionTitle: {
     fontSize: 14, fontWeight: 700, color: 'var(--dark)',
-    margin: '10px 0 7px', paddingBottom: 4, borderBottom: '1px solid var(--line)',
+    margin: '10px 0 7px', paddingBottom: 4, borderBottom: '0.5px solid var(--line)',
   },
-  optional: { fontSize: 14, fontWeight: 400, color: '#b0b7c0' },
+  optional: { fontSize: 14, fontWeight: 400, color: 'var(--muted)' },
   row: { marginBottom: 8 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 4 },
   // 「· 필수」는 아직 안 채운 동안만 빨강 / 「· 선택」과 채운 필수는 회색
-  tagOn: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
-  tagOff: { fontSize: 14, color: '#b0b7c0', fontWeight: 400 },
+  tagOn: { fontSize: 14, color: 'var(--req)', fontWeight: 700 },
+  tagOff: { fontSize: 14, color: 'var(--muted)', fontWeight: 400 },
   /** 지금은 없어도 되지만 계약서 단계에서 필요한 값 */
-  tagLater: { fontSize: 14, color: '#8a7a3d', fontWeight: 700 },
+  tagLater: { fontSize: 14, color: 'var(--muted)', fontWeight: 700 },
   addrRow: { display: 'flex', gap: 6 },
   addrBtn: {
     flexShrink: 0, minHeight: 'var(--h-control)', padding: '0 12px', fontSize: 14, fontWeight: 700,
-    border: '1px solid var(--line)', borderRadius: 8, background: '#f7f8f3',
+    border: '0.5px solid var(--line)', borderRadius: 8, background: 'var(--card)',
     color: 'var(--dark)', cursor: 'pointer', whiteSpace: 'nowrap',
   },
   field: {
     // 높이는 공통 토큰 — 옆 칸(전역 규칙을 쓰는 select·input)과 어긋나지 않게
     width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 10px', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
+    fontFamily: 'inherit', color: 'var(--dark)', border: '0.5px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
-  warn: { fontSize: 14, color: '#c0392b', marginTop: 5 },
+  warn: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-1)' },
   autofill: {
-    fontSize: 14, color: 'var(--dark)', background: '#f2f6e8',
-    border: '1px solid #dce8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
+    fontSize: 14, color: 'var(--dark)', background: 'var(--lime-bg)',
+    border: '0.5px solid var(--lime)', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
   },
-  error: { fontSize: 14, color: '#c0392b', marginTop: 12 },
+  error: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-3)' },
   btnRow: { display: 'flex', gap: 8, marginTop: 14 },
   btnOk: {
     flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,
@@ -485,6 +493,6 @@ const s: Record<string, React.CSSProperties> = {
   btnOff: { opacity: .5, cursor: 'not-allowed' },
   btnCancel: {
     flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,
-    cursor: 'pointer', border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
+    cursor: 'pointer', border: '0.5px solid var(--line)', background: '#fff', color: 'var(--muted)',
   },
 }

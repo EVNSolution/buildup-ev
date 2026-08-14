@@ -7,13 +7,13 @@ const LABEL: Record<ContractInfo['status'], string> = {
   COMPLETED: '완료', REJECTED: '거절', CANCELED: '취소',
 }
 const COLOR: Record<ContractInfo['status'], React.CSSProperties> = {
-  DRAFT: { background: '#eee', color: '#555' },
-  SENT: { background: '#e3f2fd', color: '#1565c0' },
-  VIEWED: { background: '#e3f2fd', color: '#1565c0' },
-  SIGNING: { background: '#fff3e0', color: '#e65100' },
-  COMPLETED: { background: '#e8f5e9', color: '#2e7d32' },
-  REJECTED: { background: '#fdecec', color: '#c0392b' },
-  CANCELED: { background: '#f5f5f5', color: '#888' },
+  DRAFT: { background: 'var(--card)', color: 'var(--muted)' },
+  SENT: { background: 'var(--card)', color: 'var(--dark)' },
+  VIEWED: { background: 'var(--card)', color: 'var(--dark)' },
+  SIGNING: { background: 'var(--warnbg)', color: 'var(--warn)' },
+  COMPLETED: { background: 'var(--lime-bg)', color: 'var(--dark)' },
+  REJECTED: { background: 'var(--warnbg)', color: 'var(--warn)' },
+  CANCELED: { background: 'var(--card)', color: 'var(--muted)' },
 }
 
 /** 견적 기준 전자서명 계약 패널 — 발송(계약서+견적서 동봉)·상태·서명본. 영업/관리자. */
@@ -26,7 +26,12 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
 }) {
   const [contract, setContract] = useState<ContractInfo | null>(null)
   const [loading, setLoading] = useState(true)
-  const [method, setMethod] = useState<'EMAIL' | 'KAKAO'>('EMAIL')
+  /*
+   * 기본 발송 방식 — 이메일이 있으면 이메일, 없으면 카카오.
+   * 이메일은 견적 단계 필수가 아니라서(문자로 받는 고객이 많다) 빈 채로 오는 일이 흔하다.
+   * 그때 EMAIL 로 열어 두면 "보낼 수 없습니다"만 보이고 왜인지 알기 어렵다.
+   */
+  const [method, setMethod] = useState<'EMAIL' | 'KAKAO'>((customerEmail ?? '').trim() ? 'EMAIL' : 'KAKAO')
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [preview, setPreview] = useState(false)
@@ -142,15 +147,15 @@ const s: Record<string, React.CSSProperties> = {
   tlRow: { display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '3px 0' },
   tlLabel: { color: 'var(--muted)' },
   tlVal: { fontWeight: 700, color: 'var(--dark)' },
-  frozen: { marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--line)', fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 },
+  frozen: { marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--line)', fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 },
   badge: { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20 },
   meta: { fontSize: 12, color: 'var(--muted)' },
   sendBox: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, maxWidth: 380 },
   methodRow: { display: 'flex', gap: 16 },
   radio: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' },
-  primary: { padding: '9px 16px', border: 'none', borderRadius: 8, background: '#1a1a1a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
+  primary: { padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--dark)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
   note: { fontSize: 11, color: 'var(--muted)' },
   dest: { fontSize: 12.5, color: 'var(--muted)', marginTop: 2 },
-  destWarn: { fontSize: 12.5, color: '#c0392b', marginTop: 2, lineHeight: 1.5 },
-  err: { marginTop: 10, background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 },
+  destWarn: { fontSize: 'var(--fs-caption)', color: 'var(--warn)', marginTop: 2, lineHeight: 'var(--lh-body)' },
+  err: { marginTop: 10, background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8 },
 }

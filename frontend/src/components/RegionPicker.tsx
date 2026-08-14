@@ -83,14 +83,14 @@ export function RegionPicker({ regions, value, onChange }: {
 const rp: Record<string, React.CSSProperties> = {
   wrap: { position: 'relative' },
   // 높이는 공통 토큰 — 옆 칸(사업자 구분 select 등)과 나란히 놓이므로 어긋나면 바로 보인다
-  input: { width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 10px', fontSize: 14, fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', outline: 'none' },
+  input: { width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 10px', fontSize: 14, fontFamily: 'inherit', color: 'var(--dark)', border: '0.5px solid var(--line)', borderRadius: 8, background: '#fff', outline: 'none' },
   list: {
     position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, marginTop: 3,
-    background: '#fff', border: '1px solid var(--line)', borderRadius: 8,
+    background: '#fff', border: '0.5px solid var(--line)', borderRadius: 8,
     maxHeight: 210, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,.14)',
   },
   item: { padding: '7px 10px', fontSize: 13, cursor: 'pointer' },
-  itemOn: { padding: '7px 10px', fontSize: 13, cursor: 'pointer', background: '#f2f6e8' },
+  itemOn: { padding: '7px 10px', fontSize: 13, cursor: 'pointer', background: 'var(--lime-bg)' },
   empty: { padding: '10px', fontSize: 12.5, color: 'var(--muted)' },
-  more: { padding: '6px 10px', fontSize: 11, color: 'var(--muted)', borderTop: '1px solid var(--line)' },
+  more: { padding: '6px 10px', fontSize: 11, color: 'var(--muted)', borderTop: '0.5px solid var(--line)' },
 }

@@ -58,8 +58,15 @@ const styles = {
   row: { marginBottom: 16 },
   head: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 },
   label: { fontSize: 13, color: 'var(--muted)' },
-  badgeReq: { fontSize: 13, fontWeight: 700, color: '#b23c3c', background: '#fdecec', border: '1px solid #f3c3c3', borderRadius: 5, padding: '1px 6px' },
-  badgeOpt: { fontSize: 13, fontWeight: 700, color: '#5a6b7a', background: '#eef1f4', border: '1px solid #dbe1e7', borderRadius: 5, padding: '1px 6px' },
+  // 필수 = --req(아직 안 채운 칸) · 선택 = 가라앉은 회색. 시스템 §12 뱃지 규격을 따른다
+  badgeReq: {
+    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--req)', background: 'var(--warnbg)',
+    border: '0.5px solid var(--req)', borderRadius: 'var(--r-sm)', padding: '1px 6px',
+  },
+  badgeOpt: {
+    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--muted)', background: 'var(--card)',
+    border: 'var(--hairline)', borderRadius: 'var(--r-sm)', padding: '1px 6px',
+  },
   btns: { display: 'flex', gap: 7, flexWrap: 'wrap' as const },
   btn: { ...btnBase, ...OPTION_CARD.base, color: 'var(--body)' },
   btnOn: { ...btnBase, ...OPTION_CARD.on },

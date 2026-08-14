@@ -465,8 +465,8 @@ const styles: Record<string, React.CSSProperties> = {
    */
   barTall: { padding: 'var(--sp-4)' },
   cellTall: {},
-  warn: { background: 'var(--warnbg)', border: '1px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
-  warnTbd: { background: '#f5f5f5', border: '1px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
+  warn: { background: 'var(--warnbg)', border: '0.5px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
+  warnTbd: { background: 'var(--card)', border: '0.5px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
   flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },
   /*
    * 좁은 창 — 칸을 줄이지 않고 옆으로 민다. 금액을 잘라 「₩1,…」 로 보여 주느니
@@ -491,7 +491,7 @@ const styles: Record<string, React.CSSProperties> = {
   /** 가로 스크롤일 때 칸은 줄어들지 않는다(줄어들면 잘린다) */
   cellFixed: { flex: `0 0 ${CELL_MIN}px` as const, minWidth: CELL_MIN },
   op: { fontSize: fit(11, 0.83, 16), color: 'var(--muted)', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
-  // EV& 브랜드 컬러(--lime #C8D200) 계열 — 어두운 초록은 브랜드와 어긋난다
+  // EV& 브랜드 컬러(--lime var(--lime)) 계열 — 어두운 초록은 브랜드와 어긋난다
   // 테두리 없이 배경색만으로 구분한다 — 선을 두르면 칸마다 굵기가 달라 보여 지저분했다
   first: { ...cellBase, flex: 1.3 },
   // 잘라서 없애기보다 접히게 둔다 — '(VAT 포함)'이 사라지면 무슨 금액인지 알 수 없다
@@ -568,7 +568,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   /*
    * 결론 금액 — 배경 없이 **크기와 색**으로만 강조한다. 색은 브랜드 라임 그대로.
-   * 브랜드 라임(#C8D200)을 한 톤 내린 값 — 흰 배경에서 원색은 너무 밝아 흐려 보인다.
+   * 브랜드 라임(var(--lime))을 한 톤 내린 값 — 흰 배경에서 원색은 너무 밝아 흐려 보인다.
    * ⚠️ 그래도 대비는 낮은 편이라(약 2.3:1) **큰 글씨 전용**이다. 본문 크기로 쓰지 말 것.
    */
   heroValueWide: {
@@ -587,7 +587,7 @@ const styles: Record<string, React.CSSProperties> = {
   blockLabel: { fontSize: fit(11, 0.73, 14), color: 'var(--muted)', ...noSpill },
   // 금액 글자 크기는 차량+특장 칸(firstValue)과 동일하게 — 칸마다 다르면 눈이 튄다
   blockValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
-  negVal: { color: '#c0392b' },
+  negVal: { color: 'var(--req)' },
   mutedVal: { color: '#bfc4cb' },
   // 유일하게 배경을 갖는 칸 — 상담의 결론이라 여기만 강조한다
   hero: {
@@ -627,8 +627,8 @@ const styles: Record<string, React.CSSProperties> = {
   //    통째로 무시되는 브라우저에서 팝업이 투명해져 뒤 화면이 비쳤다(실제 사고).
   // 높이 한도 560 = 보조금 팝업이 산정 결과까지 **스크롤 없이** 들어가는 높이(실측 535).
   // 여기서 아끼면 화면이 넉넉한데도 결과가 잘려 스크롤해야 한다.
-  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 560px)', overflowY: 'auto', background: '#fff', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
-  popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--line)' },
+  popup: { position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, zIndex: 41, width: 260, maxHeight: 'min(70vh, 560px)', overflowY: 'auto', background: '#fff', border: '0.5px solid var(--line)', borderRadius: 10, boxShadow: '0 8px 30px rgba(0,0,0,.18)', padding: 12 },
+  popTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', marginBottom: 6, paddingBottom: 4, borderBottom: '0.5px solid var(--line)' },
   // 보조금 블록은 가격바 왼쪽에 있어 오른쪽 정렬(popup)로 열면 화면 밖으로 나간다.
   // 폭 364 = 가장 긴 줄(「화물자동차 운송사업허가증 · 개인사업자 국고 10% 추가」)이
   // 체크박스까지 포함해 344px 필요 + 여유. 좁으면 이 줄이 두 줄로 접혀 지저분했다.
@@ -646,8 +646,8 @@ const styles: Record<string, React.CSSProperties> = {
     // 이 안의 입력칸은 한 단계 낮게 — 변수 하나로 select·input·예/아니오가 함께 맞춰진다
     ['--h-control' as string]: '40px',
   } as React.CSSProperties,
-  popFoot: { fontSize: 10.5, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--line)' },
+  popFoot: { fontSize: 10.5, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--line)' },
   line: { display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--body)', padding: '2px 0' },
-  lineBold: { fontWeight: 700, color: 'var(--dark)', borderTop: '1px solid var(--line)', marginTop: 3, paddingTop: 4 },
+  lineBold: { fontWeight: 700, color: 'var(--dark)', borderTop: '0.5px solid var(--line)', marginTop: 3, paddingTop: 4 },
   lineNote: { color: 'var(--muted)' },
 }

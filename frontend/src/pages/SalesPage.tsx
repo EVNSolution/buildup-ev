@@ -58,14 +58,14 @@ function quoteStatusTip(status: string): React.ReactNode {
     <div>
       <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>견적 상태</div>
       {QUOTE_STATUS_FLOW.map((s, i) => (
-        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? '#c8d200' : '#ccc', fontSize: 11 }}>
+        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? 'var(--lime)' : 'var(--line)', fontSize: 11 }}>
           <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
           <span>{s.label}</span>
-          <span style={{ fontSize: 9.5, color: s.key === status ? '#b0b8c0' : '#666', marginLeft: 2 }}>({s.desc})</span>
-          {s.key === status && <span style={{ fontSize: 9, color: '#c8d200', marginLeft: 2 }}>← 현재</span>}
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginLeft: 'var(--sp-1)' }}>({s.desc})</span>
+          {s.key === status && <span style={{ fontSize: 9, color: 'var(--lime)', marginLeft: 2 }}>← 현재</span>}
         </div>
       ))}
-      {status === 'expired' && <div style={{ fontSize: 10, color: '#e57373', marginTop: 5 }}>만료/취소된 견적입니다</div>}
+      {status === 'expired' && <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 5 }}>만료/취소된 견적입니다</div>}
     </div>
   )
 }
@@ -181,7 +181,7 @@ function MyListView() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontSize: 15, fontWeight: 700 }}>계약 · 전자서명{contractQuote.customerName ? ` — ${contractQuote.customerName}` : ''}</span>
             {/* 팝업 안에서 서명을 요청하면 목록의 상태·발송현황이 달라진다 — 닫을 때 다시 읽는다 */}
-            <button style={{ border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 }} onClick={() => { setContractQuote(null); load() }}>✕</button>
+            <button style={BTN.secondary} onClick={() => { setContractQuote(null); load() }}>✕</button>
           </div>
           <ContractPanel
             quoteId={contractQuote.id}
@@ -385,10 +385,17 @@ function MyListView() {
                             >서명본</button>
                           )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
+                          {/*
+                            이메일은 견적 단계 필수가 아니다(문자로 받길 원하는 고객이 많다).
+                            그래서 **보낼 곳이 없으면 이 버튼만 잠근다** — 견적 자체는 그대로 만든다.
+                          */}
                           {canEmail && (
                             <button
-                              style={lv.pdfBtn}
-                              title="참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)"
+                              style={q.customer?.email ? lv.pdfBtn : BTN.rowMuted}
+                              disabled={!q.customer?.email}
+                              title={q.customer?.email
+                                ? '참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)'
+                                : '고객 이메일이 없어 메일을 보낼 수 없습니다. 「고객정보」에서 이메일을 입력하세요.'}
                               onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                             >메일 전달</button>
                           )}
@@ -860,7 +867,7 @@ const styles = {
   vtabR: {
     marginLeft: 'auto',
     fontSize: 12,
-    border: '1px solid var(--line)',
+    border: '0.5px solid var(--line)',
     padding: '5px 11px',
     borderRadius: 6,
     cursor: 'pointer',
@@ -903,9 +910,9 @@ const styles = {
     top: 14,
     left: 16,
     fontSize: 11,
-    color: '#9aa0a8',
+    color: 'var(--muted)',
     background: '#fff',
-    border: '1px solid var(--line)',
+    border: '0.5px solid var(--line)',
     padding: '4px 8px',
     borderRadius: 6,
   },
@@ -928,7 +935,7 @@ const lv: Record<string, React.CSSProperties> = {
     borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12,
     whiteSpace: 'nowrap',
   },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap' },
+  td: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap' },
   // 버튼 크기·모양은 styles/buttons.ts 한 곳에서 관리한다(영업·관리자 동일)
   pdfBtn: BTN.row,
   sendBtn: BTN.rowSend,

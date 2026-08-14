@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BTN } from '../styles/buttons'
 import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, type InstallmentRateOption } from '../api/quotes'
 import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 
@@ -116,22 +117,22 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 const s: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
   box: { width: 'min(420px, 94vw)', maxHeight: '88vh', overflowY: 'auto', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' },
-  divider: { display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--line)' },
+  divider: { display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '0.5px solid var(--line)' },
   dividerText: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
-  optional: { fontSize: 14, color: '#8a929c' },
+  optional: { fontSize: 14, color: 'var(--muted)' },
   head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   title: { fontSize: 15, fontWeight: 700 },
-  close: { border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 14 },
+  close: { ...BTN.secondary },
   form: { display: 'flex', flexDirection: 'column', gap: 7 },
-  label: { fontSize: 14, fontWeight: 700, color: '#444', marginTop: 4 },
-  unit: { fontSize: 14, color: '#8a929c', fontWeight: 400 },
-  input: { padding: '8px 10px', border: '1px solid #ccc', borderRadius: 7, fontSize: 14, fontFamily: 'inherit' },
+  label: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--body)', marginTop: 'var(--sp-1)' },
+  unit: { fontSize: 14, color: 'var(--muted)', fontWeight: 400 },
+  input: { padding: '8px 10px', border: '0.5px solid var(--line)', borderRadius: 7, fontSize: 14, fontFamily: 'inherit' },
   check: { fontSize: 14, display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', marginTop: 8 },
   cbox: { width: 15, height: 15, accentColor: 'var(--lime)' },
   note: { fontSize: 14, color: 'var(--muted)', marginTop: 6 },
-  ok: { background: '#e8f5e9', color: '#2e7d32', fontSize: 14, padding: '8px 12px', borderRadius: 8 },
-  err: { background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 14, padding: '8px 12px', borderRadius: 8 },
+  ok: { background: 'var(--lime-bg)', color: 'var(--dark)', fontSize: 14, padding: '8px 12px', borderRadius: 8 },
+  err: { background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 14, padding: '8px 12px', borderRadius: 8 },
   btnRow: { display: 'flex', gap: 8, marginTop: 12 },
-  secondary: { flex: 1, padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--dark)', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
+  secondary: { flex: 1, padding: '10px 14px', border: '0.5px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--dark)', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
   primary: { flex: 2, padding: '10px 16px', border: 'none', borderRadius: 8, background: 'var(--dark)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' },
 }

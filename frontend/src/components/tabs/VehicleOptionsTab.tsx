@@ -185,14 +185,14 @@ const styles = {
     fontSize: 'var(--fs-label)', fontFamily: 'inherit',
     fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'],
     // 펼쳐진 상태 = 선택 상태 → 라임 테두리 + 옅은 라임 배경(선택 표시 전용 색)
-    border: '1px solid var(--lime)', borderRadius: 'var(--r-sm)', background: 'var(--lime-bg)',
+    border: '0.5px solid var(--lime)', borderRadius: 'var(--r-sm)', background: 'var(--lime-bg)',
     color: 'var(--dark)', cursor: 'pointer',
   },
 }
 
 const tip: Record<string, React.CSSProperties> = {
   panel: {
-    marginTop: 10, background: '#f7f8f3', border: '1px solid var(--line)',
+    marginTop: 10, background: 'var(--card)', border: '0.5px solid var(--line)',
     borderRadius: 10, padding: '11px 13px',
   },
   head: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 },
@@ -200,5 +200,5 @@ const tip: Record<string, React.CSSProperties> = {
   list: { margin: 0, paddingLeft: 17, display: 'flex', flexDirection: 'column', gap: 3 },
   item: { fontSize: 13, lineHeight: 1.55, color: 'var(--body)' },
   strong: { fontWeight: 700, color: 'var(--dark)' },
-  foot: { fontSize: 13, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--line)' },
+  foot: { fontSize: 13, color: 'var(--muted)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--line)' },
 }
