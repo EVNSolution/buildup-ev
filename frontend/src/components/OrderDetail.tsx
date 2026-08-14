@@ -13,9 +13,9 @@ import { PdfModal } from './PdfModal'
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
-  pending: { background: '#fff3e0', color: '#e65100' },
-  done:    { background: '#e8f5e9', color: '#2e7d32' },
-  na:      { background: '#f0f2f4', color: 'var(--muted)' },
+  pending: { background: 'var(--warnbg)', color: 'var(--warn)' },
+  done:    { background: 'var(--lime-bg)', color: 'var(--dark)' },
+  na:      { background: 'var(--card)', color: 'var(--muted)' },
 }
 
 function fmtDatetime(s: string | null) { return s ? s.slice(0, 16).replace('T', ' ') : '—' }
@@ -91,7 +91,7 @@ function LoadCalcTab({
             </tr>
           </thead>
           <tbody>
-            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: '#f9f9f9' }}>탈거</td></tr>
+            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: 'var(--card)' }}>탈거</td></tr>
             {bom.remove_items.map((i, idx) => (
               <tr key={`r${idx}`}>
                 <td style={lc.td}>{i.label}</td>
@@ -99,7 +99,7 @@ function LoadCalcTab({
                 <td style={lc.tdR}>{i.cg_x_mm}</td>
               </tr>
             ))}
-            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: '#f9f9f9' }}>설치</td></tr>
+            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: 'var(--card)' }}>설치</td></tr>
             {bom.install_items.map((i, idx) => (
               <tr key={`i${idx}`}>
                 <td style={lc.td}>{i.label}</td>
@@ -265,7 +265,7 @@ function DocsTab({
         <div style={det.card}>
           <div style={det.cardTitle}>서류 상태</div>
           {documents.map(doc => (
-            <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+            <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid var(--line)' }}>
               <span style={{ fontSize: 13 }}>{doc.name}</span>
               <span style={{ ...det.docBadge, ...DOC_STATUS_STYLE[doc.status] }}>
                 {DOC_STATUS_LABEL[doc.status] ?? doc.status}
@@ -306,7 +306,7 @@ function DocsTab({
             {saving ? '저장 중…' : '차량정보 저장'}
           </button>
           {saveMsg && (
-            <span style={{ fontSize: 12, color: saveMsg.includes('✓') ? '#2e7d32' : '#c62828' }}>
+            <span style={{ fontSize: 12, color: saveMsg.includes('✓') ? 'var(--dark)' : 'var(--warn)' }}>
               {saveMsg}
             </span>
           )}
@@ -356,7 +356,7 @@ function DocsTab({
 
         {/* 계약서는 BOM(차체형식) 없이도 생성 가능 — 영업·관리자만 */}
         {canViewContract && (
-          <div style={{ borderTop: canViewStructDocs ? '1px solid var(--line)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
+          <div style={{ borderTop: canViewStructDocs ? 'var(--hairline)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
             <button
               type="button"
               onClick={() => openPdf(pdfUrl('contract'))}
@@ -539,7 +539,7 @@ const det: Record<string, React.CSSProperties> = {
   header: { display: 'flex', flexDirection: 'column', gap: 8 },
   backBtn: {
     alignSelf: 'flex-start', fontSize: 12, padding: '5px 12px',
-    border: '1px solid var(--line)', borderRadius: 7, background: '#fff',
+    border: '0.5px solid var(--line)', borderRadius: 7, background: '#fff',
     cursor: 'pointer', color: 'var(--muted)', marginBottom: 4, minHeight: 44,
   },
   titleRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const },
@@ -548,11 +548,11 @@ const det: Record<string, React.CSSProperties> = {
   model: { fontSize: 14, color: 'var(--muted)', fontWeight: 600 },
   metaRow: { display: 'flex', gap: 6, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' as const },
   sep: { color: 'var(--line)' },
-  progressSection: { display: 'flex', alignItems: 'flex-start', border: '1px solid var(--line)', borderRadius: 10, padding: '12px 16px', background: '#fff' },
+  progressSection: { display: 'flex', alignItems: 'flex-start', border: '0.5px solid var(--line)', borderRadius: 10, padding: '12px 16px', background: '#fff' },
   stepItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 },
-  stepDot: { width: 10, height: 10, borderRadius: '50%', background: '#e0e3e8', marginBottom: 6 },
+  stepDot: { width: 10, height: 10, borderRadius: '50%', background: 'var(--line)', marginBottom: 6 },
   stepDotActive: { width: 10, height: 10, borderRadius: '50%', background: 'var(--lime)', marginBottom: 6 },
-  stepLabel: { fontSize: 9.5, color: '#b0b7c0', textAlign: 'center' as const },
+  stepLabel: { fontSize: 9.5, color: 'var(--muted)', textAlign: 'center' as const },
   stepLabelActive: { fontSize: 9.5, color: 'var(--dark)', fontWeight: 700, textAlign: 'center' as const },
   tabs: { display: 'flex', gap: 4, borderBottom: '2px solid var(--line)', paddingBottom: 0 },
   tabBtn: { padding: '8px 18px', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: -2, minHeight: 44 },
@@ -561,14 +561,14 @@ const det: Record<string, React.CSSProperties> = {
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
   th: { textAlign: 'left' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
-  tdLabel: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, width: '40%' },
-  tdValue: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontWeight: 600, color: 'var(--dark)' },
+  tdLabel: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12, width: '40%' },
+  tdValue: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', fontWeight: 600, color: 'var(--dark)' },
   docBadge: { fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 8 },
-  card: { border: '1px solid var(--line)', borderRadius: 10, padding: '14px 16px', background: '#fff' },
+  card: { border: '0.5px solid var(--line)', borderRadius: 10, padding: '14px 16px', background: '#fff' },
   cardTitle: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 12 },
   infoGrid: { display: 'grid', gridTemplateColumns: '120px 1fr', gap: '8px 12px', alignItems: 'center' },
   infoLabel: { fontSize: 12, color: 'var(--muted)', fontWeight: 600 },
-  infoInput: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 7 },
+  infoInput: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 7 },
   saveBtn: {
     fontSize: 13, padding: '8px 18px', borderRadius: 8,
     background: 'var(--lime)', border: 'none', cursor: 'pointer',
@@ -576,18 +576,18 @@ const det: Record<string, React.CSSProperties> = {
   },
   pdfBtn: {
     display: 'inline-block', padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: '#1a1a1a', color: '#fff', textDecoration: 'none', cursor: 'pointer',
+    background: 'var(--dark)', color: '#fff', textDecoration: 'none', cursor: 'pointer',
     fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' as const, fontFamily: 'inherit',
   },
   bomWarn: {
-    fontSize: 12, color: '#92400e', background: '#fffbeb',
-    border: '1px solid #fde68a', borderRadius: 8,
+    fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)',
+    border: '0.5px solid var(--warn)', borderRadius: 8,
     padding: '10px 14px', marginBottom: 12, lineHeight: 1.6,
   },
 }
 
 const detMob: Record<string, React.CSSProperties> = {
-  row: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--line)', gap: 12 },
+  row: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--line)', gap: 12 },
   label: { fontSize: 12, color: 'var(--muted)', flexShrink: 0 },
   value: { fontSize: 13, fontWeight: 600, color: 'var(--dark)', textAlign: 'right' as const },
 }
@@ -596,7 +596,7 @@ const lc: Record<string, React.CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 8 },
   err:  { color: 'var(--warn)', fontSize: 13 },
   muted: { color: 'var(--muted)', fontSize: 13, padding: '16px 0' },
-  card: { border: '1px solid var(--line)', borderRadius: 10, padding: '14px 16px', background: '#fff' },
+  card: { border: '0.5px solid var(--line)', borderRadius: 10, padding: '14px 16px', background: '#fff' },
   cardTitle: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 12 },
   specGrid: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '5px 16px', fontSize: 13 },
   specLabel: { color: 'var(--muted)', fontSize: 12 },
@@ -604,14 +604,14 @@ const lc: Record<string, React.CSSProperties> = {
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
   th:  { textAlign: 'left' as const,  padding: '7px 10px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
   thR: { textAlign: 'right' as const, padding: '7px 10px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
-  td:  { padding: '9px 10px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12 },
-  tdR: { padding: '9px 10px', borderBottom: '1px solid var(--line)', textAlign: 'right' as const, fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--dark)' },
+  td:  { padding: '9px 10px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12 },
+  tdR: { padding: '9px 10px', borderBottom: '0.5px solid var(--line)', textAlign: 'right' as const, fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--dark)' },
   legalGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
   legalRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const },
   legalLabel: { fontSize: 12, fontWeight: 700, color: 'var(--dark)', minWidth: 100 },
   legalDetail: { flex: 1, fontSize: 12, color: 'var(--dark)' },
-  badgeOk:   { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: '#e8f5e9', color: '#2e7d32', whiteSpace: 'nowrap' as const },
-  badgeNg:   { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: '#fdecea', color: '#c62828', whiteSpace: 'nowrap' as const },
-  badgeGray: { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: '#f0f2f4', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
+  badgeOk:   { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: 'var(--lime-bg)', color: 'var(--dark)', whiteSpace: 'nowrap' as const },
+  badgeNg:   { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: 'var(--warnbg)', color: 'var(--warn)', whiteSpace: 'nowrap' as const },
+  badgeGray: { fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: 'var(--card)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
 }
 

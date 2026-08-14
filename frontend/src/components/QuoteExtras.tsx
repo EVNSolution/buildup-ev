@@ -127,5 +127,5 @@ const s: Record<string, React.CSSProperties> = {
   item: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' },
   name: { flex: 1, color: 'var(--dark)' },
   price: { color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
-  zeroed: { color: '#2e7d32', fontWeight: 700 },
+  zeroed: { color: 'var(--dark)', fontWeight: 700 },
 }

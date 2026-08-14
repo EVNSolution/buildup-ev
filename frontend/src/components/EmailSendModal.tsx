@@ -57,7 +57,7 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose }: {
               계약서도 함께 첨부 (미체크 시 견적서만)
             </label>
 
-            <label style={s.label}>메시지 (선택)</label>
+            <label style={s.label}>메시지</label>
             <textarea style={s.textarea} rows={4} value={message} placeholder="비우면 기본 안내문으로 발송" onChange={(e) => setMessage(e.target.value)} />
 
             <div style={s.note}>※ 견적서{includeContract ? '·계약서' : ''} PDF 가 첨부됩니다. 전자서명은 별도(계약발송).</div>

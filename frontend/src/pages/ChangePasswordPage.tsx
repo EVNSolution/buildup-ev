@@ -125,8 +125,8 @@ const styles: Record<string, React.CSSProperties> = {
   logoBold: { color: 'var(--lime)' },
   title: { fontSize: 18, fontWeight: 700, color: 'var(--dark)', margin: '0 0 16px' },
   notice: {
-    fontSize: 13, color: '#1565c0', background: '#e3f2fd',
-    border: '1px solid #90caf9', borderRadius: 8, padding: '10px 12px', marginBottom: 16,
+    fontSize: 13, color: 'var(--dark)', background: 'var(--card)',
+    border: '0.5px solid var(--line)', borderRadius: 8, padding: '10px 12px', marginBottom: 16,
   },
   form: { display: 'flex', flexDirection: 'column', gap: 14 },
   fieldRow: {},
@@ -138,7 +138,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--lime)', color: 'var(--dark)', fontWeight: 700, fontSize: 13.5,
   },
   cancelBtn: {
-    marginTop: 12, width: '100%', padding: '10px', border: '1px solid var(--line)',
+    marginTop: 12, width: '100%', padding: '10px', border: '0.5px solid var(--line)',
     borderRadius: 9, cursor: 'pointer', background: '#fff', color: 'var(--muted)', fontSize: 13,
   },
 }

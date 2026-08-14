@@ -4,6 +4,7 @@ import {
   type SalesStat, type AttentionItem, type FunnelStage,
 } from '../api/stats'
 import { BTN } from '../styles/buttons'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 /**
  * 영업 성과 — 영업의 「마이페이지」와 관리자의 「영업 성과」가 **같은 화면**을 쓴다.
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
+  const isMobile = useIsMobile()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [user, setUser] = useState('')
@@ -97,6 +99,30 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           </div>
           {attention.length === 0 ? (
             <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
+          ) : isMobile ? (
+            /*
+              휴대폰 — 표를 옆으로 밀어 보게 하지 않는다.
+              여기가 「오늘 붙어야 할 건」이라 화면에 들어오는 것이 전부인데,
+              5칸짜리 표는 390px 에서 절반이 화면 밖으로 나간다(실측 ~630px 필요).
+              한 건을 세 줄로 편다 — 사유·경과일 / 사유설명 / 번호·고객·금액.
+            */
+            <div>
+              {attention.map(a => (
+                <div key={`${a.quote_id}-${a.kind}`} style={s.item}>
+                  <div style={s.itemTop}>
+                    <span style={KIND_KO[a.kind].tone === 'warn' ? s.tagWarn : s.tagInfo}>{KIND_KO[a.kind].label}</span>
+                    <span style={s.itemDays}>{a.days}일</span>
+                  </div>
+                  <div style={s.why}>{KIND_KO[a.kind].why}</div>
+                  <div style={s.itemBottom}>
+                    <span style={s.itemNo}>{a.quote_no ?? `#${a.quote_id}`}</span>
+                    <span style={s.itemCustomer}>{a.customer ?? '—'}</span>
+                    <span style={s.itemPrice}>{a.final_price ? won(a.final_price) : '—'}</span>
+                  </div>
+                  {showUserFilter && <div style={s.itemOwner}>담당 {a.sales_user_id ?? '—'}</div>}
+                </div>
+              ))}
+            </div>
           ) : (
             <div style={s.tableWrap}>
               <table style={s.table}>
@@ -134,10 +160,12 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
             <section style={s.section}>
               <div style={s.h}>전체 집계</div>
               <Funnel reached={total.reached} />
-              <div style={s.cards}>
-                <Card label="견적확정 금액" value={won(total.amount.confirmed)} />
-                <Card label="계약완료 금액" value={won(total.amount.contracted)} />
-                <Card label="인도완료 금액" value={won(total.amount.completed)} strong />
+              <div style={s.groups}>
+                <MetricGroup title="금액">
+                  <Metric label="견적확정" value={won(total.amount.confirmed)} />
+                  <Metric label="계약완료" value={won(total.amount.contracted)} />
+                  <Metric label="인도완료" value={won(total.amount.completed)} strong />
+                </MetricGroup>
               </div>
             </section>
           )}
@@ -149,28 +177,32 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <div style={s.h}>{st.sales_user_id} <span style={s.count}>견적 {st.activity.quotes}건</span></div>
               <Funnel reached={st.reached} />
 
-              <div style={s.cards}>
-                <Card label="견적확정 금액" value={won(st.amount.confirmed)} />
-                <Card label="계약완료 금액" value={won(st.amount.contracted)} />
-                <Card label="인도완료 금액" value={won(st.amount.completed)} strong />
-                <Card label="메일 발송" value={`${st.activity.emailed}건`} />
-                <Card label="서명 요청" value={`${st.activity.sign_requested}건`} />
-                <Card
-                  label="견적당 수정"
-                  value={st.edits_per_quote === null ? '—' : `${st.edits_per_quote}회`}
-                  note="견적 1건당 평균 수정 횟수"
-                />
-              </div>
+              <div style={s.groups}>
+                <MetricGroup title="금액">
+                  <Metric label="견적확정" value={won(st.amount.confirmed)} />
+                  <Metric label="계약완료" value={won(st.amount.contracted)} />
+                  <Metric label="인도완료" value={won(st.amount.completed)} strong />
+                </MetricGroup>
 
-              <div style={s.cards}>
-                <Lead label="견적확정 소요" v={st.lead.to_confirmed} />
-                <Lead label="계약완료 소요" v={st.lead.to_contracted} />
-                <Lead label="인도완료 소요" v={st.lead.to_completed} />
-                <Card
-                  label="서명 완료율"
-                  value={signRate(st)}
-                  note={`이메일 ${st.signing.email_done}/${st.signing.email_sent} · 알림톡 ${st.signing.kakao_done}/${st.signing.kakao_sent} (완료/요청)`}
-                />
+                <MetricGroup title="활동">
+                  <Metric label="메일 발송" value={`${st.activity.emailed}건`} />
+                  <Metric label="서명 요청" value={`${st.activity.sign_requested}건`} />
+                  <Metric
+                    label="서명 완료율" value={signRate(st)}
+                    note={`이메일 ${st.signing.email_done}/${st.signing.email_sent} · 알림톡 ${st.signing.kakao_done}/${st.signing.kakao_sent}`}
+                  />
+                  <Metric
+                    label="견적당 수정"
+                    value={st.edits_per_quote === null ? '—' : `${st.edits_per_quote}회`}
+                    note="견적 1건당 평균"
+                  />
+                </MetricGroup>
+
+                <MetricGroup title="소요">
+                  <Lead label="견적확정" v={st.lead.to_confirmed} />
+                  <Lead label="계약완료" v={st.lead.to_contracted} />
+                  <Lead label="인도완료" v={st.lead.to_completed} />
+                </MetricGroup>
               </div>
             </section>
           ))}
@@ -198,7 +230,8 @@ function Funnel({ reached }: { reached: Record<FunnelStage, number> }) {
             {i > 0 && (
               <div style={s.arrow}>
                 <div style={s.arrowMark}>›</div>
-                <div style={r !== null && r < 50 ? s.rateLow : s.rate}>{r === null ? '—' : `${r}%`}</div>
+                {/* funnel-rate — 아주 좁은 화면에서는 globals.css 가 이 줄을 감춘다(단계 이름이 먼저다) */}
+                <div className="funnel-rate" style={r !== null && r < 50 ? s.rateLow : s.rate}>{r === null ? '—' : `${r}%`}</div>
               </div>
             )}
             <div style={s.step}>
@@ -212,12 +245,32 @@ function Funnel({ reached }: { reached: Record<FunnelStage, number> }) {
   )
 }
 
-function Card({ label, value, note, strong }: { label: string; value: string; note?: string; strong?: boolean }) {
+/**
+ * 지표 한 줄 — **칸을 채우지 않는다.**
+ *
+ * 예전엔 지표마다 회색 카드였다. 열몇 개가 깔리면 화면이 덩어리로 가득 차
+ * 어디를 봐야 할지 알 수 없었다(실제 제보: "정신없다").
+ * 이제 라벨(좌) · 값(우) 한 줄이고, 줄 사이는 헤어라인 하나로만 나눈다.
+ * 강조는 배경이 아니라 **글자 굵기**로 한다.
+ */
+function Metric({ label, value, note, strong }: { label: string; value: string; note?: string; strong?: boolean }) {
   return (
-    <div style={strong ? s.cardStrong : s.card}>
-      <div style={s.cardLabel}>{label}</div>
-      <div style={strong ? s.cardValStrong : s.cardVal}>{value}</div>
-      {note && <div style={s.cardNote}>{note}</div>}
+    <div style={s.metric}>
+      <div style={s.metricHead}>
+        <span style={s.metricLabel}>{label}</span>
+        <span style={strong ? s.metricValStrong : s.metricVal}>{value}</span>
+      </div>
+      {note && <div style={s.metricNote}>{note}</div>}
+    </div>
+  )
+}
+
+/** 지표 묶음 — 성격이 같은 것끼리(금액·활동·소요) 모아 제목을 얹는다. */
+function MetricGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={s.group}>
+      <div style={s.groupTitle}>{title}</div>
+      {children}
     </div>
   )
 }
@@ -225,18 +278,20 @@ function Card({ label, value, note, strong }: { label: string; value: string; no
 /** 소요일 — 표본 수를 함께 보여준다. 1건 평균과 20건 평균은 무게가 다르다. */
 function Lead({ label, v }: { label: string; v: { days: number | null; n: number } }) {
   return (
-    <div style={s.card}>
-      <div style={s.cardLabel}>{label}</div>
-      <div style={s.cardVal}>{v.days === null ? '—' : `${v.days}일`}</div>
-      <div style={s.cardNote}>{v.n ? `표본 ${v.n}건` : '산출 불가'}</div>
-    </div>
+    <Metric
+      label={label}
+      value={v.days === null ? '—' : `${v.days}일`}
+      note={v.n ? `표본 ${v.n}건` : '산출 불가'}
+    />
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  bar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' },
-  date: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
-  select: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8, minWidth: 220 },
+  bar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' },
+  // 모양·높이는 globals.css 가 정한다 — 여기서는 **줄어드는 방식만** 정한다
+  date: { flex: '0 1 auto', minWidth: 0 },
+  // 계정 선택(관리자) — 늘어나지 않고, 좁아지면 다른 칸과 함께 줄어든다
+  select: { flex: '0 1 220px', minWidth: 0, maxWidth: '100%' },
   sep: { color: 'var(--muted)' },
   hint: { fontSize: 12.5, color: 'var(--muted)' },
   section: { marginBottom: 26 },
@@ -257,10 +312,12 @@ const s: Record<string, React.CSSProperties> = {
     width: '100%', containerType: 'inline-size' as const,
   },
   stepWrap: { display: 'flex', alignItems: 'stretch', flex: '1 1 0', minWidth: 0 },
-  step: {
-    background: 'var(--card)', borderRadius: 10, padding: '10px 4px', textAlign: 'center',
-    flex: '1 1 0', minWidth: 0,
-  },
+  /*
+   * 단계 칸 — **배경을 채우지 않는다.** 회색 상자 여섯 개가 늘어서면 흐름이 아니라
+   * 덩어리로 읽힌다. 숫자와 이름만 두고, 사이의 화살표가 흐름을 만든다.
+   */
+  // 좌우 여백 없음 — 320px 에서는 4px 씩만 있어도 「견적확정」이 잘린다(실측). 사이는 gap 이 만든다
+  step: { padding: 'var(--sp-2) 0', textAlign: 'center', flex: '1 1 0', minWidth: 0 },
   // 6칸이라 한 칸이 대략 컨테이너의 1/8~1/6 — 그 폭 안에서 네 글자가 접히지 않는 크기로 묶는다
   stepName: { fontSize: 'clamp(9px, 1.9cqi, 13px)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
   stepNum: { fontSize: 'clamp(13px, 3.1cqi, 20px)', fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
@@ -273,13 +330,52 @@ const s: Record<string, React.CSSProperties> = {
   // 낮은 전환율은 **경고**다 — 아직 안 채운 칸(--req)과 뜻이 다르다
   rateLow: { fontSize: 'clamp(9px, 1.9cqi, 12.5px)', color: 'var(--warn)', fontWeight: 700, whiteSpace: 'nowrap' as const },
 
-  cards: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 },
-  card: { flex: '1 1 150px', minWidth: 150, background: 'var(--card)', borderRadius: 10, padding: '10px 13px' },
-  cardStrong: { flex: '1 1 150px', minWidth: 150, background: 'var(--lime-bg)', borderRadius: 10, padding: '10px 13px' },
-  cardLabel: { fontSize: 13, color: 'var(--muted)' },
-  cardVal: { fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
-  cardValStrong: { fontSize: 17, fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
-  cardNote: { fontSize: 12.5, color: 'var(--muted)', marginTop: 3, lineHeight: 1.4 },
+  /*
+   * 지표 묶음 — 넓으면 여러 열, 좁으면 한 열. **칸을 채우지 않는다**(배경·테두리 없음).
+   * 열 사이는 여백으로만 나눈다 — 선을 그으면 표처럼 보여 읽는 순서가 흐려진다.
+   */
+  groups: {
+    // 220px — 태블릿(768) 에서도 세 묶음이 한 줄에 들어가는 최소값(260 이면 2+1 로 어긋난다)
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: 'var(--sp-5)', marginTop: 'var(--sp-4)',
+  },
+  /*
+   * 한 묶음의 폭은 **420px 에서 멈춘다**. 라벨(좌)–값(우) 사이가 벌어질수록
+   * 어느 값이 어느 라벨의 것인지 눈으로 잇기 어려워진다 — 넓은 화면에서는
+   * 칸을 늘리는 대신 왼쪽에 모아 둔다.
+   */
+  group: { minWidth: 0, maxWidth: 420 },
+  groupTitle: {
+    fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'],
+    letterSpacing: 'var(--ls-tight)', paddingBottom: 'var(--sp-2)', borderBottom: 'var(--hairline)',
+  },
+  /** 지표 한 줄 — 줄 사이는 헤어라인 하나. 마지막 줄에도 선을 남겨 묶음의 끝을 만든다 */
+  metric: { padding: 'var(--sp-3) 0', borderBottom: 'var(--hairline)' },
+  metricHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-3)' },
+  metricLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
+  metricVal: {
+    fontSize: 'var(--fs-section)', color: 'var(--dark)',
+    fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const,
+  },
+  // 강조는 **배경이 아니라 굵기**로 — 칸을 채우면 다시 블록이 된다
+  metricValStrong: {
+    fontSize: 'var(--fs-section)', color: 'var(--dark)', fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const,
+  },
+  metricNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 2, lineHeight: 'var(--lh-body)' },
+
+  /* 휴대폰용 한 건 — 칸을 채우지 않고 줄로만 나눈다(표 스타일과 같은 원칙) */
+  item: { padding: 'var(--sp-3) 0', borderBottom: 'var(--hairline)' },
+  itemTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-2)' },
+  itemDays: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', whiteSpace: 'nowrap' as const },
+  itemBottom: {
+    display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)', marginTop: 'var(--sp-2)',
+  },
+  itemNo: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
+  // 고객명만 길어질 수 있다 — 여기서만 줄이고 번호·금액은 온전히 남긴다
+  itemCustomer: { flex: 1, minWidth: 0, fontSize: 'var(--fs-label)', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  itemPrice: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
+  itemOwner: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 2 },
 
   tableWrap: { overflowX: 'auto' },
   table: { width: '100%', minWidth: 'max-content', borderCollapse: 'collapse', fontSize: 13 },

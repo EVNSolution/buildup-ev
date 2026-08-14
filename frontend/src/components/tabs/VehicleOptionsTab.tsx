@@ -165,7 +165,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden' as const,
-    color: '#b3b9c0',
+    color: 'var(--muted)',
     fontSize: 13,
   },
   // 차량이 잘리면 안 되므로 칸 안에 통째로 담는다(contain)

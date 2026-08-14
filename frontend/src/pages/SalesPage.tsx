@@ -124,6 +124,11 @@ function MyListView() {
   const [editQuote, setEditQuote] = useState<ApiQuote | null>(null)
   const [viewQuote, setViewQuote] = useState<ApiQuote | null>(null)
   const [dupBusy, setDupBusy] = useState<number | null>(null)
+  /**
+   * 접어 둔 날짜 — 기본은 **가장 최근 날짜만 펼침**.
+   * 목록이 쌓이면 "오늘 뭘 했나"를 먼저 보게 되고, 지난 날짜는 필요할 때만 편다.
+   */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   // 권한 없는 버튼은 아예 감춘다 — 눌러서 403 을 보게 두면 왜 안 되는지 알 수 없다
   const canEdit = usePermission('quote.edit')
   const canEmail = usePermission('doc.send.email')
@@ -159,6 +164,25 @@ function MyListView() {
 
   // order_id 빠른 조회용 (quote_id → order)
   const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
+
+  /**
+   * 날짜별 묶음 — 목록이 쌓이면 "언제 것인지"가 먼저 필요한 정보가 된다.
+   * 서버가 최신순으로 주므로 **순서를 다시 정렬하지 않는다**(Map 이 삽입 순서를 지킨다).
+   */
+  const byDate = useMemo(() => {
+    const m = new Map<string, ApiQuote[]>()
+    for (const q of quotes) {
+      const d = fmtDate(q.created_at)
+      const list = m.get(d)
+      if (list) list.push(q); else m.set(d, [q])
+    }
+    return [...m.entries()]
+  }, [quotes])
+
+  // 가장 최근 날짜만 펼쳐 둔다 — 목록을 처음 열었을 때 오늘 것부터 보이게
+  useEffect(() => {
+    if (byDate.length > 1) setCollapsed(new Set(byDate.slice(1).map(([d]) => d)))
+  }, [byDate.length])
 
   /*
    * ⚠️ 첫 로드에서만 「로딩 중…」으로 갈아친다.
@@ -306,8 +330,29 @@ function MyListView() {
                   <th style={lv.th}></th>
                 </tr>
               </thead>
-              <tbody>
-                {quotes.map(q => {
+              {byDate.map(([date, rows]) => {
+                const isOpen = !collapsed.has(date)
+                return (
+              <tbody key={date}>
+                {/*
+                  날짜 머리 — 누르면 그 날짜만 접힌다.
+                  건수만 붙인다. 금액 합계는 마이페이지가 따로 집계하므로 여기선 중복이다.
+                */}
+                <tr
+                  style={lv.groupRow}
+                  onClick={() => setCollapsed(prev => {
+                    const next = new Set(prev)
+                    next.has(date) ? next.delete(date) : next.add(date)
+                    return next
+                  })}
+                >
+                  <td colSpan={9} style={lv.groupCell}>
+                    <span style={lv.groupArrow}>{isOpen ? '▾' : '▸'}</span>
+                    <span style={lv.groupDate}>{date}</span>
+                    <span style={lv.groupCount}>{rows.length}건</span>
+                  </td>
+                </tr>
+                {isOpen && rows.map(q => {
                   const order = orderByQuote.get(q.id)
                   return (
                     <tr key={q.id}>
@@ -426,6 +471,8 @@ function MyListView() {
                   )
                 })}
               </tbody>
+                )
+              })}
             </table>
           </div>
         )}
@@ -927,6 +974,20 @@ const lv: Record<string, React.CSSProperties> = {
   sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
   tableWrap: { overflowX: 'auto' },
+  /*
+   * 날짜 머리 — **칸을 채우지 않는다**. 위쪽 헤어라인 하나로 묶음을 나눈다.
+   */
+  groupRow: { cursor: 'pointer' },
+  groupCell: {
+    padding: 'var(--sp-3) var(--sp-3) var(--sp-2)', borderTop: 'var(--hairline)',
+    display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',
+  },
+  groupArrow: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', width: 12 },
+  groupDate: {
+    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)',
+    letterSpacing: 'var(--ls-tight)', fontVariantNumeric: 'tabular-nums' as const,
+  },
+  groupCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   // 폭이 모자라면 칸을 **줄여서 글자를 접지 말고** 가로로 넘겨 스크롤한다.
   // (예전엔 고객명이 한 글자씩 세로로 접히고 배지·버튼이 눌려 찌그러졌다)
   table: { width: '100%', minWidth: 'max-content', borderCollapse: 'collapse', fontSize: 13 },

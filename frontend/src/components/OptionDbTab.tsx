@@ -404,8 +404,8 @@ export function OptionDbTab({ only, note }: Props = {}) {
                         <td style={s.tdSm}>{l.changed_at.replace('T', ' ').slice(0, 16)}</td>
                         <td style={s.tdSm}>{l.row_key}</td>
                         <td style={s.tdSm}>{l.field}</td>
-                        <td style={{ ...s.tdSm, color: '#a12d2d' }}>{l.old_value ?? '—'}</td>
-                        <td style={{ ...s.tdSm, color: '#2e7d32', fontWeight: 700 }}>{l.new_value ?? '—'}</td>
+                        <td style={{ ...s.tdSm, color: 'var(--warn)' }}>{l.old_value ?? '—'}</td>
+                        <td style={{ ...s.tdSm, color: 'var(--dark)', fontWeight: 700 }}>{l.new_value ?? '—'}</td>
                         <td style={s.tdSm}>{l.changed_by}</td>
                       </tr>
                     ))}
@@ -422,33 +422,34 @@ export function OptionDbTab({ only, note }: Props = {}) {
 
 const s: Record<string, React.CSSProperties> = {
   human: { fontSize: 12, color: 'var(--muted)', marginTop: 2, fontWeight: 400 },
-  sectionRow: { background: '#eef2e6', color: '#42502a', fontWeight: 700, fontSize: 14, padding: '7px 10px', borderTop: '2px solid #d5e0bf' },
-  sectionCount: { fontSize: 12, color: '#7b8a5e', fontWeight: 400, marginLeft: 6 },
+  sectionRow: { background: 'var(--lime-bg)', color: 'var(--dark)', fontWeight: 700, fontSize: 14, padding: '7px 10px', borderTop: '2px solid var(--lime)' },
+  sectionCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, marginLeft: 'var(--sp-2)' },
   sub: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
-  note: { background: '#f7f8f3', border: '1px solid var(--line)', color: '#5b6350', fontSize: 12.5, padding: '9px 12px', borderRadius: 8, marginBottom: 12, lineHeight: 1.6 },
+  note: { background: 'var(--card)', border: '0.5px solid var(--line)', color: 'var(--body)', fontSize: 'var(--fs-caption)', padding: '9px 12px', borderRadius: 8, marginBottom: 12, lineHeight: 1.6 },
   root: { padding: 16 },
   bar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' },
-  select: { padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 7, fontSize: 13 },
-  search: { padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 7, fontSize: 13, width: 200 },
-  btn: { padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 7, background: '#fff', cursor: 'pointer', fontSize: 12.5 },
-  btnDisabled: { padding: '7px 12px', border: '1px solid var(--line)', borderRadius: 7, background: '#f0f2f4', color: '#b0b7c0', fontSize: 12.5, cursor: 'not-allowed' },
+  select: { padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 7, fontSize: 13 },
+  search: { padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 7, fontSize: 13, width: 200 },
+  btn: { padding: '7px 12px', border: '0.5px solid var(--line)', borderRadius: 7, background: '#fff', cursor: 'pointer', fontSize: 12.5 },
+  btnDisabled: { padding: '7px 12px', border: '0.5px solid var(--line)', borderRadius: 7, background: 'var(--card)', color: 'var(--muted)', fontSize: 12.5, cursor: 'not-allowed' },
   primary: { padding: '7px 14px', border: 'none', borderRadius: 7, background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' },
-  linkBtn: { padding: '2px 8px', border: '1px solid var(--line)', borderRadius: 6, background: '#f7f8f3', cursor: 'pointer', fontSize: 11 },
-  ok: { background: '#e8f5e9', color: '#2e7d32', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 10 },
-  err: { background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 10 },
+  linkBtn: { padding: '2px 8px', border: '0.5px solid var(--line)', borderRadius: 6, background: 'var(--card)', cursor: 'pointer', fontSize: 11 },
+  ok: { background: 'var(--lime-bg)', color: 'var(--dark)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 10 },
+  err: { background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginBottom: 10 },
   empty: { padding: 20, color: 'var(--muted)', fontSize: 13 },
-  tableWrap: { overflowX: 'auto', border: '1px solid var(--line)', borderRadius: 8 },
+  tableWrap: { overflowX: 'auto', border: '0.5px solid var(--line)', borderRadius: 8 },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
-  th: { textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 11.5, whiteSpace: 'nowrap' },
-  td: { padding: '4px 8px', borderBottom: '1px solid #f0f2f4' },
-  tdKey: { padding: '4px 10px', borderBottom: '1px solid #f0f2f4', fontWeight: 600, whiteSpace: 'nowrap' },
-  tdSm: { padding: '5px 10px', borderBottom: '1px solid #f0f2f4', fontSize: 11.5, whiteSpace: 'nowrap' },
-  trDirty: { background: '#fffbe6' },
-  input: { width: '100%', minWidth: 90, padding: '5px 7px', border: '1px solid var(--line)', borderRadius: 6, fontSize: 12.5 },
+  th: { textAlign: 'left', padding: '8px 10px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 11.5, whiteSpace: 'nowrap' },
+  td: { padding: '4px 8px', borderBottom: '0.5px solid var(--card)' },
+  tdKey: { padding: '4px 10px', borderBottom: '0.5px solid var(--card)', fontWeight: 600, whiteSpace: 'nowrap' },
+  tdSm: { padding: '5px 10px', borderBottom: '0.5px solid var(--card)', fontSize: 11.5, whiteSpace: 'nowrap' },
+  // 아직 저장하지 않은 줄 — 선택·진행 표시와 같은 라임 계열
+  trDirty: { background: 'var(--lime-bg)' },
+  input: { width: '100%', minWidth: 90, padding: '5px 7px', border: '0.5px solid var(--line)', borderRadius: 6, fontSize: 12.5 },
   count: { padding: '6px 10px', color: 'var(--muted)', fontSize: 11.5 },
   overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 },
   modal: { width: 'min(900px, 94vw)', maxHeight: '80vh', background: '#fff', borderRadius: 12, padding: 18, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column' },
   modalHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 15, fontWeight: 700 },
-  logWrap: { overflow: 'auto', border: '1px solid var(--line)', borderRadius: 8 },
+  logWrap: { overflow: 'auto', border: '0.5px solid var(--line)', borderRadius: 8 },
 }
