@@ -57,14 +57,14 @@ function quoteStatusTip(status: string): React.ReactNode {
     <div>
       <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>견적 상태</div>
       {QUOTE_STATUS_FLOW.map((s, i) => (
-        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? '#c8d200' : '#ccc', fontSize: 11 }}>
+        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? 'var(--lime)' : 'var(--line)', fontSize: 11 }}>
           <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
           <span>{s.label}</span>
-          <span style={{ fontSize: 9.5, color: s.key === status ? '#b0b8c0' : '#666', marginLeft: 2 }}>({s.desc})</span>
-          {s.key === status && <span style={{ fontSize: 9, color: '#c8d200', marginLeft: 2 }}>← 현재</span>}
+          <span style={{ fontSize: 9.5, color: 'var(--muted)', marginLeft: 'var(--sp-1)' }}>({s.desc})</span>
+          {s.key === status && <span style={{ fontSize: 9, color: 'var(--lime)', marginLeft: 2 }}>← 현재</span>}
         </div>
       ))}
-      {status === 'expired' && <div style={{ fontSize: 10, color: '#e57373', marginTop: 5 }}>만료/취소된 견적입니다</div>}
+      {status === 'expired' && <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 5 }}>만료/취소된 견적입니다</div>}
     </div>
   )
 }
@@ -274,6 +274,8 @@ function AccountsTab() {
   const [showCreate, setShowCreate] = useState(false)
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null)
   const [resetting, setResetting] = useState<string | null>(null)
+  /** 재설정 확인을 기다리는 계정(눌렀지만 아직 실행 전) */
+  const [resetConfirm, setResetConfirm] = useState<User | null>(null)
   const [resetResult, setResetResult] = useState<{ email: string; temp_password: string } | null>(null)
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -290,7 +292,14 @@ function AccountsTab() {
 
   useEffect(() => { loadAll() }, [])
 
+  /*
+   * 비밀번호 재설정 — **되돌릴 수 없는 동작**이다.
+   * 누르는 즉시 그 사람의 기존 비밀번호가 무효가 되고, 임시 비밀번호는 이 화면에서
+   * 한 번만 보인다(다시 조회할 수 없다). 옆 버튼을 잘못 눌러 남의 로그인을 끊는 일이
+   * 없도록 **확인 단계를 한 번 둔다**(디자인 시스템 1-6 되돌릴 수 없는 동작).
+   */
   async function handleResetPw(email: string) {
+    setResetConfirm(null)
     setResetting(email)
     try {
       const res = await resetUserPassword(email)
@@ -381,8 +390,8 @@ function AccountsTab() {
   const STATUS_LABEL: Record<string, string> = { active: '활성', invited: '초대됨', suspended: '정지' }
   const STATUS_STYLE: Record<string, React.CSSProperties> = {
     active: { background: 'var(--lime)', color: 'var(--dark)' },
-    invited: { background: '#e3f2fd', color: '#1565c0' },
-    suspended: { background: '#fdecea', color: '#c62828' },
+    invited: { background: 'var(--card)', color: 'var(--dark)' },
+    suspended: { background: 'var(--warnbg)', color: 'var(--warn)' },
   }
   const adminCount = users.filter(u => u.role === 'ADMIN').length
   const isDeleteDisabled = (u: User) => u.email === myEmail || (u.role === 'ADMIN' && adminCount <= 1)
@@ -458,7 +467,7 @@ function AccountsTab() {
       return isMaster ? (
         <button
           style={{ ...BTN.row }}
-          onClick={() => handleResetPw(user.email)}
+          onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
           {resetting === user.email ? '…' : '비번재설정'}
@@ -475,7 +484,7 @@ function AccountsTab() {
         </button>
         <button
           style={{ ...BTN.row }}
-          onClick={() => handleResetPw(user.email)}
+          onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
           {resetting === user.email ? '…' : '비번재설정'}
@@ -518,6 +527,31 @@ function AccountsTab() {
   return (
     <div style={styles.content}>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 12 }}>{err}</div>}
+
+      {/*
+        확인 단계 — 되돌릴 수 없는 동작이라 버튼 하나를 더 거치게 한다.
+        무엇이 일어나는지(기존 비밀번호 무효 · 임시 비밀번호는 1회만 표시)를 눌러야 할
+        사람이 읽고 결정하도록 그 자리에 적는다.
+      */}
+      {resetConfirm && (
+        <div style={modal.overlay} onClick={() => setResetConfirm(null)}>
+          <div style={modal.box} onClick={e => e.stopPropagation()}>
+            <div style={modal.title}>비밀번호 재설정 — {resetConfirm.name}</div>
+            <div style={modal.desc}>
+              <b>{resetConfirm.email}</b> 의 비밀번호를 임시 비밀번호로 바꿉니다.
+              <br />· 지금 쓰던 비밀번호는 <b>즉시 사용할 수 없게</b> 됩니다.
+              <br />· 임시 비밀번호는 <b>이 화면에서 한 번만</b> 보이며 다시 조회할 수 없습니다.
+              <br />· 당사자에게 직접 전달해야 합니다.
+            </div>
+            <div style={modal.actions}>
+              <button style={modal.cancelBtn} onClick={() => setResetConfirm(null)}>취소</button>
+              <button style={modal.confirmBtn} onClick={() => handleResetPw(resetConfirm.email)}>
+                재설정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {resetResult && (
         <div style={acc.resetResultBox}>
@@ -1201,16 +1235,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   // 본문 좌우 여백만큼 밖으로 빼 밑줄이 화면 끝까지 이어지게 한다
   tabBar: { display: 'flex', margin: '0 calc(var(--sp-5) * -1) var(--sp-5)' },
-  tab: { padding: '6px 14px', border: '1px solid var(--line)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
-  tabOn: { padding: '6px 14px', border: '1px solid var(--dark)', borderRadius: 8, background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 },
+  tab: { padding: '6px 14px', border: '0.5px solid var(--line)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
+  tabOn: { padding: '6px 14px', border: '0.5px solid var(--dark)', borderRadius: 8, background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 },
   content: {},
   surfaceGroup: { marginBottom: 28 },
   surfaceLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 8 },
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
   thModule: { textAlign: 'left' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
   thRole: { textAlign: 'center' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, width: 80 },
-  tdModule: { padding: '10px 12px', borderBottom: '1px solid var(--line)' },
-  tdToggle: { textAlign: 'center' as const, padding: '10px 12px', borderBottom: '1px solid var(--line)' },
+  tdModule: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)' },
+  tdToggle: { textAlign: 'center' as const, padding: '10px 12px', borderBottom: '0.5px solid var(--line)' },
   modName: { fontSize: 13, color: 'var(--dark)' },
   modCode: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
   // 높이·폭은 표 안 버튼과 같은 값으로 — 한 화면에서 버튼 크기가 갈리지 않게
@@ -1220,8 +1254,8 @@ const styles: Record<string, React.CSSProperties> = {
 
 const qt: Record<string, React.CSSProperties> = {
   filterBar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
-  select: { fontSize: 13, padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 8 },
-  dateInput: { fontSize: 13, padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 8 },
+  select: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
+  dateInput: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
   dateSep: { color: 'var(--muted)', fontSize: 13 },
   searchBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
   errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 10 },
@@ -1231,11 +1265,11 @@ const qt: Record<string, React.CSSProperties> = {
   // 폭이 모자라면 칸을 **줄여서 글자를 접지 말고** 가로로 넘겨 스크롤한다.
   table: { width: '100%', minWidth: 'max-content' as const, borderCollapse: 'collapse' as const, fontSize: 13 },
   th: { textAlign: 'left' as const, padding: '9px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' as const },
-  td: { padding: '10px 12px', borderBottom: '1px solid var(--line)', verticalAlign: 'middle' as const, whiteSpace: 'nowrap' as const },
-  tdMuted: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const },
+  td: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle' as const, whiteSpace: 'nowrap' as const },
+  tdMuted: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const },
   // 영업 이메일은 길어질 수 있다 — 표 전체를 밀어내지 않게 여기서만 줄임표로 자른다
-  tdEmail: { padding: '10px 12px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const, maxWidth: 210, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
-  tdNum: { padding: '10px 12px', borderBottom: '1px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, whiteSpace: 'nowrap' as const },
+  tdEmail: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const, maxWidth: 210, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
+  tdNum: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, whiteSpace: 'nowrap' as const },
   // 표 안 버튼 — 영업 화면 목록과 **같은 크기**(BTN.sm*). 색만 역할에 맞게 얹는다
   pdfBtn: BTN.smSecondary,
   sendBtn: BTN.smSecondary,
@@ -1247,7 +1281,7 @@ const qt: Record<string, React.CSSProperties> = {
 
 // 모바일 견적 카드 스타일
 const qtMob: Record<string, React.CSSProperties> = {
-  card: { border: '1px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
+  card: { border: '0.5px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
   cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const },
   name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)' },
   rows: { display: 'flex', flexDirection: 'column', gap: 6 },
@@ -1262,8 +1296,8 @@ const modal: Record<string, React.CSSProperties> = {
   box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16 },
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)' },
   desc: { fontSize: 13, color: 'var(--muted)' },
-  select: { fontSize: 14, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 9, width: '100%' },
-  error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '1px solid #f0c9ad', padding: '7px 10px', borderRadius: 7 },
+  select: { fontSize: 14, padding: '10px 12px', border: '0.5px solid var(--line)', borderRadius: 9, width: '100%' },
+  error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '0.5px solid var(--warn)', padding: '7px 10px', borderRadius: 7 },
   actions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
   // 나란히 서는 버튼은 **같은 크기** — 공통 BTN 을 쓰고 최소폭만 맞춘다
   cancelBtn: { ...BTN.secondary, minWidth: 108, color: 'var(--muted)' },
@@ -1277,59 +1311,59 @@ const acc: Record<string, React.CSSProperties> = {
   createBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
   tableWrap: { overflowX: 'auto' as const },
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
-  input: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 },
+  input: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
   roleBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   // 겸직은 주 역할보다 한 단 여리게 — 어느 것이 이 계정의 자리인지 한눈에 갈린다
   roleBadgeExtra: {
     fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, marginLeft: 4,
-    background: 'var(--lime-bg)', color: 'var(--dark)', border: '1px solid var(--lime)',
+    background: 'var(--lime-bg)', color: 'var(--dark)', border: '0.5px solid var(--lime)',
   },
   roleRow: { display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 12 },
   // 폭을 못 박는다 — 「영업」·「관리자 · 주」처럼 글자 수가 달라도 칩 크기는 같아야 한다
   roleChipOff: {
     minHeight: 'var(--h-control)', width: 108, padding: '0 var(--sp-3)', borderRadius: 'var(--r-pill)',
-    border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
+    border: '0.5px solid var(--line)', background: '#fff', color: 'var(--muted)',
     fontSize: 'var(--fs-label)', fontFamily: 'inherit', cursor: 'pointer',
   },
   roleChipOn: {
     minHeight: 'var(--h-control)', width: 108, padding: '0 var(--sp-3)', borderRadius: 'var(--r-pill)',
-    border: '1px solid var(--lime)', background: 'var(--lime-bg)', color: 'var(--dark)',
+    border: '0.5px solid var(--lime)', background: 'var(--lime-bg)', color: 'var(--dark)',
     fontSize: 'var(--fs-label)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
   },
   // 주 역할은 끌 수 없다 — 눌리지 않는다는 것을 커서로도 알린다
   roleChipPrimary: { cursor: 'default', background: 'var(--lime)', borderColor: 'var(--lime)' },
-  masterBadge: { fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: '#1a1a1a', color: '#c8d200', marginLeft: 4 },
+  masterBadge: { fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: 'var(--dark)', color: 'var(--lime)', marginLeft: 4 },
   statusBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8 },
   actions: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' as const },
-  actionBtn: { padding: '4px 10px', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 12, color: 'var(--dark)' },
-  suspendBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#fdecea', color: '#c62828', fontSize: 12, fontWeight: 600 },
-  activateBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e8f5e9', color: '#2e7d32', fontSize: 12, fontWeight: 600 },
-  deleteBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#b71c1c', color: '#fff', fontSize: 12, fontWeight: 600 },
-  deleteBtnDisabled: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed', background: '#e0e0e0', color: '#9e9e9e', fontSize: 12, fontWeight: 600 },
-  cascadeDeleteBtn: { padding: '4px 10px', border: '2px solid #b71c1c', borderRadius: 6, cursor: 'pointer', background: '#fff', color: '#b71c1c', fontSize: 12, fontWeight: 700 },
-  expandCell: { padding: '12px 16px', background: '#f8f9fa', borderBottom: '1px solid var(--line)' },
+  actionBtn: { padding: '4px 10px', border: '0.5px solid var(--line)', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 12, color: 'var(--dark)' },
+  suspendBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--warnbg)', color: 'var(--warn)', fontSize: 'var(--fs-caption)', fontWeight: 600 },
+  activateBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--lime-bg)', color: 'var(--dark)', fontSize: 12, fontWeight: 600 },
+  deleteBtn: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--warn)', color: '#fff', fontSize: 12, fontWeight: 600 },
+  deleteBtnDisabled: { padding: '4px 10px', border: 'none', borderRadius: 6, cursor: 'not-allowed', background: 'var(--line)', color: 'var(--muted)', fontSize: 12, fontWeight: 600 },
+  cascadeDeleteBtn: { padding: '4px 10px', border: '2px solid var(--warn)', borderRadius: 6, cursor: 'pointer', background: '#fff', color: 'var(--warn)', fontSize: 12, fontWeight: 700 },
+  expandCell: { padding: 'var(--sp-3) var(--sp-4)', background: 'var(--card)', borderBottom: '0.5px solid var(--line)' },
   expandHeader: { fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 10 },
   moduleGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },
-  moduleItem: { background: '#fff', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 12px', minWidth: 140, display: 'flex', flexDirection: 'column', gap: 3 },
+  moduleItem: { background: '#fff', border: '0.5px solid var(--line)', borderRadius: 8, padding: '8px 12px', minWidth: 140, display: 'flex', flexDirection: 'column', gap: 3 },
   modName: { fontSize: 12, fontWeight: 600, color: 'var(--dark)' },
   modCode: { fontSize: 10, color: 'var(--muted)' },
   modMeta: { marginBottom: 4 },
-  overrideTag: { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#fff3e0', color: '#e65100' },
+  overrideTag: { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: 'var(--warnbg)', color: 'var(--warn)' },
   roleTag: { fontSize: 10, color: 'var(--muted)', padding: '1px 0' },
   toggleOn: { ...BTN.smPrimary, background: 'var(--lime)', color: 'var(--dark)', border: 'none', fontWeight: 700 },
   toggleOff: { ...BTN.smSecondary, color: 'var(--muted)' },
-  tempPwBox: { background: '#f8f9fa', border: '1px solid var(--line)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 },
+  tempPwBox: { background: 'var(--card)', border: '0.5px solid var(--line)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 },
   tempPwLabel: { fontSize: 11, fontWeight: 700, color: 'var(--muted)' },
   tempPw: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', fontFamily: 'monospace', letterSpacing: 1 },
   tempPwNote: { fontSize: 11, color: 'var(--warn)' },
-  resetResultBox: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: 10, padding: '10px 14px', marginBottom: 14, flexWrap: 'wrap' as const },
-  resetResultLabel: { fontSize: 12, color: '#e65100' },
-  dismissBtn: { padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#e65100', color: '#fff', fontWeight: 700, fontSize: 12 },
+  resetResultBox: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--warnbg)', border: '0.5px solid var(--warn)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, flexWrap: 'wrap' as const },
+  resetResultLabel: { fontSize: 12, color: 'var(--warn)' },
+  dismissBtn: { padding: '4px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', background: 'var(--warn)', color: '#fff', fontWeight: 700, fontSize: 12 },
 }
 
 // 모바일 계정 카드 스타일
 const accMob: Record<string, React.CSSProperties> = {
-  card: { border: '1px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
+  card: { border: '0.5px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
   cardTop: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const },
   name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)' },
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13 },

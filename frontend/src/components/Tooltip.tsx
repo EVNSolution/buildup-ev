@@ -97,7 +97,7 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
       minWidth,
       maxWidth,
       zIndex: 9999,
-      background: '#1a1a1a',
+      background: 'var(--dark)',
       color: '#fff',
       fontSize: 11.5,
       lineHeight: 1.55,
@@ -141,7 +141,7 @@ const tt: Record<string, React.CSSProperties> = {
   iconBtn: {
     // 손가락으로 누르는 자리 — 보이는 크기는 그대로 두고 눌리는 범위만 넓힌다
     width: 15, height: 15, borderRadius: '50%',
-    border: '1px solid rgba(0,0,0,0.2)',
+    border: '0.5px solid rgba(0,0,0,0.2)',
     background: 'rgba(0,0,0,0.08)', color: 'inherit',
     fontSize: 9, cursor: 'pointer', flexShrink: 0,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

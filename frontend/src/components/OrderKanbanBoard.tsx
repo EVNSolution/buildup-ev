@@ -60,10 +60,10 @@ export function OrderKanbanBoard({ orders, onRefresh, onError, onCardClick, read
                 <div>
                   <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>진행 단계 (6단계)</div>
                   {ORDER_STATUS_SEQ.map((s, i) => (
-                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s === status ? 700 : 400, color: s === status ? '#c8d200' : '#ccc', fontSize: 11 }}>
+                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s === status ? 700 : 400, color: s === status ? 'var(--lime)' : 'var(--line)', fontSize: 11 }}>
                       <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
                       <span>{s}</span>
-                      {s === status && <span style={{ fontSize: 9, color: '#c8d200' }}>← 현재</span>}
+                      {s === status && <span style={{ fontSize: 9, color: 'var(--lime)' }}>← 현재</span>}
                     </div>
                   ))}
                 </div>
@@ -137,7 +137,7 @@ const kb: Record<string, React.CSSProperties> = {
   colHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '6px 10px', background: 'var(--card)', borderRadius: 8,
-    border: '1px solid var(--line)',
+    border: '0.5px solid var(--line)',
   },
   colTitle: { fontSize: 12, fontWeight: 700, color: 'var(--dark)' },
   colCount: {
@@ -146,7 +146,7 @@ const kb: Record<string, React.CSSProperties> = {
   },
   cards: { display: 'flex', flexDirection: 'column', gap: 8 },
   card: {
-    border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px',
+    border: '0.5px solid var(--line)', borderRadius: 10, padding: '10px 12px',
     background: '#fff', display: 'flex', flexDirection: 'column', gap: 5,
   },
   cardId: { fontSize: 10, color: 'var(--muted)' },
@@ -164,11 +164,11 @@ const kb: Record<string, React.CSSProperties> = {
     background: 'var(--card)', color: 'var(--muted)', cursor: 'not-allowed',
   },
   revBtn: {
-    flex: 1, fontSize: 11, padding: '5px 0', border: '1px solid var(--line)', borderRadius: 6,
+    flex: 1, fontSize: 11, padding: '5px 0', border: '0.5px solid var(--line)', borderRadius: 6,
     background: '#fff', color: 'var(--muted)', cursor: 'pointer',
   },
   revBtnDisabled: {
-    flex: 1, fontSize: 11, padding: '5px 0', border: '1px solid var(--line)', borderRadius: 6,
+    flex: 1, fontSize: 11, padding: '5px 0', border: '0.5px solid var(--line)', borderRadius: 6,
     background: 'var(--card)', color: 'var(--muted)', cursor: 'not-allowed',
   },
 }

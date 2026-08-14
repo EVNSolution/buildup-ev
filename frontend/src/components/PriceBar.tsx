@@ -465,8 +465,8 @@ const styles: Record<string, React.CSSProperties> = {
    */
   barTall: { padding: 'var(--sp-4)' },
   cellTall: {},
-  warn: { background: 'var(--warnbg)', border: '0.5px solid #f0c9ad', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
-  warnTbd: { background: 'var(--card)', border: '0.5px solid #ddd', color: '#555', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
+  warn: { background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10 },
+  warnTbd: { background: 'var(--card)', border: '0.5px solid var(--line)', color: 'var(--body)', fontSize: 11.5, padding: '7px 10px', borderRadius: 8, marginBottom: 10, fontWeight: 600 },
   flow: { display: 'flex', gap: fit(3, 0.31, 6), alignItems: 'stretch', width: '100%' },
   /*
    * 좁은 창 — 칸을 줄이지 않고 옆으로 민다. 금액을 잘라 「₩1,…」 로 보여 주느니
@@ -481,7 +481,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summaryLabel: { fontSize: 'var(--fs-body)', color: 'var(--lime)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
   summaryValue: { flex: 1, textAlign: 'right' as const, fontSize: 20, fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], whiteSpace: 'nowrap' as const },
-  summaryMore: { fontSize: 'var(--fs-caption)', color: '#c9ccd2', whiteSpace: 'nowrap' as const },
+  summaryMore: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
   /** 펼친 내역 — 화면을 다 덮지 않게 높이를 묶고 안에서 스크롤한다 */
   flowSheet: { maxHeight: '46vh', overflowY: 'auto' as const, marginBottom: 'var(--sp-2)' },
   flowScroll: {
@@ -572,7 +572,7 @@ const styles: Record<string, React.CSSProperties> = {
    * ⚠️ 그래도 대비는 낮은 편이라(약 2.3:1) **큰 글씨 전용**이다. 본문 크기로 쓰지 말 것.
    */
   heroValueWide: {
-    fontSize: 22, fontWeight: 700, color: '#AEB800',
+    fontSize: 22, fontWeight: 700, color: 'var(--lime-ink)',
     letterSpacing: '-0.01em', whiteSpace: 'nowrap' as const,
   },
   heroSub: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
@@ -581,14 +581,14 @@ const styles: Record<string, React.CSSProperties> = {
   // 등록·기타는 계산 흐름 밖 — 왼쪽에 구분선을 둬 실구매가와 시각적으로 분리한다
   // 계산 흐름 밖이라는 구분은 왼쪽 여백으로만 준다
   aside: { flex: 1.1, marginLeft: fit(10, 0.83, 16) },
-  asideNote: { fontSize: fit(10, 0.68, 13), color: '#a8aeb6', fontWeight: 700 },
+  asideNote: { fontSize: fit(10, 0.68, 13), color: 'var(--muted)', fontWeight: 700 },
   asideSub: { fontSize: fit(10, 0.68, 13), color: 'var(--muted)', marginTop: 3, ...noSpill },
   // 칸 제목은 모두 같은 크기 — 오른쪽 패널 글자(14)와 비슷한 수준으로 맞춘다
   blockLabel: { fontSize: fit(11, 0.73, 14), color: 'var(--muted)', ...noSpill },
   // 금액 글자 크기는 차량+특장 칸(firstValue)과 동일하게 — 칸마다 다르면 눈이 튄다
   blockValue: { fontSize: fit(11, 0.88, 17), fontWeight: 700, color: 'var(--dark)', marginTop: 2, ...noSpill },
   negVal: { color: 'var(--req)' },
-  mutedVal: { color: '#bfc4cb' },
+  mutedVal: { color: 'var(--muted)' },
   // 유일하게 배경을 갖는 칸 — 상담의 결론이라 여기만 강조한다
   hero: {
     ...cellBase, flex: 1.4, background: 'var(--dark)', borderRadius: 'var(--r-md)',
