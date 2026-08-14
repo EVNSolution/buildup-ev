@@ -5,14 +5,9 @@ import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
+import { STEPS, isStalled } from '@buildup-ev/shared/process';
 
 export const ordersRouter = Router();
-
-// 주문 상태 진행 순서 (앞으로만 전이 가능)
-const ORDER_STATUS_SEQ = [
-  '제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료',
-] as const;
-type OrderStatusStr = typeof ORDER_STATUS_SEQ[number];
 
 // ── GET /orders — 목록 (ADMIN=전체, MAKER=자기 배정, SALES=자기 견적) ─────
 
@@ -36,7 +31,8 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     if (scopes.length === 1) Object.assign(where, scopes[0]);
     else if (scopes.length > 1) where.OR = scopes;
   }
-  if (status) where.status = status;
+  // status 필터는 없앴다 — 옛 6단계 값이다. 진행은 단계 표가 갖는다
+
   if (from || to) {
     where.created_at = {
       ...(from ? { gte: new Date(from) } : {}),
@@ -71,9 +67,30 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
           },
         },
         maker_org: { select: { code: true, name: true } },
+        // 목록에서도 「지금 뭘 해야 하나」가 보여야 한다 — 상세를 열어야 알 수 있으면
+        // 여러 건을 훑는 화면(칸반 자리)이 쓸모없어진다
+        steps: { select: { code: true, status: true, entered_at: true } },
       },
     });
-    res.json({ data: orders });
+
+    const now = new Date();
+    const data = orders.map(({ steps, ...o }) => {
+      const done = new Set(steps.filter(s => s.status === 'done').map(s => s.code));
+      // 지금 손댈 수 있는 것 = 선행이 다 끝났고 아직 안 끝난 것
+      const openDefs = STEPS.filter(d => !done.has(d.code) && d.requires.every(q => done.has(q)));
+      const byCode = new Map(steps.map(s => [s.code, s]));
+      return {
+        ...o,
+        steps: {
+          done: done.size,
+          total: STEPS.length,
+          open: openDefs.map(d => d.label),
+          // 하나라도 오래 멈춰 있으면 목록에서 바로 드러나야 한다
+          stalled: openDefs.some(d => isStalled(d.code, { code: d.code, status: 'pending' }, byCode.get(d.code)?.entered_at ?? null, now)),
+        },
+      };
+    });
+    res.json({ data });
   } catch (e) {
     console.error('[GET /orders]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '주문 목록을 불러오는 중 오류가 발생했습니다.' } });
@@ -148,7 +165,6 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
         data: {
           id: order.id,
           quote_id: order.quote_id,
-          status: order.status,
           maker_org_id: order.maker_org_id,
           assigned_at: order.assigned_at,
           created_at: order.created_at,
@@ -213,63 +229,17 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
   }
 });
 
-// ── PATCH /orders/:id/status — 상태 전이 (ADMIN=전체, MAKER=자기 org, 양방향) ─
-
-ordersRouter.patch('/:id/status', rbac('ADMIN', 'MAKER'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
-  if (!prisma) {
-    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
-    return;
-  }
-  const id = Number(req.params['id']);
-  if (isNaN(id)) {
-    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } });
-    return;
-  }
-
-  const { status } = req.body as { status?: string };
-  if (!status || !ORDER_STATUS_SEQ.includes(status as OrderStatusStr)) {
-    res.status(400).json({
-      error: { code: 'BAD_INPUT', message: `status는 [${ORDER_STATUS_SEQ.join(', ')}] 중 하나` },
-    });
-    return;
-  }
-
-  try {
-    const order = await prisma.order.findUnique({ where: { id } });
-    if (!order) {
-      res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
-      return;
-    }
-
-    // MAKER는 자기 org 주문만 변경 가능
-    if (ownOrgOnly(req.auth!) && order.maker_org_id !== req.auth!.org_code) {
-      res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 변경할 수 있습니다' } });
-      return;
-    }
-
-    const updated = await prisma.order.update({ where: { id }, data: { status } });
-
-    // 특장사가 마지막 공정(인도완료)을 찍으면 견적 단계도 '완료' 로 올린다.
-    // 되돌리는 전이(인도완료 → 이전 단계)면 주문진행으로 되돌린다 — 양방향 전이를 허용하므로.
-    const LAST = ORDER_STATUS_SEQ[ORDER_STATUS_SEQ.length - 1];
-    const order2 = await prisma.order.findUnique({ where: { id }, select: { quote_id: true } });
-    if (order2) {
-      const want = status === LAST ? 'completed' : 'ordered';
-      const q = await prisma.quote.findUnique({ where: { id: order2.quote_id }, select: { status: true } });
-      if (q && ['ordered', 'completed'].includes(q.status) && q.status !== want) {
-        await setQuoteStatus(order2.quote_id, want, req.auth?.email ?? 'unknown');
-        console.info(`[orders] 주문 ${id} ${status} → 견적 ${order2.quote_id} 단계 ${q.status} → ${want}`);
-      }
-    }
-    res.json({ data: updated });
-  } catch (e) {
-    console.error('[PATCH /orders/:id/status]', e);
-    res.status(500).json({ error: { code: 'INTERNAL', message: '상태 변경 중 오류가 발생했습니다.' } });
-  }
-});
+/*
+ * ⚠️ 옛 `PATCH /orders/:id/status` 를 걷어냈다.
+ *
+ * 주문 진행은 이제 단계 표(`order_step`)가 갖는다 — 6단계 직선은 확정된 적도 없고
+ * 차량·특장이 따로 도는 실제 흐름을 담지 못했다. 진행을 바꾸는 길은
+ * `PATCH /orders/:id/steps/:code` 하나뿐이다(선행 단계·필수 증빙을 서버가 지킨다).
+ * 두 길을 열어 두면 증빙 없이 상태만 올리는 우회로가 남는다.
+ */
 
 // ── PATCH /orders/:id/accept — 특장사 주문 수락 (배정→주문, 제작 착수) ──────
-// 배정된 특장사가 주문을 수락하면 견적 상태 assigned→ordered. 주문 현황은 제작착수부터.
+// 배정된 특장사가 주문을 수락하면 견적 상태 assigned→ordered. 이후 진행은 단계 표가 갖는다.
 
 ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
   if (!prisma) {

@@ -149,42 +149,19 @@ describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회
     expect(Array.isArray(res.body.data)).toBe(true);
   });
 
-  // ── PATCH /orders/:id/status — 상태 전이 ────────────────────────────────
+  /*
+   * ⚠️ 옛 `PATCH /orders/:id/status` 를 검사하던 4개를 걷어냈다.
+   *    그 라우트를 없앴기 때문이다 — 진행은 이제 `PATCH /orders/:id/steps/:code` 가 갖고,
+   *    선행 단계·필수 증빙을 서버가 지킨다(단계 규칙 자체는 shared/process 에서 테스트한다).
+   *    사라진 기능을 검사하는 테스트를 남겨 두면 실패가 일상이 되어 진짜 실패를 못 알아본다.
+   */
 
-  it('ADMIN 상태 전이 — 제작착수 → 구조변경 성공', async () => {
-    const res = await request(app)
+  it('옛 상태 전이 라우트는 더 이상 없다', async () => {
+    await request(app)
       .patch(`/api/v1/orders/${orderId}/status`)
       .set('Cookie', ADMIN_COOKIE)
       .send({ status: '구조변경' })
-      .expect(200);
-    expect(res.body.data.status).toBe('구조변경');
-  });
-
-  it('상태 후진(양방향 허용) → 200', async () => {
-    const res = await request(app)
-      .patch(`/api/v1/orders/${orderId}/status`)
-      .set('Cookie', ADMIN_COOKIE)
-      .send({ status: '제작착수' })
-      .expect(200);
-    expect(res.body.data.status).toBe('제작착수');
-  });
-
-  it('잘못된 status → 400', async () => {
-    const res = await request(app)
-      .patch(`/api/v1/orders/${orderId}/status`)
-      .set('Cookie', ADMIN_COOKIE)
-      .send({ status: '없는상태' })
-      .expect(400);
-    expect(res.body.error.code).toBe('BAD_INPUT');
-  });
-
-  it('MAKER — 자기 org 주문 상태 전이 허용 → 200', async () => {
-    const res = await request(app)
-      .patch(`/api/v1/orders/${orderId}/status`)
-      .set('Cookie', MAKER_COOKIE)
-      .send({ status: '구조변경' })
-      .expect(200);
-    expect(res.body.data.status).toBe('구조변경');
+      .expect(404);
   });
 
   // ── GET /orgs?type=MAKER ─────────────────────────────────────────────────

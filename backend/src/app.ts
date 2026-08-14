@@ -6,6 +6,7 @@ import { quotesRouter } from './routes/quotes.js';
 import { customersRouter } from './routes/customers.js';
 import { loadCalcRouter } from './routes/load-calc.js';
 import { ordersRouter } from './routes/orders.js';
+import { stepsRouter } from './routes/steps.js';
 import { docsRouter } from './routes/docs.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api/v1/load-calc', loadCalcRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/orders', docsRouter);
+  app.use('/api/v1/orders', stepsRouter);
   app.use('/api/v1/quotes', contractsRouter); // 계약은 견적 기준
   app.use('/api/v1/quotes', emailRouter);     // 견적서·계약서 이메일 발송
   app.use('/api/v1/webhooks', webhooksRouter);

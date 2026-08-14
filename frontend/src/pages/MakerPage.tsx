@@ -4,7 +4,7 @@ import { fetchOrders, acceptOrder } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
-import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
+import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { InboxPanel } from '../components/InboxPanel'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
@@ -80,7 +80,7 @@ export function MakerPage() {
         ) : (
           <>
             <div style={{ ...styles.titleBar, flexWrap: 'wrap' }}>
-              <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>특장사 작업 칸반</h1>
+              <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>특장사 작업</h1>
               <span style={styles.orgChip}>{session?.org.name ?? session?.org.code}</span>
             </div>
             {err && <div style={styles.errMsg}>{err}</div>}
@@ -115,12 +115,10 @@ export function MakerPage() {
                   onAccept={id => { setAcceptErr(''); setAcceptTarget(pending.find(o => o.id === id) ?? null) }}
                 />
                 {active.length > 0 && (
-                  <OrderKanbanBoard
-                    orders={active}
-                    onRefresh={load}
-                    onError={setErr}
-                    onCardClick={setSelectedId}
-                  />
+                  <>
+                    <div style={styles.boardTitle}>진행 중 ({active.length})</div>
+                    <OrderStepsBoard orders={active} onCardClick={setSelectedId} />
+                  </>
                 )}
               </>
             )}
@@ -143,4 +141,9 @@ const styles: Record<string, React.CSSProperties> = {
   errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 12 },
   loading: { color: 'var(--muted)', fontSize: 14, padding: '40px 0', textAlign: 'center' },
   empty: { color: 'var(--muted)', fontSize: 14, padding: '40px 0', textAlign: 'center' },
+  boardTitle: {
+    fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--dark)',
+    letterSpacing: 'var(--ls-tight)', paddingBottom: 'var(--sp-2)', borderBottom: 'var(--hairline)',
+    marginBottom: 'var(--sp-1)',
+  },
 }

@@ -9,8 +9,8 @@ import { saveVehicleInfo } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
+import { OrderStepsPanel } from './OrderStepsPanel'
 
-const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
   pending: { background: 'var(--warnbg)', color: 'var(--warn)' },
@@ -399,7 +399,8 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [tab, setTab] = useState<'spec' | 'docs' | 'load'>('spec')
+  // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
+  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load'>('steps')
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
@@ -419,8 +420,6 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   if (err)     return <div style={det.err}>{err}</div>
   if (!detail) return null
 
-  const statusIdx = ORDER_STATUS_SEQ.indexOf(detail.status as typeof ORDER_STATUS_SEQ[number])
-
   return (
     <div style={{ ...det.root, maxWidth: isMobile ? '100%' : 720 }}>
       {/* 헤더 */}
@@ -428,7 +427,6 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         <button style={det.backBtn} onClick={onBack}>{backLabel}</button>
         <div style={det.titleRow}>
           <span style={{ ...det.orderId, fontSize: isMobile ? 18 : 20 }}>주문 #{detail.id}</span>
-          <span style={det.statusBadge}>{detail.status}</span>
           <span style={det.model}>{detail.model_code}</span>
         </div>
         <div style={det.metaRow}>
@@ -441,18 +439,21 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         </div>
       </div>
 
-      {/* 진행 단계 */}
-      <div style={{ ...det.progressSection, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-        {ORDER_STATUS_SEQ.map((s, i) => (
-          <div key={s} style={{ ...det.stepItem, ...(isMobile ? { flex: '0 0 33%', marginBottom: 8 } : {}) }}>
-            <div style={i <= statusIdx ? det.stepDotActive : det.stepDot} />
-            <div style={i <= statusIdx ? det.stepLabelActive : det.stepLabel}>{s}</div>
-          </div>
-        ))}
-      </div>
+      {/*
+        옛 6단계 진행 띠를 걷어냈다. 그 6단계는 확정된 적이 없고, 차량·특장이 따로 도는
+        지금은 한 주문이 동시에 여러 곳에 있어 한 줄로 그릴 수 없다.
+        진행은 아래 「단계」 탭이 네 갈래로 보여준다.
+      */}
 
       {/* 탭 */}
       <div style={det.tabs}>
+        {/*
+          「단계」가 맨 앞이자 기본이다 — 이 화면에 오는 이유는 **다음에 뭘 해야 하는지**
+          알기 위해서다. 사양·서류·하중은 그 다음에 찾아보는 배경 정보다.
+        */}
+        <button style={tab === 'steps' ? det.tabActive : det.tabBtn} onClick={() => setTab('steps')}>
+          단계
+        </button>
         <button style={tab === 'spec' ? det.tabActive : det.tabBtn} onClick={() => setTab('spec')}>
           사양
         </button>
@@ -469,6 +470,12 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
           </>
         )}
       </div>
+
+      {tab === 'steps' && (
+        <div style={det.section}>
+          <OrderStepsPanel orderId={detail.id} />
+        </div>
+      )}
 
       {/* 사양 탭 */}
       {tab === 'spec' && (

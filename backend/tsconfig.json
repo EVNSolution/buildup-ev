@@ -13,7 +13,8 @@
       "@buildup-ev/shared/load-calc": ["../shared/load-calc/core.ts"],
       "@buildup-ev/shared/pricing": ["../shared/pricing/core.ts"],
       "@buildup-ev/shared/types": ["../shared/types/index.ts"],
-      "@buildup-ev/shared/schedule": ["../shared/schedule/businessDays.ts"]
+      "@buildup-ev/shared/schedule": ["../shared/schedule/businessDays.ts"],
+      "@buildup-ev/shared/process": ["../shared/process/steps.ts"]
     }
   },
   "include": ["src/**/*"]
