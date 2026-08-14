@@ -6,13 +6,20 @@ export function fmtWonVat(unitPrice: number): string {
   return '₩' + Math.round(unitPrice * 1.1).toLocaleString('ko-KR')
 }
 
-/** 옵션 한 줄: 작은 라벨 + 필수/선택 뱃지 + 버튼들 */
+/**
+ * 옵션 한 줄: 작은 라벨 + 「· 필수」 + 버튼들.
+ *
+ * 표시는 **필수(빨강) 아니면 없음** 두 갈래뿐 — 앱 전체가 같은 규칙이다.
+ * 예전엔 「선택」 회색 뱃지도 달렸는데, 옵션 대부분이 선택이라 회색 뱃지가 줄줄이
+ * 늘어서 정작 반드시 골라야 하는 줄이 묻혔다. 뱃지(칠한 칸) 대신 글자만 쓰는 것도
+ * 같은 이유 — 입력 라벨의 「· 필수」와 생김새를 맞춘다.
+ */
 export function OptRow({ label, required, children }: { label: string; required: boolean; children: ReactNode }) {
   return (
     <div style={styles.row}>
       <div style={styles.head}>
         <span style={styles.label}>{label}</span>
-        <span style={required ? styles.badgeReq : styles.badgeOpt}>{required ? '필수' : '선택'}</span>
+        {required && <span style={styles.req}>· 필수</span>}
       </div>
       <div style={styles.btns}>{children}</div>
     </div>
@@ -58,15 +65,8 @@ const styles = {
   row: { marginBottom: 16 },
   head: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 },
   label: { fontSize: 13, color: 'var(--muted)' },
-  // 필수 = --req(아직 안 채운 칸) · 선택 = 가라앉은 회색. 시스템 §12 뱃지 규격을 따른다
-  badgeReq: {
-    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--req)', background: 'var(--warnbg)',
-    border: '0.5px solid var(--req)', borderRadius: 'var(--r-sm)', padding: '1px 6px',
-  },
-  badgeOpt: {
-    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--muted)', background: 'var(--card)',
-    border: 'var(--hairline)', borderRadius: 'var(--r-sm)', padding: '1px 6px',
-  },
+  // 라벨 옆 「· 필수」 — 모달 입력칸과 같은 색·굵기(--req)
+  req: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--req)' },
   btns: { display: 'flex', gap: 7, flexWrap: 'wrap' as const },
   btn: { ...btnBase, ...OPTION_CARD.base, color: 'var(--body)' },
   btnOn: { ...btnBase, ...OPTION_CARD.on },

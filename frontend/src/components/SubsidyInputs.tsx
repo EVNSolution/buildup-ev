@@ -156,8 +156,8 @@ function YesNo({ label, hint, value, onChange, tight, hideRequired, dense }: {
       <label style={{ ...f.label, ...d }}>
         {label}
         {hint ? <span style={{ ...f.hint, ...d }}> · {hint}</span> : null}
-        {hideRequired ? null
-          : value === null ? <span style={{ ...f.needTag, ...d }}> · 필수</span> : <span style={{ ...f.hint, ...d }}> · 필수</span>}
+        {/* 필수는 늘 빨강 — 채웠다고 회색으로 가라앉히면 「필수 / 아님」 두 갈래가 세 갈래가 된다 */}
+        {hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}
       </label>
       <div style={f.yesNo}>
         <button type="button" style={{ ...(value === true ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(true)}>예</button>

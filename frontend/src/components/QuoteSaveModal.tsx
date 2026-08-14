@@ -59,20 +59,19 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
 }
 
 /**
- * 라벨 옆 표시 — 「제목 · 필수」 / 「제목 · 선택」.
+ * 라벨 옆 표시 — **「· 필수」(빨강) 아니면 아무것도 없음**. 두 갈래뿐이다.
  *
- * 가운데 점으로 띄워야 제목의 일부처럼 읽히지 않는다.
- * 필수는 **비어 있는 동안만 빨강**이고, 채우면 회색으로 가라앉는다 — 남은 할 일만
- * 눈에 띄게 하려는 것.
+ * 예전엔 「· 선택」(회색)과 「· 계약서 필수」(회색)가 더 있었다. 세 가지 회색 꼬리표가
+ * 붙으니 정작 지금 채워야 할 칸이 어느 것인지 눈에 안 들어왔다 — 안 써도 되는 칸은
+ * 아무 말도 하지 않는 편이 낫다.
+ *
+ * **단계마다 다시 계산한다.** 견적 단계에서 안 쓰던 칸(이메일·주소·생년월일)은 표시가
+ * 없다가, 계약서 단계로 넘어오면 그때 「· 필수」가 새로 뜬다(`forContract`).
+ * 채웠는지 여부로는 색을 바꾸지 않는다 — 필수는 늘 필수다.
  */
-function Tag({ need, done, contract }: { need?: boolean; done?: boolean; contract?: boolean }) {
-  /*
-   * 계약서에서만 필요한 값은 「· 계약서 필수」로 표시한다(회색).
-   * 견적만 뽑아 보려는 사람을 붙잡지 않으면서, 나중에 무엇이 더 필요한지는 알려 준다.
-   */
-  if (contract) return <span style={done ? s.tagOff : s.tagLater}> · 계약서 필수</span>
-  if (!need) return <span style={s.tagOff}> · 선택</span>
-  return <span style={done ? s.tagOff : s.tagOn}> · 필수</span>
+function Tag({ need }: { need?: boolean }) {
+  if (!need) return null
+  return <span style={s.tagOn}> · 필수</span>
 }
 
 /** 라벨 옆 회색 안내(무슨 값을 적어야 하는지). */
@@ -189,8 +188,6 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
   // 법인 계약서 필수값은 **상호 + 대표이사** 둘이다.
   // 대표이사는 매수인 법인 줄에 인쇄되고, 대리인이 없으면 서명란에도 대표이사가 들어간다.
   // 대리인은 선택 — 법인도 대표이사가 직접 오는 경우가 더 흔하다.
-  const filled = (x: string) => !!x.trim()
-  const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
 
   return (
     <>
@@ -214,7 +211,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
         </div>
 
         <div style={s.row}>
-          <label style={s.label}>{isCorporate ? '상호' : '성명'}<Tag need done={!!v.name.trim()} /></label>
+          <label style={s.label}>{isCorporate ? '상호' : '성명'}<Tag need /></label>
           <input
             style={s.field} type="text" value={v.name}
             onChange={e => set('name', e.target.value)}
@@ -225,7 +222,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
         <div style={s.row}>
           <label style={s.label}>
             {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
-            <Tag need={forContract} contract={!forContract} done={regNoOk} />
+            <Tag need={forContract} />
           </label>
           <input
             style={s.field} type="text" value={v.buyer_regno}
@@ -253,18 +250,18 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
 
         {isCorporate && (
           <div style={s.row}>
-            <label style={s.label}>대표이사<Tag need done={!!v.ceo_name.trim()} /></label>
+            <label style={s.label}>대표이사<Tag need /></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
           </div>
         )}
 
         <div style={s.row}>
-          <label style={s.label}>휴대폰<Tag need done={filled(v.phone)} /></label>
+          <label style={s.label}>휴대폰<Tag need /></label>
           <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            이메일<Tag need={forContract} contract={!forContract} done={filled(v.email)} />
+            이메일<Tag need={forContract} />
             <Note>{forContract
               ? (isCorporate && !v.buyer_agent.trim() ? '법인 직인을 찍을 사람 · 전자서명용' : '전자서명을 위한 이메일')
               : '없으면 메일 발송·이메일 서명 요청을 쓸 수 없습니다'}</Note>
@@ -280,7 +277,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
           afterRegion={<>
             {/* 지역 바로 다음이 주소 — 두 칸으로 나눠 놓아야 팝업이 한 화면에 들어온다 */}
             <div style={s.row}>
-              <label style={s.label}>주소<Tag need={forContract} contract={!forContract} done={filled(v.address)} /></label>
+              <label style={s.label}>주소<Tag need={forContract} /></label>
               <div style={s.addrRow}>
                 <input
                   style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
@@ -291,7 +288,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
               {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
             </div>
             <div style={s.row}>
-              <label style={s.label}>세부주소<Tag need={forContract} contract={!forContract} done={filled(v.address_detail)} /></label>
+              <label style={s.label}>세부주소<Tag need={forContract} /></label>
               <input
                 ref={addrRef}
                 style={s.field} type="text" value={v.address_detail}
@@ -310,23 +307,23 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
         </div>
         <div style={s.grid}>
         <div style={s.row}>
-          <label style={s.label}>계약처<Tag /></label>
+          <label style={s.label}>계약처</label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>유선번호<Tag /></label>
+          <label style={s.label}>유선번호</label>
           <PhoneInput value={v.buyer_tel} onChange={x => set('buyer_tel', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            대리인<Tag />
+            대리인
             {v.buyer_agent.trim() ? <Note>위임장 필요</Note> : null}
           </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            관계<Tag need={!!v.buyer_agent.trim()} done={!!v.buyer_relation.trim()} />
+            관계<Tag need={!!v.buyer_agent.trim()} />
           </label>
           <input style={s.field} type="text" value={v.buyer_relation} onChange={e => set('buyer_relation', e.target.value)} />
         </div>

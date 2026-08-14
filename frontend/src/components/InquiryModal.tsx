@@ -95,7 +95,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <h2 style={s.h2}>상담 신청</h2>
         <p style={s.desc}>
-          지금 고르신 사양과 금액이 그대로 담당자에게 전달됩니다. 연락처를 남겨 주시면 확인 후 연락드립니다.
+          연락처를 남겨 주시면 확인 후 연락드립니다.
         </p>
 
         <div style={s.section}>연락처</div>
@@ -112,7 +112,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           <input style={s.field} type="email" value={email} onChange={e => setEmail(e.target.value)} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>남기실 말씀 <span style={s.opt}>· 선택</span></label>
+          <label style={s.label}>남기실 말씀</label>
           <textarea style={s.memo} rows={2} value={memo} onChange={e => setMemo(e.target.value)} />
         </div>
 
@@ -131,7 +131,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
         />
 
         <div style={s.consentBox}>
-          <div style={s.consentTitle}>개인정보 수집·이용 동의 <span style={s.req}>(필수)</span></div>
+          <div style={s.consentTitle}>개인정보 수집·이용 동의 <span style={s.req}>· 필수</span></div>
           <dl style={s.consentList}>
             {CONSENT_ITEMS.map(([k, v]) => (
               <div key={k} style={s.consentRow}>
@@ -185,7 +185,6 @@ const s: Record<string, React.CSSProperties> = {
   row: { marginBottom: 'var(--sp-3)' },
   label: { display: 'block', fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 'var(--sp-1)' },
   req: { color: 'var(--req)', fontWeight: 700 },
-  opt: { color: 'var(--muted)' },
   field: {
     width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 var(--sp-3)',
     fontSize: 'var(--fs-body)', fontFamily: 'inherit', color: 'var(--dark)',

@@ -103,8 +103,9 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
       <div style={modal.box} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>견적 #{quoteId} — 특장사 배정</div>
         <div style={modal.desc}>배정할 특장사를 선택하세요. 배정하면 주문이 생성되고 특장사 수락 대기 상태가 됩니다.</div>
+        <label style={modal.label}>특장사<span style={modal.req}> · 필수</span></label>
         <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
-          <option value="">— 특장사 선택 (필수) —</option>
+          <option value="">선택하세요</option>
           {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
         </select>
         {error && <div style={modal.error}>{error}</div>}
@@ -136,8 +137,9 @@ function AssignSalesModal({ quoteId, users, loading, error, onConfirm, onClose }
       <div style={modal.box} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>문의 #{quoteId} — 영업 배정</div>
         <div style={modal.desc}>담당 영업사원을 지정하면 견적번호가 발급되고, 해당 영업의 「내 견적」에 나타납니다.</div>
+        <label style={modal.label}>담당 영업<span style={modal.req}> · 필수</span></label>
         <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
-          <option value="">— 담당 영업 선택 (필수) —</option>
+          <option value="">선택하세요</option>
           {candidates.map(u => <option key={u.email} value={u.email}>{u.name} ({u.email})</option>)}
         </select>
         {error && <div style={modal.error}>{error}</div>}
@@ -208,21 +210,21 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
         <div style={modal.title}>계정 발급</div>
         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
-            <label style={acc.label}>이메일</label>
+            <label style={acc.label}>이메일<span style={acc.req}> · 필수</span></label>
             <input type="email" value={form.email} onChange={e => setField('email', e.target.value)} style={acc.input} placeholder="user@example.com" disabled={loading} />
           </div>
           <div>
-            <label style={acc.label}>이름</label>
+            <label style={acc.label}>이름<span style={acc.req}> · 필수</span></label>
             <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} style={acc.input} placeholder="홍길동" disabled={loading} />
           </div>
           <div>
-            <label style={acc.label}>역할</label>
+            <label style={acc.label}>역할<span style={acc.req}> · 필수</span></label>
             <select value={form.role} onChange={e => setField('role', e.target.value)} style={acc.input} disabled={loading}>
               {ROLES.map(r => <option key={r} value={r}>{ROLE_KO[r]} ({r})</option>)}
             </select>
           </div>
           <div>
-            <label style={acc.label}>겸직 역할 · 선택</label>
+            <label style={acc.label}>겸직 역할</label>
             <div style={acc.roleRow}>
               {ROLES.filter(r => r !== form.role).map(r => {
                 const on = extraRoles.includes(r)
@@ -859,7 +861,7 @@ function QuotesTab() {
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {quotes.map(q => (
-            <div key={q.id} style={qtMob.card}>
+            <div key={q.id} style={q.source === 'public' ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
                 <Tooltip text={quoteStatusTip(q.status)} placement="below">
@@ -952,8 +954,8 @@ function QuotesTab() {
             </thead>
             <tbody>
               {quotes.map(q => (
-                <tr key={q.id}>
-                  <td style={qt.td}>{q.quote_no ?? `#${q.id}`}</td>
+                <tr key={q.id} style={q.source === 'public' ? qt.rowPublic : undefined}>
+                  <td style={q.source === 'public' ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}</td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
                   <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>{q.sales_user_id ?? '—'}</td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
@@ -1263,6 +1265,18 @@ const qt: Record<string, React.CSSProperties> = {
   errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 10 },
   loading: { color: 'var(--muted)', fontSize: 13, padding: '24px 0' },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },
+  /*
+   * 공개 창구에서 들어온 문의 — **한 줄을 통째로** 라임으로 띄운다.
+   *
+   * 관리자가 이 목록에서 가장 먼저 찾아야 하는 것이 「주인 없는 새 문의」다.
+   * 원색(--lime)으로 칠하면 글자가 읽히지 않아, 선택 표시에 쓰는 옅은 라임(--lime-bg)을
+   * 깔고 왼쪽 모서리에만 원색 띠를 세운다 — 스크롤 중에도 왼쪽 끝만 보면 찾을 수 있다.
+   */
+  rowPublic: { background: 'var(--lime-bg)' },
+  tdPublicFirst: {
+    padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle' as const,
+    whiteSpace: 'nowrap' as const, boxShadow: 'inset 3px 0 0 0 var(--lime)',
+  },
   tableWrap: { overflowX: 'auto' as const },
   // 폭이 모자라면 칸을 **줄여서 글자를 접지 말고** 가로로 넘겨 스크롤한다.
   table: { width: '100%', minWidth: 'max-content' as const, borderCollapse: 'collapse' as const, fontSize: 13 },
@@ -1284,6 +1298,11 @@ const qt: Record<string, React.CSSProperties> = {
 // 모바일 견적 카드 스타일
 const qtMob: Record<string, React.CSSProperties> = {
   card: { border: '0.5px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
+  // 공개 창구 문의 — 표의 라임 강조를 카드에도 똑같이(왼쪽 띠 + 옅은 라임)
+  cardPublic: {
+    border: '0.5px solid var(--lime)', borderLeft: '3px solid var(--lime)', borderRadius: 12,
+    padding: '14px 16px', background: 'var(--lime-bg)', display: 'flex', flexDirection: 'column', gap: 10,
+  },
   cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const },
   name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)' },
   rows: { display: 'flex', flexDirection: 'column', gap: 6 },
@@ -1298,6 +1317,9 @@ const modal: Record<string, React.CSSProperties> = {
   box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16 },
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)' },
   desc: { fontSize: 13, color: 'var(--muted)' },
+  // 「필수」는 목록 안 안내문이 아니라 **라벨 옆 빨간 글씨** — 앱 전체가 같은 규칙이다
+  label: { fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 'calc(var(--sp-2) * -1)' },
+  req: { color: 'var(--req)', fontWeight: 700 },
   select: { fontSize: 14, padding: '10px 12px', border: '0.5px solid var(--line)', borderRadius: 9, width: '100%' },
   error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '0.5px solid var(--warn)', padding: '7px 10px', borderRadius: 7 },
   actions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
@@ -1313,6 +1335,7 @@ const acc: Record<string, React.CSSProperties> = {
   createBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
   tableWrap: { overflowX: 'auto' as const },
   label: { display: 'block', fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 },
+  req: { color: 'var(--req)', fontWeight: 700 },
   input: { width: '100%', boxSizing: 'border-box' as const, fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
   roleBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'var(--lime)', color: 'var(--dark)' },
   // 겸직은 주 역할보다 한 단 여리게 — 어느 것이 이 계정의 자리인지 한눈에 갈린다
