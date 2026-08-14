@@ -19,6 +19,7 @@ import * as modusign from './modusign.js';
 import type { SigningMethod } from './modusign.js';
 import { toKakaoPhone } from './modusign.js';
 import { setQuoteStatus } from './quote-status.js';
+import { notifyContractSigned } from './notify.js';
 
 export class ContractError extends Error {
   constructor(message: string, public code: 'NOT_FOUND' | 'NO_CUSTOMER' | 'NO_CONTACT' | 'DB_UNAVAILABLE' | 'NOT_SENDABLE' | 'ALREADY_SENT' | 'NEEDS_REVIEW' = 'NOT_FOUND') {
@@ -207,6 +208,12 @@ async function advanceQuoteToContracted(quoteId: number): Promise<void> {
   if (!q || !['draft', 'confirmed'].includes(q.status)) return;
   await setQuoteStatus(quoteId, 'contracted', 'system(전자서명 완료)');
   console.info(`[contract] 견적 ${quoteId} 단계 ${q.status} → contracted(계약완료)`);
+  /*
+   * 계약완료 = **제작 배정을 기다리는 건이 생겼다**는 뜻이다.
+   * 관리자가 목록을 새로고침하다 발견하게 두지 않고 먼저 알린다.
+   * await 하지만 notify 안에서 실패를 삼키므로 여기서 전이가 막히지 않는다.
+   */
+  await notifyContractSigned(quoteId);
 }
 
 /**

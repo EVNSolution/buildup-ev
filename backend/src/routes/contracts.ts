@@ -62,7 +62,15 @@ contractsRouter.post('/:id/contract/refresh', rbac('ADMIN', 'SALES'), async (req
   }
 });
 
-contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+/*
+ * ⚠️ 특장사(MAKER)는 계약서에 접근하지 못한다.
+ *
+ * 특장사가 받는 것은 **발주서**다. 계약서에는 고객 개인정보와 판매가·보조금이 들어 있고,
+ * 서명본에는 고객의 서명·날인까지 있다 — 제작을 맡기는 데 필요한 정보가 아니다.
+ * 견적서·계약서 PDF(quotes 라우터)는 이미 막혀 있었는데 여기 두 개만 열려 있었다.
+ * 특장사에게 무엇을 보여줄지는 발주서 하나로 정한다(docs/process-redesign.md §5).
+ */
+contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
   try {
@@ -80,7 +88,7 @@ contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES', 'MAKER'), async (req
 });
 
 // ── GET /:id/contract/signed — 완료 서명본 다운로드 ──────────────────────────
-contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
   try {

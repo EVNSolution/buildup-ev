@@ -9,7 +9,8 @@
     "./load-calc/pv5-defaults": "./load-calc/pv5-defaults.ts",
     "./pricing": "./pricing/core.ts",
     "./bom": "./bom/core.ts",
-    "./bom/weight-constants": "./bom/weight-constants.ts"
+    "./bom/weight-constants": "./bom/weight-constants.ts",
+    "./schedule": "./schedule/businessDays.ts"
   },
   "scripts": {
     "test": "vitest run",

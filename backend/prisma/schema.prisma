@@ -445,6 +445,11 @@ model Order {
   status       String    @default("제작착수") @db.VarChar(30)
   maker_org_id String?   @db.VarChar(30)
   assigned_at  DateTime?
+  /// 특장사가 수락하며 약속한 납기일. 발주일로부터 15영업일 이내(발주서 특이사항).
+  /// 1단계에서 order_step[po_accepted].planned_at 으로 옮긴다.
+  delivery_due DateTime? @db.Date
+  /// 발주 수락 시각 — 납기 한도의 기산점
+  accepted_at  DateTime?
   created_at   DateTime  @default(now())
   // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
   vehicle_info Json?
