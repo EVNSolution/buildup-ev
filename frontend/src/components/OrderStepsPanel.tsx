@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  STEPS, STEP_BY_CODE, TRACK_LABEL, EVIDENCE_LABEL, canComplete, keepsOriginal,
+  STEPS, STEP_BY_CODE, TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
   type EvidenceKind, type Track, type StepState,
 } from '@shared/process/steps'
-import { fetchSteps, completeStep, uploadStepFile, deleteStepFile, stepFileUrl, type ApiStep } from '../api/steps'
+import { fetchSteps, completeStep, undoStep, uploadStepFile, deleteStepFile, stepFileUrl, type ApiStep } from '../api/steps'
 import { shrinkImage, fmtBytes, MAX_EDGE } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
 
@@ -71,6 +71,13 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
     } catch (e) {
       setErr(e instanceof Error ? e.message : '올리기 실패')
     } finally { setBusy(null) }
+  }
+
+  async function handleUndo(code: string) {
+    setBusy(code); setErr('')
+    try { await undoStep(orderId, code); load() }
+    catch (e) { setErr(e instanceof Error ? e.message : '되돌리기 실패') }
+    finally { setBusy(null) }
   }
 
   async function handleDelete(fileId: number) {
@@ -200,6 +207,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
             <div style={s.lockedList}>
               {done.map(def => {
                 const st = byCode.get(def.code)!
+                const undo = canUndo(def.code, states)
                 return (
                   <div key={def.code} style={s.doneRow}>
                     <span style={s.doneName}>{def.label}</span>
@@ -207,6 +215,17 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                       {st.done_at?.slice(0, 10)} · {st.done_by ?? ''}
                       {st.planned_at ? ` · ${def.dateLabel} ${st.planned_at}` : ''}
                     </span>
+                    {canEdit && (
+                      <button
+                        style={undo.ok && busy !== def.code ? s.undoBtn : s.undoBtnOff}
+                        disabled={!undo.ok || busy === def.code}
+                        // 왜 못 되돌리는지 — 잠긴 버튼만 두면 이유를 알 수 없다
+                        title={undo.ok ? '이 단계를 되돌립니다' : (undo as { reason: string }).reason}
+                        onClick={() => handleUndo(def.code)}
+                      >
+                        {busy === def.code ? '…' : '되돌리기'}
+                      </button>
+                    )}
                     {st.note && <span style={s.doneNote}>{st.note}</span>}
                   </div>
                 )
@@ -319,6 +338,9 @@ const s: Record<string, React.CSSProperties> = {
   doneName: { fontSize: 'var(--fs-label)', color: 'var(--dark)' },
   doneMeta: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   doneNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', flexBasis: '100%' },
+  // 되돌리기는 눈에 띄지 않아야 한다 — 자주 쓰는 길이 아니라 잘못 눌렀을 때의 길이다
+  undoBtn: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' },
+  undoBtnOff: { border: 'none', background: 'none', color: 'var(--line-strong, #CFD4CF)', fontSize: 'var(--fs-caption)', cursor: 'not-allowed', padding: 0, fontFamily: 'inherit' },
   doneToggle: {
     alignSelf: 'flex-start', border: 'none', background: 'none', padding: 'var(--sp-2) 0',
     fontFamily: 'inherit', fontSize: 'var(--fs-label)', color: 'var(--muted)', cursor: 'pointer',

@@ -107,7 +107,7 @@ export const STEPS: StepDef[] = [
   { code: 'tuning_approved', track: 'tuning', label: '승인서 수령', actor: 'MAKER',
     requires: ['tuning_signed'], evidence: ['tuning_approval'], stallDays: 10 },
 
-  // ── 합류 ───────────────────────────────────────────────────────────────
+  // ── 출고 ───────────────────────────────────────────────────────────────
   // 만나는 지점: 차가 와 있고 특장이 다 만들어져야 얹을 수 있다
   { code: 'mounted', track: 'merged', label: '특장 장착', actor: 'MAKER',
     requires: ['car_arrived', 'build_done'], evidence: [], stallDays: 7 },
@@ -122,8 +122,13 @@ export const STEPS: StepDef[] = [
     requires: ['inspection_done', 'docs_complete'], evidence: [], dateLabel: '인도일', stallDays: 7 },
 ];
 
+/**
+ * 트랙 이름.
+ * `merged` = 차와 특장이 하나가 된 뒤의 과정(장착 → 안전검사 → 서류 → 인도).
+ * 「합류」는 길 이름 같아서 현장에서 쓰는 말과 멀다 — **내보내기 위한 마지막 과정**이므로 「출고」.
+ */
 export const TRACK_LABEL: Record<Track, string> = {
-  vehicle: '차량', body: '특장', tuning: '튜닝', merged: '합류',
+  vehicle: '차량', body: '특장', tuning: '튜닝', merged: '출고',
 };
 
 export const STEP_BY_CODE: Record<string, StepDef> =
@@ -191,6 +196,29 @@ export function newlyOpened(completed: string, doneBefore: Set<string>): string[
   return STEPS
     .filter(s => isOpen(s.code, after) && !isOpen(s.code, doneBefore))
     .map(s => s.code);
+}
+
+/**
+ * 이 단계를 되돌릴 수 있는가 — **뒤 단계가 이미 끝났으면 안 된다.**
+ *
+ * 「차량 도착」을 되돌리는데 그 뒤의 「특장 장착」이 완료로 남아 있으면, 차가 오지도 않았는데
+ * 얹었다는 기록이 된다. 뒤에서부터 풀어야 앞뒤가 맞는다 — 무엇을 먼저 되돌려야 하는지
+ * 이름으로 알려 준다.
+ */
+export function canUndo(code: string, states: StepState[]): StepGate {
+  const def = STEP_BY_CODE[code];
+  if (!def) return { ok: false, reason: '알 수 없는 단계입니다' };
+  if (states.find(s => s.code === code)?.status !== 'done') {
+    return { ok: false, reason: '완료된 단계만 되돌릴 수 있습니다' };
+  }
+  const done = new Set(states.filter(s => s.status === 'done').map(s => s.code));
+  // 이 단계를 선행으로 삼는 단계 중 이미 끝난 것
+  const blockers = STEPS.filter(s => s.requires.includes(code) && done.has(s.code));
+  if (blockers.length > 0) {
+    const names = blockers.map(b => b.label).join(' · ');
+    return { ok: false, reason: `뒤 단계를 먼저 되돌려야 합니다 — ${names}` };
+  }
+  return { ok: true };
 }
 
 /** 이 단계에 며칠째 머물고 있나(달력일). 들어온 적이 없으면 null. */

@@ -48,6 +48,14 @@ export async function completeStep(orderId: number, code: string, plannedAt?: st
   await jsonOrThrow(res, '단계 완료')
 }
 
+/** 완료를 되돌린다. 뒤 단계가 이미 끝났으면 서버가 막는다. */
+export async function undoStep(orderId: number, code: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/steps/${code}/undo`, {
+    method: 'PATCH', credentials: 'include',
+  })
+  await jsonOrThrow(res, '되돌리기')
+}
+
 export async function uploadStepFile(
   orderId: number, code: string, kind: EvidenceKind, file: File,
 ): Promise<ApiStepFile> {

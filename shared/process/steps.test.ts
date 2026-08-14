@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   STEPS, STEP_BY_CODE, canComplete, isStalled, stalledDays, keepsOriginal,
-  stepsOfTrack, newlyOpened, isOpen, type StepState,
+  stepsOfTrack, newlyOpened, isOpen, canUndo, type StepState,
 } from './steps';
 
 /** 전부 done 인 상태 — 여기서 하나씩 빼며 게이트를 확인한다. */
@@ -123,6 +123,39 @@ describe('새로 열리는 단계 — 정체 시계를 함부로 리셋하지 �
   it('두 갈래가 만나는 지점은 양쪽이 다 끝나야 열린다', () => {
     expect(newlyOpened('car_arrived', new Set())).not.toContain('mounted');
     expect(newlyOpened('build_done', new Set(['car_arrived']))).toContain('mounted');
+  });
+});
+
+describe('되돌리기 — 앞뒤가 맞아야 한다', () => {
+  const st = (done: string[]): StepState[] =>
+    STEPS.map(s => ({ code: s.code, status: done.includes(s.code) ? 'done' as const : 'pending' as const }));
+
+  it('완료된 단계만 되돌릴 수 있다', () => {
+    const r = canUndo('car_arrived', st([]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('완료된 단계');
+  });
+
+  it('뒤 단계가 끝났으면 막고 무엇을 먼저 풀어야 하는지 말한다', () => {
+    // 차량 도착 → 특장 장착이 이미 완료된 상태에서 차량 도착을 되돌리려 하면
+    const r = canUndo('car_arrived', st(['car_arrived', 'build_done', 'mounted']));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('특장 장착');
+  });
+
+  it('뒤 단계가 아직이면 되돌릴 수 있다', () => {
+    expect(canUndo('car_arrived', st(['car_arrived']))).toEqual({ ok: true });
+  });
+
+  it('뒤에서부터 풀면 순서대로 되돌아간다', () => {
+    let s = st(['car_arrived', 'build_done', 'mounted']);
+    expect(canUndo('mounted', s)).toEqual({ ok: true });
+    s = s.map(x => (x.code === 'mounted' ? { ...x, status: 'pending' as const } : x));
+    expect(canUndo('car_arrived', s)).toEqual({ ok: true });
+  });
+
+  it('모르는 코드는 막는다', () => {
+    expect(canUndo('없는단계', st([])).ok).toBe(false);
   });
 });
 

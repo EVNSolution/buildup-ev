@@ -14,7 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import { rbac, isAdmin } from '../middleware/rbac.js';
 import {
-  STEPS, STEP_BY_CODE, canComplete, isStalled, newlyOpened,
+  STEPS, STEP_BY_CODE, canComplete, canUndo, isStalled, newlyOpened,
   type EvidenceKind, type StepState,
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
@@ -206,6 +206,52 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
   res.json({ data: { ok: true, opened } });
 });
 
+
+
+// ── PATCH /orders/:id/steps/:code/undo — 완료를 되돌린다 ────────────────────
+//
+// 잘못 누르는 일은 반드시 생긴다. 되돌릴 길이 없으면 사람들은 **틀린 기록을 그냥 두거나**
+// DB 를 직접 고쳐 달라고 한다 — 둘 다 기록을 못 믿게 만든다.
+// 대신 **뒤 단계가 이미 끝났으면 막는다**(뒤에서부터 풀어야 앞뒤가 맞는다).
+stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+  const id = orderId(req);
+  const code = String(req.params['code'] ?? '');
+  if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
+  const r = await loadOrder(id, req);
+  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+
+  const rows = await prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } });
+  const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })));
+  if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+
+  const now = new Date();
+  await prisma!.orderStep.update({
+    where: { order_id_code: { order_id: id, code } },
+    data: {
+      status: 'pending',
+      done_at: null,
+      done_by: null,
+      // 시계를 다시 켠다 — 되돌린 순간부터 다시 세지 않으면 곧바로 「지연」으로 뜬다
+      entered_at: now,
+      // 날짜(납기·검사예정일)는 지운다. 되돌렸다는 것은 그 약속도 무효라는 뜻이다
+      planned_at: null,
+      note: `${now.toISOString().slice(0, 10)} ${req.auth?.email ?? 'unknown'} 되돌림`,
+    },
+  });
+
+  /*
+   * 인도를 되돌리면 견적도 「주문진행」으로 돌린다 — 완료로 올릴 때와 짝을 맞춘다.
+   * 한쪽만 되돌리면 인도가 취소됐는데 마이페이지에는 인도완료 금액이 남는다.
+   */
+  if (code === 'delivered') {
+    const q = await prisma!.quote.findUnique({ where: { id: r.order.quote_id }, select: { status: true } });
+    if (q && q.status === 'completed') {
+      await setQuoteStatus(r.order.quote_id, 'ordered', req.auth?.email ?? 'unknown');
+    }
+  }
+
+  res.json({ data: { ok: true } });
+});
 
 // ── 증빙 파일 ──────────────────────────────────────────────────────────────
 //
