@@ -25,6 +25,20 @@ import { publicRouter } from './routes/public.js';
 
 export function createApp() {
   const app = express();
+
+  /*
+   * ⚠️ **프록시를 신뢰한다고 알려 줘야 접속자를 구분할 수 있다.**
+   *
+   * 운영에서는 Caddy 가 앞에 서고 백엔드는 127.0.0.1 로만 요청을 받는다. 이 설정이 없으면
+   * Express 는 모든 요청의 IP 를 **127.0.0.1 하나**로 본다 — 그러면 공개 상담 신청 제한
+   * (시간당 5건)이 접속자별이 아니라 **전체 합계**가 되어, 한 시간에 여섯 번째 고객은
+   * 아무 잘못 없이 막힌다. 조회 제한(분당 120)도 마찬가지로 방문자 몇 명이 함께 쓰면 걸린다.
+   * express-rate-limit 이 기동 때마다 경고를 찍고 있었는데, 그게 이 상태를 가리킨 것이다.
+   *
+   * 'loopback' 으로 좁힌다 — 신뢰하는 것은 **우리 Caddy 한 홉**뿐이고,
+   * 바깥에서 보낸 X-Forwarded-For 를 그대로 믿지 않는다.
+   */
+  app.set('trust proxy', 'loopback');
   app.use(express.json());
   app.use(cookieParser());
   // BigInt → Number (Prisma의 BigInt 컬럼이 JSON.stringify를 막는 문제 해결)
