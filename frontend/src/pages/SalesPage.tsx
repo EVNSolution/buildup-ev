@@ -385,10 +385,17 @@ function MyListView() {
                             >서명본</button>
                           )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
+                          {/*
+                            이메일은 견적 단계 필수가 아니다(문자로 받길 원하는 고객이 많다).
+                            그래서 **보낼 곳이 없으면 이 버튼만 잠근다** — 견적 자체는 그대로 만든다.
+                          */}
                           {canEmail && (
                             <button
-                              style={lv.pdfBtn}
-                              title="참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)"
+                              style={q.customer?.email ? lv.pdfBtn : BTN.rowMuted}
+                              disabled={!q.customer?.email}
+                              title={q.customer?.email
+                                ? '참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)'
+                                : '고객 이메일이 없어 메일을 보낼 수 없습니다. 「고객정보」에서 이메일을 입력하세요.'}
                               onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
                             >메일 전달</button>
                           )}

@@ -264,10 +264,10 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            이메일<Tag need done={filled(v.email)} />
-            <Note>{isCorporate && !v.buyer_agent.trim()
-              ? '법인 직인을 찍을 사람 · 전자서명용'
-              : '전자서명을 위한 이메일'}</Note>
+            이메일<Tag need={forContract} contract={!forContract} done={filled(v.email)} />
+            <Note>{forContract
+              ? (isCorporate && !v.buyer_agent.trim() ? '법인 직인을 찍을 사람 · 전자서명용' : '전자서명을 위한 이메일')
+              : '없으면 메일 발송·이메일 서명 요청을 쓸 수 없습니다'}</Note>
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
@@ -353,7 +353,6 @@ function missingBase(v: QuoteSaveValues): string[] {
     [filled(v.name), isCorporate ? '상호' : '성명'],
     [!isCorporate || filled(v.ceo_name), '대표이사'],
     [filled(v.phone), '휴대폰'],
-    [filled(v.email), '이메일'],
     // 법인은 지방보조금 대상이 아니라 지역 칸 자체가 없다 — 필수에서도 뺀다
     [isCorporate || filled(v.subsidy.region_code), '지역'],
     [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
@@ -364,7 +363,14 @@ function missingBase(v: QuoteSaveValues): string[] {
   return required.filter(([ok]) => !ok).map(([, label]) => label)
 }
 
-/** 견적서를 만들기 위해 필요한 것 — 금액에 걸리는 값과 보낼 곳 */
+/*
+ * ⚠️ 이메일은 **견적 단계 필수가 아니다.**
+ *    견적서에 들어가는 값이 아니라 **보내는 수단**이고, 이메일을 안 주고 문자로 받길
+ *    원하는 고객이 많다. 영업이 견적만 빠르게 만들어 파일·사진으로 건네는 길을 막지 않는다.
+ *    대신 이메일이 없으면 **메일 발송 기능이 잠긴다**(화면에서 버튼 비활성 + 서버도 거절).
+ */
+
+/** 견적서를 만들기 위해 필요한 것 — 금액에 걸리는 값과 연락처 */
 export function missingForQuote(v: QuoteSaveValues): string[] {
   return missingBase(v)
 }
@@ -375,6 +381,8 @@ export function missingForContract(v: QuoteSaveValues): string[] {
   const filled = (x: string) => !!x.trim()
   const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
   const extra: [boolean, string][] = [
+    // 계약 단계에서는 이메일이 필요하다 — 전자서명·서류 발송이 여기서 시작된다
+    [filled(v.email), '이메일'],
     [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
     [filled(v.address), '주소'],
     [filled(v.address_detail), '세부주소'],

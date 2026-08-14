@@ -26,7 +26,12 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
 }) {
   const [contract, setContract] = useState<ContractInfo | null>(null)
   const [loading, setLoading] = useState(true)
-  const [method, setMethod] = useState<'EMAIL' | 'KAKAO'>('EMAIL')
+  /*
+   * 기본 발송 방식 — 이메일이 있으면 이메일, 없으면 카카오.
+   * 이메일은 견적 단계 필수가 아니라서(문자로 받는 고객이 많다) 빈 채로 오는 일이 흔하다.
+   * 그때 EMAIL 로 열어 두면 "보낼 수 없습니다"만 보이고 왜인지 알기 어렵다.
+   */
+  const [method, setMethod] = useState<'EMAIL' | 'KAKAO'>((customerEmail ?? '').trim() ? 'EMAIL' : 'KAKAO')
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [preview, setPreview] = useState(false)
