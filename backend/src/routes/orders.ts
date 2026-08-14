@@ -86,7 +86,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
           total: STEPS.length,
           open: openDefs.map(d => d.label),
           // 하나라도 오래 멈춰 있으면 목록에서 바로 드러나야 한다
-          stalled: openDefs.some(d => isStalled(d.code, { code: d.code, status: 'pending' }, byCode.get(d.code)?.entered_at ?? null, now)),
+          stalled: openDefs.some(d => isStalled(d.code, { code: d.code, status: 'pending' }, byCode.get(d.code)?.entered_at ?? null, now, done)),
         },
       };
     });

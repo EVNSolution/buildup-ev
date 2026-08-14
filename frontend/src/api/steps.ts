@@ -31,10 +31,23 @@ async function jsonOrThrow(res: Response, what: string) {
   throw new Error(body.error?.message ?? `${what} 실패: ${res.status}`)
 }
 
-export async function fetchSteps(orderId: number): Promise<ApiStep[]> {
+/**
+ * 단계 목록 + **주문 자체의 기록**.
+ * 발주 발행·수락·납기는 단계가 아니라 이미 끝난 사실이라 따로 온다.
+ */
+export interface ApiStepsResponse {
+  data: ApiStep[]
+  order: {
+    assigned_at: string | null
+    accepted_at: string | null
+    /** YYYY-MM-DD */
+    delivery_due: string | null
+  }
+}
+
+export async function fetchSteps(orderId: number): Promise<ApiStepsResponse> {
   const res = await fetch(`/api/v1/orders/${orderId}/steps`, { credentials: 'include' })
-  const body = await jsonOrThrow(res, '단계 조회') as { data: ApiStep[] }
-  return body.data
+  return await jsonOrThrow(res, '단계 조회') as ApiStepsResponse
 }
 
 /** 단계 완료. 날짜를 받는 단계(납기·검사예정일·인도일)는 plannedAt 을 함께 보낸다. */

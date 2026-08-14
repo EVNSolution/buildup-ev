@@ -59,20 +59,36 @@ order.status  "제작착수" → "구조변경" → "튜닝신청" → "안전�
 | 차량 | `car_arrived` | 차량 도착 | 특장사 | — | 검수사진, 인수증(서명본) |
 | 차량 | `temp_plate_returned` | 임시번호판 반납 | 특장사 | — | 반납확인서 |
 | 차량 | `insurance_checked` | 보험 확인 | 관리자 | — | 없음(체크만) |
-| 차량 | `plate_received` | 번호판·등록증 수령 | 특장사 | — | 없음 |
-| 차량 | `plate_mounted` | 번호판 장착 | 특장사 | — | 장착사진, 자동차등록증 |
-| 특장 | `po_issued` | 발주서 발행 | 관리자 | 특장사 선택 | — |
-| 특장 | `po_accepted` | 발주서 수락 | 특장사 | **납기일** | — |
-| 특장 | `build_done` | 제작 완료 | 특장사 | — | — |
-| 튜닝 | `tuning_drafted` | 튜닝신청서 생성 | 자동 | 차명·형식·등록번호·차대번호 | — |
-| 튜닝 | `tuning_sign_sent` | 전자서명 요청 | 영업 | — | — |
-| 튜닝 | `tuning_signed` | 서명 완료 | 자동(웹훅) | — | — |
+| 차량 | `plate_received` | 번호판·등록증 수령 | 특장사 | — | **자동차등록증** |
+| 차량 | `plate_mounted` | 번호판 장착 | 특장사 | — | 장착사진 |
+| 특장 | `build_done` | **특장 제작 완료** | 특장사 | — | — |
+| 튜닝 | `tuning_drafted` | 튜닝신청서 생성 | 자동 | — | — |
+| 튜닝 | `tuning_sign_sent` | 전자서명 요청 | 영업 | — | **자동 통과**(보내면 지나간다) |
+| 튜닝 | `tuning_signed` | 서명 완료 | 특장사 | — | **서명본 내려받기 먼저** |
 | 튜닝 | `tuning_approved` | 승인서 수령 | 특장사 | — | 승인서 |
 | 출고 | `mounted` | 특장 장착 | 특장사 | — | — |
 | 출고 | `inspection_booked` | 안전검사 신청 | 특장사 | **검사예정일** | — |
 | 출고 | `inspection_done` | 안전검사 완료 | 특장사 | — | 자동차등록증(변경분) |
 | 출고 | `docs_complete` | 서류 일체 | 특장사 | — | (목록 확정 필요) |
-| 출고 | `delivered` | 인도 | 영업 | 인도일 | — |
+| 출고 | `delivered` | 인도 | 영업 | **인도일** | — |
+
+**단계가 아닌 것 — 주문 자체의 기록**
+
+발주서 발행 · 수락 · 납기일은 단계로 두지 않는다. 이미 끝난 일이고, 단계로 두면 상세
+화면에서 다시 「완료」를 누르고 되돌릴 수 있게 되어 **같은 일을 두 번 관리**하게 된다.
+`order.assigned_at` · `accepted_at` · `delivery_due` 로 남고 화면 머리말에 표시된다.
+(그래서 특장 트랙에는 「특장 제작 완료」 하나만 있다. 발주 발행은 관리자의 일이고,
+수락과 납기는 특장사가 「수락 대기」에서 이미 끝냈다)
+
+**선행 조건**
+
+```
+mounted            ← car_arrived AND build_done
+tuning_drafted     ← plate_received   // 등록증이 나온 시점. 번호판을 다는 것을 기다리지 않는다
+inspection_booked  ← mounted AND tuning_approved
+delivered          ← inspection_done AND docs_complete
+build_done         ← (선행 없음) 단, 주문을 수락한 뒤에만 누를 수 있다
+```
 
 **재촉 기준**
 
@@ -83,15 +99,6 @@ order.status  "제작착수" → "구조변경" → "튜닝신청" → "안전�
 납기 한도가 15영업일인데 수락 자체가 늦어지면 남는 제작 기간이 그만큼 줄고, 어느 순간
 한도 안에 넣을 수 있는 날짜가 하나도 없게 된다. **그렇게 창이 닫히면 특장사는 수락할 수
 없고**, 관리자가 재배정해야 발주일이 새로 잡힌다 — 7일 재촉은 거기까지 가지 않게 하는 장치다.
-
-**선행 조건**
-
-```
-mounted            ← car_arrived AND build_done
-tuning_drafted     ← plate_mounted (자동차등록증이 있어야 4항목을 채운다)
-inspection_booked  ← mounted AND tuning_approved
-delivered          ← inspection_done AND docs_complete
-```
 
 영업 화면에는 `mounted` 이후부터 **인도 예정일**이 보인다.
 

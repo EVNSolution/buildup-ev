@@ -42,7 +42,7 @@ function orderId(req: Request): number | null {
  */
 type LoadResult =
   | { err: 503 | 404 | 403 }
-  | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date } };
+  | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date; accepted_at: Date | null; delivery_due: Date | null } };
 
 async function loadOrder(id: number, req: Request): Promise<LoadResult> {
   if (!prisma) return { err: 503 };
@@ -50,6 +50,7 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
     where: { id },
     select: {
       id: true, quote_id: true, maker_org_id: true, assigned_at: true, created_at: true,
+      accepted_at: true, delivery_due: true,
       quote: { select: { sales_user_id: true } },
     },
   });
@@ -99,6 +100,7 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
   ]);
 
   const byCode = new Map(rows.map(x => [x.code, x]));
+  const doneCodes = new Set(rows.filter(x => x.status === 'done').map(x => x.code));
   const now = new Date();
 
   // 카탈로그 순서로 내려준다 — 화면이 정렬을 다시 하지 않게
@@ -114,7 +116,7 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
       done_at: row?.done_at?.toISOString() ?? null,
       done_by: row?.done_by ?? null,
       note: row?.note ?? null,
-      stalled: isStalled(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, row?.entered_at ?? null, now),
+      stalled: isStalled(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, row?.entered_at ?? null, now, doneCodes),
       files: mine.map(f => ({
         id: f.id, kind: f.kind, name: f.original_name, size: f.size_bytes,
         kept_original: f.kept_original, uploaded_by: f.uploaded_by, uploaded_at: f.uploaded_at.toISOString(),
@@ -122,7 +124,19 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
     };
   });
 
-  res.json({ data });
+  /*
+   * 단계 목록과 함께 **주문 자체의 기록**을 내려준다.
+   * 발주 발행·수락·납기는 단계가 아니라 이미 끝난 사실이다 — 화면은 이것을 머리말에
+   * 적어 두고, 「완료/되돌리기」 대상으로 두지 않는다.
+   */
+  res.json({
+    data,
+    order: {
+      assigned_at: r.order.assigned_at?.toISOString() ?? null,
+      accepted_at: r.order.accepted_at?.toISOString() ?? null,
+      delivery_due: r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null,
+    },
+  });
 });
 
 // ── PATCH /orders/:id/steps/:code — 단계 완료 ─────────────────────────────
@@ -153,6 +167,16 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
     files.map(f => f.kind as EvidenceKind),
   );
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+
+  /*
+   * 제작 완료는 **수락한 뒤**에만 누를 수 있다.
+   * 수락은 단계가 아니라 주문의 기록이라 선행 단계로 표현할 수 없다 — 여기서 본다.
+   * (수락 전이라면 「수락 대기」 목록에서 발주서를 보고 받는 것이 먼저다)
+   */
+  if (code === 'build_done' && !r.order.accepted_at) {
+    res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '발주를 먼저 수락해야 합니다 — 「수락 대기」에서 발주서를 확인하고 받아 주세요' } });
+    return;
+  }
 
   // 날짜를 받는 단계는 날짜가 있어야 한다(납기·검사예정일·인도일)
   let planned: Date | null = null;

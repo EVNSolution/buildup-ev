@@ -61,8 +61,18 @@ export interface StepDef {
   requires: string[];
   /** 이게 다 올라오기 전에는 완료 처리되지 않는다 */
   evidence: EvidenceKind[];
-  /** 날짜를 하나 받는 단계(납기·검사예정일·인도일) */
+  /** 날짜를 하나 받는 단계(검사예정일·인도일) */
   dateLabel?: string;
+  /**
+   * 사람이 「완료」를 누르는 단계가 아니다 — 다른 행위(발송 등)가 일어나면 저절로 지나간다.
+   * 화면에 완료 버튼을 두지 않는다.
+   */
+  auto?: boolean;
+  /**
+   * 완료 전에 반드시 해야 하는 확인 행위. 이걸 하기 전에는 완료 버튼이 열리지 않는다.
+   * (예: 서명본을 내려받아 눈으로 보기)
+   */
+  ackLabel?: string;
   /**
    * 이 단계에 머문 지 이 일수를 넘으면 재촉한다(달력일).
    * 재촉은 「며칠째 방치됐나」의 문제라 주말도 흘러간 날로 센다.
@@ -83,27 +93,43 @@ export const STEPS: StepDef[] = [
   // 보험은 확인만 한다 — 증빙 파일은 추후(회의 확정)
   { code: 'insurance_checked', track: 'vehicle', label: '보험 확인', actor: 'ADMIN',
     requires: ['car_arrived'], evidence: [], stallDays: 5 },
-  // 임시번호판을 반납해야 영업용(하늘색) 번호판이 나온다
+  /*
+   * 임시번호판을 반납해야 영업용(하늘색) 번호판이 나온다.
+   * **자동차등록증이 이 시점에 들어온다** — 튜닝신청서의 4항목(차명·형식·등록번호·차대번호)이
+   * 여기서 확보되므로, 번호판을 실제로 다는 것(다음 단계)을 기다리지 않고 튜닝을 시작할 수 있다.
+   */
   { code: 'plate_received', track: 'vehicle', label: '번호판·등록증 수령', actor: 'MAKER',
-    requires: ['temp_plate_returned'], evidence: [], stallDays: 10 },
+    requires: ['temp_plate_returned'], evidence: ['vehicle_reg'], stallDays: 10 },
   { code: 'plate_mounted', track: 'vehicle', label: '번호판 장착', actor: 'MAKER',
-    requires: ['plate_received'], evidence: ['plate_photo', 'vehicle_reg'], stallDays: 5 },
+    requires: ['plate_received'], evidence: ['plate_photo'], stallDays: 5 },
 
   // ── 특장 ───────────────────────────────────────────────────────────────
-  { code: 'po_issued', track: 'body', label: '발주서 발행', actor: 'ADMIN',
-    requires: [], evidence: [], stallDays: 3 },
-  { code: 'po_accepted', track: 'body', label: '발주서 수락', actor: 'MAKER',
-    requires: ['po_issued'], evidence: [], dateLabel: '납기일', stallDays: 7 },
-  { code: 'build_done', track: 'body', label: '제작 완료', actor: 'MAKER',
-    requires: ['po_accepted'], evidence: [], stallDays: 21 },
+  /*
+   * 특장 트랙에는 **제작 완료 하나만** 둔다.
+   *
+   * 발주서 발행은 관리자의 일이고, 수락은 특장사가 이미 「수락 대기」에서 끝낸 일이다
+   * (납기일도 그때 함께 정한다). 그것들을 단계로 두면 상세 화면에서 다시 「완료」를 누르고
+   * 되돌릴 수 있게 되어, 이미 끝난 일을 두 번 관리하게 된다.
+   * 발주·수락·납기는 주문 자체의 기록(assigned_at·accepted_at·delivery_due)으로 남는다.
+   */
+  { code: 'build_done', track: 'body', label: '특장 제작 완료', actor: 'MAKER',
+    requires: [], evidence: [], stallDays: 21 },
 
-  // ── 튜닝(인허가) — 자동차등록증이 나오면 특장과 **무관하게** 시작한다 ──
+  // ── 튜닝(인허가) — 등록증이 나오면 특장과 **무관하게** 시작한다 ──────────
   { code: 'tuning_drafted', track: 'tuning', label: '튜닝신청서 생성', actor: 'SYSTEM',
-    requires: ['plate_mounted'], evidence: [], stallDays: 3 },
+    requires: ['plate_received'], evidence: [], stallDays: 3 },
+  /*
+   * 전자서명 요청은 **영업이 보내는 순간 지나가는 단계**다. 특장사가 상세 화면에서
+   * 「완료」를 눌러 줄 일이 아니다 — 보낸 사실은 발송이 곧 증명한다.
+   */
   { code: 'tuning_sign_sent', track: 'tuning', label: '전자서명 요청', actor: 'SALES',
-    requires: ['tuning_drafted'], evidence: [], stallDays: 3 },
-  { code: 'tuning_signed', track: 'tuning', label: '서명 완료', actor: 'SYSTEM',
-    requires: ['tuning_sign_sent'], evidence: [], stallDays: 5 },
+    requires: ['tuning_drafted'], evidence: [], auto: true, stallDays: 3 },
+  /*
+   * 서명이 끝나도 **서명본을 실제로 받아 보기 전에는** 완료로 넘기지 않는다.
+   * 서명본은 관청에 내는 정본이라, 열어 보지 않고 넘기면 잘못 서명된 것을 뒤늦게 안다.
+   */
+  { code: 'tuning_signed', track: 'tuning', label: '서명 완료', actor: 'MAKER',
+    requires: ['tuning_sign_sent'], evidence: [], ackLabel: '서명본 내려받기', stallDays: 5 },
   { code: 'tuning_approved', track: 'tuning', label: '승인서 수령', actor: 'MAKER',
     requires: ['tuning_signed'], evidence: ['tuning_approval'], stallDays: 10 },
 
@@ -119,7 +145,7 @@ export const STEPS: StepDef[] = [
   { code: 'docs_complete', track: 'merged', label: '서류 일체', actor: 'MAKER',
     requires: ['inspection_done'], evidence: ['docs_bundle'], stallDays: 7 },
   { code: 'delivered', track: 'merged', label: '인도', actor: 'SALES',
-    requires: ['inspection_done', 'docs_complete'], evidence: [], dateLabel: '인도일', stallDays: 7 },
+    requires: ['inspection_done', 'docs_complete'], dateLabel: '인도일', evidence: [], stallDays: 7 },
 ];
 
 /**
@@ -229,10 +255,25 @@ export function stalledDays(enteredAt: Date | null, now: Date): number | null {
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000));
 }
 
-/** 재촉해야 하는가 — 아직 안 끝났고, 그 단계의 기준 일수를 넘겼을 때. */
-export function isStalled(code: string, state: StepState | undefined, enteredAt: Date | null, now: Date): boolean {
+/**
+ * 재촉해야 하는가.
+ *
+ * ⚠️ **아직 열리지도 않은 단계는 지연이 아니다.** 선행이 안 끝나 시작할 수 없는 일을
+ *    「지연」이라 부르면 목록이 온통 빨개지고, 그러면 진짜 늦은 것을 알아볼 수 없다
+ *    (실제로 주문 하나를 열었더니 14단계가 전부 지연으로 떴다 — 아무도 시작할 수
+ *    없는 상태였는데도).
+ *    지금 손댈 수 있는데 손대지 않고 있는 것만 재촉한다.
+ */
+export function isStalled(
+  code: string,
+  state: StepState | undefined,
+  enteredAt: Date | null,
+  now: Date,
+  doneCodes: Set<string>,
+): boolean {
   const def = STEP_BY_CODE[code];
   if (!def || !state || state.status === 'done' || state.status === 'skipped') return false;
+  if (!isOpen(code, doneCodes)) return false;
   const d = stalledDays(enteredAt, now);
   return d !== null && d >= def.stallDays;
 }
