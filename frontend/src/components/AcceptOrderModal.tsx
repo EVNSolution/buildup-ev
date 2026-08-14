@@ -85,15 +85,15 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
             {windowClosed ? (
               <div style={m.closed}>
                 <b>납기 한도({toDateInput(limit)})가 이미 지났습니다.</b><br />
-                이 발주로는 납기를 정할 수 없습니다 — 관리자에게 <b>재배정</b>을 요청하시면
-                발주일이 새로 잡히고 다시 수락할 수 있습니다.
+                이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 <b>재배정</b>을 요청하시면
+                발주일이 새로 지정되어 수락할 수 있습니다.
               </div>
             ) : (
               <>
                 {/* 고를 수 있는 날짜만 그린다 — 눌러 보고 나서 안 된다는 걸 알게 하지 않는다 */}
                 <DueDatePicker orderedAt={base} value={due} onChange={setDue} />
                 <div style={m.picked}>
-                  {due ? <>납기일 <b>{due}</b></> : '위 달력에서 납기일을 고르세요'}
+                  {due ? <>납기일 <b>{due}</b></> : '납기일을 선택하십시오'}
                 </div>
               </>
             )}
@@ -109,7 +109,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
             disabled={!canAccept}
             onClick={() => parsed && onAccept(due)}
           >
-            {busy ? '처리 중…' : '수락 · 제작 착수'}
+            {busy ? '처리 중' : '수락'}
           </button>
         </div>
       </div>

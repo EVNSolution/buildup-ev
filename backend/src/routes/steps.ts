@@ -28,6 +28,28 @@ import {
 
 export const stepsRouter = Router();
 
+/**
+ * 핸들러 예외를 붙잡아 **이유를 실어** 돌려준다.
+ *
+ * ⚠️ 예전에는 try/catch 가 없어, DB 오류든 무엇이든 Express 기본 처리로 **본문 없는 500**
+ *    이 나갔다. 화면에는 「단계 완료 실패: 500」만 뜨고 사용자도 우리도 원인을 알 수 없었다
+ *    (실제 제보). 서버 로그에 남기고, 화면에는 적어도 무슨 일이었는지 알려 준다.
+ */
+function guard(
+  fn: (req: Request, res: Response) => Promise<void>,
+): (req: Request, res: Response) => Promise<void> {
+  return async (req, res) => {
+    try {
+      await fn(req, res);
+    } catch (e) {
+      console.error(`[steps] ${req.method} ${req.originalUrl}`, e);
+      if (!res.headersSent) {
+        res.status(500).json({ error: { code: 'INTERNAL', message: '단계 처리 중 오류가 발생했습니다. 잠시 후 다시 시도하십시오.' } });
+      }
+    }
+  };
+}
+
 function orderId(req: Request): number | null {
   const n = Number(req.params['id']);
   return Number.isInteger(n) ? n : null;
@@ -43,6 +65,16 @@ function orderId(req: Request): number | null {
 type LoadResult =
   | { err: 503 | 404 | 403 }
   | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date; accepted_at: Date | null; delivery_due: Date | null } };
+
+/** 접근 실패를 상태에 맞는 코드·문구로. 404 에 FORBIDDEN 을 실어 보내지 않는다. */
+function denyOrder(res: Response, err: 503 | 404 | 403): void {
+  const map = {
+    503: { code: 'DB_UNAVAILABLE', message: 'DB 연결이 필요합니다' },
+    404: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' },
+    403: { code: 'FORBIDDEN', message: '이 주문에 접근할 권한이 없습니다' },
+  } as const;
+  res.status(err).json({ error: map[err] });
+}
 
 async function loadOrder(id: number, req: Request): Promise<LoadResult> {
   if (!prisma) return { err: 503 };
@@ -82,11 +114,11 @@ async function ensureSteps(id: number, base: Date) {
 }
 
 // ── GET /orders/:id/steps — 진행 상황 + 증빙 목록 ──────────────────────────
-stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
-  if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+  if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 주문 번호입니다' } }); return; }
   const r = await loadOrder(id, req);
-  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+  if ('err' in r) { denyOrder(res, r.err); return; }
 
   await ensureSteps(id, r.order.assigned_at ?? r.order.created_at);
 
@@ -155,15 +187,15 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
       delivery_due: r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null,
     },
   });
-});
+}));
 
 // ── PATCH /orders/:id/steps/:code — 단계 완료 ─────────────────────────────
-stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const code = String(req.params['code'] ?? '');
   if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
   const r = await loadOrder(id, req);
-  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+  if ('err' in r) { denyOrder(res, r.err); return; }
 
   await ensureSteps(id, r.order.assigned_at ?? r.order.created_at);
 
@@ -175,7 +207,7 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
 
   const already = rows.find(x => x.code === code);
   if (already?.status === 'done') {
-    res.status(409).json({ error: { code: 'CONFLICT', message: '이미 완료된 단계입니다' } }); return;
+    res.status(409).json({ error: { code: 'CONFLICT', message: '이미 완료 처리된 단계입니다' } }); return;
   }
 
   // 선행 단계·증빙 판정 — 화면과 같은 함수
@@ -237,7 +269,7 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
   }
 
   res.json({ data: { ok: true, opened } });
-});
+}));
 
 
 
@@ -246,12 +278,12 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
 // 잘못 누르는 일은 반드시 생긴다. 되돌릴 길이 없으면 사람들은 **틀린 기록을 그냥 두거나**
 // DB 를 직접 고쳐 달라고 한다 — 둘 다 기록을 못 믿게 만든다.
 // 대신 **뒤 단계가 이미 끝났으면 막는다**(뒤에서부터 풀어야 앞뒤가 맞는다).
-stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const code = String(req.params['code'] ?? '');
   if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
   const r = await loadOrder(id, req);
-  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+  if ('err' in r) { denyOrder(res, r.err); return; }
 
   const rows = await prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } });
   const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })));
@@ -284,7 +316,7 @@ stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), asyn
   }
 
   res.json({ data: { ok: true } });
-});
+}));
 
 // ── 증빙 파일 ──────────────────────────────────────────────────────────────
 //
@@ -298,27 +330,27 @@ const upload = multer({
 
 // POST /orders/:id/steps/:code/files
 stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), upload.single('file'),
-  async (req: Request, res: Response): Promise<void> => {
+  guard(async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     const code = String(req.params['code'] ?? '');
     const def = STEP_BY_CODE[code];
     if (id === null || !def) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
 
     const r = await loadOrder(id, req);
-    if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+    if ('err' in r) { denyOrder(res, r.err); return; }
 
     const file = req.file;
-    if (!file) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '파일이 없습니다' } }); return; }
+    if (!file) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '파일이 첨부되지 않았습니다' } }); return; }
 
     // 이 단계가 요구하는 증빙 종류만 받는다 — 아무 데나 아무 파일이 쌓이지 않게
     const kind = String((req.body as { kind?: unknown })?.kind ?? '') as EvidenceKind;
     if (!def.evidence.includes(kind)) {
-      res.status(400).json({ error: { code: 'BAD_INPUT', message: `이 단계에 올릴 수 있는 증빙이 아닙니다 — ${def.evidence.map(e => EVIDENCE_LABEL[e]).join(' · ') || '없음'}` } });
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: `이 단계에 등록할 수 있는 증빙이 아닙니다 — ${def.evidence.map(e => EVIDENCE_LABEL[e]).join(' · ') || '없음'}` } });
       return;
     }
 
     if (!ALLOWED_MIME[file.mimetype]) {
-      res.status(400).json({ error: { code: 'BAD_INPUT', message: '사진(JPG·PNG·WEBP·HEIC) 또는 PDF 만 올릴 수 있습니다' } });
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '사진(JPG·PNG·WEBP·HEIC) 또는 PDF 만 등록할 수 있습니다' } });
       return;
     }
     const max = maxBytesFor(kind);
@@ -344,15 +376,15 @@ stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), uplo
     });
 
     res.status(201).json({ data: row });
-  });
+  }));
 
 // GET /orders/:id/files/:fileId — 열람
-stepsRouter.get('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+stepsRouter.get('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const fileId = Number(req.params['fileId']);
-  if (id === null || !Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+  if (id === null || !Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 주문 번호입니다' } }); return; }
   const r = await loadOrder(id, req);
-  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+  if ('err' in r) { denyOrder(res, r.err); return; }
 
   const f = await prisma!.orderFile.findFirst({ where: { id: fileId, order_id: id } });
   if (!f) { res.status(404).json({ error: { code: 'NOT_FOUND' } }); return; }
@@ -371,15 +403,15 @@ stepsRouter.get('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), async (re
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(f.original_name ?? 'file')}`);
   createReadStream(abs).pipe(res);
-});
+}));
 
 // DELETE /orders/:id/files/:fileId — 잘못 올린 것 지우기
-stepsRouter.delete('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+stepsRouter.delete('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const fileId = Number(req.params['fileId']);
-  if (id === null || !Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+  if (id === null || !Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 주문 번호입니다' } }); return; }
   const r = await loadOrder(id, req);
-  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+  if ('err' in r) { denyOrder(res, r.err); return; }
 
   const f = await prisma!.orderFile.findFirst({ where: { id: fileId, order_id: id } });
   if (!f) { res.status(404).json({ error: { code: 'NOT_FOUND' } }); return; }
@@ -387,11 +419,11 @@ stepsRouter.delete('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), async 
   // 완료된 단계의 증빙은 지우지 않는다 — 완료의 근거였던 것이 사라지면 기록이 거짓이 된다
   const step = await prisma!.orderStep.findUnique({ where: { order_id_code: { order_id: id, code: f.step_code } }, select: { status: true } });
   if (step?.status === 'done') {
-    res.status(409).json({ error: { code: 'CONFLICT', message: '완료된 단계의 증빙은 지울 수 없습니다' } }); return;
+    res.status(409).json({ error: { code: 'CONFLICT', message: '완료된 단계의 증빙은 삭제할 수 없습니다' } }); return;
   }
 
   await prisma!.orderFile.delete({ where: { id: fileId } });
   const abs = resolveStoredPath(f.path);
   if (abs) await unlink(abs).catch(() => { /* 파일이 이미 없어도 기록은 지운다 */ });
   res.json({ data: { ok: true } });
-});
+}));

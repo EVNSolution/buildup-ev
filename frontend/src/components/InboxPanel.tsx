@@ -64,13 +64,13 @@ export function InboxPanel({ title, items, acceptLabel, busyId, onView, onAccept
             <div style={s.sub}>{it.sub}</div>
           </div>
           <div style={s.actions}>
-            {onView && <button style={BTN.row} onClick={() => onView(it.id)}>내용 보기</button>}
+            {onView && <button style={BTN.row} onClick={() => onView(it.id)}>상세 보기</button>}
             <button
               style={busyId === it.id ? BTN.rowDisabled : BTN.rowPrimary}
               disabled={busyId === it.id}
               onClick={() => onAccept(it.id)}
             >
-              {busyId === it.id ? '처리 중…' : acceptLabel}
+              {busyId === it.id ? '처리 중' : acceptLabel}
             </button>
           </div>
         </div>

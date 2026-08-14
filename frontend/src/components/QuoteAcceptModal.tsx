@@ -51,7 +51,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
           {quote.quote_no ?? `#${quote.id}`} — 배정된 문의
         </div>
         <div style={m.desc}>
-          고객이 공개 화면에서 직접 접수한 문의입니다. 내용을 확인하고 받으시면 담당이 됩니다.
+          고객이 공개 화면에서 직접 접수한 문의입니다. 내용을 확인한 뒤 접수하면 담당자로 지정됩니다.
         </div>
 
         <div style={m.scroll}>
@@ -103,7 +103,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
           <button style={BTN.secondary} onClick={onClose} disabled={busy}>닫기</button>
           {onAccept && (
             <button style={busy ? BTN.disabled : BTN.primary} disabled={busy} onClick={onAccept}>
-              {busy ? '처리 중…' : '이 문의 받기'}
+              {busy ? '처리 중' : '접수'}
             </button>
           )}
         </div>

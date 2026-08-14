@@ -32,12 +32,12 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
   }, [orderId])
 
   if (err) return <div style={s.err}>{err}</div>
-  if (!files) return <div style={s.muted}>불러오는 중…</div>
-  if (files.length === 0) return <div style={s.muted}>올라온 증빙이 없습니다.</div>
+  if (!files) return <div style={s.muted}>불러오는 중입니다.</div>
+  if (files.length === 0) return <div style={s.muted}>등록된 증빙이 없습니다.</div>
 
   return (
     <div>
-      <div style={s.head}>올라온 증빙 <span style={s.count}>{files.length}</span></div>
+      <div style={s.head}>등록된 증빙 <span style={s.count}>{files.length}</span></div>
       <div style={s.scroller}>
         <table style={s.table}>
           <thead>
@@ -46,8 +46,8 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
               <th style={s.th}>종류</th>
               <th style={s.th}>파일</th>
               <th style={s.th}>크기</th>
-              <th style={s.th}>올린 사람</th>
-              <th style={s.th}>올린 때</th>
+              <th style={s.th}>등록자</th>
+              <th style={s.th}>등록일</th>
             </tr>
           </thead>
           <tbody>

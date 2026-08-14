@@ -9,6 +9,8 @@ import {
 } from '../api/steps'
 import { shrinkImage, fmtBytes, MAX_EDGE } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
+import { rolesOf } from '@shared/types/index'
+import { useAuth } from '../contexts/AuthContext'
 
 /**
  * 단계 중심 주문 화면 — **「다음에 뭘 해야 하나」에 답하는 것이 이 화면의 일이다.**
@@ -24,11 +26,18 @@ const TRACK_ORDER: Track[] = ['vehicle', 'body', 'tuning', 'merged']
 
 type Phase = 'done' | 'now' | 'later'
 
+/** 담당 역할을 사람이 읽는 말로 — 화면에 SALES 라고 쓰지 않는다 */
+const ACTOR_LABEL: Record<string, string> = {
+  SALES: '영업', ADMIN: '관리자', MAKER: '특장사', SYSTEM: '시스템',
+}
+
 export function OrderStepsPanel({ orderId, canEdit = true }: {
   orderId: number
   /** 조회만 하는 화면에서는 버튼을 감춘다 */
   canEdit?: boolean
 }) {
+  const { session } = useAuth()
+  const myRoles = session ? rolesOf(session.user) : []
   const [res, setRes] = useState<ApiStepsResponse | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -37,7 +46,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
   const [acked, setAcked] = useState<Set<string>>(new Set())
 
   function load() {
-    fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : '단계 조회 실패'))
+    fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : '단계 정보를 불러오지 못했습니다'))
   }
   useEffect(() => { load() }, [orderId])   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -49,7 +58,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
   const doneCodes = useMemo(() => new Set(states.filter(s => s.status === 'done').map(s => s.code)), [states])
 
   if (err && !steps) return <div style={s.err}>{err}</div>
-  if (!steps || !res) return <div style={s.muted}>단계를 불러오는 중…</div>
+  if (!steps || !res) return <div style={s.muted}>단계를 불러오는 중입니다.</div>
 
   const byCode = new Map(steps.map(x => [x.code, x]))
   const phaseOf = (d: StepDef): Phase =>
@@ -63,14 +72,14 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
     try {
       await completeStep(orderId, code, def.dateLabel ? dates[code] : undefined)
       load()
-    } catch (e) { setErr(e instanceof Error ? e.message : '완료 실패') }
+    } catch (e) { setErr(e instanceof Error ? e.message : '완료 처리에 실패했습니다') }
     finally { setBusy(null) }
   }
 
   async function handleUndo(code: string) {
     setBusy(code); setErr('')
     try { await undoStep(orderId, code); load() }
-    catch (e) { setErr(e instanceof Error ? e.message : '되돌리기 실패') }
+    catch (e) { setErr(e instanceof Error ? e.message : '완료 취소에 실패했습니다') }
     finally { setBusy(null) }
   }
 
@@ -81,14 +90,14 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
       const { file: out } = keepsOriginal(kind) ? { file } : await shrinkImage(file)
       await uploadStepFile(orderId, code, kind, out)
       load()
-    } catch (e) { setErr(e instanceof Error ? e.message : '올리기 실패') }
+    } catch (e) { setErr(e instanceof Error ? e.message : '파일 등록에 실패했습니다') }
     finally { setBusy(null) }
   }
 
   async function handleDelete(fileId: number) {
     setBusy('f' + fileId); setErr('')
     try { await deleteStepFile(orderId, fileId); load() }
-    catch (e) { setErr(e instanceof Error ? e.message : '삭제 실패') }
+    catch (e) { setErr(e instanceof Error ? e.message : '파일 삭제에 실패했습니다') }
     finally { setBusy(null) }
   }
 
@@ -100,7 +109,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
       */}
       <div style={s.record}>
         <Rec label="발주" value={res.order.assigned_at?.slice(0, 10) ?? '—'} />
-        <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? '아직'} />
+        <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? '미수락'} />
         <Rec label="납기" value={res.order.delivery_due ?? '—'} strong={!!res.order.delivery_due} />
       </div>
 
@@ -146,11 +155,11 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                     <span style={phase === 'later' ? s.nameLater : s.name}>{def.label}</span>
                     {/* 지연은 숫자로 말한다 — 「지연」만으로는 얼마나 늦었는지 모른다 */}
                     {st.stalled && st.overdue_days != null && (
-                      <span style={s.lateTag}>{st.due_at} 마감 · {st.overdue_days}일 초과</span>
+                      <span style={s.lateTag}>기한 {st.due_at} · {st.overdue_days}일 경과</span>
                     )}
                     {/* 마감이 있는데 아직 안 넘겼으면 언제까지인지 */}
                     {phase === 'now' && !st.stalled && st.due_at && (
-                      <span style={s.dueTag}>{st.due_at}까지</span>
+                      <span style={s.dueTag}>기한 {st.due_at}</span>
                     )}
 
                     <span style={s.spacer} />
@@ -161,13 +170,19 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                           {st.done_at?.slice(0, 10)}
                           {st.planned_at ? ` · ${def.dateLabel} ${st.planned_at}` : ''}
                         </span>
-                        {canEdit && (
+                        {canEdit && undo.ok && (
                           <button
-                            style={undo.ok && busy !== def.code ? s.undoBtn : s.undoBtnOff}
-                            disabled={!undo.ok || busy === def.code}
-                            title={undo.ok ? '이 단계를 되돌립니다' : (undo as { reason: string }).reason}
+                            style={busy === def.code ? s.undoBtnOff : s.undoBtn}
+                            disabled={busy === def.code}
                             onClick={() => handleUndo(def.code)}
-                          >{busy === def.code ? '…' : '되돌리기'}</button>
+                          >{busy === def.code ? '처리 중' : '완료 취소'}</button>
+                        )}
+                        {/*
+                          취소할 수 없으면 **버튼을 잠그는 대신 이유를 적는다.**
+                          잠긴 버튼은 왜 안 되는지 알려 주지 않아, 눌러 보고도 알 수 없다(실제 제보).
+                        */}
+                        {canEdit && !undo.ok && (
+                          <span style={s.undoWhy}>{(undo as { reason: string }).reason}</span>
                         )}
                       </>
                     )}
@@ -178,16 +193,20 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                       </span>
                     )}
 
-                    {/* 사람이 누르는 단계가 아니면 버튼을 두지 않는다 — 눌러 줄 일이 없다 */}
-                    {phase === 'now' && canEdit && !def.auto && (
+                    {/*
+                      `auto` 단계는 다른 행위(전자서명 발송 등)가 일어나면 저절로 지나간다.
+                      **그 담당에게는 버튼을 준다** — 아직 그 기능이 붙기 전이라, 버튼이 아예
+                      없으면 이 갈래가 영구히 막힌다. 담당이 아닌 사람에게는 안내만 보인다.
+                    */}
+                    {phase === 'now' && canEdit && (!def.auto || myRoles.includes(def.actor as never)) && (
                       <button
                         style={gate.ok && dateOk && ackOk && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
                         disabled={!gate.ok || !dateOk || !ackOk || busy === def.code}
                         onClick={() => handleComplete(def.code)}
-                      >{busy === def.code ? '처리 중…' : '완료'}</button>
+                      >{busy === def.code ? '처리 중' : '완료 처리'}</button>
                     )}
-                    {phase === 'now' && def.auto && (
-                      <span style={s.autoTag}>보내면 자동으로 넘어갑니다</span>
+                    {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
+                      <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
                     )}
                   </div>
 
@@ -209,7 +228,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                             onClick={() => setAcked(p => new Set(p).add(def.code))}
                           >{acked.has(def.code) ? `✓ ${def.ackLabel}` : def.ackLabel}</button>
                           <span style={s.ackHint}>
-                            {acked.has(def.code) ? '확인했습니다' : '받아 보기 전에는 완료할 수 없습니다'}
+                            {acked.has(def.code) ? '확인 완료' : '서명본 확인 후 완료 처리할 수 있습니다'}
                           </span>
                         </div>
                       )}
@@ -223,7 +242,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
 
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
                       {!gate.ok && <div style={s.blocked}>{gate.reason}</div>}
-                      {gate.ok && !dateOk && <div style={s.blocked}>{def.dateLabel}을(를) 골라 주세요</div>}
+                      {gate.ok && !dateOk && <div style={s.blocked}>{def.dateLabel}을(를) 선택하십시오</div>}
                     </div>
                   )}
 
@@ -274,10 +293,10 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, onPick, onDelete }: 
         <span style={files.length > 0 ? s.evidenceOk : s.evidenceNeed}>
           {files.length > 0 ? '✓' : '·'} {EVIDENCE_LABEL[kind]}
         </span>
-        <span style={s.evidenceHint}>{original ? '원본 그대로' : `긴 변 ${MAX_EDGE}px 로 줄여서`}</span>
+        <span style={s.evidenceHint}>{original ? '원본 저장' : `긴 변 ${MAX_EDGE}px 로 축소 저장`}</span>
         {canEdit && (
           <button style={busy ? BTN.rowDisabled : BTN.row} disabled={busy} onClick={() => ref.current?.click()}>
-            {busy ? '올리는 중…' : '올리기'}
+            {busy ? '등록 중' : '등록'}
           </button>
         )}
         <input ref={ref} type="file" style={{ display: 'none' }}
@@ -290,7 +309,7 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, onPick, onDelete }: 
             {f.name || `파일 ${f.id}`}
           </a>
           <span style={s.fileSize}>{f.size ? fmtBytes(f.size) : ''}</span>
-          {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>지우기</button>}
+          {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>삭제</button>}
         </div>
       ))}
     </div>
@@ -360,6 +379,7 @@ const s: Record<string, React.CSSProperties> = {
   blocked: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   // 되돌리기는 눈에 띄지 않아야 한다 — 자주 쓰는 길이 아니라 잘못 눌렀을 때의 길이다
   undoBtn: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' },
+  undoWhy: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   undoBtnOff: { border: 'none', background: 'none', color: 'var(--line-strong, #CFD4CF)', fontSize: 'var(--fs-caption)', cursor: 'not-allowed', padding: 0, fontFamily: 'inherit' },
 
   muted: { fontSize: 'var(--fs-label)', color: 'var(--muted)', padding: 'var(--sp-3) 0' },

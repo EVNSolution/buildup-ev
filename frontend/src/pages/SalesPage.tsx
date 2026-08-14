@@ -358,7 +358,7 @@ function MyListView() {
           sub: `${q.model_code} · ${fmtPrice(q.final_price)}`,
           meta: fmtDate(q.created_at),
         }))}
-        acceptLabel="문의 받기"
+        acceptLabel="접수"
         busyId={acceptBusy}
         onView={id => setAcceptView(pendingAccept.find(q => q.id === id) ?? null)}
         onAccept={handleAccept}
