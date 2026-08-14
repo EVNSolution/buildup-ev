@@ -1,95 +1,100 @@
 /**
- * 기존 주문을 새 단계 체계로 옮긴다 — `order.status`(옛 6단계 직선) → `order_step`(17단계 4갈래).
+ * 기존 주문에 새 단계 행을 만든다 — 17단계 4갈래(`order_step`).
  *
- * ⚠️ **옛 단계와 새 단계는 1:1이 아니다.**
- *    옛 흐름은 「제작착수→구조변경→튜닝신청→안전검사→튜닝승인→인도완료」 한 줄이었고,
- *    새 구조는 차량·특장·튜닝이 따로 돌다 합류한다. 게다가 튜닝승인과 안전검사의 순서도
- *    회의에서 뒤집혔다. 그래서 **기계적으로 욱여넣지 않고**, 옛 단계까지 왔다면 지나왔을
- *    새 단계들만 완료로 표시한다.
+ * ⚠️ **`order.status`(옛 6단계)를 읽지 않는다.**
+ *    그 값은 확정된 적이 없다("지금 시스템 파이프라인은 확실한 게 아님" — 2026-08-14 회의).
+ *    확정되지 않은 값에서 「여기까지 왔다」를 유추하면, 실제로는 안 한 일이 완료로 찍히고
+ *    그 뒤로는 아무도 그게 거짓인지 알 수 없게 된다. 단계 기록은 증빙과 짝을 이루는
+ *    사실 기록이라 추측을 섞으면 안 된다.
  *
- * ⚠️ **증빙 없이 완료로 찍는다.** 옛 주문들은 시스템이 사진·서류를 요구하기 전에 진행됐다.
- *    「했지만 서류가 시스템에 없다」가 사실이므로 done 으로 두고, note 에 그렇게 적는다.
- *    skipped(해당 없음)로 두면 하지 않은 일처럼 읽혀 더 틀리다.
+ * 그래서 **다른 곳에서 확실히 확인되는 것만** 완료로 표시한다:
  *
- * ⚠️ `order.status` 는 지우지 않는다. 기존 칸반·통계가 아직 읽는다.
+ *   po_issued    ← 주문 행이 있고 특장사가 배정돼 있다 = 발주가 나갔다
+ *                  (완료 시각 = assigned_at)
+ *   po_accepted  ← 견적이 ordered 이거나 수락 기록(accepted_at)이 있다 = 특장사가 받았다
+ *                  (납기 = delivery_due, 있으면)
  *
- * 사용: npm run migrate:steps           (미리보기 — 무엇을 바꿀지만 출력)
- *      npm run migrate:steps -- --write (실제 반영)
+ * 나머지 15단계는 **전부 pending** 이다. 진행 중인 주문이라도 시스템이 그 사실을 갖고
+ * 있지 않으므로, 담당자가 화면에서 실제 상태를 채운다. 덜 채워진 것은 눈에 보이지만
+ * 잘못 채워진 것은 안 보인다.
+ *
+ * 사용: npm run migrate:steps           (미리보기)
+ *      npm run migrate:steps -- --write (반영)
+ *      npm run migrate:steps -- --reset (로컬 전용: 단계 행을 지우고 다시 만든다)
  */
 import { PrismaClient } from '@prisma/client';
-import { STEPS, STEP_BY_CODE } from '@buildup-ev/shared/process';
+import { STEPS } from '@buildup-ev/shared/process';
 
 const prisma = new PrismaClient();
 const write = process.argv.includes('--write');
+const reset = process.argv.includes('--reset');
 
-/**
- * 옛 단계까지 왔다면 지나왔을 새 단계 — **누적**이다(아래로 갈수록 위를 포함).
- * 옛 흐름에 없던 단계(임시번호판 반납·보험 확인 등)도 그 시점엔 어차피 지나간 일이라 포함한다.
- */
-const PASSED_BY_OLD_STAGE: Record<string, string[]> = {
-  제작착수: ['po_issued', 'po_accepted'],
-  구조변경: ['car_arrived', 'build_done', 'mounted'],
-  튜닝신청: ['temp_plate_returned', 'insurance_checked', 'plate_received', 'plate_mounted',
-             'tuning_drafted', 'tuning_sign_sent'],
-  안전검사: ['tuning_signed', 'tuning_approved', 'inspection_booked'],
-  튜닝승인: ['inspection_done'],
-  인도완료: ['docs_complete', 'delivered'],
-};
-const OLD_ORDER = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'];
-
-/** 옛 단계까지의 누적 — 그 단계와 그 앞 단계들이 함축하는 새 단계 전부. */
-function passedSteps(oldStatus: string): string[] {
-  const idx = OLD_ORDER.indexOf(oldStatus);
-  if (idx < 0) return [];
-  return OLD_ORDER.slice(0, idx + 1).flatMap(s => PASSED_BY_OLD_STAGE[s] ?? []);
+if (reset && !/@(localhost|127\.0\.0\.1)[:/]/.test(process.env['DATABASE_URL'] ?? '')) {
+  console.error('✋ --reset 은 로컬에서만 씁니다. 운영에서 단계 기록을 지우면 되돌릴 수 없습니다.');
+  process.exit(1);
 }
 
 async function main() {
   const orders = await prisma.order.findMany({
-    select: { id: true, status: true, assigned_at: true, created_at: true, delivery_due: true },
+    select: {
+      id: true, maker_org_id: true, assigned_at: true, created_at: true,
+      accepted_at: true, delivery_due: true,
+      quote: { select: { status: true } },
+    },
     orderBy: { id: 'asc' },
   });
 
-  console.log(`\n주문 ${orders.length}건${write ? ' — 반영합니다' : ' — 미리보기(반영하지 않음)'}\n`);
+  if (reset && write) {
+    const n = await prisma.orderStep.deleteMany({});
+    console.log(`\n↩︎  단계 행 ${n.count}개 삭제(로컬)\n`);
+  }
 
-  let created = 0;
-  let done = 0;
+  console.log(`주문 ${orders.length}건${write ? ' — 반영합니다' : ' — 미리보기(반영하지 않음)'}`);
+  console.log(`⚠️  order.status(옛 6단계)는 확정된 값이 아니라 읽지 않습니다.\n`);
+
+  let rowsTotal = 0;
+  let doneTotal = 0;
+
   for (const o of orders) {
-    const passed = new Set(passedSteps(o.status));
-    const base = o.assigned_at ?? o.created_at;
+    // 확인되는 사실만 — 추측하지 않는다
+    const issued = !!o.maker_org_id;
+    const accepted = o.quote?.status === 'ordered' || o.quote?.status === 'completed' || !!o.accepted_at;
+    const issuedAt = o.assigned_at ?? o.created_at;
 
-    const rows = STEPS.map(s => {
-      const isDone = passed.has(s.code);
-      return {
-        order_id: o.id,
-        code: s.code,
-        track: s.track,
-        status: isDone ? 'done' : 'pending',
-        // 납기는 이미 받아 둔 것이 있으면 그대로 옮긴다
-        planned_at: s.code === 'po_accepted' ? o.delivery_due : null,
-        entered_at: base,
-        done_at: isDone ? base : null,
-        done_by: isDone ? 'system(이관)' : null,
-        note: isDone ? `단계 체계 개편 전 진행 — 옛 단계 「${o.status}」, 증빙 없음` : null,
-      };
-    });
+    const done = new Set<string>();
+    if (issued) done.add('po_issued');
+    if (issued && accepted) done.add('po_accepted');
 
-    created += rows.length;
-    done += rows.filter(r => r.status === 'done').length;
+    const rows = STEPS.map(s => ({
+      order_id: o.id,
+      code: s.code,
+      track: s.track,
+      status: done.has(s.code) ? 'done' : 'pending',
+      planned_at: s.code === 'po_accepted' && done.has('po_accepted') ? o.delivery_due : null,
+      entered_at: issuedAt,
+      done_at: done.has(s.code) ? (s.code === 'po_accepted' ? (o.accepted_at ?? issuedAt) : issuedAt) : null,
+      done_by: done.has(s.code) ? 'system(이관)' : null,
+      note: done.has(s.code) ? '이관 — 주문 기록에서 확인된 사실(증빙 파일 없음)' : null,
+    }));
 
-    const unfinished = STEPS.filter(s => !passed.has(s.code)).map(s => STEP_BY_CODE[s.code]!.label);
-    console.log(`  주문 #${o.id}  옛 「${o.status}」 → 완료 ${passed.size}/${STEPS.length}`
-      + (unfinished.length ? `  · 남음: ${unfinished.slice(0, 4).join(', ')}${unfinished.length > 4 ? ` 외 ${unfinished.length - 4}` : ''}` : '  · 전부 완료'));
+    rowsTotal += rows.length;
+    doneTotal += done.size;
+
+    const why = [
+      issued ? '배정됨' : null,
+      accepted ? `수락됨(${o.quote?.status})` : null,
+    ].filter(Boolean).join(' · ') || '확인된 사실 없음';
+    console.log(`  주문 #${String(o.id).padEnd(3)} 완료 ${done.size}/${STEPS.length}  · ${why}`);
 
     if (write) {
-      // 이미 옮긴 주문은 건드리지 않는다 — 사람이 그 뒤에 채운 값을 덮으면 안 된다
+      // 이미 있는 행은 건드리지 않는다 — 사람이 그 뒤에 채운 값을 덮으면 안 된다
       await prisma.orderStep.createMany({ data: rows, skipDuplicates: true });
     }
   }
 
-  console.log(`\n  단계 행 ${created}개 (완료 ${done} / 대기 ${created - done})`);
-  if (!write) console.log(`\n  실제로 반영하려면:  npm run migrate:steps -- --write\n`);
-  else console.log(`\n  반영했습니다. order.status 는 그대로 두었습니다(기존 칸반·통계가 읽습니다).\n`);
+  console.log(`\n  단계 행 ${rowsTotal}개 (확인된 완료 ${doneTotal} / 담당자가 채울 것 ${rowsTotal - doneTotal})`);
+  if (!write) console.log(`\n  반영하려면:  npm run migrate:steps -- --write\n`);
+  else console.log(`\n  반영했습니다. 나머지 단계는 담당자가 화면에서 실제 상태를 채웁니다.\n`);
 }
 
 main()
