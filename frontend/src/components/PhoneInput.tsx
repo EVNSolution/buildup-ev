@@ -71,5 +71,10 @@ const s: Record<string, React.CSSProperties> = {
   row: { display: 'flex', alignItems: 'center', width: '100%' },
   cell: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 },
   dash: { color: 'var(--muted)', padding: '0 5px', flexShrink: 0 },
-  box: { width: '100%', minWidth: 0, padding: '8px 6px', border: '1px solid #ccc', borderRadius: 7, fontSize: 14, fontFamily: 'inherit' },
+  // 높이·테두리·모서리는 공통 토큰 — 옆 칸(성명·이메일)과 나란히 서므로 어긋나면 바로 보인다
+  box: {
+    width: '100%', minWidth: 0, minHeight: 'var(--h-control)', padding: '0 6px',
+    border: 'var(--hairline)', borderRadius: 'var(--r-sm)',
+    fontSize: 'var(--fs-body)', fontFamily: 'inherit',
+  },
 }

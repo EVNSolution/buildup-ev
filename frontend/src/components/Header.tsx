@@ -98,7 +98,15 @@ export function Header({ customer }: Props) {
         </div>
       )}
 
-      <button style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0 }} onClick={logout}>
+      {/*
+        로그아웃하면 **홈(공개 컨피규레이터)** 으로 보낸다.
+        로그인 화면으로 되돌리면 "나가려는데 다시 들어오라"는 화면이 뜨는 셈이다.
+        (세션이 만료돼 튕기는 경우는 RequireAuth 가 로그인 화면으로 보낸다 — 그건 하던 일이 있는 경우다)
+      */}
+      <button
+        style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0 }}
+        onClick={async () => { await logout(); navigate('/', { replace: true }) }}
+      >
         로그아웃
       </button>
     </header>

@@ -164,7 +164,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-select, input[type='text'] {
+/*
+ * ⚠️ 타입을 하나씩 적는다 — 예전엔 text 만 잡아 두어 **로그인 화면의 email·password 칸이
+ *    아무 스타일도 못 받고** 브라우저 기본 모양으로 떴다. 새 입력 타입을 쓸 때 여기 추가할 것.
+ *    (checkbox·radio 는 제외 — 크기·색을 각자 정한다)
+ */
+select,
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='tel'],
+input[type='number'] {
   width: 100%;
   font-size: var(--fs-body);
   padding: 0 var(--sp-3);
