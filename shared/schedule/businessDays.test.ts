@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   addBusinessDays, businessDaysBetween, checkDeliveryDue, deliveryDueLimit,
   fromDateInput, isWeekend, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS,
+  isAcceptOverdue, daysSince,
 } from './businessDays';
 
 // 2026-08-14 는 금요일. 이 날을 기준으로 요일 경계를 확인한다.
@@ -63,6 +64,19 @@ describe('납기 한도 — 발주일로부터 15영업일', () => {
     const r = checkDeliveryDue(SAT, FRI);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toContain('영업일');
+  });
+});
+
+describe('수락 재촉 — 7일', () => {
+  it('7일 전에는 재촉하지 않는다', () => {
+    expect(isAcceptOverdue(new Date(2026, 7, 10), new Date(2026, 7, 16))).toBe(false);
+  });
+  it('7일째부터 재촉한다', () => {
+    expect(isAcceptOverdue(new Date(2026, 7, 10), new Date(2026, 7, 17))).toBe(true);
+  });
+  it('지난 일수는 달력일로 센다 (주말도 흘러간 날이다)', () => {
+    expect(daysSince(new Date(2026, 7, 14), new Date(2026, 7, 17))).toBe(3);
+    expect(daysSince(new Date(2026, 7, 17), new Date(2026, 7, 14))).toBe(0);
   });
 });
 

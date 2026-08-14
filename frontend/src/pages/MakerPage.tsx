@@ -8,6 +8,7 @@ import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { InboxPanel } from '../components/InboxPanel'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
+import { isAcceptOverdue, daysSince } from '@shared/schedule/businessDays'
 
 // ── MakerPage ──────────────────────────────────────────────────────────────
 export function MakerPage() {
@@ -63,7 +64,7 @@ export function MakerPage() {
       {acceptTarget && (
         <AcceptOrderModal
           orderId={acceptTarget.id}
-          customerName={acceptTarget.quote.customer?.name ?? '고객 미상'}
+          makerOrgName={session?.org.name ?? session?.org.code ?? ''}
           orderedAt={acceptTarget.assigned_at ?? acceptTarget.created_at}
           busy={acceptingId === acceptTarget.id}
           error={acceptErr}
@@ -89,18 +90,28 @@ export function MakerPage() {
               <div style={styles.empty}>배정된 주문이 없습니다.</div>
             ) : (
               <>
+                {/*
+                  「내용 보기」를 따로 두지 않는다 — 수락 팝업이 발주서를 통째로 보여준다.
+                  버튼이 둘이면 내용을 안 보고 수락하는 길이 남고, 본 사람도 수락하려면
+                  목록으로 되돌아와야 했다.
+                */}
                 <InboxPanel
                   title="수락 대기"
-                  items={pending.map(o => ({
-                    id: o.id,
-                    no: `주문 #${o.id}`,
-                    title: o.quote.customer?.name ?? '고객 미상',
-                    sub: o.quote.model_code,
-                    meta: '수락하면 제작 착수',
-                  }))}
+                  items={pending.map(o => {
+                    const from = new Date(o.assigned_at ?? o.created_at)
+                    const late = isAcceptOverdue(from, new Date())
+                    return {
+                      id: o.id,
+                      no: `주문 #${o.id}`,
+                      title: o.quote.customer?.name ?? '고객 미상',
+                      sub: o.quote.model_code,
+                      meta: `발주 ${(o.assigned_at ?? o.created_at).slice(0, 10)}`,
+                      urgent: late,
+                      urgentNote: late ? `발주 후 ${daysSince(from, new Date())}일째` : undefined,
+                    }
+                  })}
                   acceptLabel="주문 수락"
                   busyId={acceptingId}
-                  onView={setSelectedId}
                   onAccept={id => { setAcceptErr(''); setAcceptTarget(pending.find(o => o.id === id) ?? null) }}
                 />
                 {active.length > 0 && (
