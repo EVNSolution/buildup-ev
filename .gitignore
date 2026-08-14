@@ -50,3 +50,6 @@ frontend/.vite/
 
 # LibreOffice 잠금 파일(양식 편집 중 생김) — 커밋되면 안 된다
 .~lock.*#
+
+# 로컬 개발용 문서·업로드 저장소 (운영은 DOC_STORAGE_DIR)
+.local-doc-storage/
