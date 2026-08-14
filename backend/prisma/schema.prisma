@@ -442,7 +442,6 @@ model Quote {
 model Order {
   id           Int       @id @default(autoincrement())
   quote_id     Int       @unique
-  status       String    @default("제작착수") @db.VarChar(30)
   maker_org_id String?   @db.VarChar(30)
   assigned_at  DateTime?
   /// 특장사가 수락하며 약속한 납기일. 발주일로부터 15영업일 이내(발주서 특이사항).

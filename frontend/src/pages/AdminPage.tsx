@@ -8,7 +8,7 @@ import { fetchQuotes, assignQuote, assignSalesQuote, deleteQuote } from '../api/
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
-import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
+import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { OptionDbTab } from '../components/OptionDbTab'
 import { CustomerViewModal } from '../components/CustomerViewModal'
 import { SalesPerformance } from '../components/SalesPerformance'
@@ -74,8 +74,8 @@ const MODULE_DESC: Record<string, string> = {
   'quote.confirm': '견적서 확정·생성 (영업)',
   'order.confirm': '주문 전환·특장사 배정 (관리자)',
   'order.view': '주문 현황 조회',
-  'kanban.view': '주문 칸반 보드 조회',
-  'kanban.control': '주문 단계 직접 변경',
+  'kanban.view': '주문 진행 조회',
+  'kanban.control': '주문 단계 처리',
   'admin.accounts': '계정 발급 및 권한 관리',
   'admin.modules': '기능 모듈 ON/OFF 제어',
   'document.generate': '구조변경 서류 자동 생성',
@@ -1100,7 +1100,7 @@ function KanbanTab() {
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
       {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>조회 전용 — 상태 변경은 배정 특장사만 가능합니다.</div>}
-      <OrderKanbanBoard orders={orders} onRefresh={load} onError={setErr} readOnly={!canControl} onCardClick={setSelectedOrderId} />
+      <OrderStepsBoard orders={orders} onCardClick={setSelectedOrderId} />
     </div>
   )
 }
@@ -1144,7 +1144,7 @@ export function AdminPage() {
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
     { key: 'quotes',   label: '견적 목록', show: true },
     { key: 'perf',     label: '영업 성과', show: perm.stats },
-    { key: 'kanban',   label: '주문 칸반', show: perm.orders },
+    { key: 'kanban',   label: '주문 진행', show: perm.orders },
     { key: 'toggles',  label: '기능모듈',  show: perm.accounts },
     { key: 'accounts', label: '계정 관리', show: perm.accounts },
     { key: 'weights',  label: '무게상수',  show: perm.basedata },

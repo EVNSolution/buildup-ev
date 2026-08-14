@@ -11,7 +11,6 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
 import { OrderStepsPanel } from './OrderStepsPanel'
 
-const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
   pending: { background: 'var(--warnbg)', color: 'var(--warn)' },
@@ -421,8 +420,6 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   if (err)     return <div style={det.err}>{err}</div>
   if (!detail) return null
 
-  const statusIdx = ORDER_STATUS_SEQ.indexOf(detail.status as typeof ORDER_STATUS_SEQ[number])
-
   return (
     <div style={{ ...det.root, maxWidth: isMobile ? '100%' : 720 }}>
       {/* 헤더 */}
@@ -430,7 +427,6 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         <button style={det.backBtn} onClick={onBack}>{backLabel}</button>
         <div style={det.titleRow}>
           <span style={{ ...det.orderId, fontSize: isMobile ? 18 : 20 }}>주문 #{detail.id}</span>
-          <span style={det.statusBadge}>{detail.status}</span>
           <span style={det.model}>{detail.model_code}</span>
         </div>
         <div style={det.metaRow}>
@@ -443,15 +439,11 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         </div>
       </div>
 
-      {/* 진행 단계 */}
-      <div style={{ ...det.progressSection, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-        {ORDER_STATUS_SEQ.map((s, i) => (
-          <div key={s} style={{ ...det.stepItem, ...(isMobile ? { flex: '0 0 33%', marginBottom: 8 } : {}) }}>
-            <div style={i <= statusIdx ? det.stepDotActive : det.stepDot} />
-            <div style={i <= statusIdx ? det.stepLabelActive : det.stepLabel}>{s}</div>
-          </div>
-        ))}
-      </div>
+      {/*
+        옛 6단계 진행 띠를 걷어냈다. 그 6단계는 확정된 적이 없고, 차량·특장이 따로 도는
+        지금은 한 주문이 동시에 여러 곳에 있어 한 줄로 그릴 수 없다.
+        진행은 아래 「단계」 탭이 네 갈래로 보여준다.
+      */}
 
       {/* 탭 */}
       <div style={det.tabs}>

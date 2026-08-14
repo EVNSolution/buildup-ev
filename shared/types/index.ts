@@ -309,12 +309,23 @@ export interface ApiQuote {
   contract?: { status: string; sent_at: string | null; completed_at: string | null } | null;
 }
 
+/** 목록에서 「지금 뭘 해야 하나」를 보여주기 위한 요약. 상세를 열지 않아도 알 수 있게. */
+export interface ApiOrderStepSummary {
+  done: number;
+  total: number;
+  /** 지금 손댈 수 있는 단계 이름들 */
+  open: string[];
+  /** 하나라도 기준 일수를 넘게 멈춰 있나 */
+  stalled: boolean;
+}
+
 export interface ApiOrder {
   id: number;
   quote_id: number;
-  status: string;
   maker_org_id: string | null;
   assigned_at: string | null;
+  /** 단계 진행 요약 — 옛 `status`(6단계 문자열)를 대신한다 */
+  steps?: ApiOrderStepSummary;
   /** 특장사가 수락하며 약속한 납기일 (YYYY-MM-DD). 수락 전에는 null */
   delivery_due?: string | null;
   /** 발주 수락 시각 */
@@ -361,7 +372,6 @@ export interface OrderVehicleInfo {
 export interface ApiOrderMakerDetail {
   id: number;
   quote_id: number;
-  status: string;
   maker_org_id: string | null;
   assigned_at: string | null;
   created_at: string;

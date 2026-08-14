@@ -11,6 +11,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { setQuoteStatus } from '../services/quote-status.js';
 import { rbac, isAdmin } from '../middleware/rbac.js';
 import {
   STEPS, STEP_BY_CODE, canComplete, isStalled, newlyOpened,
@@ -41,14 +42,14 @@ function orderId(req: Request): number | null {
  */
 type LoadResult =
   | { err: 503 | 404 | 403 }
-  | { order: { id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date } };
+  | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date } };
 
 async function loadOrder(id: number, req: Request): Promise<LoadResult> {
   if (!prisma) return { err: 503 };
   const order = await prisma.order.findUnique({
     where: { id },
     select: {
-      id: true, maker_org_id: true, assigned_at: true, created_at: true,
+      id: true, quote_id: true, maker_org_id: true, assigned_at: true, created_at: true,
       quote: { select: { sales_user_id: true } },
     },
   });
@@ -187,6 +188,19 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
       where: { order_id: id, code: { in: opened }, status: 'pending' },
       data: { entered_at: now },
     });
+  }
+
+  /*
+   * 인도가 끝나면 **견적 단계도 완료로 올린다.**
+   * 옛 `PATCH /orders/:id/status` 가 「인도완료」를 찍을 때 하던 일이다 — 그 라우트를
+   * 걷어내면서 이 연결이 끊기면, 인도가 끝나도 견적은 영원히 「주문진행」에 남는다
+   * (마이페이지 집계와 영업 목록이 그 값을 읽는다).
+   */
+  if (code === 'delivered') {
+    const q = await prisma!.quote.findUnique({ where: { id: r.order.quote_id }, select: { status: true } });
+    if (q && q.status === 'ordered') {
+      await setQuoteStatus(r.order.quote_id, 'completed', req.auth?.email ?? 'unknown');
+    }
   }
 
   res.json({ data: { ok: true, opened } });

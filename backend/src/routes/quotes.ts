@@ -17,6 +17,7 @@ import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import { nextQuoteNo } from '../services/quote-no.js';
+import { STEPS } from '@buildup-ev/shared/process';
 
 export const quotesRouter = Router();
 
@@ -689,7 +690,7 @@ quotesRouter.patch('/:id/confirm', rbac('SALES', 'ADMIN'), requirePermission('qu
 });
 
 // ── PATCH /quotes/:id/assign — 배정 (confirmed→assigned + 특장사 배정 + 주문 생성) ──
-// 관리자가 제작 특장사를 선정. Order 생성(status='제작착수', 특장사 수락 대기).
+// 관리자가 제작 특장사를 선정. Order 생성 + 단계 표 생성(po_issued 완료 = 발주서 발행).
 
 // ── PATCH /quotes/:id/assign-sales — 공개 문의를 영업사원에게 배정 ────────
 //
@@ -839,17 +840,32 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
 
   try {
     await setQuoteStatus(id, 'assigned', req.auth?.email ?? 'unknown');
+    const now = new Date();
     const [updatedQuote, order] = await prisma.$transaction([
       prisma.quote.findUnique({ where: { id } }),
       prisma.order.create({
-        data: {
-          quote_id:    id,
-          status:      '제작착수',
-          maker_org_id,
-          assigned_at: new Date(),
-        },
+        data: { quote_id: id, maker_org_id, assigned_at: now },
       }),
     ]);
+
+    /*
+     * 새 주문에 단계 표를 깔아 준다 — **배정 = 발주서 발행**이므로 `po_issued` 만 완료다.
+     * 여기서 안 만들면 특장사가 상세를 열 때 만들어지긴 하지만, 그러면 목록의 진행 요약이
+     * 「0/17」로 비어 보인다(아직 아무도 상세를 안 열었을 뿐인데).
+     */
+    await prisma.orderStep.createMany({
+      data: STEPS.map(s => ({
+        order_id: order.id,
+        code: s.code,
+        track: s.track,
+        status: s.code === 'po_issued' ? 'done' : 'pending',
+        entered_at: now,
+        done_at: s.code === 'po_issued' ? now : null,
+        done_by: s.code === 'po_issued' ? (req.auth?.email ?? 'unknown') : null,
+      })),
+      skipDuplicates: true,
+    });
+
     res.json({ data: { quote: updatedQuote, order } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/assign]', e);

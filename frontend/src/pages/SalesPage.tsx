@@ -423,9 +423,21 @@ function MyListView() {
                         </Tooltip>
                       </td>
                       <td style={lv.td}><ContractBadge c={q.contract} /></td>
+                      {/*
+                        옛 6단계 문자열 대신 **단계 진행**을 보여준다.
+                        영업이 여기서 알고 싶은 것은 「어느 칸에 있나」가 아니라
+                        「얼마나 왔나 · 늦었나 · 언제 오나」다.
+                      */}
                       <td style={lv.td}>
-                        {order
-                          ? <Badge tone="progress">{order.status}</Badge>
+                        {order?.steps
+                          ? (
+                            <Tooltip text={order.steps.open.length ? order.steps.open.join(' · ') : '진행 대기'} placement="below">
+                              <span style={order.steps.stalled ? lv.progLate : lv.prog}>
+                                {order.steps.done}/{order.steps.total}
+                                {order.steps.stalled ? ' 지연' : ''}
+                              </span>
+                            </Tooltip>
+                          )
                           : <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
                         }
                       </td>
@@ -1025,6 +1037,9 @@ const styles = {
 }
 
 const lv: Record<string, React.CSSProperties> = {
+  // 진행은 숫자로 — 뱃지로 칠하면 옆 칸의 상태 뱃지와 뜻이 섞인다
+  prog: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
+  progLate: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
   // 동작이 실패했을 때 목록 위에 얹는 띠 — 목록은 그대로 둔다
   errBar: {
     fontSize: 'var(--fs-label)', color: 'var(--warn)', background: 'var(--warnbg)',
