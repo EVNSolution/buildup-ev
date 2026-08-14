@@ -9,6 +9,7 @@ import { saveVehicleInfo } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
+import { OrderStepsPanel } from './OrderStepsPanel'
 
 const ORDER_STATUS_SEQ = ['제작착수', '구조변경', '튜닝신청', '안전검사', '튜닝승인', '인도완료'] as const
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
@@ -399,7 +400,8 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [tab, setTab] = useState<'spec' | 'docs' | 'load'>('spec')
+  // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
+  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load'>('steps')
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
@@ -453,6 +455,13 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
 
       {/* 탭 */}
       <div style={det.tabs}>
+        {/*
+          「단계」가 맨 앞이자 기본이다 — 이 화면에 오는 이유는 **다음에 뭘 해야 하는지**
+          알기 위해서다. 사양·서류·하중은 그 다음에 찾아보는 배경 정보다.
+        */}
+        <button style={tab === 'steps' ? det.tabActive : det.tabBtn} onClick={() => setTab('steps')}>
+          단계
+        </button>
         <button style={tab === 'spec' ? det.tabActive : det.tabBtn} onClick={() => setTab('spec')}>
           사양
         </button>
@@ -469,6 +478,12 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
           </>
         )}
       </div>
+
+      {tab === 'steps' && (
+        <div style={det.section}>
+          <OrderStepsPanel orderId={detail.id} />
+        </div>
+      )}
 
       {/* 사양 탭 */}
       {tab === 'spec' && (
