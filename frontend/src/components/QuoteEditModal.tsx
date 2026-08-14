@@ -377,8 +377,8 @@ function HistoryTab({ quoteId }: { quoteId: number }) {
               <td style={s.td}>{r.changed_at.replace('T', ' ').slice(0, 16)}</td>
               <td style={s.td}>{SECTION_KO[r.section] ?? r.section}</td>
               <td style={s.td}>{FIELD_KO[r.field] ?? r.field}</td>
-              <td style={{ ...s.td, color: '#a12d2d' }}>{r.old_value ?? '—'}</td>
-              <td style={{ ...s.td, color: '#2e7d32', fontWeight: 700 }}>{r.new_value ?? '—'}</td>
+              <td style={{ ...s.td, color: 'var(--warn)' }}>{r.old_value ?? '—'}</td>
+              <td style={{ ...s.td, color: 'var(--dark)', fontWeight: 700 }}>{r.new_value ?? '—'}</td>
               <td style={s.td}>{r.changed_by}</td>
             </tr>
           ))}
@@ -431,10 +431,10 @@ const s: Record<string, React.CSSProperties> = {
   head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12 },
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)' },
   frozen: {
-    background: '#fdf1ee', border: '1px solid #f2c9be', color: '#8a3a2f',
+    background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)',
     fontSize: 13, padding: '8px 11px', borderRadius: 8, marginBottom: 10,
   },
-  tabs: { display: 'flex', gap: 4, borderBottom: '1px solid var(--line)', flexShrink: 0 },
+  tabs: { display: 'flex', gap: 4, borderBottom: '0.5px solid var(--line)', flexShrink: 0 },
   tab: {
     padding: '9px 18px', border: 'none', background: 'transparent', cursor: 'pointer',
     fontSize: 14, color: 'var(--muted)', borderBottom: '2px solid transparent',
@@ -451,32 +451,32 @@ const s: Record<string, React.CSSProperties> = {
   extras: { display: 'flex', flexDirection: 'column' as const, gap: 8, paddingBottom: 4 },
   section: {
     fontSize: 14, fontWeight: 700, color: 'var(--dark)',
-    margin: '14px 0 8px', paddingBottom: 5, borderBottom: '1px solid var(--line)',
+    margin: '14px 0 8px', paddingBottom: 5, borderBottom: '0.5px solid var(--line)',
   },
   row: { marginBottom: 10 },
   label: { display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 4 },
   field: {
     width: '100%', boxSizing: 'border-box', height: 36, padding: '0 10px', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
+    fontFamily: 'inherit', color: 'var(--dark)', border: '0.5px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
   ynOff: {
     flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
-    border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
+    border: '0.5px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
   },
   ynOn: {
     flex: 1, height: 36, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
-    border: '1px solid var(--lime)', borderRadius: 8, background: '#f7fadf', color: 'var(--dark)',
+    border: '0.5px solid var(--lime)', borderRadius: 8, background: 'var(--lime-bg)', color: 'var(--dark)',
   },
   saveBar: {
     flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    gap: 12, borderTop: '1px solid var(--line)', paddingTop: 12, marginTop: 4,
+    gap: 12, borderTop: '0.5px solid var(--line)', paddingTop: 12, marginTop: 4,
   },
   note: { fontSize: 13, color: 'var(--muted)' },
-  ok: { background: '#e8f5e9', color: '#2e7d32', fontSize: 13, padding: '8px 11px', borderRadius: 8, marginTop: 10 },
-  err: { background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 13, padding: '8px 11px', borderRadius: 8, marginTop: 10 },
+  ok: { background: 'var(--lime-bg)', color: 'var(--dark)', fontSize: 13, padding: '8px 11px', borderRadius: 8, marginTop: 10 },
+  err: { background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 13, padding: '8px 11px', borderRadius: 8, marginTop: 10 },
   loading: { padding: 24, color: 'var(--muted)', fontSize: 14 },
   table: { width: '100%', minWidth: 'max-content', borderCollapse: 'collapse', fontSize: 13 },
-  th: { textAlign: 'left', padding: '7px 10px', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 12.5, whiteSpace: 'nowrap' },
-  td: { padding: '7px 10px', borderBottom: '1px solid #f0f2f4', whiteSpace: 'nowrap' },
+  th: { textAlign: 'left', padding: '7px 10px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12.5, whiteSpace: 'nowrap' },
+  td: { padding: '7px 10px', borderBottom: '0.5px solid var(--card)', whiteSpace: 'nowrap' },
 }

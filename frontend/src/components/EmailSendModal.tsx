@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { BTN } from '../styles/buttons'
 import { sendQuoteEmail } from '../api/email'
 
 /** 견적서(+계약서) 이메일 발송 모달. to 비우면 등록된 고객 이메일로 발송. */
@@ -74,14 +75,14 @@ const s: Record<string, React.CSSProperties> = {
   box: { width: 'min(440px, 94vw)', background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' },
   head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   title: { fontSize: 15, fontWeight: 700 },
-  close: { border: '1px solid #ddd', borderRadius: 7, background: '#fff', cursor: 'pointer', padding: '4px 10px', fontSize: 13 },
+  close: { ...BTN.secondary },
   form: { display: 'flex', flexDirection: 'column', gap: 8 },
-  label: { fontSize: 12, fontWeight: 700, color: '#444', marginTop: 4 },
-  input: { padding: '8px 10px', border: '1px solid #ccc', borderRadius: 7, fontSize: 13 },
-  textarea: { padding: '8px 10px', border: '1px solid #ccc', borderRadius: 7, fontSize: 13, resize: 'vertical', fontFamily: 'inherit' },
+  label: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--body)', marginTop: 'var(--sp-1)' },
+  input: { padding: '8px 10px', border: '0.5px solid var(--line)', borderRadius: 7, fontSize: 13 },
+  textarea: { padding: '8px 10px', border: '0.5px solid var(--line)', borderRadius: 7, fontSize: 13, resize: 'vertical', fontFamily: 'inherit' },
   check: { fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', marginTop: 6 },
   note: { fontSize: 11, color: 'var(--muted)', marginTop: 4 },
-  primary: { marginTop: 10, padding: '9px 16px', border: 'none', borderRadius: 8, background: '#1a1a1a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
-  ok: { background: '#e8f5e9', color: '#2e7d32', fontSize: 13, padding: '10px 12px', borderRadius: 8, marginBottom: 12 },
-  err: { background: '#fdecec', border: '1px solid #f0b8b8', color: '#a12d2d', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginTop: 4 },
+  primary: { marginTop: 10, padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--dark)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
+  ok: { background: 'var(--lime-bg)', color: 'var(--dark)', fontSize: 13, padding: '10px 12px', borderRadius: 8, marginBottom: 12 },
+  err: { background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginTop: 4 },
 }

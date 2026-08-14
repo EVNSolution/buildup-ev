@@ -168,25 +168,25 @@ function YesNo({ label, hint, value, onChange, tight, hideRequired, dense }: {
 }
 
 const f: Record<string, React.CSSProperties> = {
-  needTag: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
+  needTag: { fontSize: 14, color: 'var(--req)', fontWeight: 700 },
   yesNo: { display: 'flex', gap: 6 },
   ynOff: {
     flex: 1, minHeight: 'var(--h-control)', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
-    border: '1px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
+    border: '0.5px solid var(--line)', borderRadius: 8, background: '#fff', color: 'var(--muted)',
   },
   ynOn: {
     flex: 1, minHeight: 'var(--h-control)', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', fontWeight: 700,
-    border: '1px solid var(--lime)', borderRadius: 8, background: '#f7fadf', color: 'var(--dark)',
+    border: '0.5px solid var(--lime)', borderRadius: 8, background: 'var(--lime-bg)', color: 'var(--dark)',
   },
   row: { marginBottom: 8 },
   rowTight: { marginBottom: 9 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 5 },
-  req: { fontSize: 14, color: '#b0b7c0' },
-  hint: { fontSize: 14, color: '#b0b7c0' },
+  req: { fontSize: 14, color: 'var(--muted)' },
+  hint: { fontSize: 14, color: 'var(--muted)' },
   field: {
     // 높이는 공통 토큰 — globals.css 의 input 규칙과 같은 값이라야 나란히 놓았을 때 어긋나지 않는다
     width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 9px', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
+    fontFamily: 'inherit', color: 'var(--dark)', border: '0.5px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
   check: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', padding: '4px 0' },

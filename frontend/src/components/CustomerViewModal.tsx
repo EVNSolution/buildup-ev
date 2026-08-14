@@ -92,7 +92,7 @@ const cv: Record<string, React.CSSProperties> = {
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   tdLabel: { padding: '6px 10px 6px 0', color: 'var(--muted)', width: 110, verticalAlign: 'top', whiteSpace: 'nowrap' },
   tdValue: { padding: '6px 0', color: 'var(--dark)', wordBreak: 'break-all' },
-  tdEmpty: { padding: '6px 0', color: '#c2c8cf' },
+  tdEmpty: { padding: '6px 0', color: 'var(--muted)' },
 }
 
 const modal: Record<string, React.CSSProperties> = {

@@ -194,7 +194,7 @@ const btnBase = {
 
 const styles = {
   savedNote: {
-    background: '#eef7e9', border: '1px solid #cfe4c2', color: '#3d6b28',
+    background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', color: 'var(--dark)',
     fontSize: 13, padding: '9px 11px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,
   },
   panel: {
@@ -263,7 +263,7 @@ const styles = {
   promoItem: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' },
   promoName: { flex: 1, color: 'var(--dark)' },
   promoPrice: { color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' as const },
-  promoZeroed: { color: '#2e7d32', fontWeight: 700 },
+  promoZeroed: { color: 'var(--dark)', fontWeight: 700 },
   footer: {
     flexShrink: 0,
     padding: '0 var(--sp-4) var(--sp-4)',

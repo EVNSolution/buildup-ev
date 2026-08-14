@@ -423,7 +423,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
 const s: Record<string, React.CSSProperties> = {
   signNote: {
-    background: '#eef2e6', border: '1px solid #d5e0bf', color: '#42502a',
+    background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', color: 'var(--dark)',
     fontSize: 14, lineHeight: 1.6, padding: '9px 11px', borderRadius: 8, margin: '12px 0 4px',
   },
   overlay: {
@@ -449,34 +449,34 @@ const s: Record<string, React.CSSProperties> = {
   desc: { margin: '0 0 10px', fontSize: 14, color: 'var(--muted)' },
   sectionTitle: {
     fontSize: 14, fontWeight: 700, color: 'var(--dark)',
-    margin: '10px 0 7px', paddingBottom: 4, borderBottom: '1px solid var(--line)',
+    margin: '10px 0 7px', paddingBottom: 4, borderBottom: '0.5px solid var(--line)',
   },
-  optional: { fontSize: 14, fontWeight: 400, color: '#b0b7c0' },
+  optional: { fontSize: 14, fontWeight: 400, color: 'var(--muted)' },
   row: { marginBottom: 8 },
   label: { display: 'block', fontSize: 14, color: 'var(--muted)', marginBottom: 4 },
   // 「· 필수」는 아직 안 채운 동안만 빨강 / 「· 선택」과 채운 필수는 회색
-  tagOn: { fontSize: 14, color: '#c0392b', fontWeight: 700 },
-  tagOff: { fontSize: 14, color: '#b0b7c0', fontWeight: 400 },
+  tagOn: { fontSize: 14, color: 'var(--req)', fontWeight: 700 },
+  tagOff: { fontSize: 14, color: 'var(--muted)', fontWeight: 400 },
   /** 지금은 없어도 되지만 계약서 단계에서 필요한 값 */
-  tagLater: { fontSize: 14, color: '#8a7a3d', fontWeight: 700 },
+  tagLater: { fontSize: 14, color: 'var(--muted)', fontWeight: 700 },
   addrRow: { display: 'flex', gap: 6 },
   addrBtn: {
     flexShrink: 0, minHeight: 'var(--h-control)', padding: '0 12px', fontSize: 14, fontWeight: 700,
-    border: '1px solid var(--line)', borderRadius: 8, background: '#f7f8f3',
+    border: '0.5px solid var(--line)', borderRadius: 8, background: 'var(--card)',
     color: 'var(--dark)', cursor: 'pointer', whiteSpace: 'nowrap',
   },
   field: {
     // 높이는 공통 토큰 — 옆 칸(전역 규칙을 쓰는 select·input)과 어긋나지 않게
     width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 10px', fontSize: 14,
-    fontFamily: 'inherit', color: 'var(--dark)', border: '1px solid var(--line)',
+    fontFamily: 'inherit', color: 'var(--dark)', border: '0.5px solid var(--line)',
     borderRadius: 8, background: '#fff', outline: 'none',
   },
-  warn: { fontSize: 14, color: '#c0392b', marginTop: 5 },
+  warn: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-1)' },
   autofill: {
-    fontSize: 14, color: 'var(--dark)', background: '#f2f6e8',
-    border: '1px solid #dce8c2', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
+    fontSize: 14, color: 'var(--dark)', background: 'var(--lime-bg)',
+    border: '0.5px solid var(--lime)', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
   },
-  error: { fontSize: 14, color: '#c0392b', marginTop: 12 },
+  error: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-3)' },
   btnRow: { display: 'flex', gap: 8, marginTop: 14 },
   btnOk: {
     flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,
@@ -485,6 +485,6 @@ const s: Record<string, React.CSSProperties> = {
   btnOff: { opacity: .5, cursor: 'not-allowed' },
   btnCancel: {
     flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,
-    cursor: 'pointer', border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
+    cursor: 'pointer', border: '0.5px solid var(--line)', background: '#fff', color: 'var(--muted)',
   },
 }
