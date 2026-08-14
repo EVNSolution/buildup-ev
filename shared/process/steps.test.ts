@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   STEPS, STEP_BY_CODE, canComplete, isStalled, stalledDays, keepsOriginal,
-  stepsOfTrack, type StepState,
+  stepsOfTrack, newlyOpened, isOpen, type StepState,
 } from './steps';
 
 /** 전부 done 인 상태 — 여기서 하나씩 빼며 게이트를 확인한다. */
@@ -97,6 +97,32 @@ describe('증빙 보관 방식 — 사진은 줄이고 서류는 원본', () => 
   it('사진은 줄인다', () => {
     expect(keepsOriginal('inspection_photo')).toBe(false);
     expect(keepsOriginal('plate_photo')).toBe(false);
+  });
+});
+
+describe('새로 열리는 단계 — 정체 시계를 함부로 리셋하지 않기 위한 계산', () => {
+  it('선행이 다 끝난 단계만 열린다', () => {
+    expect(newlyOpened('po_issued', new Set())).toEqual(['po_accepted']);
+  });
+
+  it('**이미 열려 있던** 단계는 포함하지 않는다', () => {
+    // po_issued 가 끝나 po_accepted 가 이미 열린 상태에서 car_arrived 를 끝낸다
+    const before = new Set(['po_issued', 'po_accepted', 'build_done']);
+    const opened = newlyOpened('car_arrived', before);
+    // mounted 는 car_arrived + build_done 이 모두 필요 → 이번에 비로소 열린다
+    expect(opened).toContain('mounted');
+    // 이미 열려 있던 것들이 섞이면 그 시계가 리셋된다
+    expect(opened).not.toContain('po_accepted');
+  });
+
+  it('아무것도 새로 열리지 않을 수 있다', () => {
+    // build_done 만 끝내면 mounted 는 car_arrived 가 없어 아직 안 열린다
+    expect(newlyOpened('build_done', new Set(['po_issued', 'po_accepted']))).toEqual([]);
+  });
+
+  it('두 갈래가 만나는 지점은 양쪽이 다 끝나야 열린다', () => {
+    expect(newlyOpened('car_arrived', new Set())).not.toContain('mounted');
+    expect(newlyOpened('build_done', new Set(['car_arrived']))).toContain('mounted');
   });
 });
 

@@ -172,6 +172,27 @@ export function canComplete(
   return { ok: true };
 }
 
+/** 선행이 다 끝나 지금 손댈 수 있는 단계인가. */
+export function isOpen(code: string, doneCodes: Set<string>): boolean {
+  const def = STEP_BY_CODE[code];
+  if (!def || doneCodes.has(code)) return false;
+  return def.requires.every(q => doneCodes.has(q));
+}
+
+/**
+ * 한 단계를 끝냈을 때 **비로소 열리는** 단계들.
+ *
+ * ⚠️ 「지금 열려 있는 것 전부」와 다르다. 그걸로 잡으면 무관한 단계를 완료할 때마다
+ *    이미 열려서 며칠째 멈춰 있던 단계의 시계까지 리셋되어, 오래 방치된 건이 영원히
+ *    재촉되지 않는다(실제로 그랬다).
+ */
+export function newlyOpened(completed: string, doneBefore: Set<string>): string[] {
+  const after = new Set(doneBefore); after.add(completed);
+  return STEPS
+    .filter(s => isOpen(s.code, after) && !isOpen(s.code, doneBefore))
+    .map(s => s.code);
+}
+
 /** 이 단계에 며칠째 머물고 있나(달력일). 들어온 적이 없으면 null. */
 export function stalledDays(enteredAt: Date | null, now: Date): number | null {
   if (!enteredAt) return null;
