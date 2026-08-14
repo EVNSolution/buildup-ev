@@ -100,15 +100,15 @@ const s: Record<string, React.CSSProperties> = {
   },
   card: {
     background: '#fff', borderRadius: 'var(--r-md)', padding: 'var(--sp-6) var(--sp-5)',
-    width: 380, maxWidth: '94vw', boxShadow: 'var(--shadow-2)',
+    width: 380, maxWidth: '94vw', boxShadow: 'var(--shadow-2)', border: 'var(--hairline)',
   },
   // 로고(706×261) — 높이만 정하고 폭은 비율대로. 아래 여백이 곧 제목 자리를 대신한다.
   logo: { height: 30, width: 'auto', display: 'block', marginBottom: 'var(--sp-6)' },
   form: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
-  label: { display: 'block', fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 5 },
+  label: { display: 'block', fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 'var(--sp-1)' },
   error: {
     fontSize: 'var(--fs-label)', color: 'var(--warn)', background: 'var(--warnbg)',
-    border: 'var(--hairline)', padding: '8px 10px', borderRadius: 'var(--r-sm)',
+    border: 'var(--hairline)', padding: 'var(--sp-2) var(--sp-3)', borderRadius: 'var(--r-sm)',
   },
   back: { fontSize: 'var(--fs-label)', color: 'var(--muted)', textDecoration: 'none' },
 }
