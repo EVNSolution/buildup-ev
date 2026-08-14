@@ -24,6 +24,14 @@ export interface InboxItem {
   sub: string
   /** 오른쪽 끝 작은 글씨 — 접수일 등 */
   meta?: string
+  /**
+   * 너무 오래 방치된 건. **맨 위로 올리고 빨갛게 칠한다.**
+   * 라임(할 일)과 빨강(늦었다)은 뜻이 다르다 — 늦은 것이 라임에 섞여 있으면
+   * 목록을 다 훑어야 어느 게 급한지 알 수 있다.
+   */
+  urgent?: boolean
+  /** 늦은 이유 — 「발주 후 9일째」처럼 숫자로 말한다 */
+  urgentNote?: string
 }
 
 export function InboxPanel({ title, items, acceptLabel, busyId, onView, onAccept }: {
@@ -32,27 +40,31 @@ export function InboxPanel({ title, items, acceptLabel, busyId, onView, onAccept
   /** 「주문 수락」처럼 무엇을 받는지 드러내는 말로 — 그냥 「수락」이면 무엇을 받는지 모른다 */
   acceptLabel: string
   busyId: number | null
-  onView: (id: number) => void
+  /** 내용을 따로 여는 길. 수락 팝업 안에서 내용을 다 보여주는 화면은 넘기지 않는다 */
+  onView?: (id: number) => void
   onAccept: (id: number) => void
 }) {
   if (items.length === 0) return null
+  // 늦은 것부터 — 목록을 훑지 않아도 급한 게 맨 위에 있다
+  const sorted = [...items].sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent))
   return (
     <section style={s.wrap}>
       <div style={s.h}>
         {title} <span style={s.count}>{items.length}</span>
       </div>
-      {items.map(it => (
-        <div key={it.id} style={s.row}>
+      {sorted.map(it => (
+        <div key={it.id} style={it.urgent ? s.rowUrgent : s.row}>
           <div style={s.info}>
             <div style={s.line1}>
               <span style={s.no}>{it.no}</span>
               <span style={s.title}>{it.title}</span>
+              {it.urgentNote && <span style={s.urgentNote}>{it.urgentNote}</span>}
               {it.meta && <span style={s.meta}>{it.meta}</span>}
             </div>
             <div style={s.sub}>{it.sub}</div>
           </div>
           <div style={s.actions}>
-            <button style={BTN.row} onClick={() => onView(it.id)}>내용 보기</button>
+            {onView && <button style={BTN.row} onClick={() => onView(it.id)}>내용 보기</button>}
             <button
               style={busyId === it.id ? BTN.rowDisabled : BTN.rowPrimary}
               disabled={busyId === it.id}
@@ -84,6 +96,14 @@ const s: Record<string, React.CSSProperties> = {
     padding: 'var(--sp-3) 0 var(--sp-3) var(--sp-3)',
     borderBottom: 'var(--hairline)', boxShadow: 'inset 3px 0 0 0 var(--lime)',
   },
+  // 늦은 건 — 띠와 글씨를 빨강으로. 배경까지 칠하지 않는다(목록이 색 덩어리가 된다)
+  rowUrgent: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: 'var(--sp-3)', flexWrap: 'wrap',
+    padding: 'var(--sp-3) 0 var(--sp-3) var(--sp-3)',
+    borderBottom: 'var(--hairline)', boxShadow: 'inset 3px 0 0 0 var(--req)',
+  },
+  urgentNote: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700 },
   info: { flex: '1 1 240px', minWidth: 0 },
   line1: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   no: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },

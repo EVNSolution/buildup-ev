@@ -51,6 +51,28 @@ export function businessDaysBetween(from: Date, to: Date): number {
   return n;
 }
 
+/**
+ * 수락 재촉 기준 — 발주 후 **7일이 지나도록 수락하지 않으면** 급한 건으로 본다.
+ *
+ * 납기 한도가 15영업일인데 수락 자체가 늦어지면 남는 제작 기간이 그만큼 줄고,
+ * 어느 순간 한도 안에 넣을 수 없는 날짜만 남는다. 그 전에 눈에 띄게 한다 —
+ * 목록에서 맨 위로 올리고 빨갛게 칠하며, 아침 알림에도 같은 기준으로 들어간다.
+ * (달력일 기준이다 — 재촉은 「며칠째 방치됐나」의 문제라 주말도 흘러간 날이다)
+ */
+export const ACCEPT_URGENT_DAYS = 7;
+
+/** 발주 후 며칠 지났나(달력일). */
+export function daysSince(from: Date, now: Date): number {
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000));
+}
+
+/** 수락이 늦어 재촉해야 하는가. */
+export function isAcceptOverdue(orderedAt: Date, now: Date): boolean {
+  return daysSince(orderedAt, now) >= ACCEPT_URGENT_DAYS;
+}
+
 /** 발주 납기 한도 — 발주일로부터 15 영업일. */
 export const DELIVERY_DUE_BUSINESS_DAYS = 15;
 
