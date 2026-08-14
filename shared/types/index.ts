@@ -282,6 +282,11 @@ export interface ApiQuote {
   final_price: number;
   sales_user_id: string | null;
   org_id: string | null;
+  /**
+   * 담당 영업이 배정을 **수락한** 시각. null = 수락 대기(또는 배정 전).
+   * 공개 문의는 배정만으로 담당이 정해졌다고 보지 않는다 — 영업이 직접 받아야 한다.
+   */
+  sales_accepted_at?: string | null;
   /** 'sales' = 영업 작성 / 'public' = 고객이 공개 화면에서 직접 접수한 문의 */
   source?: string;
   customer_id: number | null;

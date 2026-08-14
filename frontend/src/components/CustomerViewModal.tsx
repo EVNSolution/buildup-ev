@@ -12,13 +12,21 @@ const DIESEL_KO: Record<string, string> = {
   none: '경유차 없음', keep: '경유차 유지 후 전기차 전환', scrap: '경유차 폐차 후 전기차 전환',
 }
 
-export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose: () => void }) {
+export interface ViewGroup { title: string; rows: [string, string][] }
+
+/**
+ * 견적 한 건의 값을 **읽기 전용 묶음**으로 편다.
+ *
+ * 관리자의 「고객정보」 팝업과 영업의 「배정 문의 수락」 팝업이 같은 것을 본다 —
+ * 따로 만들면 한쪽에만 항목이 늘어난다(실제로 사업자 구분이 한쪽에만 있었다).
+ */
+export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
   const t = (k: string) => { const v = inp[k]; return v == null || v === '' ? '' : String(v) }
   const isCorp = t('biz_type') === 'corporate'
   const yn = (k: string) => (inp[k] === true ? '예' : '아니오')
 
-  const groups: { title: string; rows: [string, string][] }[] = [
+  return [
     {
       title: '고객',
       rows: [
@@ -58,7 +66,10 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
       ],
     },
   ]
+}
 
+export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose: () => void }) {
+  const groups = customerViewGroups(quote)
   return (
     <div style={modal.overlay} onClick={onClose}>
       <div style={{ ...modal.box, width: 520, maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>

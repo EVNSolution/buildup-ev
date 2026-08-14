@@ -740,7 +740,11 @@ quotesRouter.patch('/:id/assign-sales', rbac('ADMIN'), requirePermission('quote.
     const prev = { sales_user_id: quote.sales_user_id ?? '' };
     await prisma.quote.update({
       where: { id },
-      data: { sales_user_id: user.email, org_id: user.org_code, quote_no },
+      data: {
+        sales_user_id: user.email, org_id: user.org_code, quote_no,
+        // 재배정이면 수락도 되돌린다 — 새 담당이 다시 받아야 한다(앞사람의 수락이 남으면 안 된다)
+        sales_accepted_at: null,
+      },
     });
     // 누가 누구에게 넘겼는지 남긴다 — 배정은 되돌리기·문의 응대에서 자주 되짚는다
     await logQuoteChanges(id, 'inputs', prev, { sales_user_id: user.email },
@@ -750,6 +754,49 @@ quotesRouter.patch('/:id/assign-sales', rbac('ADMIN'), requirePermission('quote.
   } catch (e) {
     console.error('[PATCH /quotes/:id/assign-sales]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '배정 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── PATCH /quotes/:id/accept-sales — 담당 영업이 배정을 수락 ────────────────
+//
+// 특장사가 주문을 수락하는 것과 같은 자리다. 관리자가 배정했다는 사실만으로는
+// **아무도 붙지 않은 상태**다 — 영업이 내용을 보고 받겠다고 눌러야 담당이 확정된다.
+// 그래야 「배정했는데 아무도 안 봤다」와 「받아서 진행 중이다」가 구분된다.
+quotesRouter.patch('/:id/accept-sales', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+
+  try {
+    const quote = await prisma.quote.findUnique({
+      where: { id },
+      select: { id: true, sales_user_id: true, sales_accepted_at: true },
+    });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (!quote.sales_user_id) {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '아직 담당 영업이 배정되지 않았습니다' } }); return;
+    }
+    // 남에게 배정된 건을 가로채지 못하게 한다(관리자도 대신 수락하지 않는다 — 수락은 받는 사람의 행위다)
+    if (quote.sales_user_id !== req.auth!.email) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인에게 배정된 건만 수락할 수 있습니다' } }); return;
+    }
+    if (quote.sales_accepted_at) {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락한 건입니다' } }); return;
+    }
+
+    const now = new Date();
+    await prisma.quote.update({ where: { id }, data: { sales_accepted_at: now } });
+    // 언제 누가 받았는지 남긴다 — 배정~수락 사이가 비면 그 구간을 되짚게 된다
+    await logQuoteChanges(id, 'inputs', { sales_accepted_at: '' }, { sales_accepted_at: now.toISOString() },
+      req.auth?.email ?? 'unknown', ['sales_accepted_at']);
+
+    res.json({ data: { ok: true, sales_accepted_at: now.toISOString() } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/accept-sales]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '수락 중 오류가 발생했습니다.' } });
   }
 });
 
