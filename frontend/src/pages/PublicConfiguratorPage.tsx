@@ -206,13 +206,16 @@ const s: Record<string, React.CSSProperties> = {
   },
   doneBox: {
     background: '#fff', borderRadius: 'var(--r-md)', padding: 'var(--sp-5)',
-    width: 'min(400px, 94vw)', boxShadow: 'var(--shadow-2)',
+    width: 'min(400px, 94vw)', boxShadow: 'var(--shadow-2)', border: 'var(--hairline)',
   },
-  doneTitle: { fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--dark)', marginBottom: 'var(--sp-2)' },
+  doneTitle: {
+    fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
+    letterSpacing: 'var(--ls-tight)', color: 'var(--dark)', marginBottom: 'var(--sp-2)',
+  },
   doneNo: {
     display: 'inline-block', fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--dark)',
-    background: 'var(--lime-bg)', border: '1px solid var(--lime)', borderRadius: 'var(--r-sm)',
-    padding: '4px 10px', marginBottom: 'var(--sp-3)',
+    background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', borderRadius: 'var(--r-sm)',
+    padding: 'var(--sp-1) var(--sp-3)', marginBottom: 'var(--sp-3)',
   },
   doneDesc: { fontSize: 'var(--fs-label)', color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 var(--sp-4)' },
 }

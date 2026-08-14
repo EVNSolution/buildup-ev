@@ -64,14 +64,20 @@ const s: Record<string, React.CSSProperties> = {
     maxWidth: 860, margin: '0 auto', background: '#fff', borderRadius: 'var(--r-md)',
     padding: 'var(--sp-6) var(--sp-5)', boxShadow: 'var(--shadow-1)',
   },
-  h1: { fontSize: 'var(--fs-title)', fontWeight: 700, color: 'var(--dark)', margin: '0 0 var(--sp-5)' },
-  h2: { fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--dark)', margin: 'var(--sp-5) 0 var(--sp-2)' },
+  h1: {
+    fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as React.CSSProperties['fontWeight'],
+    letterSpacing: 'var(--ls-tight)', color: 'var(--dark)', margin: '0 0 var(--sp-5)',
+  },
+  h2: {
+    fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
+    letterSpacing: 'var(--ls-tight)', color: 'var(--dark)', margin: 'var(--sp-5) 0 var(--sp-2)',
+  },
   p: { fontSize: 'var(--fs-body)', lineHeight: 1.75, color: 'var(--body)', margin: '0 0 var(--sp-2)' },
   tableWrap: { overflowX: 'auto', margin: 'var(--sp-3) 0 var(--sp-4)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-label)' },
   th: {
-    textAlign: 'left', padding: '8px 10px', background: 'var(--card)',
-    border: '1px solid var(--line)', fontWeight: 700, color: 'var(--dark)', verticalAlign: 'top',
+    textAlign: 'left', padding: 'var(--sp-2) var(--sp-3)', background: 'var(--card)',
+    border: 'var(--hairline)', fontWeight: 700, color: 'var(--dark)', verticalAlign: 'top',
   },
-  td: { padding: '8px 10px', border: '1px solid var(--line)', color: 'var(--body)', lineHeight: 1.6, verticalAlign: 'top' },
+  td: { padding: 'var(--sp-2) var(--sp-3)', border: 'var(--hairline)', color: 'var(--body)', lineHeight: 'var(--lh-body)', verticalAlign: 'top' },
 }
