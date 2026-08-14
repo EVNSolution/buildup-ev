@@ -27,11 +27,16 @@ export async function updateOrderStatus(orderId: number, status: string): Promis
   }
 }
 
-/** 특장사 주문 수락 (배정→주문, 제작 착수) */
-export async function acceptOrder(orderId: number): Promise<void> {
+/**
+ * 특장사 주문 수락 (배정→주문, 제작 착수).
+ * 납기일을 **함께** 보낸다 — 따로 받으면 납기 없는 주문이 생긴다.
+ */
+export async function acceptOrder(orderId: number, deliveryDue: string): Promise<void> {
   const res = await fetch(`/api/v1/orders/${orderId}/accept`, {
     method: 'PATCH',
     credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ delivery_due: deliveryDue }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }

@@ -4,6 +4,7 @@ import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices } from 
 import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
+import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
 
 export const ordersRouter = Router();
 
@@ -294,9 +295,34 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
       res.status(409).json({ error: { code: 'CONFLICT', message: `배정 상태에서만 수락할 수 있습니다 (현재 ${order.quote.status})` } });
       return;
     }
+
+    /*
+     * 납기일은 **수락과 같은 동작으로 받는다.**
+     * 나중에 따로 입력하게 두면 납기 없는 주문이 생기고, 그 순간 「언제 오냐」를
+     * 시스템이 답할 수 없게 된다. 한도(발주일로부터 15영업일)는 발주서 특이사항이고,
+     * 화면과 서버가 **같은 함수**로 판정한다(shared/schedule) — 화면에서 고를 수 있는데
+     * 서버가 거부하는 상황을 만들지 않기 위해서다.
+     */
+    const dueRaw = typeof (req.body as { delivery_due?: unknown })?.delivery_due === 'string'
+      ? (req.body as { delivery_due: string }).delivery_due : '';
+    const due = fromDateInput(dueRaw);
+    if (!due) {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '납기일(delivery_due)을 YYYY-MM-DD 로 보내야 합니다' } });
+      return;
+    }
+    // 기산점은 **배정일**(= 발주일). 없으면 주문 생성일로 대신한다.
+    const orderedAt = order.assigned_at ?? order.created_at;
+    const check = checkDeliveryDue(due, orderedAt);
+    if (!check.ok) {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: check.reason } });
+      return;
+    }
+
+    const now = new Date();
+    await prisma.order.update({ where: { id }, data: { delivery_due: toDbDate(due), accepted_at: now } });
     await setQuoteStatus(order.quote.id, 'ordered', req.auth?.email ?? 'unknown');
     const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
-    res.json({ data: { quote: updated } });
+    res.json({ data: { quote: updated, delivery_due: toDateInput(due) } });
   } catch (e) {
     console.error('[PATCH /orders/:id/accept]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '주문 수락 중 오류가 발생했습니다.' } });

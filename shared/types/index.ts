@@ -315,6 +315,10 @@ export interface ApiOrder {
   status: string;
   maker_org_id: string | null;
   assigned_at: string | null;
+  /** 특장사가 수락하며 약속한 납기일 (YYYY-MM-DD). 수락 전에는 null */
+  delivery_due?: string | null;
+  /** 발주 수락 시각 */
+  accepted_at?: string | null;
   created_at: string;
   quote: {
     model_code: string;

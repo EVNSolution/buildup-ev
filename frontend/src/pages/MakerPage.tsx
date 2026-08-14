@@ -7,6 +7,7 @@ import { OrderDetail } from '../components/OrderDetail'
 import { OrderKanbanBoard } from '../components/OrderKanbanBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { InboxPanel } from '../components/InboxPanel'
+import { AcceptOrderModal } from '../components/AcceptOrderModal'
 
 // ── MakerPage ──────────────────────────────────────────────────────────────
 export function MakerPage() {
@@ -19,6 +20,9 @@ export function MakerPage() {
   const [err, setErr] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [acceptingId, setAcceptingId] = useState<number | null>(null)
+  /** 수락 팝업을 띄운 주문 — 납기일을 받아야 수락이 완료된다 */
+  const [acceptTarget, setAcceptTarget] = useState<ApiOrder | null>(null)
+  const [acceptErr, setAcceptErr] = useState('')
 
   function load() {
     setLoading(true); setErr('')
@@ -30,14 +34,16 @@ export function MakerPage() {
 
   /*
    * 수락 — 예전에는 `window.confirm` 한 줄이라 **무엇을 받는지 모르고** 눌렀다.
-   * 이제 목록의 「내용 보기」로 사양·서류를 펴 본 뒤 받는다(영업의 배정 문의와 같은 흐름).
+   * 이제 목록의 「내용 보기」로 사양·서류를 펴 본 뒤, 납기일을 적어 넣고 받는다.
    */
-  async function handleAccept(orderId: number) {
-    setAcceptingId(orderId); setErr('')
+  async function handleAccept(orderId: number, deliveryDue: string) {
+    setAcceptingId(orderId); setAcceptErr('')
     try {
-      await acceptOrder(orderId); load()
+      await acceptOrder(orderId, deliveryDue)
+      setAcceptTarget(null)
+      load()
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '주문 수락 실패')
+      setAcceptErr(e instanceof Error ? e.message : '주문 수락 실패')
     } finally {
       setAcceptingId(null)
     }
@@ -54,6 +60,17 @@ export function MakerPage() {
 
   return (
     <div style={styles.root}>
+      {acceptTarget && (
+        <AcceptOrderModal
+          orderId={acceptTarget.id}
+          customerName={acceptTarget.quote.customer?.name ?? '고객 미상'}
+          orderedAt={acceptTarget.assigned_at ?? acceptTarget.created_at}
+          busy={acceptingId === acceptTarget.id}
+          error={acceptErr}
+          onAccept={due => handleAccept(acceptTarget.id, due)}
+          onClose={() => setAcceptTarget(null)}
+        />
+      )}
       <Header />
 
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
@@ -84,7 +101,7 @@ export function MakerPage() {
                   acceptLabel="주문 수락"
                   busyId={acceptingId}
                   onView={setSelectedId}
-                  onAccept={handleAccept}
+                  onAccept={id => { setAcceptErr(''); setAcceptTarget(pending.find(o => o.id === id) ?? null) }}
                 />
                 {active.length > 0 && (
                   <OrderKanbanBoard
