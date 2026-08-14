@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  STEPS, STEP_BY_CODE, canComplete, isStalled, stalledDays, keepsOriginal,
+  STEPS, STEP_BY_CODE, canComplete, overdueDays, isOverdue, keepsOriginal,
   stepsOfTrack, newlyOpened, isOpen, canUndo, type StepState,
 } from './steps';
 
@@ -185,30 +185,45 @@ describe('되돌리기 — 앞뒤가 맞아야 한다', () => {
   });
 });
 
-describe('정체 판정', () => {
-  const NOW = new Date(2026, 7, 20);
+describe('지연 판정 — 약속한 날을 넘긴 것만', () => {
+  const NOW = new Date(2026, 7, 20);   // 8/20
   const NONE = new Set<string>();
 
-  it('기준 일수를 넘기면 재촉한다', () => {
-    // car_arrived 는 7일 기준이고 선행이 없어 처음부터 열려 있다
-    expect(isStalled('car_arrived', { code: 'car_arrived', status: 'pending' }, new Date(2026, 7, 13), NOW, NONE)).toBe(true);
-    expect(isStalled('car_arrived', { code: 'car_arrived', status: 'pending' }, new Date(2026, 7, 15), NOW, NONE)).toBe(false);
+  it('마감 당일까지는 지연이 아니다 — 그날 안에 하면 지킨 것이다', () => {
+    expect(overdueDays('2026-08-20', NOW)).toBeNull();
+    expect(overdueDays('2026-08-21', NOW)).toBeNull();
   });
 
-  it('끝난 단계는 재촉하지 않는다', () => {
-    expect(isStalled('car_arrived', { code: 'car_arrived', status: 'done' }, new Date(2026, 6, 1), NOW, NONE)).toBe(false);
+  it('넘긴 일수를 센다', () => {
+    expect(overdueDays('2026-08-17', NOW)).toBe(3);
   });
 
-  it('**아직 열리지도 않은 단계는 지연이 아니다** — 아무도 시작할 수 없는 일이다', () => {
-    // 임시번호판 반납은 차량 도착이 끝나야 열린다
-    expect(isStalled('temp_plate_returned', { code: 'temp_plate_returned', status: 'pending' }, new Date(2026, 0, 1), NOW, NONE)).toBe(false);
-    // 차량 도착이 끝나면 그때부터 재촉 대상이다
-    expect(isStalled('temp_plate_returned', { code: 'temp_plate_returned', status: 'pending' }, new Date(2026, 0, 1), NOW, new Set(['car_arrived']))).toBe(true);
+  it('마감이 없으면 지연이 아니다 — 근거 없이 빨갛게 칠하지 않는다', () => {
+    expect(overdueDays(null, NOW)).toBeNull();
+    expect(isOverdue('car_arrived', { code: 'car_arrived', status: 'pending' }, null, NOW, NONE)).toBe(false);
   });
 
-  it('들어온 적 없으면 셀 수 없다', () => {
-    expect(stalledDays(null, NOW)).toBeNull();
-    expect(isStalled('car_arrived', { code: 'car_arrived', status: 'pending' }, null, NOW, NONE)).toBe(false);
+  it('마감을 넘겼어도 **아직 열리지 않은 단계**는 지연이 아니다', () => {
+    // 안전검사 완료는 신청이 끝나야 열린다
+    expect(isOverdue('inspection_done', { code: 'inspection_done', status: 'pending' }, '2026-08-01', NOW, NONE)).toBe(false);
+  });
+
+  it('열려 있고 마감을 넘겼으면 지연이다', () => {
+    const done = new Set(['car_arrived', 'build_done', 'tuning_approved', 'mounted', 'inspection_booked']);
+    expect(isOverdue('inspection_done', { code: 'inspection_done', status: 'pending' }, '2026-08-01', NOW, done)).toBe(true);
+  });
+
+  it('끝난 단계는 지연이 아니다', () => {
+    expect(isOverdue('build_done', { code: 'build_done', status: 'done' }, '2026-01-01', NOW, NONE)).toBe(false);
+  });
+
+  it('마감이 있는 단계는 둘뿐이다 — 실제로 약속한 날이 있는 것만', () => {
+    expect(STEPS.filter(s => s.dueFrom).map(s => s.code)).toEqual(['build_done', 'inspection_done']);
+  });
+
+  it('납기일은 주문에서, 검사 마감은 신청 단계에서 온다', () => {
+    expect(STEP_BY_CODE['build_done']!.dueFrom).toEqual({ from: 'order', field: 'delivery_due' });
+    expect(STEP_BY_CODE['inspection_done']!.dueFrom).toEqual({ from: 'step', code: 'inspection_booked' });
   });
 });
 

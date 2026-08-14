@@ -14,7 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import { rbac, isAdmin } from '../middleware/rbac.js';
 import {
-  STEPS, STEP_BY_CODE, canComplete, canUndo, isStalled, newlyOpened,
+  STEPS, STEP_BY_CODE, canComplete, canUndo, isOverdue, overdueDays, newlyOpened,
   type EvidenceKind, type StepState,
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
@@ -103,10 +103,24 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
   const doneCodes = new Set(rows.filter(x => x.status === 'done').map(x => x.code));
   const now = new Date();
 
+  /**
+   * 이 단계의 마감이 언제인가 — **약속한 날**에서만 온다.
+   * 납기일은 주문에서(수락하며 약속), 검사 마감은 안전검사 신청 단계에서(신청하며 적음).
+   */
+  const dueOf = (def: (typeof STEPS)[number]): string | null => {
+    if (!def.dueFrom) return null;
+    if (def.dueFrom.from === 'order') {
+      return r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null;
+    }
+    const src = byCode.get(def.dueFrom.code);
+    return src?.planned_at ? fromDbDate(src.planned_at) : null;
+  };
+
   // 카탈로그 순서로 내려준다 — 화면이 정렬을 다시 하지 않게
   const data = STEPS.map(def => {
     const row = byCode.get(def.code);
     const mine = files.filter(f => f.step_code === def.code);
+    const due = dueOf(def);
     return {
       code: def.code,
       track: def.track,
@@ -116,7 +130,11 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
       done_at: row?.done_at?.toISOString() ?? null,
       done_by: row?.done_by ?? null,
       note: row?.note ?? null,
-      stalled: isStalled(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, row?.entered_at ?? null, now, doneCodes),
+      /** 약속한 마감 (YYYY-MM-DD). 마감이 없는 단계는 null */
+      due_at: due,
+      /** 마감을 며칠 넘겼나. 안 넘겼거나 마감이 없으면 null */
+      overdue_days: row && row.status !== 'done' ? overdueDays(due, now) : null,
+      stalled: isOverdue(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, due, now, doneCodes),
       files: mine.map(f => ({
         id: f.id, kind: f.kind, name: f.original_name, size: f.size_bytes,
         kept_original: f.kept_original, uploaded_by: f.uploaded_by, uploaded_at: f.uploaded_at.toISOString(),
@@ -168,15 +186,6 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
   );
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
 
-  /*
-   * 제작 완료는 **수락한 뒤**에만 누를 수 있다.
-   * 수락은 단계가 아니라 주문의 기록이라 선행 단계로 표현할 수 없다 — 여기서 본다.
-   * (수락 전이라면 「수락 대기」 목록에서 발주서를 보고 받는 것이 먼저다)
-   */
-  if (code === 'build_done' && !r.order.accepted_at) {
-    res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '발주를 먼저 수락해야 합니다 — 「수락 대기」에서 발주서를 확인하고 받아 주세요' } });
-    return;
-  }
 
   // 날짜를 받는 단계는 날짜가 있어야 한다(납기·검사예정일·인도일)
   let planned: Date | null = null;

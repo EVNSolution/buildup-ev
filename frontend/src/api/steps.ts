@@ -10,7 +10,11 @@ export interface ApiStep {
   done_at: string | null
   done_by: string | null
   note: string | null
-  /** 이 단계에 너무 오래 머물렀나 — 판정은 서버가 한다(같은 함수를 쓴다) */
+  /** 약속한 마감 (YYYY-MM-DD). 마감이 없는 단계는 null */
+  due_at: string | null
+  /** 마감을 며칠 넘겼나. 안 넘겼거나 마감이 없으면 null */
+  overdue_days: number | null
+  /** 지연 = 약속한 날을 넘겼고 지금 손댈 수 있는데 안 끝난 것 */
   stalled: boolean
   files: ApiStepFile[]
 }

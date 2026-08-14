@@ -1093,7 +1093,7 @@ function KanbanTab() {
   if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
 
   if (selectedOrderId !== null) {
-    return <OrderDetail orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} backLabel="← 주문 칸반" />
+    return <OrderDetail orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} backLabel="← 주문 진행" />
   }
 
   return (

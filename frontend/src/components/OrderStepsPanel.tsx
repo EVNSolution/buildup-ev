@@ -135,12 +135,6 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
               const needDate = !!def.dateLabel
               const dateOk = !needDate || !!dates[def.code]
               const ackOk = !def.ackLabel || acked.has(def.code)
-              /*
-               * 수락 전에는 제작 완료를 누를 수 없다. 수락은 단계가 아니라 주문의 기록이라
-               * 선행 단계로 표현되지 않는다 — 서버도 같은 이유로 막지만, 화면에서 미리
-               * 막아 주지 않으면 눌러 보고 나서야 안 된다는 걸 알게 된다.
-               */
-              const needAccept = def.code === 'build_done' && !res.order.accepted_at
               const undo = canUndo(def.code, states)
 
               return (
@@ -150,7 +144,14 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                       {phase === 'done' ? '✓' : phase === 'now' ? '●' : '○'}
                     </span>
                     <span style={phase === 'later' ? s.nameLater : s.name}>{def.label}</span>
-                    {st.stalled && phase !== 'done' && <span style={s.lateTag}>지연</span>}
+                    {/* 지연은 숫자로 말한다 — 「지연」만으로는 얼마나 늦었는지 모른다 */}
+                    {st.stalled && st.overdue_days != null && (
+                      <span style={s.lateTag}>{st.due_at} 마감 · {st.overdue_days}일 초과</span>
+                    )}
+                    {/* 마감이 있는데 아직 안 넘겼으면 언제까지인지 */}
+                    {phase === 'now' && !st.stalled && st.due_at && (
+                      <span style={s.dueTag}>{st.due_at}까지</span>
+                    )}
 
                     <span style={s.spacer} />
 
@@ -180,8 +181,8 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                     {/* 사람이 누르는 단계가 아니면 버튼을 두지 않는다 — 눌러 줄 일이 없다 */}
                     {phase === 'now' && canEdit && !def.auto && (
                       <button
-                        style={gate.ok && dateOk && ackOk && !needAccept && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
-                        disabled={!gate.ok || !dateOk || !ackOk || needAccept || busy === def.code}
+                        style={gate.ok && dateOk && ackOk && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
+                        disabled={!gate.ok || !dateOk || !ackOk || busy === def.code}
                         onClick={() => handleComplete(def.code)}
                       >{busy === def.code ? '처리 중…' : '완료'}</button>
                     )}
@@ -223,7 +224,6 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
                       {!gate.ok && <div style={s.blocked}>{gate.reason}</div>}
                       {gate.ok && !dateOk && <div style={s.blocked}>{def.dateLabel}을(를) 골라 주세요</div>}
-                      {needAccept && <div style={s.blocked}>발주를 먼저 수락해야 합니다 — 「수락 대기」에서 발주서를 확인하고 받아 주세요</div>}
                     </div>
                   )}
 
@@ -328,7 +328,8 @@ const s: Record<string, React.CSSProperties> = {
   markLater: { color: 'var(--line-strong, #CFD4CF)', fontSize: 9, width: 12 },
   name: { fontSize: 'var(--fs-label)', color: 'var(--dark)' },
   nameLater: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
-  lateTag: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700 },
+  lateTag: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+  dueTag: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   spacer: { flex: 1, minWidth: 'var(--sp-2)' },
   laterWhy: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   autoTag: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
