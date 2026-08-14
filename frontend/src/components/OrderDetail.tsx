@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
 import { OrderStepsPanel } from './OrderStepsPanel'
+import { OrderEvidenceList } from './OrderEvidenceList'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -523,6 +524,14 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             canViewContract={canViewContract}
             canViewStructDocs={canViewLoadDocs}
           />
+        
+          {/*
+            자동 생성 서류(위)와 **사람이 올린 증빙**(아래)을 한 탭에서 본다.
+            관리자와 특장사 모두 「그동안 올린 게 다 어디 있나」를 여기서 답한다.
+          */}
+          <div style={{ marginTop: 'var(--sp-5)' }}>
+            <OrderEvidenceList orderId={detail.id} />
+          </div>
         </div>
       )}
 

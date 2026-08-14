@@ -14,7 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import { rbac, isAdmin } from '../middleware/rbac.js';
 import {
-  STEPS, STEP_BY_CODE, canComplete, isStalled, newlyOpened,
+  STEPS, STEP_BY_CODE, canComplete, canUndo, isOverdue, overdueDays, newlyOpened,
   type EvidenceKind, type StepState,
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
@@ -42,7 +42,7 @@ function orderId(req: Request): number | null {
  */
 type LoadResult =
   | { err: 503 | 404 | 403 }
-  | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date } };
+  | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date; accepted_at: Date | null; delivery_due: Date | null } };
 
 async function loadOrder(id: number, req: Request): Promise<LoadResult> {
   if (!prisma) return { err: 503 };
@@ -50,6 +50,7 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
     where: { id },
     select: {
       id: true, quote_id: true, maker_org_id: true, assigned_at: true, created_at: true,
+      accepted_at: true, delivery_due: true,
       quote: { select: { sales_user_id: true } },
     },
   });
@@ -99,12 +100,27 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
   ]);
 
   const byCode = new Map(rows.map(x => [x.code, x]));
+  const doneCodes = new Set(rows.filter(x => x.status === 'done').map(x => x.code));
   const now = new Date();
+
+  /**
+   * 이 단계의 마감이 언제인가 — **약속한 날**에서만 온다.
+   * 납기일은 주문에서(수락하며 약속), 검사 마감은 안전검사 신청 단계에서(신청하며 적음).
+   */
+  const dueOf = (def: (typeof STEPS)[number]): string | null => {
+    if (!def.dueFrom) return null;
+    if (def.dueFrom.from === 'order') {
+      return r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null;
+    }
+    const src = byCode.get(def.dueFrom.code);
+    return src?.planned_at ? fromDbDate(src.planned_at) : null;
+  };
 
   // 카탈로그 순서로 내려준다 — 화면이 정렬을 다시 하지 않게
   const data = STEPS.map(def => {
     const row = byCode.get(def.code);
     const mine = files.filter(f => f.step_code === def.code);
+    const due = dueOf(def);
     return {
       code: def.code,
       track: def.track,
@@ -114,7 +130,11 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
       done_at: row?.done_at?.toISOString() ?? null,
       done_by: row?.done_by ?? null,
       note: row?.note ?? null,
-      stalled: isStalled(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, row?.entered_at ?? null, now),
+      /** 약속한 마감 (YYYY-MM-DD). 마감이 없는 단계는 null */
+      due_at: due,
+      /** 마감을 며칠 넘겼나. 안 넘겼거나 마감이 없으면 null */
+      overdue_days: row && row.status !== 'done' ? overdueDays(due, now) : null,
+      stalled: isOverdue(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, due, now, doneCodes),
       files: mine.map(f => ({
         id: f.id, kind: f.kind, name: f.original_name, size: f.size_bytes,
         kept_original: f.kept_original, uploaded_by: f.uploaded_by, uploaded_at: f.uploaded_at.toISOString(),
@@ -122,7 +142,19 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Reque
     };
   });
 
-  res.json({ data });
+  /*
+   * 단계 목록과 함께 **주문 자체의 기록**을 내려준다.
+   * 발주 발행·수락·납기는 단계가 아니라 이미 끝난 사실이다 — 화면은 이것을 머리말에
+   * 적어 두고, 「완료/되돌리기」 대상으로 두지 않는다.
+   */
+  res.json({
+    data,
+    order: {
+      assigned_at: r.order.assigned_at?.toISOString() ?? null,
+      accepted_at: r.order.accepted_at?.toISOString() ?? null,
+      delivery_due: r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null,
+    },
+  });
 });
 
 // ── PATCH /orders/:id/steps/:code — 단계 완료 ─────────────────────────────
@@ -153,6 +185,7 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
     files.map(f => f.kind as EvidenceKind),
   );
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+
 
   // 날짜를 받는 단계는 날짜가 있어야 한다(납기·검사예정일·인도일)
   let planned: Date | null = null;
@@ -206,6 +239,52 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), async (re
   res.json({ data: { ok: true, opened } });
 });
 
+
+
+// ── PATCH /orders/:id/steps/:code/undo — 완료를 되돌린다 ────────────────────
+//
+// 잘못 누르는 일은 반드시 생긴다. 되돌릴 길이 없으면 사람들은 **틀린 기록을 그냥 두거나**
+// DB 를 직접 고쳐 달라고 한다 — 둘 다 기록을 못 믿게 만든다.
+// 대신 **뒤 단계가 이미 끝났으면 막는다**(뒤에서부터 풀어야 앞뒤가 맞는다).
+stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, res: Response): Promise<void> => {
+  const id = orderId(req);
+  const code = String(req.params['code'] ?? '');
+  if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
+  const r = await loadOrder(id, req);
+  if ('err' in r) { res.status(r.err).json({ error: { code: 'FORBIDDEN' } }); return; }
+
+  const rows = await prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } });
+  const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })));
+  if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+
+  const now = new Date();
+  await prisma!.orderStep.update({
+    where: { order_id_code: { order_id: id, code } },
+    data: {
+      status: 'pending',
+      done_at: null,
+      done_by: null,
+      // 시계를 다시 켠다 — 되돌린 순간부터 다시 세지 않으면 곧바로 「지연」으로 뜬다
+      entered_at: now,
+      // 날짜(납기·검사예정일)는 지운다. 되돌렸다는 것은 그 약속도 무효라는 뜻이다
+      planned_at: null,
+      note: `${now.toISOString().slice(0, 10)} ${req.auth?.email ?? 'unknown'} 되돌림`,
+    },
+  });
+
+  /*
+   * 인도를 되돌리면 견적도 「주문진행」으로 돌린다 — 완료로 올릴 때와 짝을 맞춘다.
+   * 한쪽만 되돌리면 인도가 취소됐는데 마이페이지에는 인도완료 금액이 남는다.
+   */
+  if (code === 'delivered') {
+    const q = await prisma!.quote.findUnique({ where: { id: r.order.quote_id }, select: { status: true } });
+    if (q && q.status === 'completed') {
+      await setQuoteStatus(r.order.quote_id, 'ordered', req.auth?.email ?? 'unknown');
+    }
+  }
+
+  res.json({ data: { ok: true } });
+});
 
 // ── 증빙 파일 ──────────────────────────────────────────────────────────────
 //

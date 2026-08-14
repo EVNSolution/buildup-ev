@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
-import { STEPS, isStalled } from '@buildup-ev/shared/process';
+import { STEPS, isOverdue } from '@buildup-ev/shared/process';
 
 export const ordersRouter = Router();
 
@@ -69,7 +69,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
         maker_org: { select: { code: true, name: true } },
         // 목록에서도 「지금 뭘 해야 하나」가 보여야 한다 — 상세를 열어야 알 수 있으면
         // 여러 건을 훑는 화면(칸반 자리)이 쓸모없어진다
-        steps: { select: { code: true, status: true, entered_at: true } },
+        steps: { select: { code: true, status: true, planned_at: true } },
       },
     });
 
@@ -86,7 +86,14 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
           total: STEPS.length,
           open: openDefs.map(d => d.label),
           // 하나라도 오래 멈춰 있으면 목록에서 바로 드러나야 한다
-          stalled: openDefs.some(d => isStalled(d.code, { code: d.code, status: 'pending' }, byCode.get(d.code)?.entered_at ?? null, now)),
+          // 지연 = **약속한 날을 넘긴 것**. 납기는 주문에서, 검사 마감은 신청 단계에서 온다
+        stalled: openDefs.some(d => {
+          if (!d.dueFrom) return false;
+          const due = d.dueFrom.from === 'order'
+            ? (o.delivery_due ? o.delivery_due.toISOString().slice(0, 10) : null)
+            : (byCode.get(d.dueFrom.code)?.planned_at?.toISOString().slice(0, 10) ?? null);
+          return isOverdue(d.code, { code: d.code, status: 'pending' }, due, now, done);
+        }),
         },
       };
     });

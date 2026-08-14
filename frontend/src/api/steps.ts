@@ -10,7 +10,11 @@ export interface ApiStep {
   done_at: string | null
   done_by: string | null
   note: string | null
-  /** 이 단계에 너무 오래 머물렀나 — 판정은 서버가 한다(같은 함수를 쓴다) */
+  /** 약속한 마감 (YYYY-MM-DD). 마감이 없는 단계는 null */
+  due_at: string | null
+  /** 마감을 며칠 넘겼나. 안 넘겼거나 마감이 없으면 null */
+  overdue_days: number | null
+  /** 지연 = 약속한 날을 넘겼고 지금 손댈 수 있는데 안 끝난 것 */
   stalled: boolean
   files: ApiStepFile[]
 }
@@ -31,10 +35,23 @@ async function jsonOrThrow(res: Response, what: string) {
   throw new Error(body.error?.message ?? `${what} 실패: ${res.status}`)
 }
 
-export async function fetchSteps(orderId: number): Promise<ApiStep[]> {
+/**
+ * 단계 목록 + **주문 자체의 기록**.
+ * 발주 발행·수락·납기는 단계가 아니라 이미 끝난 사실이라 따로 온다.
+ */
+export interface ApiStepsResponse {
+  data: ApiStep[]
+  order: {
+    assigned_at: string | null
+    accepted_at: string | null
+    /** YYYY-MM-DD */
+    delivery_due: string | null
+  }
+}
+
+export async function fetchSteps(orderId: number): Promise<ApiStepsResponse> {
   const res = await fetch(`/api/v1/orders/${orderId}/steps`, { credentials: 'include' })
-  const body = await jsonOrThrow(res, '단계 조회') as { data: ApiStep[] }
-  return body.data
+  return await jsonOrThrow(res, '단계 조회') as ApiStepsResponse
 }
 
 /** 단계 완료. 날짜를 받는 단계(납기·검사예정일·인도일)는 plannedAt 을 함께 보낸다. */
@@ -46,6 +63,14 @@ export async function completeStep(orderId: number, code: string, plannedAt?: st
     body: JSON.stringify(plannedAt ? { planned_at: plannedAt } : {}),
   })
   await jsonOrThrow(res, '단계 완료')
+}
+
+/** 완료를 되돌린다. 뒤 단계가 이미 끝났으면 서버가 막는다. */
+export async function undoStep(orderId: number, code: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/steps/${code}/undo`, {
+    method: 'PATCH', credentials: 'include',
+  })
+  await jsonOrThrow(res, '되돌리기')
 }
 
 export async function uploadStepFile(

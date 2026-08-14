@@ -7,16 +7,13 @@
  *    그 뒤로는 아무도 그게 거짓인지 알 수 없게 된다. 단계 기록은 증빙과 짝을 이루는
  *    사실 기록이라 추측을 섞으면 안 된다.
  *
- * 그래서 **다른 곳에서 확실히 확인되는 것만** 완료로 표시한다:
+ * 그리고 **발주 발행·수락은 단계가 아니다.** 이미 끝난 일이고 주문 자체의 기록
+ * (assigned_at·accepted_at·delivery_due)으로 남는다 — 단계로 두면 상세 화면에서 다시
+ * 「완료」를 누르고 되돌릴 수 있게 되어 같은 일을 두 번 관리하게 된다.
  *
- *   po_issued    ← 주문 행이 있고 특장사가 배정돼 있다 = 발주가 나갔다
- *                  (완료 시각 = assigned_at)
- *   po_accepted  ← 견적이 ordered 이거나 수락 기록(accepted_at)이 있다 = 특장사가 받았다
- *                  (납기 = delivery_due, 있으면)
- *
- * 나머지 15단계는 **전부 pending** 이다. 진행 중인 주문이라도 시스템이 그 사실을 갖고
- * 있지 않으므로, 담당자가 화면에서 실제 상태를 채운다. 덜 채워진 것은 눈에 보이지만
- * 잘못 채워진 것은 안 보인다.
+ * 그래서 이관은 **단계 표를 깔아 주기만 한다(전부 pending).** 진행 중인 주문이라도
+ * 시스템이 그 사실을 갖고 있지 않으므로 담당자가 화면에서 실제 상태를 채운다 —
+ * 덜 채워진 것은 눈에 보이지만 잘못 채워진 것은 안 보인다.
  *
  * 사용: npm run migrate:steps           (미리보기)
  *      npm run migrate:steps -- --write (반영)
@@ -53,38 +50,21 @@ async function main() {
   console.log(`⚠️  order.status(옛 6단계)는 확정된 값이 아니라 읽지 않습니다.\n`);
 
   let rowsTotal = 0;
-  let doneTotal = 0;
 
   for (const o of orders) {
-    // 확인되는 사실만 — 추측하지 않는다
-    const issued = !!o.maker_org_id;
-    const accepted = o.quote?.status === 'ordered' || o.quote?.status === 'completed' || !!o.accepted_at;
     const issuedAt = o.assigned_at ?? o.created_at;
-
-    const done = new Set<string>();
-    if (issued) done.add('po_issued');
-    if (issued && accepted) done.add('po_accepted');
-
     const rows = STEPS.map(s => ({
-      order_id: o.id,
-      code: s.code,
-      track: s.track,
-      status: done.has(s.code) ? 'done' : 'pending',
-      planned_at: s.code === 'po_accepted' && done.has('po_accepted') ? o.delivery_due : null,
-      entered_at: issuedAt,
-      done_at: done.has(s.code) ? (s.code === 'po_accepted' ? (o.accepted_at ?? issuedAt) : issuedAt) : null,
-      done_by: done.has(s.code) ? 'system(이관)' : null,
-      note: done.has(s.code) ? '이관 — 주문 기록에서 확인된 사실(증빙 파일 없음)' : null,
+      order_id: o.id, code: s.code, track: s.track, status: 'pending', entered_at: issuedAt,
     }));
 
     rowsTotal += rows.length;
-    doneTotal += done.size;
 
-    const why = [
-      issued ? '배정됨' : null,
-      accepted ? `수락됨(${o.quote?.status})` : null,
-    ].filter(Boolean).join(' · ') || '확인된 사실 없음';
-    console.log(`  주문 #${String(o.id).padEnd(3)} 완료 ${done.size}/${STEPS.length}  · ${why}`);
+    const known = [
+      o.maker_org_id ? '배정됨' : null,
+      o.accepted_at || o.quote?.status === 'ordered' || o.quote?.status === 'completed' ? '수락됨' : null,
+      o.delivery_due ? `납기 ${o.delivery_due.toISOString().slice(0, 10)}` : null,
+    ].filter(Boolean).join(' · ') || '기록 없음';
+    console.log(`  주문 #${String(o.id).padEnd(3)} 단계 ${STEPS.length}개 깔음 (전부 대기)  · 주문 기록: ${known}`);
 
     if (write) {
       // 이미 있는 행은 건드리지 않는다 — 사람이 그 뒤에 채운 값을 덮으면 안 된다
@@ -92,7 +72,7 @@ async function main() {
     }
   }
 
-  console.log(`\n  단계 행 ${rowsTotal}개 (확인된 완료 ${doneTotal} / 담당자가 채울 것 ${rowsTotal - doneTotal})`);
+  console.log(`\n  단계 행 ${rowsTotal}개 — 전부 대기. 담당자가 화면에서 실제 상태를 채웁니다.`);
   if (!write) console.log(`\n  반영하려면:  npm run migrate:steps -- --write\n`);
   else console.log(`\n  반영했습니다. 나머지 단계는 담당자가 화면에서 실제 상태를 채웁니다.\n`);
 }
