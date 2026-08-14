@@ -459,8 +459,55 @@ model Order {
   options   OrderOption[]
   documents Document[]
   generated_documents GeneratedDocument[]
+  steps     OrderStep[]
+  files     OrderFile[]
 
   @@map("order")
+}
+
+/// 주문 단계 진행. 정의(순서·선행조건·필수증빙)는 코드에 있다 — shared/process/steps.ts
+model OrderStep {
+  id         Int       @id @default(autoincrement())
+  order_id   Int
+  code       String    @db.VarChar(40)
+  track      String    @db.VarChar(10)
+  status     String    @default("pending") @db.VarChar(12)
+  /// 약속한 날 (납기·검사예정일·인도일)
+  planned_at DateTime? @db.Date
+  /// 이 단계에 들어온 시각 = 정체 일수의 기산점
+  entered_at DateTime?
+  done_at    DateTime?
+  done_by    String?   @db.VarChar(120)
+  note       String?   @db.VarChar(300)
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@unique([order_id, code], map: "order_step_unique")
+  @@index([order_id], map: "order_step_order_idx")
+  @@index([status, entered_at], map: "order_step_status_idx")
+  @@map("order_step")
+}
+
+/// 단계 증빙 파일. 사진은 줄여서, 서류는 원본으로 저장한다.
+model OrderFile {
+  id            Int      @id @default(autoincrement())
+  order_id      Int
+  step_code     String   @db.VarChar(40)
+  kind          String   @db.VarChar(30)
+  /// 릴리스 슬롯 밖(/opt/buildup-ev/shared/uploads) — 슬롯 안에 두면 다음 배포에 사라진다
+  path          String   @db.VarChar(300)
+  original_name String?  @db.VarChar(200)
+  mime          String?  @db.VarChar(60)
+  size_bytes    Int?
+  /// 원본을 지킨 파일인지(서류) 줄인 것인지(사진)
+  kept_original Boolean  @default(false)
+  uploaded_by   String   @db.VarChar(120)
+  uploaded_at   DateTime @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id, step_code], map: "order_file_order_idx")
+  @@map("order_file")
 }
 
 model OrderOption {

@@ -10,7 +10,8 @@
     "./pricing": "./pricing/core.ts",
     "./bom": "./bom/core.ts",
     "./bom/weight-constants": "./bom/weight-constants.ts",
-    "./schedule": "./schedule/businessDays.ts"
+    "./schedule": "./schedule/businessDays.ts",
+    "./process": "./process/steps.ts"
   },
   "scripts": {
     "test": "vitest run",

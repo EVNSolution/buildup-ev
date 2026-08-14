@@ -11,7 +11,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "bootstrap": "tsx prisma/bootstrap.ts",
-    "dev:demo": "tsx src/scripts/dev-demo.ts"
+    "dev:demo": "tsx src/scripts/dev-demo.ts",
+    "migrate:steps": "tsx src/scripts/migrate-order-steps.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
