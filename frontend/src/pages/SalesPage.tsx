@@ -332,12 +332,11 @@ function MyListView() {
               </thead>
               {byDate.map(([date, rows]) => {
                 const isOpen = !collapsed.has(date)
-                const sum = rows.reduce((a, r) => a + (r.final_price ?? 0), 0)
                 return (
               <tbody key={date}>
                 {/*
                   날짜 머리 — 누르면 그 날짜만 접힌다.
-                  건수·합계를 함께 두어 **펼치지 않고도** 그 날 규모가 보이게 한다.
+                  건수만 붙인다. 금액 합계는 마이페이지가 따로 집계하므로 여기선 중복이다.
                 */}
                 <tr
                   style={lv.groupRow}
@@ -351,7 +350,6 @@ function MyListView() {
                     <span style={lv.groupArrow}>{isOpen ? '▾' : '▸'}</span>
                     <span style={lv.groupDate}>{date}</span>
                     <span style={lv.groupCount}>{rows.length}건</span>
-                    <span style={lv.groupSum}>{fmtPrice(sum)}</span>
                   </td>
                 </tr>
                 {isOpen && rows.map(q => {
@@ -977,8 +975,7 @@ const lv: Record<string, React.CSSProperties> = {
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
   tableWrap: { overflowX: 'auto' },
   /*
-   * 날짜 머리 — **칸을 채우지 않는다**. 위쪽 헤어라인 하나로 묶음을 나누고,
-   * 오른쪽에 그 날 합계를 둔다(펼치지 않고도 규모가 보이게).
+   * 날짜 머리 — **칸을 채우지 않는다**. 위쪽 헤어라인 하나로 묶음을 나눈다.
    */
   groupRow: { cursor: 'pointer' },
   groupCell: {
@@ -991,10 +988,6 @@ const lv: Record<string, React.CSSProperties> = {
     letterSpacing: 'var(--ls-tight)', fontVariantNumeric: 'tabular-nums' as const,
   },
   groupCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  groupSum: {
-    marginLeft: 'auto', fontSize: 'var(--fs-label)', color: 'var(--muted)',
-    fontVariantNumeric: 'tabular-nums' as const,
-  },
   // 폭이 모자라면 칸을 **줄여서 글자를 접지 말고** 가로로 넘겨 스크롤한다.
   // (예전엔 고객명이 한 글자씩 세로로 접히고 배지·버튼이 눌려 찌그러졌다)
   table: { width: '100%', minWidth: 'max-content', borderCollapse: 'collapse', fontSize: 13 },

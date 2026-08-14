@@ -195,6 +195,24 @@ input[type='number'] {
   color: var(--body);
   font-family: inherit;
 }
+/*
+ * 날짜칸 — 위 목록과 **높이만 같고 폭은 다르다**. 「연도.월.일.」+ 달력 아이콘이라
+ * 내용 폭이 정해져 있어 width:100% 를 주면 필터 줄에서 혼자 늘어난다.
+ * 예전엔 이 규칙이 없어 마이페이지·관리자 필터의 날짜칸이 29~33px 로 떴고,
+ * 같은 줄의 「조회」 버튼(36px · 터치 44px)과 눈에 띄게 어긋났다.
+ */
+input[type='date'] {
+  font-size: var(--fs-label);
+  padding: 0 var(--sp-2);
+  min-height: var(--h-control);
+  min-width: 0;              /* 좁은 화면에서 줄어들 수 있게 */
+  max-width: 100%;
+  border: var(--hairline);
+  border-radius: var(--r-sm);
+  background: #fff;
+  color: var(--body);
+  font-family: inherit;
+}
 /* 여러 줄 입력은 높이를 강제하지 않는다 — 좌우 여백만 맞춘다 */
 textarea {
   font-size: var(--fs-body);
@@ -277,4 +295,16 @@ input, select, textarea, button {
  */
 @media (pointer: coarse) {
   #root { zoom: 0.88; }
+}
+
+/*
+ * 깔때기(마이페이지·영업 성과) — 아주 좁은 화면에서는 **화살표의 전환율을 감춘다**.
+ *
+ * 6단계 사이의 화살표 5개가 각각 「33%」를 달고 있으면, 320px 화면에서 그 숫자들이
+ * 폭의 45% 를 가져가 정작 단계 이름(「견적확정」)이 잘린다(실측: 필요 31px / 있음 19px).
+ * 전환율은 넓은 화면에서 보면 되고, 좁은 화면에서 먼저 지켜야 하는 것은 6단계의 흐름이다.
+ * 폭 기준은 화면이 아니라 **깔때기 자신의 폭**(container query) — 옆에 다른 칸이 붙어도 맞는다.
+ */
+@container (max-width: 380px) {
+  .funnel-rate { display: none; }
 }

@@ -4,6 +4,7 @@ import {
   type SalesStat, type AttentionItem, type FunnelStage,
 } from '../api/stats'
 import { BTN } from '../styles/buttons'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 /**
  * 영업 성과 — 영업의 「마이페이지」와 관리자의 「영업 성과」가 **같은 화면**을 쓴다.
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
+  const isMobile = useIsMobile()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [user, setUser] = useState('')
@@ -97,6 +99,30 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           </div>
           {attention.length === 0 ? (
             <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
+          ) : isMobile ? (
+            /*
+              휴대폰 — 표를 옆으로 밀어 보게 하지 않는다.
+              여기가 「오늘 붙어야 할 건」이라 화면에 들어오는 것이 전부인데,
+              5칸짜리 표는 390px 에서 절반이 화면 밖으로 나간다(실측 ~630px 필요).
+              한 건을 세 줄로 편다 — 사유·경과일 / 사유설명 / 번호·고객·금액.
+            */
+            <div>
+              {attention.map(a => (
+                <div key={`${a.quote_id}-${a.kind}`} style={s.item}>
+                  <div style={s.itemTop}>
+                    <span style={KIND_KO[a.kind].tone === 'warn' ? s.tagWarn : s.tagInfo}>{KIND_KO[a.kind].label}</span>
+                    <span style={s.itemDays}>{a.days}일</span>
+                  </div>
+                  <div style={s.why}>{KIND_KO[a.kind].why}</div>
+                  <div style={s.itemBottom}>
+                    <span style={s.itemNo}>{a.quote_no ?? `#${a.quote_id}`}</span>
+                    <span style={s.itemCustomer}>{a.customer ?? '—'}</span>
+                    <span style={s.itemPrice}>{a.final_price ? won(a.final_price) : '—'}</span>
+                  </div>
+                  {showUserFilter && <div style={s.itemOwner}>담당 {a.sales_user_id ?? '—'}</div>}
+                </div>
+              ))}
+            </div>
           ) : (
             <div style={s.tableWrap}>
               <table style={s.table}>
@@ -204,7 +230,8 @@ function Funnel({ reached }: { reached: Record<FunnelStage, number> }) {
             {i > 0 && (
               <div style={s.arrow}>
                 <div style={s.arrowMark}>›</div>
-                <div style={r !== null && r < 50 ? s.rateLow : s.rate}>{r === null ? '—' : `${r}%`}</div>
+                {/* funnel-rate — 아주 좁은 화면에서는 globals.css 가 이 줄을 감춘다(단계 이름이 먼저다) */}
+                <div className="funnel-rate" style={r !== null && r < 50 ? s.rateLow : s.rate}>{r === null ? '—' : `${r}%`}</div>
               </div>
             )}
             <div style={s.step}>
@@ -260,9 +287,11 @@ function Lead({ label, v }: { label: string; v: { days: number | null; n: number
 }
 
 const s: Record<string, React.CSSProperties> = {
-  bar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' },
-  date: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
-  select: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8, minWidth: 220 },
+  bar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' },
+  // 모양·높이는 globals.css 가 정한다 — 여기서는 **줄어드는 방식만** 정한다
+  date: { flex: '0 1 auto', minWidth: 0 },
+  // 계정 선택(관리자) — 늘어나지 않고, 좁아지면 다른 칸과 함께 줄어든다
+  select: { flex: '0 1 220px', minWidth: 0, maxWidth: '100%' },
   sep: { color: 'var(--muted)' },
   hint: { fontSize: 12.5, color: 'var(--muted)' },
   section: { marginBottom: 26 },
@@ -287,7 +316,8 @@ const s: Record<string, React.CSSProperties> = {
    * 단계 칸 — **배경을 채우지 않는다.** 회색 상자 여섯 개가 늘어서면 흐름이 아니라
    * 덩어리로 읽힌다. 숫자와 이름만 두고, 사이의 화살표가 흐름을 만든다.
    */
-  step: { padding: 'var(--sp-2) var(--sp-1)', textAlign: 'center', flex: '1 1 0', minWidth: 0 },
+  // 좌우 여백 없음 — 320px 에서는 4px 씩만 있어도 「견적확정」이 잘린다(실측). 사이는 gap 이 만든다
+  step: { padding: 'var(--sp-2) 0', textAlign: 'center', flex: '1 1 0', minWidth: 0 },
   // 6칸이라 한 칸이 대략 컨테이너의 1/8~1/6 — 그 폭 안에서 네 글자가 접히지 않는 크기로 묶는다
   stepName: { fontSize: 'clamp(9px, 1.9cqi, 13px)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
   stepNum: { fontSize: 'clamp(13px, 3.1cqi, 20px)', fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
@@ -305,10 +335,16 @@ const s: Record<string, React.CSSProperties> = {
    * 열 사이는 여백으로만 나눈다 — 선을 그으면 표처럼 보여 읽는 순서가 흐려진다.
    */
   groups: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    // 220px — 태블릿(768) 에서도 세 묶음이 한 줄에 들어가는 최소값(260 이면 2+1 로 어긋난다)
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
     gap: 'var(--sp-5)', marginTop: 'var(--sp-4)',
   },
-  group: { minWidth: 0 },
+  /*
+   * 한 묶음의 폭은 **420px 에서 멈춘다**. 라벨(좌)–값(우) 사이가 벌어질수록
+   * 어느 값이 어느 라벨의 것인지 눈으로 잇기 어려워진다 — 넓은 화면에서는
+   * 칸을 늘리는 대신 왼쪽에 모아 둔다.
+   */
+  group: { minWidth: 0, maxWidth: 420 },
   groupTitle: {
     fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 'var(--fw-label)' as React.CSSProperties['fontWeight'],
     letterSpacing: 'var(--ls-tight)', paddingBottom: 'var(--sp-2)', borderBottom: 'var(--hairline)',
@@ -327,6 +363,19 @@ const s: Record<string, React.CSSProperties> = {
     fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const,
   },
   metricNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 2, lineHeight: 'var(--lh-body)' },
+
+  /* 휴대폰용 한 건 — 칸을 채우지 않고 줄로만 나눈다(표 스타일과 같은 원칙) */
+  item: { padding: 'var(--sp-3) 0', borderBottom: 'var(--hairline)' },
+  itemTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-2)' },
+  itemDays: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', whiteSpace: 'nowrap' as const },
+  itemBottom: {
+    display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)', marginTop: 'var(--sp-2)',
+  },
+  itemNo: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
+  // 고객명만 길어질 수 있다 — 여기서만 줄이고 번호·금액은 온전히 남긴다
+  itemCustomer: { flex: 1, minWidth: 0, fontSize: 'var(--fs-label)', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  itemPrice: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' as const, whiteSpace: 'nowrap' as const },
+  itemOwner: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 2 },
 
   tableWrap: { overflowX: 'auto' },
   table: { width: '100%', minWidth: 'max-content', borderCollapse: 'collapse', fontSize: 13 },

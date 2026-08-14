@@ -1253,9 +1253,11 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
-  filterBar: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
-  select: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
-  dateInput: { fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--line)', borderRadius: 8 },
+  filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
+  // 모양·높이는 globals.css — 여기서는 줄어드는 방식만 (인라인으로 덮으면 옆 버튼과 높이가 어긋난다)
+  // 늘어나지는 않고(0) 좁아지면 줄어든다(1) — grow 를 주면 넓은 화면에서 「전체 상태」 하나가 1182px 를 차지한다(실측)
+  select: { flex: '0 1 160px', minWidth: 0, maxWidth: '100%' },
+  dateInput: { flex: '0 1 auto', minWidth: 0 },
   dateSep: { color: 'var(--muted)', fontSize: 13 },
   searchBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
   errMsg: { color: 'var(--warn)', fontSize: 13, marginBottom: 10 },
