@@ -411,6 +411,8 @@ model Quote {
   source        String      @default("sales") @db.VarChar(10)
   sales_user_id String?     @db.VarChar(120)
   org_id        String?     @db.VarChar(30)
+  /// 담당 영업이 배정을 **수락한** 시각. NULL = 수락 대기(또는 배정 전). 재배정 시 NULL 로 돌린다.
+  sales_accepted_at DateTime?
   created_at    DateTime    @default(now())
 
   // 참고용 메일 발송(견적서·계약서 PDF 첨부) 이력 — 전자서명(purchase_contract)과는 별개 채널.

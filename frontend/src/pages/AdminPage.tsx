@@ -887,7 +887,12 @@ function QuotesTab() {
                 </div>
                 <div style={qtMob.row}>
                   <span style={qtMob.label}>영업</span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{q.sales_user_id ?? '—'}</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {q.sales_user_id ?? '—'}
+                    {q.source === 'public' && q.sales_user_id && !q.sales_accepted_at && (
+                      <span style={qt.waitAccept}> · 수락 대기</span>
+                    )}
+                  </span>
                 </div>
                 <div style={qtMob.row}>
                   <span style={qtMob.label}>실구매가</span>
@@ -966,7 +971,13 @@ function QuotesTab() {
                 <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
                   <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}</td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
-                  <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>{q.sales_user_id ?? '—'}</td>
+                  <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>
+                    {q.sales_user_id ?? '—'}
+                    {/* 배정만 해 놓고 영업이 아직 받지 않은 건 — 관리자가 되짚어야 하는 상태다 */}
+                    {q.source === 'public' && q.sales_user_id && !q.sales_accepted_at && (
+                      <span style={qt.waitAccept}> · 수락 대기</span>
+                    )}
+                  </td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
                     <Tooltip text={quoteStatusTip(q.status)} placement="below">
@@ -1290,6 +1301,7 @@ const qt: Record<string, React.CSSProperties> = {
   td: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle' as const, whiteSpace: 'nowrap' as const },
   tdMuted: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const },
   // 영업 이메일은 길어질 수 있다 — 표 전체를 밀어내지 않게 여기서만 줄임표로 자른다
+  waitAccept: { color: 'var(--req)', fontWeight: 700 },
   tdEmail: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 12, whiteSpace: 'nowrap' as const, maxWidth: 210, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const },
   tdNum: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, whiteSpace: 'nowrap' as const },
   // 표 안 버튼 — 영업 화면 목록과 **같은 크기**(BTN.sm*). 색만 역할에 맞게 얹는다

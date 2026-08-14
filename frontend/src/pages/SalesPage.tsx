@@ -8,7 +8,7 @@ import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs, acceptSalesQuote } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { BTN } from '../styles/buttons'
@@ -25,6 +25,8 @@ import { SalesPerformance } from '../components/SalesPerformance'
 import { CustomerViewModal } from '../components/CustomerViewModal'
 import { EmailSendModal } from '../components/EmailSendModal'
 import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
+import { InboxPanel } from '../components/InboxPanel'
+import { QuoteAcceptModal } from '../components/QuoteAcceptModal'
 import { Tooltip } from '../components/Tooltip'
 import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
@@ -124,6 +126,9 @@ function MyListView() {
   const [editQuote, setEditQuote] = useState<ApiQuote | null>(null)
   const [viewQuote, setViewQuote] = useState<ApiQuote | null>(null)
   const [dupBusy, setDupBusy] = useState<number | null>(null)
+  /** 배정 문의 — 상세를 열어 둔 건 / 수락 처리 중인 건 */
+  const [acceptView, setAcceptView] = useState<ApiQuote | null>(null)
+  const [acceptBusy, setAcceptBusy] = useState<number | null>(null)
   /**
    * 접어 둔 날짜 — 기본은 **가장 최근 날짜만 펼침**.
    * 목록이 쌓이면 "오늘 뭘 했나"를 먼저 보게 되고, 지난 날짜는 필요할 때만 편다.
@@ -165,6 +170,26 @@ function MyListView() {
   // order_id 빠른 조회용 (quote_id → order)
   const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
 
+  /*
+   * 수락 대기 — 관리자가 나에게 배정한 **공개 창구 문의**.
+   *
+   * 배정만으로 담당이 정해졌다고 보지 않는다. 받겠다고 누르기 전까지는 「아무도 안 본 건」이라
+   * 아래 목록에 섞여 묻히면 안 된다 — 그래서 목록 위에 따로 세운다.
+   * (영업이 직접 만든 견적은 이미 자기 것이라 여기 오지 않는다)
+   */
+  const pendingAccept = quotes.filter(q => q.source === 'public' && !q.sales_accepted_at)
+
+  async function handleAccept(quoteId: number) {
+    setAcceptBusy(quoteId); setErr('')
+    try {
+      await acceptSalesQuote(quoteId)
+      setAcceptView(null)
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '수락 실패')
+    } finally { setAcceptBusy(null) }
+  }
+
   /**
    * 날짜별 묶음 — 목록이 쌓이면 "언제 것인지"가 먼저 필요한 정보가 된다.
    * 서버가 최신순으로 주므로 **순서를 다시 정렬하지 않는다**(Map 이 삽입 순서를 지킨다).
@@ -191,7 +216,14 @@ function MyListView() {
    *    이미 한 번 받아 둔 목록이 있으면 그대로 두고 조용히 갱신한다.
    */
   if (loading && quotes.length === 0) return <div style={lv.empty}>로딩 중…</div>
-  if (err)     return <div style={{ ...lv.empty, color: 'var(--warn)' }}>{err}</div>
+  /*
+   * ⚠️ 오류가 났다고 **목록을 통째로 갈아치우지 않는다.**
+   *    예전에는 여기서 오류 문구만 남기고 return 했다. 그래서 목록을 다 받아 둔 뒤의
+   *    실패(수락·복제 같은 동작 실패)에도 화면에서 견적이 전부 사라졌다 — 무엇이
+   *    실패했는지도, 방금까지 보던 목록도 함께 없어졌다(수락 기능을 붙이다 실제로 겪음).
+   *    받아 둔 목록이 없을 때만 오류로 화면을 채우고, 그 밖에는 목록 위에 띠로 얹는다.
+   */
+  if (err && quotes.length === 0) return <div style={{ ...lv.empty, color: 'var(--warn)' }}>{err}</div>
 
   return (
     <>
@@ -306,7 +338,31 @@ function MyListView() {
         onDone={load}
       />
     )}
+    {acceptView && (
+      <QuoteAcceptModal
+        quote={acceptView}
+        busy={acceptBusy === acceptView.id}
+        // 이미 받은 건을 다시 열어 볼 때는 받기 버튼을 두지 않는다
+        onAccept={acceptView.sales_accepted_at ? null : () => handleAccept(acceptView.id)}
+        onClose={() => setAcceptView(null)}
+      />
+    )}
     <div style={lv.root}>
+      {err && <div style={lv.errBar}>{err}</div>}
+      <InboxPanel
+        title="배정된 문의"
+        items={pendingAccept.map(q => ({
+          id: q.id,
+          no: q.quote_no ?? `#${q.id}`,
+          title: q.customer?.name ?? '고객 미상',
+          sub: `${q.model_code} · ${fmtPrice(q.final_price)}`,
+          meta: fmtDate(q.created_at),
+        }))}
+        acceptLabel="문의 받기"
+        busyId={acceptBusy}
+        onView={id => setAcceptView(pendingAccept.find(q => q.id === id) ?? null)}
+        onAccept={handleAccept}
+      />
       <div style={lv.section}>
         <div style={lv.sectionTitle}>내 견적 ({quotes.length})</div>
         {quotes.length === 0 ? (
@@ -969,6 +1025,12 @@ const styles = {
 }
 
 const lv: Record<string, React.CSSProperties> = {
+  // 동작이 실패했을 때 목록 위에 얹는 띠 — 목록은 그대로 둔다
+  errBar: {
+    fontSize: 'var(--fs-label)', color: 'var(--warn)', background: 'var(--warnbg)',
+    border: '0.5px solid var(--warn)', borderRadius: 'var(--r-sm)',
+    padding: 'var(--sp-2) var(--sp-3)', marginBottom: 'var(--sp-3)',
+  },
   root: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 },

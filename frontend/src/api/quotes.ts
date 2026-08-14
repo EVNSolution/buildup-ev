@@ -248,6 +248,18 @@ export async function duplicateQuote(quoteId: number): Promise<{ id: number; quo
  * 공개 문의를 영업사원에게 배정한다(관리자).
  * 배정되는 순간 견적번호가 처음 발급되고, 그 영업의 「내 견적」에 나타난다.
  */
+/** 담당 영업이 배정된 공개 문의를 받는다(특장사의 주문 수락과 같은 자리). */
+export async function acceptSalesQuote(quoteId: number): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/accept-sales`, {
+    method: 'PATCH',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `수락 실패: ${res.status}`)
+  }
+}
+
 export async function assignSalesQuote(quoteId: number, salesUserId: string): Promise<{ quote_no: string }> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/assign-sales`, {
     method: 'PATCH',
