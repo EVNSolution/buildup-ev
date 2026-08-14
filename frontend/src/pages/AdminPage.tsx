@@ -69,16 +69,26 @@ function quoteStatusTip(status: string): React.ReactNode {
   )
 }
 
+/**
+ * 기능모듈 설명 — **DB 의 feature_module 코드와 짝이 맞아야 한다.**
+ * 예전에는 존재하지 않는 코드(kanban.*·admin.*·document.generate)를 적어 두고
+ * 정작 실재하는 여러 모듈에는 설명이 없었다 — 켜고 끄는 사람이 무엇을 켜는지 알 수 없다.
+ */
 const MODULE_DESC: Record<string, string> = {
   'quote.create': '견적 작성 및 저장',
-  'quote.confirm': '견적서 확정·생성 (영업)',
-  'order.confirm': '주문 전환·특장사 배정 (관리자)',
-  'order.view': '주문 현황 조회',
-  'kanban.view': '주문 진행 조회',
-  'kanban.control': '주문 단계 처리',
-  'admin.accounts': '계정 발급 및 권한 관리',
-  'admin.modules': '기능 모듈 ON/OFF 제어',
-  'document.generate': '구조변경 서류 자동 생성',
+  'quote.edit': '견적 수정·복제',
+  'quote.delete': '견적 삭제',
+  'quote.confirm': '견적서 확정·생성',
+  'order.confirm': '주문 전환 및 특장사 배정',
+  'order.view': '주문 진행 조회',
+  'order.control': '주문 단계 완료·증빙 등록 (끄면 조회만)',
+  'doc.view': '구조변경 서류 조회',
+  'doc.send.email': '견적서·계약서 메일 발송',
+  'doc.send.sign': '전자서명 발송',
+  'account.manage': '계정 발급 및 권한 관리',
+  'basedata.manage': '옵션DB·무게상수 관리',
+  'stats.own': '내 실적 조회',
+  'stats.all': '전체 실적 조회',
 }
 type TabKey = 'quotes' | 'perf' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
 

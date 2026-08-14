@@ -12,7 +12,7 @@
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
-import { rbac, isAdmin } from '../middleware/rbac.js';
+import { rbac, isAdmin, requirePermission } from '../middleware/rbac.js';
 import {
   STEPS, STEP_BY_CODE, canComplete, canUndo, isOverdue, overdueDays, newlyOpened,
   type EvidenceKind, type StepState,
@@ -27,6 +27,15 @@ import {
 } from '../lib/uploads.js';
 
 export const stepsRouter = Router();
+
+/**
+ * 단계를 **바꾸는** 동작에 필요한 권한 — 기능모듈 「주문 상태 변경」(order.control).
+ *
+ * 조회에는 걸지 않는다. 관리자가 진행을 들여다보는 것과 단계를 대신 완료 처리하는 것은
+ * 다른 일이라, 계정마다 켜고 끌 수 있어야 한다(특장사 역할에는 기본으로 켜져 있다).
+ * ⚠️ 화면에서 버튼을 감추는 것만으로는 막은 것이 아니다 — 서버가 최종 판정한다.
+ */
+const canChangeSteps = requirePermission('order.control');
 
 /**
  * 핸들러 예외를 붙잡아 **이유를 실어** 돌려준다.
@@ -190,7 +199,7 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
 }));
 
 // ── PATCH /orders/:id/steps/:code — 단계 완료 ─────────────────────────────
-stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
+stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChangeSteps, guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const code = String(req.params['code'] ?? '');
   if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
@@ -278,7 +287,7 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), guard(asy
 // 잘못 누르는 일은 반드시 생긴다. 되돌릴 길이 없으면 사람들은 **틀린 기록을 그냥 두거나**
 // DB 를 직접 고쳐 달라고 한다 — 둘 다 기록을 못 믿게 만든다.
 // 대신 **뒤 단계가 이미 끝났으면 막는다**(뒤에서부터 풀어야 앞뒤가 맞는다).
-stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
+stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), canChangeSteps, guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const code = String(req.params['code'] ?? '');
   if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
@@ -329,7 +338,7 @@ const upload = multer({
 });
 
 // POST /orders/:id/steps/:code/files
-stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), upload.single('file'),
+stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), canChangeSteps, upload.single('file'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     const code = String(req.params['code'] ?? '');
@@ -406,7 +415,7 @@ stepsRouter.get('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), guard(asy
 }));
 
 // DELETE /orders/:id/files/:fileId — 잘못 올린 것 지우기
-stepsRouter.delete('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req: Request, res: Response): Promise<void> => {
+stepsRouter.delete('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), canChangeSteps, guard(async (req: Request, res: Response): Promise<void> => {
   const id = orderId(req);
   const fileId = Number(req.params['fileId']);
   if (id === null || !Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 주문 번호입니다' } }); return; }
