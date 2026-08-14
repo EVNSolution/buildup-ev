@@ -48,12 +48,19 @@ export function OrderStepsBoard({ orders, onCardClick }: {
                   : <span style={s.muted}>{done === total ? '모든 단계 완료' : '다른 단계가 끝나야 진행됩니다'}</span>}
               </div>
             </div>
+            {/*
+              납기를 진척도 **왼쪽**에 둔다 — 「언제까지인가」를 먼저 읽고 「얼마나 왔나」를 본다.
+              둘 사이는 넉넉히 띄운다. 붙여 두면 「0/15」와 날짜가 한 덩어리로 읽혀
+              무엇이 진척이고 무엇이 기한인지 구분되지 않는다.
+            */}
             <div style={s.side}>
-              <span style={s.count}>{done}/{total}</span>
-              <span style={s.bar}>
-                <span style={{ ...s.barFill, width: `${Math.round((done / total) * 100)}%`, background: late ? 'var(--req)' : 'var(--lime)' }} />
+              <span style={s.due}>{o.delivery_due ? `납기 ${o.delivery_due.slice(0, 10)}` : ''}</span>
+              <span style={s.progress}>
+                <span style={s.count}>{done}/{total}</span>
+                <span style={s.bar}>
+                  <span style={{ ...s.barFill, width: `${Math.round((done / total) * 100)}%`, background: late ? 'var(--req)' : 'var(--lime)' }} />
+                </span>
               </span>
-              {o.delivery_due && <span style={s.due}>납기 {o.delivery_due.slice(0, 10)}</span>}
             </div>
           </button>
         )
@@ -84,10 +91,14 @@ const s: Record<string, React.CSSProperties> = {
   open: { fontSize: 'var(--fs-caption)', color: 'var(--dark)' },
   openLate: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 600 },
   muted: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  side: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexShrink: 0 },
+  // 납기 ↔ 진척도 사이는 --sp-6(32px). 붙어 있으면 한 덩어리로 읽힌다
+  side: { display: 'flex', alignItems: 'center', gap: 'var(--sp-6)', flexShrink: 0 },
+  // 진척도는 숫자와 막대가 한 벌 — 이 둘만 붙어 있어야 한다
+  progress: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   count: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   bar: { display: 'block', width: 64, height: 4, borderRadius: 999, background: 'var(--line)', overflow: 'hidden' },
   barFill: { display: 'block', height: '100%', borderRadius: 999 },
-  due: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
+  // 납기가 없어도 자리를 지킨다 — 줄마다 진척도 위치가 흔들리면 세로로 훑기 어렵다
+  due: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', minWidth: 96, textAlign: 'right' },
   empty: { padding: 'var(--sp-5) 0', textAlign: 'center', color: 'var(--muted)', fontSize: 'var(--fs-label)' },
 }

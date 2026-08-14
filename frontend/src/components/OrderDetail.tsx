@@ -11,6 +11,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
 import { OrderStepsPanel } from './OrderStepsPanel'
 import { OrderEvidenceList } from './OrderEvidenceList'
+import { usePermission } from './PermGate'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -396,6 +397,8 @@ interface Props {
 }
 
 export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false }: Props) {
+  // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
+  const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -474,7 +477,12 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
 
       {tab === 'steps' && (
         <div style={det.section}>
-          <OrderStepsPanel orderId={detail.id} />
+          {/*
+            단계를 **바꾸는** 권한이 없으면 완료·등록·삭제 버튼을 아예 두지 않는다.
+            눌러 보고 403 을 받게 하는 것은 안내가 아니다 — 기능모듈 「주문 상태 변경」
+            (order.control)이 꺼진 계정에는 조회만 보인다. 서버도 같은 권한으로 막는다.
+          */}
+          <OrderStepsPanel orderId={detail.id} canEdit={canChangeSteps} />
         </div>
       )}
 
