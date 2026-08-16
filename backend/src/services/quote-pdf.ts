@@ -37,13 +37,17 @@ function esc(v: unknown): string {
   return String(v ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] ?? c));
 }
 
-interface Row { label: string; amount: string }
+/**
+ * 반복 행 한 줄. **키를 label·amount 로 고정하지 않는다** — 프로모션 행처럼 다른 칸
+ * (동그라미 번호 등)을 쓰는 반복도 있어서, 템플릿이 부르는 이름을 그대로 받는다.
+ */
+type Row = Record<string, string>;
 
 // ── 미니 템플릿 엔진 ──
 function renderEach(tpl: string, name: string, items: Row[]): string {
   const re = new RegExp(`<!-- each:${name} -->([\\s\\S]*?)<!-- /each:${name} -->`, 'g');
   return tpl.replace(re, (_m, inner: string) =>
-    items.map((it) => inner.replace(/\{\{\s*item\.(\w+)\s*\}\}/g, (_x, k: string) => esc((it as Record<string, unknown>)[k]))).join(''));
+    items.map((it) => inner.replace(/\{\{\s*item\.(\w+)\s*\}\}/g, (_x, k: string) => esc(it[k]))).join(''));
 }
 /** 세 열 콘텐츠 행수를 세서 부족분을 pad에 .blank 로 채워 final 행 정렬. */
 function renderPad(tpl: string): string {
@@ -112,6 +116,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     down_payment_rate: inp['down_payment_rate'] as number | undefined,
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+    promotion_discount: inp['promotion_discount'] as number | undefined,
     local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
   }, quote.created_at.getFullYear());
   const r = calcQuote(params);
@@ -165,6 +170,28 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     ? `${quote.sales_user.name} (${quote.sales_user.email})`
     : (quote.sales_user_id ?? '');
 
+  /*
+   * 프로모션 행 — **할인액이 있을 때만** 만든다. 0이면 빈 배열이라 행 자체가 사라진다.
+   * 금액은 **마이너스**로 찍는다 — 빼는 돈인데 양수로 적으면 더하는 것처럼 읽힌다
+   * (구매 혜택·보조금 행과 같은 규칙).
+   */
+  const promoAmount = Math.max(0, Math.round(r.promotion));
+  const CIRCLED = ['⑦', '⑧', '⑨', '⑩'];
+  let ci = 0;
+  const numbering = {
+    topPrice: CIRCLED[ci++]!,
+    promo: promoAmount > 0 ? CIRCLED[ci++]! : '',
+    topDelivery: '', topRegCost: '', topFormula: '',
+  };
+  numbering.topDelivery = CIRCLED[ci++]!;
+  numbering.topRegCost = CIRCLED[ci++]!;
+  // 「특장 초기 납부 금액 (⑧+⑨)」 — 번호가 밀리면 이 식도 함께 밀린다
+  numbering.topFormula = `${numbering.topDelivery}+${numbering.topRegCost}`;
+  const promoRow = promoAmount > 0
+    ? [{ no: numbering.promo, amount: `-${won(promoAmount)}` }]
+    : [];
+
+
   const data = {
     vehicleModel: modelName,
     workDate: quote.created_at.toISOString().slice(0, 10),
@@ -180,6 +207,12 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       plateFee: won(r.plate), stampFee: won(r.stamp), insuranceFee: won(r.insurance), regAgencyFee: won(r.reg_agency),
       regCost: won(r.car_reg_cost), initialPayment: won(r.car_initial),
     },
+    /*
+     * 동그라미 번호 — **프로모션 행이 있고 없고에 따라 뒤 번호가 밀린다.**
+     * 양식에 번호를 박아 두면 프로모션이 생기는 순간 「⑧ 인도금」이 둘이 되거나 번호가 건너뛴다.
+     * 차량 쪽 ①~⑥ 은 고정이라 특장 쪽만 여기서 센다.
+     */
+    n: numbering,
     top: {
       priceTotal: won(r.body_price),
       paymentAmount: won(r.body_payment), downPayment: won(r.body_deposit), deliveryPayment: won(r.body_delivery),
@@ -213,6 +246,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   html = renderEach(html, 'benefitRows', benefitRows);
   html = renderEach(html, 'subsidyRows', subsidyRows);
   html = renderEach(html, 'topOptions', topOptions);
+  html = renderEach(html, 'promoRow', promoRow);
   html = renderPad(html);
   html = renderTokens(html, data);
 

@@ -136,9 +136,12 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
   const [memo, setMemo] = useState<string>((inp['memo'] as string) ?? '')
   const [localOff, setLocalOff] = useState<boolean>((inp['local_subsidy_off'] as boolean) ?? false)
-  const [promoZeroed, setPromoZeroed] = useState<Set<string>>(
+  /** 옛 방식(0원 처리)으로 만든 견적 — 읽기 전용 안내에만 쓴다 */
+  const [promoZeroed] = useState<Set<string>>(
     () => new Set(((inp['promotion_zeroed'] as string[]) ?? [])),
   )
+  // 프로모션 할인액(원, VAT 포함) — 옛 0원처리와 별개다
+  const [promoDiscount, setPromoDiscount] = useState<number>(Number(inp['promotion_discount'] ?? 0))
 
   useEffect(() => {
     fetchPricingBundle(quote.model_code)
@@ -175,11 +178,11 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
       const extrasChanged =
         memo.trim() !== ((inp['memo'] as string) ?? '').trim()
         || localOff !== ((inp['local_subsidy_off'] as boolean) ?? false)
-        || [...promoZeroed].sort().join(',') !== [...((inp['promotion_zeroed'] as string[]) ?? [])].sort().join(',')
+        || promoDiscount !== Number(inp['promotion_discount'] ?? 0)
       await saveQuoteInputs(quote.id, {
         memo: memo.trim(),
         local_subsidy_off: localOff,
-        promotion_zeroed: [...promoZeroed],
+        promotion_discount: promoDiscount,
       })
       // 할인·보조금을 함께 바꿨으면 여기 금액은 이미 지난 값이다(서버가 뒤에 다시 계산한다).
       // 그럴 땐 금액을 말하지 않는다 — 틀린 숫자를 보여 주느니 목록에서 확인하는 편이 낫다.
@@ -219,17 +222,11 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         <div style={s.section}>메모 · 할인</div>
         <div style={s.extras}>
           <QuoteExtras
-            bundle={bundle}
-            selections={sel}
-            optionPrices={bundle.option_prices}
             memo={memo} onMemoChange={setMemo}
             localSubsidyOff={localOff} onToggleLocalSubsidy={setLocalOff}
-            promotionZeroed={promoZeroed}
-            onTogglePromotion={g => setPromoZeroed(prev => {
-              const next = new Set(prev)
-              if (next.has(g)) next.delete(g); else next.add(g)
-              return next
-            })}
+            promotionDiscount={promoDiscount}
+            onPromotionDiscountChange={setPromoDiscount}
+            zeroedLegacy={[...promoZeroed].map(g => bundle.groups.find(x => x.code === g)?.name ?? g)}
             disabled={frozen}
           />
         </div>

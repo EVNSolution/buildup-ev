@@ -21,8 +21,10 @@ export interface LiveTotalArgs {
   subsidyLocal: number
   /** 보조금 산정 조건이 갖춰졌는가(법인이거나 지역 선택됨) */
   subsidyReady: boolean
-  /** 영업 재량 — 공개 화면은 넘기지 않는다(빈 값) */
+  /** 옛 방식(0원 처리) — 옛 견적을 다시 계산할 때만 값이 있다 */
   promotionZeroed?: Set<string>
+  /** 프로모션 할인액(원, VAT 포함). 특장 가격에서 뺀다 */
+  promotionDiscount?: number
   localSubsidyOff?: boolean
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null
@@ -31,6 +33,7 @@ export interface LiveTotalArgs {
 export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
   const { bundle, selections, subsidyInputs, subsidyLocal, subsidyReady } = args
   const promotionZeroed = args.promotionZeroed ?? new Set<string>()
+  const promotionDiscount = Math.max(0, Math.round(args.promotionDiscount ?? 0))
   const localSubsidyOff = args.localSubsidyOff ?? false
   const customer = args.customer ?? null
 
@@ -58,7 +61,8 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
     has_transport_license: subsidyInputs.has_transport_license ?? false,
     takbae_rate: TAKBAE_RATE,
     body_price: Math.round(option_sum * 1.1),
-    promotion: 0,
+    // I18 — 서버(quote-calc)와 같은 규칙: 음수·특장가격 초과를 막는다
+    promotion: Math.min(promotionDiscount, Math.round(option_sum * 1.1)),
     car_deposit: t['car_deposit'] ?? 100_000,
     body_deposit: t['body_deposit'] ?? 400_000,
     down_payment_rate: 0,     // 선수금·할부는 견적서 생성 단계 입력

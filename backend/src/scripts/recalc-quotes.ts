@@ -48,6 +48,7 @@ for (const q of quotes) {
         down_payment_rate: inp['down_payment_rate'] as number | undefined,
         installment_months: inp['installment_months'] as number | undefined,
         promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+    promotion_discount: inp['promotion_discount'] as number | undefined,
         local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
       },
       q.created_at.getFullYear(),

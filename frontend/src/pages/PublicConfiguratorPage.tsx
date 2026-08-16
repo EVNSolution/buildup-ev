@@ -134,7 +134,7 @@ export function PublicConfiguratorPage() {
           publicMode
           saveLabel="상담 신청"
           memo="" onMemoChange={() => {}}
-          promotionZeroed={EMPTY} onTogglePromotion={() => {}}
+          promotionDiscount={0} onPromotionDiscountChange={() => {}} zeroedLegacy={[]}
           localSubsidyOff={false} onToggleLocalSubsidy={() => {}}
         />
       </div>
@@ -179,7 +179,6 @@ export function PublicConfiguratorPage() {
 }
 
 /** 매 렌더마다 새 Set 을 만들면 자식이 계속 다시 그려진다 */
-const EMPTY: Set<string> = new Set()
 
 const s: Record<string, React.CSSProperties> = {
   root: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' },
