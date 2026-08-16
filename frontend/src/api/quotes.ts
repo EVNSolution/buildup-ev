@@ -1,14 +1,14 @@
 import type { PricingOk, QuoteResult } from '@shared/pricing/core'
+import type { QuotePriceExtras } from '@shared/pricing/quote-request'
 import type { ApiQuote } from '@shared/types/index'
 
-export interface SaveQuoteRequest {
+export interface SaveQuoteRequest extends Partial<QuotePriceExtras> {
   model_code: string
   year?: number
   selections: Record<string, string>
   memo?: string                     // 메모/안내문
-  promotion_zeroed?: string[]       // 프로모션: 0원 처리 특장옵션 그룹코드
-  promotion_discount?: number       // 프로모션: 금액 할인(VAT 포함) — 특장 가격에서 뺀다
-  local_subsidy_off?: boolean       // 지방보조금 미적용(예산 소진 — 이 견적에만)
+  // 금액을 바꾸는 입력(프로모션·지방보조금 토글)은 shared 가 이름의 단일 소스다.
+  // 여기서 직접 나열하면 shared 에 항목이 늘어도 눈치채지 못한다 — 그러다 #182 가 났다.
   customer?: {
     name?: string
     ceo_name?: string               // 대표이사 — 법인사업자일 때만(계약서 서명블록)

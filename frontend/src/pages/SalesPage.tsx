@@ -7,6 +7,7 @@ import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
+import { quotePriceExtras } from '@shared/pricing/quote-request'
 import { fetchPricingBundle } from '../api/models'
 import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs, acceptSalesQuote } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
@@ -750,11 +751,9 @@ export function SalesPage() {
         year: new Date().getFullYear(),
         selections,
         memo: memo || undefined,
-        // 프로모션은 화면에서만 계산에 반영되던 값이다 — 저장 요청에 실어야 견적서까지 간다.
-        // 빠뜨리면 화면 금액과 저장된 견적이 어긋난다(견적서에 할인이 없는 채로 나간다).
-        promotion_zeroed: promotionZeroed.size > 0 ? [...promotionZeroed] : undefined,
-        promotion_discount: promotionDiscount > 0 ? promotionDiscount : undefined,
-        local_subsidy_off: localSubsidyOff || undefined,
+        // 화면 금액을 만든 입력을 그대로 싣는다 — 손으로 옮겨 적지 않는다.
+        // 여기서 하나라도 빠지면 화면 금액과 저장된 견적이 어긋난다(#182).
+        ...quotePriceExtras({ promotionZeroed, promotionDiscount, localSubsidyOff }),
         customer: {
           name: v.name.trim(),
           // 법인만 값이 있다 → 계약서 {{ceo_name}}. 개인이면 보내지 않는다.
