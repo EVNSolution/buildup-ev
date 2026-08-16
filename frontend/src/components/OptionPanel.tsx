@@ -39,6 +39,8 @@ interface Props {
   onMemoChange: (v: string) => void
   promotionZeroed: Set<string>
   onTogglePromotion: (groupCode: string) => void
+  promotionDiscount: number
+  onPromotionDiscountChange: (v: number) => void
   // 지방보조금 소진 시 이 견적에만 미적용(영업 재량)
   localSubsidyOff: boolean
   onToggleLocalSubsidy: (v: boolean) => void
@@ -74,6 +76,8 @@ export function OptionPanel({
   onMemoChange,
   promotionZeroed,
   onTogglePromotion,
+  promotionDiscount,
+  onPromotionDiscountChange,
   localSubsidyOff,
   onToggleLocalSubsidy,
 }: Props) {
@@ -155,6 +159,8 @@ export function OptionPanel({
           onToggleLocalSubsidy={onToggleLocalSubsidy}
           promotionZeroed={promotionZeroed}
           onTogglePromotion={onTogglePromotion}
+          promotionDiscount={promotionDiscount}
+          onPromotionDiscountChange={onPromotionDiscountChange}
         />
       </div>
       )}

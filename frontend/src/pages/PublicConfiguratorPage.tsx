@@ -28,6 +28,9 @@ import truckImg from '../assets/stego-k-side.jpg'
  */
 const MODEL_CODE = 'PV5_OPENBED'
 
+/** 공개 화면에는 프로모션이 없다 — 영업 재량이라 로그인한 영업만 만진다 */
+const PUBLIC_NO_PROMO = new Set<string>()
+
 export function PublicConfiguratorPage() {
   const compact = useIsCompact()
   const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
@@ -134,7 +137,8 @@ export function PublicConfiguratorPage() {
           publicMode
           saveLabel="상담 신청"
           memo="" onMemoChange={() => {}}
-          promotionZeroed={EMPTY} onTogglePromotion={() => {}}
+          promotionZeroed={PUBLIC_NO_PROMO} onTogglePromotion={() => {}}
+          promotionDiscount={0} onPromotionDiscountChange={() => {}}
           localSubsidyOff={false} onToggleLocalSubsidy={() => {}}
         />
       </div>
@@ -179,7 +183,6 @@ export function PublicConfiguratorPage() {
 }
 
 /** 매 렌더마다 새 Set 을 만들면 자식이 계속 다시 그려진다 */
-const EMPTY: Set<string> = new Set()
 
 const s: Record<string, React.CSSProperties> = {
   root: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' },

@@ -37,13 +37,17 @@ function esc(v: unknown): string {
   return String(v ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] ?? c));
 }
 
-interface Row { label: string; amount: string }
+/**
+ * 반복 행 한 줄. **키를 label·amount 로 고정하지 않는다** — 프로모션 행처럼 다른 칸
+ * (동그라미 번호 등)을 쓰는 반복도 있어서, 템플릿이 부르는 이름을 그대로 받는다.
+ */
+type Row = Record<string, string>;
 
 // ── 미니 템플릿 엔진 ──
 function renderEach(tpl: string, name: string, items: Row[]): string {
   const re = new RegExp(`<!-- each:${name} -->([\\s\\S]*?)<!-- /each:${name} -->`, 'g');
   return tpl.replace(re, (_m, inner: string) =>
-    items.map((it) => inner.replace(/\{\{\s*item\.(\w+)\s*\}\}/g, (_x, k: string) => esc((it as Record<string, unknown>)[k]))).join(''));
+    items.map((it) => inner.replace(/\{\{\s*item\.(\w+)\s*\}\}/g, (_x, k: string) => esc(it[k]))).join(''));
 }
 /** 세 열 콘텐츠 행수를 세서 부족분을 pad에 .blank 로 채워 final 행 정렬. */
 function renderPad(tpl: string): string {
@@ -112,6 +116,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     down_payment_rate: inp['down_payment_rate'] as number | undefined,
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+    promotion_discount: inp['promotion_discount'] as number | undefined,
     local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
   }, quote.created_at.getFullYear());
   const r = calcQuote(params);
@@ -129,14 +134,32 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   const doorAddOn = selections['DOORADD'] === 'ADD_DRIVER';
   const tempOn = selections['TEMP'] === 'TEMP_O';
 
+  /**
+   * 옵션 한 줄. **무상제공(0원 처리)된 것은 굵게** — 원래 값이 있는 옵션인데 0원으로
+   * 찍혀 있으면 그냥 지나치기 쉽다. 안 고른 옵션(원래 0원)은 굵게 하지 않는다.
+   */
+  const topRow = (group: string, label: string): Row => ({
+    label,
+    amount: won(vatInc(bd[group] ?? 0)),
+    cls: zeroed.includes(group) ? 'em' : '',
+  });
   const topOptions: Row[] = [
-    { label: `탑 종류 : ${bodyDisp} ${topDisp}`.trim(), amount: won(vatInc(bd['TOP'] ?? 0)) },
-    { label: `스포일러 : ${ox(spoilerOn)}`, amount: won(vatInc(bd['SPOILER'] ?? 0)) },
-    { label: `도어옵션 : ${doorDisp}`, amount: won(vatInc(bd['DOORTYPE'] ?? 0)) },
-    { label: `도어추가 : ${ox(doorAddOn)}`, amount: won(vatInc(bd['DOORADD'] ?? 0)) },
-    { label: `온도기록계 : ${ox(tempOn)}`, amount: won(vatInc(bd['TEMP'] ?? 0)) },
-    { label: `격벽 : ${partDisp}`, amount: won(vatInc(bd['PARTITION'] ?? 0)) },
+    topRow('TOP', `탑 종류 : ${bodyDisp} ${topDisp}`.trim()),
+    topRow('SPOILER', `스포일러 : ${ox(spoilerOn)}`),
+    topRow('DOORTYPE', `도어옵션 : ${doorDisp}`),
+    topRow('DOORADD', `도어추가 : ${ox(doorAddOn)}`),
+    topRow('TEMP', `온도기록계 : ${ox(tempOn)}`),
+    topRow('PARTITION', `격벽 : ${partDisp}`),
   ];
+  /*
+   * 프로모션 — **금액 할인이 있을 때만** 옵션 목록 맨 아래에 한 줄 붙인다(음수).
+   * 무상제공(0원 처리)은 이 행을 만들지 않는다 — 옵션 단가가 이미 0원이라 이중으로 빼게 된다.
+   * ⑦ 특장 가격이 이 줄까지 더한 값이라, 세로로 더해 보면 맞아떨어진다.
+   */
+  const promoAmount = Math.max(0, Math.round(r.promotion));
+  if (promoAmount > 0) {
+    topOptions.push({ label: '프로모션 :', amount: `-${won(promoAmount)}`, cls: 'em' });
+  }
 
   const benefitRows: Row[] = [
     { label: '현대커머셜 할인', amount: won(r.commercial_discount) },
@@ -165,6 +188,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     ? `${quote.sales_user.name} (${quote.sales_user.email})`
     : (quote.sales_user_id ?? '');
 
+
+
   const data = {
     vehicleModel: modelName,
     workDate: quote.created_at.toISOString().slice(0, 10),
@@ -181,7 +206,12 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       regCost: won(r.car_reg_cost), initialPayment: won(r.car_initial),
     },
     top: {
-      priceTotal: won(r.body_price),
+      /*
+       * ⑦ 특장 가격 — **프로모션 할인을 뺀 금액**(body_payment).
+       * 프로모션 행이 위 옵션 목록에 −금액으로 들어가므로, 그 합이 곧 이 값이어야
+       * 세로로 더해 봤을 때 맞는다. 할인이 없으면 body_price 와 같아 옛 견적은 그대로다.
+       */
+      priceTotal: won(r.body_payment),
       paymentAmount: won(r.body_payment), downPayment: won(r.body_deposit), deliveryPayment: won(r.body_delivery),
       acqTax: won(r.body_acq_tax), etcRegFee: won(r.etc_fee), structureFee: won(r.structure_change_fee), regCost: won(r.body_reg_cost), initialPayment: won(r.body_initial),
     },

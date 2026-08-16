@@ -590,13 +590,16 @@ export function SalesPage() {
 
   // 메모/안내문 + 재량할인(0원 처리 특장옵션 그룹)
   const [memo, setMemo] = useState('')
+  /** 옵션 무상제공(0원 처리)할 특장옵션 그룹 */
   const [promotionZeroed, setPromotionZeroed] = useState<Set<string>>(new Set())
-  const [localSubsidyOff, setLocalSubsidyOff] = useState(false)  // 지방보조금 소진 시 견적별 미적용
   const togglePromotion = (group: string) => setPromotionZeroed(prev => {
     const next = new Set(prev)
     next.has(group) ? next.delete(group) : next.add(group)
     return next
   })
+  /** 프로모션 금액 할인(원, VAT 포함) — 무상제공과 별개다 */
+  const [promotionDiscount, setPromotionDiscount] = useState(0)
+  const [localSubsidyOff, setLocalSubsidyOff] = useState(false)  // 지방보조금 소진 시 견적별 미적용
 
 
 
@@ -678,7 +681,7 @@ export function SalesPage() {
         diesel_conversion:     subsidyInputs.diesel_status === 'keep',
       },
     })
-  }, [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, localSubsidyOff])
+  }, [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff])
 
   /**
    * 화면 표시 금액의 단일 소스 — **총견적서 기준**(견적서 PDF 와 동일 규칙).
@@ -692,9 +695,9 @@ export function SalesPage() {
   const liveTotal = useMemo<QuoteResult | null>(
     () => buildLiveTotal({
       bundle, selections, subsidyInputs, subsidyLocal, subsidyReady,
-      promotionZeroed, localSubsidyOff, customer,
+      promotionZeroed, promotionDiscount, localSubsidyOff, customer,
     }),
-    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, localSubsidyOff],
+    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -747,7 +750,6 @@ export function SalesPage() {
         year: new Date().getFullYear(),
         selections,
         memo: memo || undefined,
-        promotion_zeroed: promotionZeroed.size ? [...promotionZeroed] : undefined,
         local_subsidy_off: localSubsidyOff || undefined,
         customer: {
           name: v.name.trim(),
@@ -906,6 +908,8 @@ export function SalesPage() {
           onMemoChange={setMemo}
           promotionZeroed={promotionZeroed}
           onTogglePromotion={togglePromotion}
+          promotionDiscount={promotionDiscount}
+          onPromotionDiscountChange={setPromotionDiscount}
           localSubsidyOff={localSubsidyOff}
           onToggleLocalSubsidy={setLocalSubsidyOff}
         />

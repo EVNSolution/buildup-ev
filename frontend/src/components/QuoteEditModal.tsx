@@ -139,6 +139,8 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   const [promoZeroed, setPromoZeroed] = useState<Set<string>>(
     () => new Set(((inp['promotion_zeroed'] as string[]) ?? [])),
   )
+  // 프로모션 할인액(원, VAT 포함) — 옛 0원처리와 별개다
+  const [promoDiscount, setPromoDiscount] = useState<number>(Number(inp['promotion_discount'] ?? 0))
 
   useEffect(() => {
     fetchPricingBundle(quote.model_code)
@@ -175,10 +177,12 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
       const extrasChanged =
         memo.trim() !== ((inp['memo'] as string) ?? '').trim()
         || localOff !== ((inp['local_subsidy_off'] as boolean) ?? false)
+        || promoDiscount !== Number(inp['promotion_discount'] ?? 0)
         || [...promoZeroed].sort().join(',') !== [...((inp['promotion_zeroed'] as string[]) ?? [])].sort().join(',')
       await saveQuoteInputs(quote.id, {
         memo: memo.trim(),
         local_subsidy_off: localOff,
+        promotion_discount: promoDiscount,
         promotion_zeroed: [...promoZeroed],
       })
       // 할인·보조금을 함께 바꿨으면 여기 금액은 이미 지난 값이다(서버가 뒤에 다시 계산한다).
@@ -230,6 +234,8 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
               if (next.has(g)) next.delete(g); else next.add(g)
               return next
             })}
+            promotionDiscount={promoDiscount}
+            onPromotionDiscountChange={setPromoDiscount}
             disabled={frozen}
           />
         </div>

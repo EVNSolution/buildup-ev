@@ -187,3 +187,38 @@ describe('실구매가(real_price) — 총견적서 기준 단일 소스', () =>
     );
   });
 });
+
+describe('프로모션 금액 할인 — 특장 가격에서 뺀다', () => {
+  const base = calcQuote({ ...QUOTE_PARAMS, promotion: 0 });
+  const D = 500_000;
+  const cut = calcQuote({ ...QUOTE_PARAMS, promotion: D });
+
+  it('할인이 0이면 아무것도 달라지지 않는다 — 옛 견적 금액이 보존된다', () => {
+    expect(calcQuote({ ...QUOTE_PARAMS, promotion: 0 })).toEqual(base);
+  });
+
+  it('특장 결제금액이 할인액만큼 줄어든다', () => {
+    expect(base.body_payment - cut.body_payment).toBe(D);
+  });
+
+  it('특장 취득세도 함께 줄어든다 — 할인 후 금액에 매긴다', () => {
+    expect(cut.body_acq_tax).toBeLessThan(base.body_acq_tax);
+  });
+
+  it('부가세 환급 시 가격은 할인액에서 환급분을 뺀 만큼 줄어든다', () => {
+    // 500,000 을 깎으면 그중 1/11 은 어차피 환급받던 돈이라, 실제로 덜 내는 돈은 그만큼 적다
+    const refundOfDiscount = Math.floor(D / 11 / 10) * 10;
+    expect(base.vat_refund_price - cut.vat_refund_price).toBe(D - refundOfDiscount);
+  });
+
+  it('실구매가는 할인액 + 취득세 감소분만큼 줄어든다', () => {
+    const drop = base.real_price - cut.real_price;
+    const taxDrop = base.body_acq_tax - cut.body_acq_tax;
+    const refundOfDiscount = Math.floor(D / 11 / 10) * 10;
+    expect(drop).toBe(D - refundOfDiscount + taxDrop);
+  });
+
+  it('결과에 프로모션 금액이 그대로 실린다 — 견적서가 이 값을 찍는다', () => {
+    expect(cut.promotion).toBe(D);
+  });
+});

@@ -57,6 +57,13 @@ interface Props {
   onToggleLocalSubsidy: (v: boolean) => void
   promotionZeroed: Set<string>
   onTogglePromotion: (groupCode: string) => void
+  /**
+   * 프로모션 **금액 할인**(원, VAT 포함). 옵션 무상제공(0원 처리)과는 별개다 —
+   * 무상제공은 옵션 단가만 0원이 되고 견적서에 프로모션 칸이 생기지 않는다.
+   * 이 금액이 있을 때만 견적서에 프로모션 항목이 살아난다.
+   */
+  promotionDiscount: number
+  onPromotionDiscountChange: (v: number) => void
   /** 값을 고칠 수 없는 상태(서류 고정·권한 없음) */
   disabled?: boolean
 }
@@ -64,11 +71,12 @@ interface Props {
 export function QuoteExtras({
   bundle, selections, optionPrices,
   memo, onMemoChange, localSubsidyOff, onToggleLocalSubsidy,
-  promotionZeroed, onTogglePromotion, disabled = false,
+  promotionZeroed, onTogglePromotion,
+  promotionDiscount, onPromotionDiscountChange, disabled = false,
 }: Props) {
   // 프로모션 목록은 접어 둔다 — 대부분의 견적에서 쓰지 않는다.
   // 이미 할인이 걸려 있으면 펼친 채로 연다(무엇이 0원인지 모르고 지나치면 안 된다).
-  const [showPromo, setShowPromo] = useState(promotionZeroed.size > 0)
+  const [showPromo, setShowPromo] = useState(promotionZeroed.size > 0 || promotionDiscount > 0)
   const zeroable = zeroableOptions(bundle, selections, optionPrices)
 
   return (
@@ -93,6 +101,30 @@ export function QuoteExtras({
       </label>
       {showPromo && (
         <div style={s.list}>
+          {/*
+            **금액 할인이 먼저.** 두 가지는 성격이 다르다 —
+            금액 할인은 「얼마를 깎아 준다」라 견적서에 프로모션 항목으로 찍히고,
+            아래 무상제공은 「이 옵션은 안 받는다」라 옵션 단가만 0원이 된다(견적서에 항목 없음).
+          */}
+          <div style={s.amountRow}>
+            <span style={s.amountLabel}>금액 할인</span>
+            <input
+              style={s.amount}
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
+              disabled={disabled}
+              value={promotionDiscount ? promotionDiscount.toLocaleString('ko-KR') : ''}
+              onChange={e => {
+                // 숫자만 남긴다 — 콤마는 우리가 다시 찍는다
+                const n = Number(e.target.value.replace(/[^\d]/g, ''))
+                onPromotionDiscountChange(Number.isFinite(n) ? n : 0)
+              }}
+            />
+            <span style={s.won}>원</span>
+          </div>
+
+          <div style={s.sub}>옵션 무상제공</div>
           {zeroable.length === 0
             ? <div style={s.empty}>할인 가능한 옵션이 없습니다.</div>
             : zeroable.map(z => (
@@ -125,6 +157,15 @@ const s: Record<string, React.CSSProperties> = {
   list: { display: 'flex', flexDirection: 'column', gap: 4, padding: '4px 0 2px 22px' },
   empty: { fontSize: 13, color: 'var(--muted)' },
   item: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' },
+  amountRow: { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 },
+  amountLabel: { flex: 1, fontSize: 13, color: 'var(--dark)' },
+  // 금액은 오른쪽 정렬 + 고정폭 숫자 — 자릿수가 흔들리면 얼마인지 읽기 어렵다
+  amount: {
+    flex: '0 0 130px', minWidth: 0, textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums', fontWeight: 600, minHeight: 'var(--h-control-sm)',
+  },
+  won: { fontSize: 13, color: 'var(--muted)' },
+  sub: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 8, marginBottom: 2 },
   name: { flex: 1, color: 'var(--dark)' },
   price: { color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   zeroed: { color: 'var(--dark)', fontWeight: 700 },

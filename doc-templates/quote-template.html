@@ -65,6 +65,8 @@
   .memo ul { margin:0; padding-left:16px; }
   .memo li { margin:3px 0; }
   .note { font-size:7pt; color:#666; text-align:right; margin-top:6px; }
+  /* 무상제공(0원)·프로모션 행 — 그냥 지나치면 왜 금액이 다른지 모른다 */
+  tr.em td { font-weight:700; }
 </style>
 </head>
 <body>
@@ -116,7 +118,11 @@
       <h2 class="sec">특장 정보</h2>
       <table>
         <colgroup><col style="width:63%"><col style="width:37%"></colgroup>
-        <!-- each:topOptions --><tr><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:topOptions -->
+        <!--
+          특장 옵션 행. item.cls 로 굵게 표시한다 —
+          **무상제공(0원 처리)된 옵션**과 **프로모션 할인 행**은 눈에 띄어야 한다.
+        -->
+        <!-- each:topOptions --><tr class="{{ item.cls }}"><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:topOptions -->
         <tr class="grp"><td class="k"><span class="cir">⑦</span> 특장 가격 (VAT 포함)</td><td class="num">{{ top.priceTotal }}</td></tr>
         <tr><td class="k">계약금</td><td class="num">{{ top.downPayment }}</td></tr>
         <tr class="grp"><td class="k"><span class="cir">⑧</span> 인도금(특장)</td><td class="num">{{ top.deliveryPayment }}</td></tr>

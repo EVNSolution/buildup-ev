@@ -41,7 +41,17 @@ export type CustomerInput = {
 export type QuoteExtraInput = {
   down_payment_rate?: number;    // 선수금 비율 (0~1)
   installment_months?: number;   // 할부개월수 (0=일시불)
-  promotion_zeroed?: string[];   // 영업 재량할인: 0원 처리할 특장옵션 그룹코드(TOP/DOORTYPE/…)
+  /**
+   * ⚠️ **옛 방식**: 0원 처리할 특장옵션 그룹코드. 새 견적에서는 쓰지 않는다.
+   *    운영에 이 방식으로 만든 견적이 남아 있어(2026-08 기준 11건, 대부분 견적확정)
+   *    계산을 그대로 둔다 — 걷어내면 그 견적들의 금액이 소급해 바뀐다.
+   */
+  promotion_zeroed?: string[];
+  /**
+   * 프로모션 할인액(원, **VAT 포함**). 특장 가격에서 그대로 뺀다 —
+   * 취득세·부가세환급·실구매가가 모두 이 값을 따라 움직인다(I18→I20).
+   */
+  promotion_discount?: number;
   local_subsidy_off?: boolean;   // 견적별 지방보조금 미적용(영업 토글)
 };
 
@@ -98,8 +108,14 @@ export async function buildQuoteParams(
     is_individual: bizType === 'individual',
     has_transport_license: customer?.has_transport_license ?? false,
     takbae_rate: TAKBAE_RATE,
-    body_price: Math.round(option_sum * 1.1),  // I16 VAT포함(재량할인 반영된 합계)
-    promotion: 0,                              // I18 — 할인은 옵션 단가 0원으로 이미 반영됨
+    body_price: Math.round(option_sum * 1.1),  // I16 VAT포함(옛 0원처리가 반영된 합계)
+    /*
+     * I18 프로모션 — 금액 할인.
+     * 옛 방식(promotion_zeroed)은 단가를 0원으로 만들어 body_price 에 이미 녹아 있고,
+     * 새 방식은 여기서 뺀다. 둘은 서로 간섭하지 않는다.
+     * 음수나 특장가격 초과는 막는다 — 할인이 가격을 넘으면 금액이 뒤집힌다.
+     */
+    promotion: Math.min(Math.max(0, Math.round(extra?.promotion_discount ?? 0)), Math.round(option_sum * 1.1)),
     car_deposit: taxMap['car_deposit'] ?? 100_000,
     body_deposit: taxMap['body_deposit'] ?? 400_000,
     down_payment_rate: extra?.down_payment_rate ?? 0,
