@@ -6,7 +6,8 @@ export interface SaveQuoteRequest {
   year?: number
   selections: Record<string, string>
   memo?: string                     // 메모/안내문
-  promotion_zeroed?: string[]       // 재량할인: 0원 처리 특장옵션 그룹코드
+  promotion_zeroed?: string[]       // 프로모션: 0원 처리 특장옵션 그룹코드
+  promotion_discount?: number       // 프로모션: 금액 할인(VAT 포함) — 특장 가격에서 뺀다
   local_subsidy_off?: boolean       // 지방보조금 미적용(예산 소진 — 이 견적에만)
   customer?: {
     name?: string
