@@ -26,8 +26,26 @@ env:
   API_PORT_GREEN: '3102'
 
 jobs:
+  # 배포 전 관문. 여기서 막히면 프로덕션에 나가지 않는다.
+  #
+  # ⚠️ **shared 만 돌린다.** shared 는 DB 도 서버도 필요 없는 순수 계산·계약이라
+  #    러너에서 그대로 돈다. backend 테스트는 DB 를 요구해 여기선 못 돌린다 —
+  #    넣으면 매 배포가 실패하고, 그러면 이 관문 자체를 꺼 버리게 된다.
+  test:
+    name: shared 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx vitest run
+        working-directory: shared
+
   deploy:
     name: Deploy main
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout deploy scripts
