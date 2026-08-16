@@ -590,7 +590,14 @@ export function SalesPage() {
 
   // 메모/안내문 + 재량할인(0원 처리 특장옵션 그룹)
   const [memo, setMemo] = useState('')
-  // 프로모션 할인액(원, VAT 포함). 옛 0원처리 방식은 새 견적에서 쓰지 않는다
+  /** 옵션 무상제공(0원 처리)할 특장옵션 그룹 */
+  const [promotionZeroed, setPromotionZeroed] = useState<Set<string>>(new Set())
+  const togglePromotion = (group: string) => setPromotionZeroed(prev => {
+    const next = new Set(prev)
+    next.has(group) ? next.delete(group) : next.add(group)
+    return next
+  })
+  /** 프로모션 금액 할인(원, VAT 포함) — 무상제공과 별개다 */
   const [promotionDiscount, setPromotionDiscount] = useState(0)
   const [localSubsidyOff, setLocalSubsidyOff] = useState(false)  // 지방보조금 소진 시 견적별 미적용
 
@@ -654,7 +661,7 @@ export function SalesPage() {
 
     const price = (code: string) => bundle.option_prices[code] ?? 0
     // 재량할인(프로모션) 0원 처리를 조립 단계에 반영 → 화면 가격이 실제 견적과 일치
-    const { trim_price, option_sum } = assembleOptionSum(selections, price, [])
+    const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
     return calcPrice({
       trim_price,
       option_sum,
@@ -674,7 +681,7 @@ export function SalesPage() {
         diesel_conversion:     subsidyInputs.diesel_status === 'keep',
       },
     })
-  }, [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionDiscount, localSubsidyOff])
+  }, [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff])
 
   /**
    * 화면 표시 금액의 단일 소스 — **총견적서 기준**(견적서 PDF 와 동일 규칙).
@@ -688,9 +695,9 @@ export function SalesPage() {
   const liveTotal = useMemo<QuoteResult | null>(
     () => buildLiveTotal({
       bundle, selections, subsidyInputs, subsidyLocal, subsidyReady,
-      promotionDiscount, localSubsidyOff, customer,
+      promotionZeroed, promotionDiscount, localSubsidyOff, customer,
     }),
-    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionDiscount, localSubsidyOff],
+    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -872,7 +879,7 @@ export function SalesPage() {
               calc={displayCalc}
               total={liveTotal}
               hasCustomer={subsidyReady}
-              breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, []) : null}
+              breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
               subsidy={subsidyInputs}
               onSubsidyChange={setSubsidyInputs}
               regions={regions}
@@ -899,9 +906,10 @@ export function SalesPage() {
           canConvert={canConvert}
           memo={memo}
           onMemoChange={setMemo}
+          promotionZeroed={promotionZeroed}
+          onTogglePromotion={togglePromotion}
           promotionDiscount={promotionDiscount}
           onPromotionDiscountChange={setPromotionDiscount}
-          zeroedLegacy={[]}
           localSubsidyOff={localSubsidyOff}
           onToggleLocalSubsidy={setLocalSubsidyOff}
         />
@@ -912,7 +920,7 @@ export function SalesPage() {
             calc={displayCalc}
             total={liveTotal}
             hasCustomer={subsidyReady}
-            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, []) : null}
+            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
             subsidy={subsidyInputs}
             onSubsidyChange={setSubsidyInputs}
             regions={regions}

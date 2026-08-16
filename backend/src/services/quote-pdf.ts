@@ -134,14 +134,32 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   const doorAddOn = selections['DOORADD'] === 'ADD_DRIVER';
   const tempOn = selections['TEMP'] === 'TEMP_O';
 
+  /**
+   * 옵션 한 줄. **무상제공(0원 처리)된 것은 굵게** — 원래 값이 있는 옵션인데 0원으로
+   * 찍혀 있으면 그냥 지나치기 쉽다. 안 고른 옵션(원래 0원)은 굵게 하지 않는다.
+   */
+  const topRow = (group: string, label: string): Row => ({
+    label,
+    amount: won(vatInc(bd[group] ?? 0)),
+    cls: zeroed.includes(group) ? 'em' : '',
+  });
   const topOptions: Row[] = [
-    { label: `탑 종류 : ${bodyDisp} ${topDisp}`.trim(), amount: won(vatInc(bd['TOP'] ?? 0)) },
-    { label: `스포일러 : ${ox(spoilerOn)}`, amount: won(vatInc(bd['SPOILER'] ?? 0)) },
-    { label: `도어옵션 : ${doorDisp}`, amount: won(vatInc(bd['DOORTYPE'] ?? 0)) },
-    { label: `도어추가 : ${ox(doorAddOn)}`, amount: won(vatInc(bd['DOORADD'] ?? 0)) },
-    { label: `온도기록계 : ${ox(tempOn)}`, amount: won(vatInc(bd['TEMP'] ?? 0)) },
-    { label: `격벽 : ${partDisp}`, amount: won(vatInc(bd['PARTITION'] ?? 0)) },
+    topRow('TOP', `탑 종류 : ${bodyDisp} ${topDisp}`.trim()),
+    topRow('SPOILER', `스포일러 : ${ox(spoilerOn)}`),
+    topRow('DOORTYPE', `도어옵션 : ${doorDisp}`),
+    topRow('DOORADD', `도어추가 : ${ox(doorAddOn)}`),
+    topRow('TEMP', `온도기록계 : ${ox(tempOn)}`),
+    topRow('PARTITION', `격벽 : ${partDisp}`),
   ];
+  /*
+   * 프로모션 — **금액 할인이 있을 때만** 옵션 목록 맨 아래에 한 줄 붙인다(음수).
+   * 무상제공(0원 처리)은 이 행을 만들지 않는다 — 옵션 단가가 이미 0원이라 이중으로 빼게 된다.
+   * ⑦ 특장 가격이 이 줄까지 더한 값이라, 세로로 더해 보면 맞아떨어진다.
+   */
+  const promoAmount = Math.max(0, Math.round(r.promotion));
+  if (promoAmount > 0) {
+    topOptions.push({ label: '프로모션 :', amount: `-${won(promoAmount)}`, cls: 'em' });
+  }
 
   const benefitRows: Row[] = [
     { label: '현대커머셜 할인', amount: won(r.commercial_discount) },
@@ -170,26 +188,6 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     ? `${quote.sales_user.name} (${quote.sales_user.email})`
     : (quote.sales_user_id ?? '');
 
-  /*
-   * 프로모션 행 — **할인액이 있을 때만** 만든다. 0이면 빈 배열이라 행 자체가 사라진다.
-   * 금액은 **마이너스**로 찍는다 — 빼는 돈인데 양수로 적으면 더하는 것처럼 읽힌다
-   * (구매 혜택·보조금 행과 같은 규칙).
-   */
-  const promoAmount = Math.max(0, Math.round(r.promotion));
-  const CIRCLED = ['⑦', '⑧', '⑨', '⑩'];
-  let ci = 0;
-  const numbering = {
-    topPrice: CIRCLED[ci++]!,
-    promo: promoAmount > 0 ? CIRCLED[ci++]! : '',
-    topDelivery: '', topRegCost: '', topFormula: '',
-  };
-  numbering.topDelivery = CIRCLED[ci++]!;
-  numbering.topRegCost = CIRCLED[ci++]!;
-  // 「특장 초기 납부 금액 (⑧+⑨)」 — 번호가 밀리면 이 식도 함께 밀린다
-  numbering.topFormula = `${numbering.topDelivery}+${numbering.topRegCost}`;
-  const promoRow = promoAmount > 0
-    ? [{ no: numbering.promo, amount: `-${won(promoAmount)}` }]
-    : [];
 
 
   const data = {
@@ -207,14 +205,13 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       plateFee: won(r.plate), stampFee: won(r.stamp), insuranceFee: won(r.insurance), regAgencyFee: won(r.reg_agency),
       regCost: won(r.car_reg_cost), initialPayment: won(r.car_initial),
     },
-    /*
-     * 동그라미 번호 — **프로모션 행이 있고 없고에 따라 뒤 번호가 밀린다.**
-     * 양식에 번호를 박아 두면 프로모션이 생기는 순간 「⑧ 인도금」이 둘이 되거나 번호가 건너뛴다.
-     * 차량 쪽 ①~⑥ 은 고정이라 특장 쪽만 여기서 센다.
-     */
-    n: numbering,
     top: {
-      priceTotal: won(r.body_price),
+      /*
+       * ⑦ 특장 가격 — **프로모션 할인을 뺀 금액**(body_payment).
+       * 프로모션 행이 위 옵션 목록에 −금액으로 들어가므로, 그 합이 곧 이 값이어야
+       * 세로로 더해 봤을 때 맞는다. 할인이 없으면 body_price 와 같아 옛 견적은 그대로다.
+       */
+      priceTotal: won(r.body_payment),
       paymentAmount: won(r.body_payment), downPayment: won(r.body_deposit), deliveryPayment: won(r.body_delivery),
       acqTax: won(r.body_acq_tax), etcRegFee: won(r.etc_fee), structureFee: won(r.structure_change_fee), regCost: won(r.body_reg_cost), initialPayment: won(r.body_initial),
     },
@@ -246,7 +243,6 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   html = renderEach(html, 'benefitRows', benefitRows);
   html = renderEach(html, 'subsidyRows', subsidyRows);
   html = renderEach(html, 'topOptions', topOptions);
-  html = renderEach(html, 'promoRow', promoRow);
   html = renderPad(html);
   html = renderTokens(html, data);
 

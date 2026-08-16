@@ -65,6 +65,8 @@
   .memo ul { margin:0; padding-left:16px; }
   .memo li { margin:3px 0; }
   .note { font-size:7pt; color:#666; text-align:right; margin-top:6px; }
+  /* 무상제공(0원)·프로모션 행 — 그냥 지나치면 왜 금액이 다른지 모른다 */
+  tr.em td { font-weight:700; }
 </style>
 </head>
 <body>
@@ -116,22 +118,20 @@
       <h2 class="sec">특장 정보</h2>
       <table>
         <colgroup><col style="width:63%"><col style="width:37%"></colgroup>
-        <!-- each:topOptions --><tr><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:topOptions -->
-        <tr class="grp"><td class="k"><span class="cir">{{ n.topPrice }}</span> 특장 가격 (VAT 포함)</td><td class="num">{{ top.priceTotal }}</td></tr>
         <!--
-          프로모션 — **할인액이 있을 때만** 나온다(0/미입력이면 행 자체가 사라진다).
-          조건부 행이 필요한데 엔진에 if 가 없어, 항목 0개 또는 1개짜리 each 로 쓴다.
-          앞의 동그라미 번호도 토큰이다 — 이 행이 있고 없고에 따라 뒤 번호가 밀린다.
+          특장 옵션 행. item.cls 로 굵게 표시한다 —
+          **무상제공(0원 처리)된 옵션**과 **프로모션 할인 행**은 눈에 띄어야 한다.
         -->
-        <!-- each:promoRow --><tr class="grp"><td class="k"><span class="cir">{{ item.no }}</span> 프로모션</td><td class="num">{{ item.amount }}</td></tr><!-- /each:promoRow -->
+        <!-- each:topOptions --><tr class="{{ item.cls }}"><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:topOptions -->
+        <tr class="grp"><td class="k"><span class="cir">⑦</span> 특장 가격 (VAT 포함)</td><td class="num">{{ top.priceTotal }}</td></tr>
         <tr><td class="k">계약금</td><td class="num">{{ top.downPayment }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">{{ n.topDelivery }}</span> 인도금(특장)</td><td class="num">{{ top.deliveryPayment }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">⑧</span> 인도금(특장)</td><td class="num">{{ top.deliveryPayment }}</td></tr>
         <tr><td class="k">특장 취득세 (2.0%)</td><td class="num">{{ top.acqTax }}</td></tr>
         <tr><td class="k">등록부가수수료</td><td class="num">{{ top.etcRegFee }}</td></tr>
         <tr><td class="k">구조변경 비용</td><td class="num">{{ top.structureFee }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">{{ n.topRegCost }}</span> 등록/부대비용</td><td class="num">{{ top.regCost }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">⑨</span> 등록/부대비용</td><td class="num">{{ top.regCost }}</td></tr>
         <!-- pad:top -->
-        <tr class="final"><td class="k">특장 초기 납부 금액 ({{ n.topFormula }})</td><td class="num">{{ top.initialPayment }}</td></tr>
+        <tr class="final"><td class="k">특장 초기 납부 금액 (⑧+⑨)</td><td class="num">{{ top.initialPayment }}</td></tr>
       </table>
     </div>
 

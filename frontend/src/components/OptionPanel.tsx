@@ -37,9 +37,9 @@ interface Props {
   // 메모 + 재량할인(프로모션)
   memo: string
   onMemoChange: (v: string) => void
+  promotionZeroed: Set<string>
+  onTogglePromotion: (groupCode: string) => void
   promotionDiscount: number
-  /** 옛 방식으로 0원 처리된 옵션 이름들(읽기 전용 안내) */
-  zeroedLegacy: string[]
   onPromotionDiscountChange: (v: number) => void
   // 지방보조금 소진 시 이 견적에만 미적용(영업 재량)
   localSubsidyOff: boolean
@@ -74,8 +74,9 @@ export function OptionPanel({
   canConvert = true,
   memo,
   onMemoChange,
+  promotionZeroed,
+  onTogglePromotion,
   promotionDiscount,
-  zeroedLegacy,
   onPromotionDiscountChange,
   localSubsidyOff,
   onToggleLocalSubsidy,
@@ -149,13 +150,17 @@ export function OptionPanel({
       {!publicMode && (
       <div style={styles.extra}>
         <QuoteExtras
+          bundle={bundle}
+          selections={selections}
+          optionPrices={optionPrices}
           memo={memo}
           onMemoChange={onMemoChange}
           localSubsidyOff={localSubsidyOff}
           onToggleLocalSubsidy={onToggleLocalSubsidy}
+          promotionZeroed={promotionZeroed}
+          onTogglePromotion={onTogglePromotion}
           promotionDiscount={promotionDiscount}
           onPromotionDiscountChange={onPromotionDiscountChange}
-          zeroedLegacy={zeroedLegacy}
         />
       </div>
       )}

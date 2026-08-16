@@ -21,7 +21,7 @@ export interface LiveTotalArgs {
   subsidyLocal: number
   /** 보조금 산정 조건이 갖춰졌는가(법인이거나 지역 선택됨) */
   subsidyReady: boolean
-  /** 옛 방식(0원 처리) — 옛 견적을 다시 계산할 때만 값이 있다 */
+  /** 옵션 무상제공(0원 처리)할 그룹 — 공개 화면은 넘기지 않는다 */
   promotionZeroed?: Set<string>
   /** 프로모션 할인액(원, VAT 포함). 특장 가격에서 뺀다 */
   promotionDiscount?: number
