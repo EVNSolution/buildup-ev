@@ -750,6 +750,10 @@ export function SalesPage() {
         year: new Date().getFullYear(),
         selections,
         memo: memo || undefined,
+        // 프로모션은 화면에서만 계산에 반영되던 값이다 — 저장 요청에 실어야 견적서까지 간다.
+        // 빠뜨리면 화면 금액과 저장된 견적이 어긋난다(견적서에 할인이 없는 채로 나간다).
+        promotion_zeroed: promotionZeroed.size > 0 ? [...promotionZeroed] : undefined,
+        promotion_discount: promotionDiscount > 0 ? promotionDiscount : undefined,
         local_subsidy_off: localSubsidyOff || undefined,
         customer: {
           name: v.name.trim(),

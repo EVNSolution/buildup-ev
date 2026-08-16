@@ -96,7 +96,18 @@ export function QuoteExtras({
       </label>
 
       <label style={s.toggle}>
-        <input type="checkbox" checked={showPromo} style={s.cbox} onChange={e => setShowPromo(e.target.checked)} />
+        <input
+          type="checkbox" checked={showPromo} style={s.cbox}
+          onChange={e => {
+            setShowPromo(e.target.checked)
+            // 체크를 풀면 값도 지운다 — 접어 두기만 하면 화면에 안 보이는 할인이
+            // 그대로 견적에 실려 나간다(영업사원은 껐다고 생각한다).
+            if (!e.target.checked) {
+              onPromotionDiscountChange(0)
+              for (const g of [...promotionZeroed]) onTogglePromotion(g)
+            }
+          }}
+        />
         프로모션
       </label>
       {showPromo && (

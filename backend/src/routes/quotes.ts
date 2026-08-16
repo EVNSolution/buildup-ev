@@ -567,7 +567,7 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     tax_exempt_type: customer?.tax_exempt_type,
     down_payment_rate,
     installment_months,
-    promotion_zeroed: promotion_zeroed ?? [],  // 옛 방식(0원 처리) — 새 견적은 비어 있다
+    promotion_zeroed: promotion_zeroed ?? [],  // 프로모션: 0원 처리한 특장옵션 그룹
     promotion_discount: Math.max(0, Math.round(promotion_discount ?? 0)),  // 프로모션 할인액(VAT 포함)
     local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)
     memo: memo ?? '',                          // 메모/안내문
