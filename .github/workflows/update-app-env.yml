@@ -1,0 +1,55 @@
+# WARP CRM 연동 키를 SSM /buildup-ev/app-env 에 추가하는 일회용 워크플로우 (#184).
+# 로컬에 AWS 자격증명이 없어도 운영 환경값을 안전하게 고치기 위한 것 —
+# 값은 GitHub Secret(WARP_API_KEY)에서 오고 로그에는 절대 출력하지 않는다.
+# 반영 후에는 삭제해도 된다.
+name: Update app-env (WARP key, temp)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  SSM_APP_ENV_PARAM: /buildup-ev/app-env
+  WARP_API_BASE_URL: https://warp.cleversystem.ai
+  WARP_API_KEY: ${{ secrets.WARP_API_KEY }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Append WARP env lines to SSM app-env
+        run: |
+          set -euo pipefail
+          test -n "$WARP_API_KEY" || { echo 'Missing secret: WARP_API_KEY'; exit 1; }
+
+          ENV_FILE="$(mktemp)"; chmod 600 "$ENV_FILE"
+          aws ssm get-parameter \
+            --name "$SSM_APP_ENV_PARAM" \
+            --with-decryption \
+            --query 'Parameter.Value' \
+            --output text > "$ENV_FILE"
+
+          # 기존 WARP_* 줄은 제거 후 다시 추가(멱등) — 다른 값은 그대로 보존한다
+          grep -v -E '^WARP_API_(BASE_URL|KEY)=' "$ENV_FILE" > "$ENV_FILE.new" || true
+          printf 'WARP_API_BASE_URL=%s\n' "$WARP_API_BASE_URL" >> "$ENV_FILE.new"
+          printf 'WARP_API_KEY=%s\n' "$WARP_API_KEY" >> "$ENV_FILE.new"
+
+          aws ssm put-parameter \
+            --name "$SSM_APP_ENV_PARAM" \
+            --type SecureString \
+            --overwrite \
+            --value "file://$ENV_FILE.new" >/dev/null
+
+          echo "updated $SSM_APP_ENV_PARAM ($(wc -l < "$ENV_FILE.new") lines)"
+          rm -f "$ENV_FILE" "$ENV_FILE.new"
