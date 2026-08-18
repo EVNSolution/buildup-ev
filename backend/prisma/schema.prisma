@@ -368,8 +368,13 @@ model Customer {
   address_detail String? @db.VarChar(120)
   /// 생년월일 또는 사업자번호. name 과 함께 고객을 식별하는 키다.
   reg_no     String?  @db.VarChar(20)
+  /// WARP CRM 정본 고객 ID(cuid) — 역방향 수집(#191)으로 WARP에 등록·연결되면 채워진다.
+  /// ⚠️ UNIQUE 아님 — buildup 쪽 중복 행 여러 개가 같은 WARP 고객에 연결될 수 있다.
+  warp_customer_id String? @db.VarChar(40)
   created_by String?  @db.VarChar(120)
   created_at DateTime @default(now())
+  /// WARP 역방향 수집의 증분 기준. 기존 행은 컬럼 추가 시점 값으로 시작한다.
+  updated_at DateTime @default(now()) @updatedAt
 
   creator User?   @relation(fields: [created_by], references: [email])
   quotes  Quote[]
@@ -377,6 +382,7 @@ model Customer {
   /// 자동 기입 조회용. ⚠️ UNIQUE 가 아니다 — 이미 같은 (name, reg_no) 중복 행이 쌓여 있어
   /// 유니크 제약을 걸면 마이그레이션이 실패한다. 중복은 코드에서 최신 1건을 쓴다.
   @@index([name, reg_no])
+  @@index([warp_customer_id])
   @@map("customer")
 }
 
