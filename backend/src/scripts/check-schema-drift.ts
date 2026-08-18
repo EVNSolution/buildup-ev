@@ -13,6 +13,12 @@
  *
  * 실행: npm run --workspace=backend db:drift   (DATABASE_URL 필요)
  */
+/*
+ * ⚠️ config 를 **가장 먼저** 불러온다 — 이게 모노레포 루트 .env 를 읽어 process.env 에 넣는다.
+ *    경로 기준(`__dirname/../../.env`)이라 어느 디렉터리에서 실행하든 동작한다.
+ *    이걸 빼면 PrismaClient 가 DATABASE_URL 을 못 찾는다(배포에서 실제로 났다).
+ */
+import '../config.js';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,6 +75,11 @@ async function parseSchema(): Promise<Expected[]> {
 }
 
 async function main(): Promise<void> {
+  if (!process.env['DATABASE_URL']) {
+    console.error('[schema-drift] DATABASE_URL 이 없습니다 — .env 를 읽지 못했습니다.');
+    process.exitCode = 1;
+    return;
+  }
   const expected = await parseSchema();
   const prisma = new PrismaClient();
   try {
