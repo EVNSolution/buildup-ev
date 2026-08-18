@@ -878,87 +878,27 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
 // confirmed/ordered: is_master만 삭제 가능 (연결된 order·order_option·document 트랜잭션 cascade)
 // 그 외:     삭제 불가
 
-quotesRouter.delete('/:id', rbac('ADMIN'), requirePermission('quote.delete'), async (req: Request, res): Promise<void> => {
-  if (!prisma) {
-    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
-    return;
-  }
-  const id = Number(req.params['id']);
-  if (isNaN(id)) {
-    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
-    return;
-  }
-  try {
-    const quote = await prisma.quote.findUnique({ where: { id } });
-    if (!quote) {
-      res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } });
-      return;
-    }
-
-    if (quote.status === 'draft') {
-      // SALES는 본인 draft만
-      if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 삭제할 수 있습니다' } });
-        return;
-      }
-      // ⚠️ 파일 경로는 행 삭제 '전에' 확보 — 지운 뒤에는 경로를 알 수 없어 고아로 남는다.
-      const contractPaths = await collectContractFilePaths(id);
-      // 계약(purchase_contract)이 견적을 FK 참조 → 먼저 지워야 quote 삭제가 가능
-      await prisma.$transaction(async (tx) => {
-        await tx.purchaseContract.deleteMany({ where: { quote_id: id } });
-        await tx.quote.delete({ where: { id } });
-      });
-      if (contractPaths.length) {
-        await deleteContractFiles(contractPaths).catch(e => console.error('[DELETE /quotes/:id] 계약 파일 정리 실패', e));
-      }
-      res.json({ data: { ok: true } });
-      return;
-    }
-
-    if (['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(quote.status)) {
-      // 확정·배정·주문 견적은 is_master만
-      if (!req.auth!.is_master) {
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: '확정·주문 견적은 마스터 관리자만 삭제 가능' } });
-        return;
-      }
-      // 연결된 order → order_option + document + generated_document → order → quote 트랜잭션 cascade 삭제
-      const order = await prisma.order.findUnique({ where: { quote_id: id } });
-      // ⚠️ PDF 경로는 반드시 트랜잭션(행 삭제) '전에' 확보 — 행을 먼저 지우면 file_path 를
-      //    못 찾아 파일이 고아로 남는다(issue #17 ②).
-      const docPaths = order ? await collectGeneratedDocPaths(order.id) : [];
-      // 서명본 PDF + 고정본 견적서·계약서도 같은 이유로 미리 확보한다.
-      const contractPaths = await collectContractFilePaths(id);
-      await prisma.$transaction(async (tx) => {
-        if (order) {
-          await tx.document.deleteMany({ where: { order_id: order.id } });
-          await tx.generatedDocument.deleteMany({ where: { order_id: order.id } });
-          await tx.orderOption.deleteMany({ where: { order_id: order.id } });
-          await tx.order.delete({ where: { id: order.id } });
-        }
-        // 계약(purchase_contract)도 견적을 FK 참조 → quote 삭제 전에 정리
-        await tx.purchaseContract.deleteMany({ where: { quote_id: id } });
-        await tx.quote.delete({ where: { id } });
-      });
-      // DB 커밋 성공 후 미리 확보한 경로로 실제 PDF 파일 정리. 파일 삭제 실패는 무시(로그만).
-      if (docPaths.length) {
-        await deleteGeneratedDocFilesByPaths(docPaths).catch(e => console.error('[DELETE /quotes/:id] 서류 파일 정리 실패', e));
-      }
-      if (contractPaths.length) {
-        await deleteContractFiles(contractPaths).catch(e => console.error('[DELETE /quotes/:id] 계약 파일 정리 실패', e));
-      }
-      res.json({ data: { ok: true } });
-      return;
-    }
-
-    // expired 등 — 삭제 불가
-    res.status(409).json({ error: { code: 'CONFLICT', message: '이 상태의 견적은 삭제할 수 없습니다' } });
-  } catch (e) {
-    console.error('[DELETE /quotes/:id]', e);
-    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 삭제 중 오류가 발생했습니다.' } });
-  }
+/**
+ * 견적 삭제 — **없앴다. 언제나 거절한다.**
+ *
+ * 2026-08-18, 실계약이 카카오 서명 요청 중인 상태에서 없앴다.
+ * 이 라우트는 견적만 지우는 게 아니라 **연결된 계약(purchase_contract)과 서명본 PDF,
+ * 주문·서류까지 연쇄로 지웠다.** 서명이 끝난 계약은 거래의 증거이고 관청 제출물의 근거다 —
+ * 되돌릴 방법이 없다.
+ *
+ * 라우트를 지우지 않고 남겨 둔 이유: 옛 화면이 호출하면 404 보다
+ * **왜 안 되는지 적힌 응답**이 낫다. 지운 기능은 흔적을 남겨야 다음 사람이 되살리지 않는다.
+ *
+ * ⚠️ 되살리지 말 것. 잘못 만든 견적은 지우는 게 아니라 상태로 관리한다(만료·취소).
+ */
+quotesRouter.delete('/:id', rbac('ADMIN'), async (_req: Request, res): Promise<void> => {
+  res.status(405).json({
+    error: {
+      code: 'DELETE_DISABLED',
+      message: '견적 삭제 기능은 제공하지 않습니다. 계약·서명본이 함께 사라지기 때문입니다.',
+    },
+  });
 });
-
-// ── GET /quotes/:id/pdf — 견적서 PDF 생성 ────────────────────────────────
 
 quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) {

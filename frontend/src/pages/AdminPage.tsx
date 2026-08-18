@@ -2,9 +2,9 @@ import { Fragment, useEffect, useState } from 'react'
 import { openPdf } from '../lib/openPdf'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { rolesOf } from '@shared/types/index'
-import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser, cascadeDeleteUser } from '../api/auth'
+import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, assignQuote, assignSalesQuote, deleteQuote } from '../api/quotes'
+import { fetchQuotes, assignQuote, assignSalesQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
@@ -352,7 +352,6 @@ function AccountsTab() {
   const [resetResult, setResetResult] = useState<{ email: string; temp_password: string } | null>(null)
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [cascadeDeleting, setCascadeDeleting] = useState<string | null>(null)
   const [roleSaving, setRoleSaving] = useState<string | null>(null)
 
   function loadAll() {
@@ -411,20 +410,6 @@ function AccountsTab() {
     }
   }
 
-  async function handleCascadeDelete(email: string) {
-    if (!window.confirm(
-      `[완전 삭제] ${email}\n\n이 계정과 연결된 모든 견적·주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`
-    )) return
-    setCascadeDeleting(email); setErr('')
-    try {
-      await cascadeDeleteUser(email)
-      setUsers(prev => prev.filter(u => u.email !== email))
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '완전 삭제 실패')
-    } finally {
-      setCascadeDeleting(null)
-    }
-  }
 
   /**
    * 겸직 역할 켜고 끄기 — 주 역할은 건드리지 않는다(그건 계정의 소속을 바꾸는 일이라 따로 둔다).
@@ -581,16 +566,10 @@ function AccountsTab() {
         >
           {deleting === user.email ? '…' : '삭제'}
         </button>
-        {isMaster && (
-          <button
-            style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDangerOutline) }}
-            onClick={() => handleCascadeDelete(user.email)}
-            disabled={isDeleteDisabled(user) || cascadeDeleting === user.email}
-            title="연결된 견적·주문·서류 포함 완전 삭제 (마스터 전용)"
-          >
-            {cascadeDeleting === user.email ? '…' : '완전삭제'}
-          </button>
-        )}
+        {/*
+          「완전삭제」를 없앴다 — 그 영업의 **견적·주문·서류를 통째로** 지웠고, 계약 상태를
+          보지도 않아 서명이 끝난 계약까지 사라졌다. 계정을 못 쓰게 하려면 「정지」를 쓴다.
+        */}
       </>
     )
   }
@@ -791,8 +770,7 @@ function PerfTab() {
 
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
 function QuotesTab() {
-  const { session } = useAuth()
-  const isMaster = session?.user.is_master ?? false
+  // 견적 삭제를 없애면서 is_master 분기가 사라졌다 — 마스터만 할 수 있는 일이 이 탭엔 없다
   const isMobile = useIsMobile()
 
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
@@ -815,10 +793,7 @@ function QuotesTab() {
   const [paperLoading, setPaperLoading] = useState(false)
   const [paperError, setPaperError] = useState('')
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [viewing, setViewing] = useState<ApiQuote | null>(null)
-  // 삭제는 되돌릴 수 없다 — 권한이 없으면 버튼 자체를 감춘다
-  const canDelete = usePermission('quote.delete')
   // 서면계약 등록 = 「이 건을 제작으로 넘긴다」는 결정이라 배정과 같은 권한을 쓴다(서버도 order.confirm)
   const canConfirm = usePermission('order.confirm')
 
@@ -894,22 +869,11 @@ function QuotesTab() {
     } finally { setAssignSalesBusy(false) }
   }
 
-  async function handleDelete(id: number, status: string) {
-    if (['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(status)) {
-      if (!window.confirm(`견적 #${id}\n\n연결된 주문·서류가 함께 삭제됩니다.\n되돌릴 수 없습니다.\n\n정말 삭제하시겠습니까?`)) return
-    } else {
-      if (!window.confirm(`견적 #${id}을(를) 삭제하시겠습니까? 되돌릴 수 없습니다.`)) return
-    }
-    setDeletingId(id); setErr('')
-    try {
-      await deleteQuote(id)
-      setQuotes(prev => prev.filter(q => q.id !== id))
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '삭제 실패')
-    } finally {
-      setDeletingId(null)
-    }
-  }
+  /*
+   * 견적 삭제를 없앴다 — 이 라우트는 견적만이 아니라 **연결된 계약(purchase_contract)과
+   * 서명본 PDF, 주문·서류까지 연쇄로 지웠다.** 서명이 끝난 계약은 거래의 증거다.
+   * 잘못 만든 견적은 지우지 않고 상태로 관리한다(만료·취소). 서버도 405 로 거절한다.
+   */
 
   /** 견적 상태 → 뱃지 뜻 넷 중 하나(진행중·완료·대기·경고). 상태별로 색을 새로 만들지 않는다 */
   function statusTone(status: string): BadgeTone {
@@ -1022,13 +986,6 @@ function QuotesTab() {
                 {q.status === 'contracted' && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                 )}
-                {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
-                  <button
-                    style={{ ...(deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)), width: '100%' }}
-                    disabled={deletingId === q.id}
-                    onClick={() => handleDelete(q.id, q.status)}
-                  >{deletingId === q.id ? '…' : '삭제'}</button>
-                )}
               </div>
             </div>
           ))}
@@ -1120,16 +1077,6 @@ function QuotesTab() {
                       )}
                       {q.status === 'contracted' && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                      )}
-                      {canDelete && (q.status === 'draft' || (isMaster && ['confirmed', 'contracted', 'assigned', 'ordered', 'completed'].includes(q.status))) && (
-                        <button
-                          style={deletingId === q.id ? BTN.rowDisabled : (q.status !== 'draft' ? BTN.rowDangerOutline : BTN.rowDanger)}
-                          disabled={deletingId === q.id}
-                          onClick={() => handleDelete(q.id, q.status)}
-                          title={q.status !== 'draft' ? '견적 삭제 — 연결 주문·서류도 함께 삭제됩니다' : '견적 삭제'}
-                        >
-                          {deletingId === q.id ? '…' : '삭제'}
-                        </button>
                       )}
                     </div>
                   </td>
