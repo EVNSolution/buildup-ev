@@ -460,6 +460,7 @@ model Order {
   generated_documents GeneratedDocument[]
   steps     OrderStep[]
   files     OrderFile[]
+  tuning_applications TuningApplication[]
 
   @@map("order")
 }
@@ -592,6 +593,37 @@ model PurchaseContract {
 
   @@index([quote_id])
   @@map("purchase_contract")
+}
+
+/// 튜닝신청서 전자서명.
+///
+/// 매매계약서(PurchaseContract)와 **생애주기가 같다** — 고객 1인이 이메일/카카오로 서명한다.
+/// 다른 점은 붙는 대상뿐이다: 계약은 견적에, 튜닝신청서는 **주문**에 붙는다
+/// (자동차등록증이 나온 뒤에 만들 수 있어, 견적 시점에는 존재할 수 없다).
+///
+/// 재발송하면 행이 쌓인다. 최신 1건이 현재 상태 — 계약과 같은 규칙.
+model TuningApplication {
+  id                   Int            @id @default(autoincrement())
+  order_id             Int
+  modusign_document_id String?        @unique @db.VarChar(80)
+  signing_method       String         @db.VarChar(10) // EMAIL | KAKAO
+  status               ContractStatus @default(DRAFT)
+  /// 발송시점 고객 스냅샷(이름/연락처) — 나중에 고객정보가 바뀌어도 보낸 사실은 그대로 남는다
+  customer_snapshot    Json
+  signed_pdf_path      String?        @db.VarChar(500)
+  /// 서명본을 **실제로 내려받은** 기록. 이게 있어야 「서명 완료」 단계를 넘길 수 있다 —
+  /// 관청에 내는 정본이라, 열어 보지 않고 넘기면 잘못 서명된 것을 뒤늦게 안다.
+  downloaded_at        DateTime?
+  downloaded_by        String?        @db.VarChar(120)
+  sent_at              DateTime?
+  completed_at         DateTime?
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @default(now()) @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@map("tuning_application")
 }
 
 // webhook 멱등 dedup. (document_id, event_type) 유일 — 같은 이벤트 재수신 무시.
