@@ -16,6 +16,7 @@ import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 import { setQuoteStatus } from '../services/quote-status.js';
+import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { STEPS } from '@buildup-ev/shared/process';
 
@@ -648,6 +649,9 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
   } catch {
     // quote_no 부여 실패는 치명적이지 않음 — 백필로 복구 가능
   }
+
+  // WARP CRM 수신함에 견적 작성 알림 (#200) — fire-and-forget, 저장을 막지 않는다
+  void pushWarpDealEvent('quote_created', quote.id);
 
   res.status(201).json({ data: { quote_id: quote.id, pricing: result } });
 });
