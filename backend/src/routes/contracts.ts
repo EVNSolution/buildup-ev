@@ -5,10 +5,14 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { existsSync, createReadStream } from 'node:fs';
+import path from 'node:path';
+import multer from 'multer';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import {
   sendContract, getLatestContract, ContractError, refreshContractStatus, ensureSignedPdf,
+  registerPaperContract, PAPER_METHOD, PAPER_SCAN_MIME,
 } from '../services/contract.js';
+import { MAX_DOC_BYTES, safeDisplayName } from '../lib/uploads.js';
 import { ModusignConfigError, ModusignApiError } from '../services/modusign.js';
 import { SofficeUnavailableError } from '../lib/soffice.js';
 
@@ -78,6 +82,8 @@ contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES'), async (req: Request
     if (!c) { res.json({ data: null }); return; }
     res.json({ data: {
       id: c.id, status: c.status, signing_method: c.signing_method,
+      // 화면이 「전자서명 완료」와 「서면계약」을 다르게 적어야 한다 — 같은 COMPLETED 라도 뜻이 다르다
+      is_paper: c.signing_method === PAPER_METHOD,
       sent_at: c.sent_at, completed_at: c.completed_at, has_signed: !!c.signed_pdf_path,
     } });
   } catch (e) {
@@ -98,11 +104,73 @@ contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES'), async (req: 
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '완료된 서명본이 없습니다' } });
       return;
     }
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(`특장매매계약서_서명본_견적${id}.pdf`)}`);
+    /*
+     * 서면계약 스캔본은 PDF 가 아닐 수 있다(폰으로 찍어 오면 JPG·HEIC).
+     * 내용과 다른 Content-Type 을 박으면 브라우저가 깨진 파일로 취급한다 — 확장자에서 읽는다.
+     */
+    const ext = path.extname(filePath).toLowerCase();
+    const TYPE: Record<string, string> = {
+      '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.png': 'image/png',
+      '.webp': 'image/webp', '.heic': 'image/heic',
+    };
+    const c = await getLatestContract(id);
+    const isPaper = c?.signing_method === PAPER_METHOD;
+    const name = `${isPaper ? '특장매매계약서_서면' : '특장매매계약서_서명본'}_견적${id}${ext}`;
+    res.setHeader('Content-Type', TYPE[ext] ?? 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
     createReadStream(filePath).pipe(res);
   } catch (e) {
     console.error('[GET contract/signed]', e);
     res.status(500).json({ error: { code: 'INTERNAL' } });
   }
 });
+
+// ── POST /:id/contract/paper — 서면계약 등록 ─────────────────────────────────
+/*
+ * **관리자 전용, 스캔본 필수.**
+ *
+ * 전자서명을 건너뛰고 계약완료로 올리는 문이라, 영업에게는 열지 않는다.
+ * 권한은 `order.confirm`(주문 전환·배정) 을 쓴다 — 이 등록이 곧 「이 건을 제작으로 넘긴다」는
+ * 결정이고, 배정을 맡은 사람과 같은 판단이다. 따로 토글을 만들면 둘 중 하나만 켜진
+ * 어중간한 계정이 생긴다.
+ */
+const scanUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_DOC_BYTES, files: 1 } });
+
+contractsRouter.post('/:id/contract/paper',
+  rbac('ADMIN'), requirePermission('order.confirm'), scanUpload.single('file'),
+  async (req: Request, res: Response): Promise<void> => {
+    const id = quoteId(req);
+    if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '계약서 스캔본을 첨부해야 합니다' } });
+      return;
+    }
+    if (!PAPER_SCAN_MIME[file.mimetype]) {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: 'PDF 또는 사진(JPG·PNG·WEBP·HEIC) 만 등록할 수 있습니다' } });
+      return;
+    }
+    if (file.size > MAX_DOC_BYTES) {
+      res.status(400).json({ error: { code: 'FILE_TOO_LARGE', message: `${Math.round(MAX_DOC_BYTES / 1024 / 1024)}MB 를 넘습니다` } });
+      return;
+    }
+
+    try {
+      const c = await registerPaperContract(
+        id,
+        { buffer: file.buffer, mime: file.mimetype, originalName: safeDisplayName(file.originalname ?? '') },
+        req.auth?.email ?? 'unknown',
+      );
+      res.status(201).json({ data: { id: c.id, status: c.status, signing_method: c.signing_method, completed_at: c.completed_at } });
+    } catch (e) {
+      if (e instanceof ContractError) {
+        const map = { NOT_FOUND: 404, NO_CUSTOMER: 400, NO_CONTACT: 400, DB_UNAVAILABLE: 503,
+          NOT_SENDABLE: 409, ALREADY_SENT: 409, NEEDS_REVIEW: 409 } as const;
+        res.status(map[e.code]).json({ error: { code: e.code, message: e.message } });
+        return;
+      }
+      console.error('[POST contract/paper]', e);
+      res.status(500).json({ error: { code: 'INTERNAL', message: '서면계약 등록 실패' } });
+    }
+  });

@@ -6,6 +6,7 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, deleteQuote } from '../api/quotes'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
+import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
@@ -123,6 +124,52 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
           <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
             {loading ? '처리 중…' : '제작 배정'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 서면계약 등록 모달 ─────────────────────────────────────────────────────
+/**
+ * 종이로 체결한 계약을 등록해 **계약완료**로 올린다 — 그래야 제작 배정이 열린다.
+ *
+ * 전자서명을 건너뛰는 문이라 화면에서도 그렇게 보이게 한다:
+ * 무엇을 하는 것인지 먼저 적고, 스캔본 없이는 버튼이 눌리지 않는다.
+ * 나중에 「이 건은 왜 서명이 없나」를 반드시 묻게 되는데, 그때 답이 시스템 안에 있어야 한다.
+ */
+interface PaperModalProps {
+  quoteId: number; loading: boolean; error: string
+  onSubmit: (file: File) => void; onClose: () => void
+}
+function PaperContractModal({ quoteId, loading, error, onSubmit, onClose }: PaperModalProps) {
+  const [file, setFile] = useState<File | null>(null)
+  return (
+    <div style={modal.overlay} onClick={onClose}>
+      <div style={modal.box} onClick={e => e.stopPropagation()}>
+        <div style={modal.title}>견적 #{quoteId} — 서면계약 등록</div>
+        <div style={modal.desc}>
+          종이로 체결한 계약을 등록합니다. 등록하면 전자서명 없이 <b>계약완료</b>가 되어 제작 배정을 할 수 있습니다.
+          견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.
+        </div>
+        <label style={modal.label}>계약서 스캔본<span style={modal.req}> · 필수</span></label>
+        <input
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
+          style={modal.file}
+          onChange={e => setFile(e.target.files?.[0] ?? null)}
+        />
+        <div style={modal.hint}>PDF 또는 사진 · 20MB 이하 · 고객이 서명·날인한 계약서 전체</div>
+        {error && <div style={modal.error}>{error}</div>}
+        <div style={modal.actions}>
+          <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
+          <button
+            style={!file || loading ? modal.confirmBtnDisabled : modal.confirmBtn}
+            disabled={!file || loading}
+            onClick={() => file && onSubmit(file)}
+          >
+            {loading ? '등록 중…' : '서면계약 등록'}
           </button>
         </div>
       </div>
@@ -763,11 +810,17 @@ function QuotesTab() {
   const [makerOrgs, setMakerOrgs] = useState<Org[]>([])
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState('')
+  // 서면계약 등록 — 전자서명 없이 계약완료로 올리는 관리자 전용 경로
+  const [paperId, setPaperId] = useState<number | null>(null)
+  const [paperLoading, setPaperLoading] = useState(false)
+  const [paperError, setPaperError] = useState('')
   const [makerOrgsLoading, setMakerOrgsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [viewing, setViewing] = useState<ApiQuote | null>(null)
   // 삭제는 되돌릴 수 없다 — 권한이 없으면 버튼 자체를 감춘다
   const canDelete = usePermission('quote.delete')
+  // 서면계약 등록 = 「이 건을 제작으로 넘긴다」는 결정이라 배정과 같은 권한을 쓴다(서버도 order.confirm)
+  const canConfirm = usePermission('order.confirm')
 
   function load() {
     setLoading(true); setErr('')
@@ -778,6 +831,20 @@ function QuotesTab() {
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 서면계약 등록 (견적확정→계약완료). 스캔본이 있어야만 호출된다(모달이 막는다).
+  async function handlePaperSubmit(file: File) {
+    if (!paperId) return
+    setPaperLoading(true); setPaperError('')
+    try {
+      await registerPaperContract(paperId, file)
+      setPaperId(null); load()
+    } catch (e: unknown) {
+      setPaperError(e instanceof Error ? e.message : '서면계약 등록 실패')
+    } finally {
+      setPaperLoading(false)
+    }
+  }
 
   function handleOpenConfirm(id: number) {
     setConfirmingId(id); setConfirmError(''); setMakerOrgsLoading(true)
@@ -935,15 +1002,22 @@ function QuotesTab() {
                   <button
                     style={{ ...BTN.rowPrimary, width: '100%' }}
                     onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
-                  >서명본</button>
+                  >{q.contract?.signing_method === 'PAPER' ? '계약서 스캔본' : '서명본'}</button>
                 )}
                 {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
                 {q.source === 'public' && !q.sales_user_id && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                 )}
                 {/* 제작 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
+                {q.status === 'confirmed' && canConfirm && (
+                  <button
+                    style={{ ...BTN.rowPrimary, width: '100%' }}
+                    title="종이로 체결한 계약서를 등록해 계약완료로 올립니다"
+                    onClick={() => { setPaperId(q.id); setPaperError('') }}
+                  >서면계약</button>
+                )}
                 {q.status === 'confirmed' && (
-                  <button style={{ ...BTN.rowMuted, width: '100%' }} disabled title="전자서명이 완료되어야 제작 배정을 할 수 있습니다">제작 배정</button>
+                  <button style={{ ...BTN.rowMuted, width: '100%' }} disabled title="전자서명 또는 서면계약 등록이 끝나야 제작 배정을 할 수 있습니다">제작 배정</button>
                 )}
                 {q.status === 'contracted' && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
@@ -1023,14 +1097,26 @@ function QuotesTab() {
                           style={BTN.rowPrimary}
                           title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
                           onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
-                        >서명본</button>
+                        >{q.contract?.signing_method === 'PAPER' ? '스캔본' : '서명본'}</button>
                       )}
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                       )}
                       {/* 제작 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
                       {q.status === 'confirmed' && (
-                        <button style={BTN.rowMuted} disabled title="전자서명이 완료되어야 제작 배정을 할 수 있습니다">제작 배정</button>
+                        <button style={BTN.rowMuted} disabled title="전자서명 또는 서면계약 등록이 끝나야 제작 배정을 할 수 있습니다">제작 배정</button>
+                      )}
+                      {/*
+                        종이로 이미 체결한 건을 제작으로 넘기는 문. 전자서명을 건너뛰므로
+                        관리자에게만 보이고(서버도 ADMIN + order.confirm 으로 막는다),
+                        스캔본 없이는 등록되지 않는다.
+                      */}
+                      {q.status === 'confirmed' && canConfirm && (
+                        <button
+                          style={BTN.rowPrimary}
+                          title="종이로 체결한 계약서를 등록해 계약완료로 올립니다"
+                          onClick={() => { setPaperId(q.id); setPaperError('') }}
+                        >서면계약</button>
                       )}
                       {q.status === 'contracted' && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
@@ -1064,6 +1150,13 @@ function QuotesTab() {
           error={assignSalesErr}
           onConfirm={handleAssignSales}
           onClose={() => { setAssignSalesId(null); setAssignSalesErr('') }}
+        />
+      )}
+
+      {paperId !== null && (
+        <PaperContractModal
+          quoteId={paperId} loading={paperLoading} error={paperError}
+          onSubmit={handlePaperSubmit} onClose={() => setPaperId(null)}
         />
       )}
 
@@ -1350,6 +1443,8 @@ const modal: Record<string, React.CSSProperties> = {
   req: { color: 'var(--req)', fontWeight: 700 },
   select: { fontSize: 14, padding: '10px 12px', border: '0.5px solid var(--line)', borderRadius: 9, width: '100%' },
   error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '0.5px solid var(--warn)', padding: '7px 10px', borderRadius: 7 },
+  file: { width: '100%', fontSize: 'var(--fs-label)', color: 'var(--dark)', padding: 'var(--sp-2) 0' },
+  hint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 'var(--sp-1)' },
   actions: { display: 'flex', gap: 10, justifyContent: 'flex-end' },
   // 나란히 서는 버튼은 **같은 크기** — 공통 BTN 을 쓰고 최소폭만 맞춘다
   cancelBtn: { ...BTN.secondary, minWidth: 108, color: 'var(--muted)' },

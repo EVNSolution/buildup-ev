@@ -127,7 +127,9 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
         contracts: {
           orderBy: { created_at: 'desc' },
           take: 1,
-          select: { status: true, sent_at: true, completed_at: true },
+          // signing_method 도 싣는다 — 서면계약(PAPER)과 전자서명 완료는 같은 COMPLETED 라
+          // 이 값이 없으면 목록에서 둘을 구분해 적을 수 없다.
+          select: { status: true, sent_at: true, completed_at: true, signing_method: true },
         },
       },
     });
@@ -135,7 +137,8 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
     const data = quotes.map(({ contracts, ...q }) => ({
       ...q,
       contract: contracts[0]
-        ? { status: contracts[0].status, sent_at: contracts[0].sent_at, completed_at: contracts[0].completed_at }
+        ? { status: contracts[0].status, sent_at: contracts[0].sent_at, completed_at: contracts[0].completed_at,
+            signing_method: contracts[0].signing_method }
         : null,
     }));
     res.json({ data });
