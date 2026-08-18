@@ -15,6 +15,7 @@ import { weightConstantsRouter } from './routes/weight-constants.js';
 import { optionDbRouter } from './routes/option-db.js';
 import { statsRouter } from './routes/stats.js';
 import { contractsRouter } from './routes/contracts.js';
+import { tuningRouter } from './routes/tuning.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { emailRouter } from './routes/email.js';
 import { featureModulesRouter } from './routes/feature-modules.js';
@@ -63,6 +64,7 @@ export function createApp() {
   app.use('/api/v1/orders', docsRouter);
   app.use('/api/v1/orders', stepsRouter);
   app.use('/api/v1/quotes', contractsRouter); // 계약은 견적 기준
+  app.use('/api/v1/orders', tuningRouter);   // 튜닝신청서는 주문 기준(등록증이 나온 뒤에 만든다)
   app.use('/api/v1/quotes', emailRouter);     // 견적서·계약서 이메일 발송
   app.use('/api/v1/webhooks', webhooksRouter);
   app.use('/api/v1/subsidy', subsidyRouter);

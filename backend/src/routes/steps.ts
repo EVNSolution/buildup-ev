@@ -227,6 +227,22 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
   );
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
 
+  /*
+   * 「서명 완료」는 **서명본을 실제로 내려받은 뒤에만** 넘어간다.
+   *
+   * 예전엔 이 규칙이 화면에만 있었다 — 「서명본 확인」 버튼이 브라우저 메모리에 남을 뿐이라
+   * 새로고침하면 사라졌고, 서버는 아예 검사하지 않아 API 를 직접 부르면 그냥 통과했다.
+   * 관청에 내는 정본이라, 열어 보지 않고 넘기면 잘못 서명된 것을 뒤늦게 안다.
+   */
+  if (code === 'tuning_signed') {
+    const { isTuningSignedAndFetched } = await import('../services/tuning-esign.js');
+    if (!await isTuningSignedAndFetched(id)) {
+      res.status(409).json({ error: { code: 'STEP_BLOCKED',
+        message: '서명이 완료되고 서명본을 내려받은 뒤에 완료할 수 있습니다' } });
+      return;
+    }
+  }
+
 
   // 날짜를 받는 단계는 날짜가 있어야 한다(납기·검사예정일·인도일)
   let planned: Date | null = null;

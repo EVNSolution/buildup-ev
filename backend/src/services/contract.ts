@@ -362,7 +362,17 @@ export async function handleModusignEvent(documentId: string, eventType: string)
   }
 
   const contract = await p.purchaseContract.findUnique({ where: { modusign_document_id: documentId } });
-  if (!contract) return; // 우리 계약이 아님
+  if (!contract) {
+    /*
+     * 매매계약서가 아니면 **튜닝신청서일 수 있다.** 모두싸인은 한 웹훅으로 모든 문서를 보낸다.
+     * 예전엔 여기서 그냥 return 이라, 계약서 말고 다른 문서를 보내면 서명이 끝나도
+     * 아무 일도 일어나지 않았다. 문서 종류를 늘릴 때 반드시 여기에 한 줄이 있어야 한다.
+     * (동적 import — 튜닝 쪽이 이 파일의 상태 매핑을 쓰므로 정적 import 는 순환이 된다)
+     */
+    const { handleTuningEvent } = await import('./tuning-esign.js');
+    await handleTuningEvent(documentId, eventType);
+    return;
+  }
   if (TERMINAL.includes(contract.status)) return; // 이미 종료상태 — 되돌리지 않음
 
   // 위조 방어: webhook 서명검증 secret 미확정 → API 로 실제 상태 재조회해 교차검증.
