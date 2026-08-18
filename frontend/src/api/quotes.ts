@@ -192,6 +192,49 @@ export async function lookupCustomer(name: string, regNo: string): Promise<Custo
   return body.data
 }
 
+// ── WARP CRM 연동 자동 기입 ────────────────────────────────────────────────
+
+/** WARP CRM 차량 참고 정보 — 화면 표시 전용, 견적에 저장하지 않는다. */
+export interface WarpVehicleInfo {
+  maker: string | null
+  name: string | null
+  plate_no: string | null
+  year: string | null
+  truck_types: string[]
+}
+
+/** WARP CRM 조회 결과 — 백엔드 프록시(/customers/warp-lookup)가 변환해서 준다. */
+export interface WarpAutofillHit {
+  /** WARP 에 등록된 고객명 — 안내 표시용. 폼의 성명은 매칭 키라 덮지 않는다. */
+  name: string
+  email: string | null
+  birth_regno: string | null      // YYYY-MM-DD (8자리 검증 완료) 또는 null
+  biz_regno: string | null        // 000-00-00000 (10자리 검증 완료) 또는 null
+  ceo_name: string | null         // B2B 고객일 때 대표이사 후보
+  address: string | null
+  address_detail: string | null
+  tel: string | null
+  match_count: number             // 2 이상이면 동일 이름+전화 중복 등록(최신 1건 기준)
+  vehicles: WarpVehicleInfo[]
+}
+
+/**
+ * 이름 + 휴대폰 **완전일치**로 WARP CRM 고객 1건 조회. 없거나 실패하면 null.
+ * API 키는 백엔드에만 있다 — 브라우저는 WARP 를 직접 부르지 않는다.
+ */
+export async function lookupWarpCustomer(name: string, phone: string): Promise<WarpAutofillHit | null> {
+  if (!name.trim() || !phone.trim()) return null
+  const q = new URLSearchParams({ name: name.trim(), phone: phone.trim() })
+  try {
+    const res = await fetch(`/api/v1/customers/warp-lookup?${q}`, { credentials: 'include' })
+    if (!res.ok) return null          // 조회 실패는 자동 기입을 건너뛸 뿐, 입력을 막지 않는다
+    const body = await res.json() as { data: WarpAutofillHit | null }
+    return body.data
+  } catch {
+    return null
+  }
+}
+
 
 /** 견적 수정 이력 한 줄 */
 export interface QuoteChange {

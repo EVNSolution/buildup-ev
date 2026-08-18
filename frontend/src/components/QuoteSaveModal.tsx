@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
-import { lookupCustomer } from '../api/quotes'
+import { lookupCustomer, lookupWarpCustomer, type WarpVehicleInfo } from '../api/quotes'
 import { preloadPostcode, searchAddress } from '../lib/postcode'
 import type { BusinessType, CustomerInfo } from '@shared/types/index'
 
@@ -189,6 +189,62 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
   // 대표이사는 매수인 법인 줄에 인쇄되고, 대리인이 없으면 서명란에도 대표이사가 들어간다.
   // 대리인은 선택 — 법인도 대표이사가 직접 오는 경우가 더 흔하다.
 
+  // ── WARP CRM 불러오기 — 명시적 버튼으로만 조회한다(자동 조회 아님) ──────────
+  const [warpLoading, setWarpLoading] = useState(false)
+  const [warpNotice, setWarpNotice] = useState('')
+  /** WARP 에 등록된 차량 — **참고 표시 전용**. 저장 payload 에는 들어가지 않는다. */
+  const [warpVehicles, setWarpVehicles] = useState<WarpVehicleInfo[]>([])
+  // 이름 + 휴대폰(숫자 10자리)이 있어야 조회 키가 성립한다
+  const canWarpLookup = !!v.name.trim() && digitsOf(v.phone).length >= 10
+
+  /**
+   * 이름+휴대폰 완전일치로 WARP CRM 고객을 찾아 **빈 칸만** 채운다.
+   * 이름·휴대폰 자체는 매칭 키라 덮지 않는다. 실패·미매칭은 안내만 하고 입력을 막지 않는다.
+   */
+  async function tryWarpAutofill() {
+    if (warpLoading || !canWarpLookup) return
+    setWarpLoading(true)
+    setWarpNotice('')
+    setWarpVehicles([])
+    try {
+      const hit = await lookupWarpCustomer(v.name, v.phone)
+      if (!hit) {
+        setWarpNotice('CRM(WARP)에 일치하는 고객이 없습니다 — 이름·휴대폰이 등록된 값과 정확히 같아야 합니다.')
+        return
+      }
+      const filled: string[] = []
+      let regnoFilled = ''
+      setV(prev => {
+        const next = { ...prev }
+        const fill = (k: 'email' | 'address' | 'address_detail' | 'buyer_tel' | 'ceo_name', val: string | null, label: string) => {
+          if (val && !next[k].trim()) { next[k] = val; filled.push(label) }
+        }
+        fill('email', hit.email, '이메일')
+        // 법인은 사업자번호만. 개인은 생년월일 우선, 없으면 개인사업자 번호.
+        const regno = isCorporate ? hit.biz_regno : (hit.birth_regno ?? hit.biz_regno)
+        if (regno && !next.buyer_regno.trim()) {
+          next.buyer_regno = regno
+          regnoFilled = regno
+          filled.push(isCorporate ? '사업자번호' : '생년월일/사업자번호')
+        }
+        fill('address', hit.address, '주소')
+        fill('address_detail', hit.address_detail, '세부주소')
+        fill('buyer_tel', hit.tel, '유선번호')
+        if (isCorporate) fill('ceo_name', hit.ceo_name, '대표이사')
+        return next
+      })
+      setWarpVehicles(hit.vehicles)
+      const dup = hit.match_count > 1 ? ` (동일 이름·휴대폰으로 ${hit.match_count}건 등록 — 가장 최근 것 기준)` : ''
+      setWarpNotice(filled.length
+        ? `CRM(WARP)에서 ${filled.join(', ')} 을(를) 불러와 빈 칸을 채웠습니다. 다르면 고쳐 주세요.${dup}`
+        : `CRM(WARP)에서 고객을 찾았지만 새로 채울 빈 칸이 없습니다.${dup}`)
+      // 생년월일/사업자번호가 채워졌으면 지난 견적 마스터도 이어서 조회한다(빈 칸만 채움)
+      if (regnoFilled) void tryAutofill(v.name, regnoFilled)
+    } finally {
+      setWarpLoading(false)
+    }
+  }
+
   return (
     <>
         <div style={s.sectionTitle}>고객 정보</div>
@@ -256,9 +312,39 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
         )}
 
         <div style={s.row}>
-          <label style={s.label}>휴대폰<Tag need /></label>
-          <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
+          <label style={s.label}>
+            휴대폰<Tag need />
+            <Note>이름·휴대폰이 일치하면 CRM에서 불러올 수 있습니다</Note>
+          </label>
+          <div style={s.addrRow}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <PhoneInput value={v.phone} onChange={x => set('phone', x)} boxStyle={s.field} />
+            </div>
+            {/* WARP CRM 조회는 **버튼으로만** — 입력 도중 자동 조회로 값이 바뀌면 당황스럽다 */}
+            <button
+              type="button"
+              style={{ ...s.addrBtn, ...(canWarpLookup && !warpLoading ? null : s.warpBtnOff) }}
+              disabled={!canWarpLookup || warpLoading}
+              onClick={() => void tryWarpAutofill()}
+              title="이름 + 휴대폰 완전일치로 WARP CRM 고객정보를 불러와 빈 칸을 채웁니다"
+            >
+              {warpLoading ? '조회 중…' : 'CRM에서 불러오기'}
+            </button>
+          </div>
         </div>
+        {warpNotice && <div style={s.autofill}>{warpNotice}</div>}
+        {warpVehicles.length > 0 && (
+          <div style={s.warpVehicleBox}>
+            <b>CRM 등록 차량 (참고용 — 견적에 저장되지 않습니다)</b>
+            {warpVehicles.map((veh, i) => (
+              <div key={i}>
+                {[veh.maker, veh.name, veh.plate_no, veh.year && `${veh.year}년식`,
+                  veh.truck_types.length ? veh.truck_types.join('/') : null]
+                  .filter(Boolean).join(' · ') || '상세 정보 없음'}
+              </div>
+            ))}
+          </div>
+        )}
         <div style={s.row}>
           <label style={s.label}>
             이메일<Tag need={forContract} />
@@ -480,6 +566,13 @@ const s: Record<string, React.CSSProperties> = {
   autofill: {
     fontSize: 14, color: 'var(--dark)', background: 'var(--lime-bg)',
     border: '0.5px solid var(--lime)', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
+  },
+  warpBtnOff: { opacity: .5, cursor: 'not-allowed' },
+  /** CRM 등록 차량 — 참고 표시 전용(저장 안 됨). 자동 기입 배너와 구분되게 회색 톤 */
+  warpVehicleBox: {
+    fontSize: 14, color: 'var(--dark)', background: 'var(--card)',
+    border: '0.5px solid var(--line)', borderRadius: 8, padding: '8px 10px', marginBottom: 12,
+    display: 'grid', gap: 2,
   },
   error: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-3)' },
   btnRow: { display: 'flex', gap: 8, marginTop: 14 },
