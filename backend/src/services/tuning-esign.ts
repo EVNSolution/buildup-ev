@@ -8,8 +8,8 @@
  * 다른 점은 **붙는 대상**뿐이다: 계약은 견적에, 튜닝신청서는 주문에 붙는다
  * (자동차등록증이 나온 뒤에야 만들 수 있어 견적 시점에는 존재할 수 없다).
  *
- * ⚠️ **아직 양식이 없다.** `renderTuningPdf` 가 서식 원본을 받아 구현되기 전까지
- *    발송은 TUNING_FORM_MISSING 으로 거절된다 — 빈 문서가 고객에게 나가는 것보다 낫다.
+ * 양식과 서명란은 tuning-form.ts 가 맡는다([별지 제33호서식] 재현).
+ * 등록증 정보가 비어 있으면 발송이 NOT_READY 로 막힌다 — 관청에 빈칸을 낼 수는 없다.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -20,6 +20,7 @@ import { docStorageDir } from '../lib/soffice.js';
 import * as modusign from './modusign.js';
 import { toKakaoPhone, type SigningMethod } from './modusign.js';
 import { mapDocStatus, mapEventToStatus } from './contract.js';
+import { renderTuningFormPdf, findTuningSignFields as findFields, TuningFormError } from './tuning-form.js';
 
 export class TuningEsignError extends Error {
   constructor(message: string, readonly code:
@@ -136,19 +137,11 @@ export async function handleTuningEvent(documentId: string, eventType: string): 
  * 여기서 빈 문서나 임시 양식을 만들어 보내면 고객이 엉뚱한 서류에 서명하게 되고,
  * 그 서명본이 관청에 제출된다. 양식이 확정될 때까지 발송을 막는 편이 맞다.
  */
-export async function findTuningSignFields(_pdf: Buffer): Promise<modusign.SignField[]> {
-  throw new TuningEsignError(
-    '튜닝신청서 서명란 위치가 아직 정해지지 않았습니다. 서식 원본이 들어오면 잡습니다.',
-    'FORM_MISSING',
-  );
-}
-
-export async function renderTuningPdf(_orderId: number): Promise<Buffer> {
-  throw new TuningEsignError(
-    '튜닝신청서 양식이 아직 등록되지 않았습니다. 서식 원본이 들어오면 발송할 수 있습니다.',
-    'FORM_MISSING',
-  );
-}
+/*
+ * 양식·서명란은 tuning-form.ts 가 맡는다 — 여기서는 발송 흐름만 본다.
+ * (예전엔 서식이 없어 이 자리에서 FORM_MISSING 을 던졌다)
+ */
+export { renderTuningFormPdf as renderTuningPdf, findTuningSignFields } from './tuning-form.js';
 
 /**
  * 튜닝신청서 발송 — 고객에게 이메일/카카오로 서명 요청.
@@ -162,6 +155,19 @@ export async function sendTuningApplication(orderId: number, method: SigningMeth
     include: { quote: { include: { customer: true } } },
   });
   if (!order) throw new TuningEsignError('주문을 찾을 수 없습니다', 'NOT_FOUND');
+
+  /*
+   * 「튜닝신청서 생성」이 끝난 뒤에만 보낸다. 이 단계는 자동차등록증 수령을 선행으로 두는데,
+   * 등록증이 없으면 신청서의 소유자·등록번호·차대번호를 채울 수 없다 —
+   * 단계 순서와 서류가 요구하는 것이 같은 이야기다.
+   */
+  const drafted = await p.orderStep.findUnique({
+    where: { order_id_code: { order_id: orderId, code: 'tuning_drafted' } },
+    select: { status: true },
+  });
+  if (drafted?.status !== 'done') {
+    throw new TuningEsignError('「튜닝신청서 생성」 단계를 먼저 완료해야 서명을 요청할 수 있습니다', 'NOT_READY');
+  }
 
   const latest = await getLatestTuning(orderId);
   // 계약과 같은 판단: documentId 가 있는 DRAFT 는 이미 고객에게 갔을 수 있다
@@ -186,15 +192,40 @@ export async function sendTuningApplication(orderId: number, method: SigningMeth
     throw new TuningEsignError(method === 'EMAIL' ? '고객 이메일이 없습니다' : '고객 휴대폰번호가 없습니다', 'NO_CONTACT');
   }
 
-  // 양식이 없으면 여기서 멈춘다 — 행을 만들기 전에 막아, 빈 DRAFT 가 쌓이지 않게 한다
-  const pdf = await renderTuningPdf(orderId);
+  /*
+   * **서명자 이름은 신청서와 같아야 한다.**
+   * 신청인은 자동차등록증상 소유자인데 서명 요청은 견적 고객 이름으로 나가면,
+   * 서명본에 적힌 사람과 신청서에 적힌 사람이 달라진다 — 관청에 낼 수 없는 서류가 된다.
+   * 연락처는 등록증에 없어 견적 고객의 것을 쓸 수밖에 없다. 그래서 이름이 다르면
+   * **누구에게 보내는지 화면에 먼저 보여 준다**(GET /tuning 의 recipient).
+   */
+  const ownerName = String(((order.vehicle_info ?? {}) as Record<string, unknown>)['소유자성명'] ?? '').trim();
+  if (!ownerName) {
+    throw new TuningEsignError('자동차등록증상 소유자성명이 입력되지 않았습니다', 'NOT_READY');
+  }
+
+  /*
+   * 신청서를 **먼저** 만든다 — 행을 만들기 전에 막아, 빈 DRAFT 가 쌓이지 않게 한다.
+   * 등록증 정보가 비어 있으면 여기서 걸린다(관청에 빈칸을 낼 수는 없다).
+   */
+  let pdf: Buffer;
+  try {
+    pdf = await renderTuningFormPdf(orderId);
+  } catch (e) {
+    if (e instanceof TuningFormError) throw new TuningEsignError(e.message, 'NOT_READY');
+    throw e;
+  }
 
   const app = await p.tuningApplication.create({
     data: {
       order_id: orderId,
       signing_method: method,
       status: 'DRAFT',
-      customer_snapshot: { name: customer.name, email: customer.email, phone: customer.phone },
+      // 보낸 사실을 그대로 남긴다 — 나중에 등록증이나 고객정보가 바뀌어도 이 기록은 안 변한다
+      customer_snapshot: {
+        owner_name: ownerName, customer_name: customer.name,
+        email: customer.email, phone: customer.phone,
+      },
     },
   });
 
@@ -202,14 +233,21 @@ export async function sendTuningApplication(orderId: number, method: SigningMeth
    * 서명란 좌표는 양식이 확정된 뒤 채운다 — 계약서처럼 PDF 에서 라벨을 찾아 잡는다
    * (services/sign-positions.ts 와 같은 방식). 모두싸인은 signFields 가 비면 발송하지 않는다.
    */
-  const signFields = await findTuningSignFields(pdf);
+  const signFields = await findFields(pdf);
+  if (signFields.length === 0) {
+    throw new TuningEsignError(
+      '신청서에서 서명란을 찾지 못했습니다. 양식이 바뀌었는지 확인이 필요합니다(관리자 문의).',
+      'NOT_READY',
+    );
+  }
 
   const { documentId } = await modusign.sendDocument({
     title: `튜닝신청서 (주문 ${orderId})`,
     pdfBase64: pdf.toString('base64'),
     fileName: `튜닝신청서_주문${orderId}.pdf`,
     participant: {
-      name: customer.name ?? '고객',
+      // 신청서의 신청인과 같은 이름 — 서명본과 신청서가 다른 사람을 가리키면 안 된다
+      name: ownerName,
       ...(method === 'EMAIL' ? { email: contact } : { phone: contact }),
       signingMethod: method,
     },
@@ -218,8 +256,50 @@ export async function sendTuningApplication(orderId: number, method: SigningMeth
     signatureType: 'SIGN',
   });
 
-  return p.tuningApplication.update({
+  const sent = await p.tuningApplication.update({
     where: { id: app.id },
     data: { modusign_document_id: documentId, status: 'SENT', sent_at: new Date() },
   });
+
+  /*
+   * 「전자서명 요청」은 **보내는 순간 지나가는 단계**다(steps.ts 의 auto).
+   * 사람이 따로 완료를 누를 일이 아니다 — 보낸 사실은 발송이 곧 증명한다.
+   * 화면이 두 번 부르게 하지 않고 여기서 넘긴다. 발송이 실패하면 여기까지 오지 않는다.
+   */
+  await p.orderStep.updateMany({
+    where: { order_id: orderId, code: 'tuning_sign_sent', status: { not: 'done' } },
+    data: { status: 'done', done_at: new Date(), done_by: `system(전자서명 발송 · ${method})` },
+  });
+  return sent;
+}
+
+/**
+ * 발송 전에 화면이 보여 줄 수신자.
+ *
+ * 신청인(등록증상 소유자)과 연락처 주인(견적 고객)이 다를 수 있다 —
+ * 등록증에는 연락처가 없어 고객의 것을 쓸 수밖에 없기 때문이다.
+ * 다르면 **보내기 전에 사람이 보고 판단**해야 한다. 조용히 보내면
+ * 신청서에 적힌 사람과 서명한 사람이 달라진다.
+ */
+export async function tuningRecipient(orderId: number): Promise<{
+  owner_name: string; customer_name: string; email: string; phone: string; mismatch: boolean;
+} | null> {
+  const p = db();
+  const order = await p.order.findUnique({
+    where: { id: orderId },
+    include: { quote: { include: { customer: true } } },
+  });
+  if (!order) return null;
+  const owner = String(((order.vehicle_info ?? {}) as Record<string, unknown>)['소유자성명'] ?? '').trim();
+  const c = order.quote.customer;
+  const cname = (c?.name ?? '').trim();
+  // 공백만 다른 경우는 같은 것으로 본다 — 「(주)이브이앤」과 「(주) 이브이앤」을 다르다고 하면 안 된다
+  const norm = (v: string) => v.replace(/\s+/g, '');
+  return {
+    owner_name: owner,
+    customer_name: cname,
+    email: c?.email ?? '',
+    phone: c?.phone ?? '',
+    mismatch: !!owner && !!cname && norm(owner) !== norm(cname),
+  };
 }

@@ -10,7 +10,7 @@ import { existsSync, createReadStream } from 'node:fs';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import {
   sendTuningApplication, getLatestTuning, ensureTuningSignedPdf, markTuningDownloaded,
-  TuningEsignError,
+  tuningRecipient, TuningEsignError,
 } from '../services/tuning-esign.js';
 import { ModusignConfigError, ModusignApiError } from '../services/modusign.js';
 
@@ -66,8 +66,8 @@ tuningRouter.get('/:id/tuning', rbac('ADMIN', 'SALES', 'MAKER'),
     const id = orderId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
     try {
-      const a = await getLatestTuning(id);
-      res.json({ data: a ? {
+      const [a, recipient] = await Promise.all([getLatestTuning(id), tuningRecipient(id)]);
+      res.json({ recipient, data: a ? {
         id: a.id, status: a.status, signing_method: a.signing_method,
         sent_at: a.sent_at, completed_at: a.completed_at,
         has_signed: !!a.signed_pdf_path,

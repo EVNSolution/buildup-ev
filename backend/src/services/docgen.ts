@@ -267,6 +267,19 @@ async function buildLoadCalcJson(orderId: number) {
  * 소유자·등록정보는 order.vehicle_info(특장사 입력) — 미입력 시 빈칸으로 렌더.
  * ⚠️ VIVAR 미연동 구간: 변경후 치수(차체 높이·하대·옵셋트)는 확정 불가 → 변경전 값 유지/공란(하중계산서와 동일 규약).
  */
+/**
+ * 튜닝개요 한 줄 — 「탈거: … / 설치: …」.
+ *
+ * 제원대비표와 **튜닝 승인 신청서**가 같은 문구를 쓴다. 두 서류가 다른 말을 하면
+ * 관청이 되묻는다 — 그래서 각자 만들지 않고 여기 한 곳에서 낸다.
+ */
+export async function buildTuningSummary(orderId: number): Promise<string> {
+  const { bom } = await assembleContext(orderId);
+  const rem = bom.remove_items.map(i => i.label).join(', ');
+  const ins = bom.install_items.map(i => i.label).join(', ');
+  return [rem && `탈거: ${rem}`, ins && `설치: ${ins}`].filter(Boolean).join(' / ');
+}
+
 async function buildSpecTableJson(orderId: number) {
   const { order, vm, spec, bom, before, after } = await assembleContext(orderId);
   const vi = order.vehicle_info;
@@ -281,10 +294,7 @@ async function buildSpecTableJson(orderId: number) {
   const tire    = spec['타이어'] as Record<string, unknown>;
 
   // 탈거/설치 라벨로 튜닝개요 자동 문구 (사람이 나중에 수정 가능 — 여기선 초안)
-  const remLabels = bom.remove_items.map(i => i.label).join(', ');
-  const insLabels = bom.install_items.map(i => i.label).join(', ');
-  const tuning = [remLabels && `탈거: ${remLabels}`, insLabels && `설치: ${insLabels}`]
-    .filter(Boolean).join(' / ');
+  const tuning = await buildTuningSummary(orderId);
 
   const json = {
     mgmt_no: vis('제원관리번호'),
