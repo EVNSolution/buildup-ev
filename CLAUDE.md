@@ -41,6 +41,12 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 `db/templates`의 엑셀 = 사람 입력용 → **시트별 CSV(`db/seed`)로 변환해 커밋**(엑셀은 git diff 안 됨). 스키마=SQL(`db/schema`).
 
 ## git/개발 규칙
+- ⚠️ **공동개발 중이다.** 여러 사람이 같은 저장소에 동시에 올린다. 반드시 이 순서를 지킬 것:
+  1. **작업 시작 전 최신 `origin/main` 으로 맞춘다** — `git fetch origin && git checkout -B <새브랜치> origin/main`.
+     오래된 로컬 브랜치를 이어 쓰지 말 것(squash 병합본과 충돌한다. 실제로 두 번 났다).
+  2. 개발
+  3. **GitHub 에 issue 를 만들고 PR 을 만든 뒤** 병합·배포. PR 본문에 `Closes #N` 으로 잇는다.
+- 장수 브랜치를 만들지 않는다. 기능 단위로 짧게 → 병합 후 로컬 브랜치 삭제.
 - `main`=안정. 기능마다 `feature/...` 브랜치 → **작게 자주 커밋** → 푸시 → PR → 병합.
 - `.env`(키·비번) **커밋 금지**(`.env.example`만). node_modules/dist 등 `.gitignore`.
 - 컴포넌트 기반 + RBAC 라우팅 + 데이터레이어 분리(추후 API 교체 가능 구조).
@@ -61,6 +67,13 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
   - 수동 재시작이 필요하면: `sudo pm2 restart buildup-ev-<활성슬롯>` · Caddy 는 `sudo systemctl reload caddy` (컨테이너·유닛 이름 추측 금지)
 - **비밀정보 커밋·출력 절대 금지**: `.env`, `*.pem`(BUILDUP-EV-key.pem), `JWT_SECRET`, `DATABASE_URL`. **서버 `.env`는 건드리지 말 것**(JWT_SECRET 불일치 사고 원인).
 - **DB 스키마/seed 변경 전 백업**: `sudo docker exec buildup-ev-postgres pg_dump …`. seed는 **참조 테이블만 upsert**인지 확인 — 주문·견적 등 트랜잭션 테이블에 `delete/truncate` 금지.
+- 🔴 **`schema.prisma` 를 고쳤으면 운영 DB 에도 반드시 반영하고 배포할 것.**
+  Prisma 는 모델의 **모든 컬럼을 SELECT** 한다. 컬럼 하나가 DB 에 없으면 그 테이블을 읽는
+  기능이 **전부** `P2022` 로 죽는다. 2026-08-18 에 `customer.warp_customer_id`·`updated_at`
+  누락으로 견적서·계약서·메일 발송이 며칠간 막혔다 — 배포 헬스체크(`/auth/me`)는 그 테이블을
+  건드리지 않아 **매번 초록불이었다.**
+  · 대조: `npm run --workspace=backend db:drift` (배포 스크립트가 새 슬롯 띄우기 **전에** 자동 실행)
+  · 반영은 격리 SQL 로(`ALTER TABLE … ADD COLUMN IF NOT EXISTS …`). 전체 `prisma db push` 는 운영에서 금지 — 컬럼을 지울 수 있다.
 - **프론트/백 반영 경로 다름**: 브라우저에서 도는 로직(예 LoadCalcTab의 `calcBom`) 변경 → **프론트 재빌드** 필요. 백엔드 템플릿·라우트는 런타임 로드 → **백엔드 재시작**. (PDF는 되는데 화면 탭은 옛값이면 프론트 빌드 안 된 것.)
 - **배포 반영 확인은 활성 슬롯에서**: 새 라우트가 떴는지 보려면 `curl -o /dev/null -w %{http_code} http://localhost:<활성포트>/api/v1/<경로>` — **404 면 옛 릴리스, 403(인증필요) 이면 반영된 것**. 비활성 슬롯은 이전 코드라 404 가 정상이다.
 - **서버 `.env` 는 릴리스마다 새로 쓰인다** — 배포가 SSM SecureString `/buildup-ev/app-env` 로 덮어쓴다. 서버 파일을 직접 고치면 다음 배포에 사라지므로, 키 추가는 **반드시 SSM 파라미터에** 해야 한다.

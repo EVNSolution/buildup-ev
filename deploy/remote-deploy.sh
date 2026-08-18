@@ -55,6 +55,15 @@ fi
 
 npm ci
 npm exec --workspace=backend -- prisma generate
+
+# ── 스키마 대조 ── 새 슬롯을 띄우기 전에 막는다.
+#
+# 2026-08-18: WARP 연동에서 customer 에 컬럼 두 개가 늘었는데 운영 DB 에 반영되지 않아
+# 고객을 읽는 기능이 전부 P2022 로 죽었다(견적서·계약서·메일). 그런데 아래 헬스체크는
+# /api/v1/auth/me 라 고객 테이블을 건드리지 않아 **배포는 매번 초록불이었다.**
+# 여기서 멈추면 옛 슬롯이 계속 서비스한다 — 어긋난 채로 나가는 것보다 낫다.
+npm run --workspace=backend db:drift
+
 npm run --workspace=frontend build
 npm cache clean --force >/dev/null 2>&1 || true
 chmod -R a+rX frontend/dist
