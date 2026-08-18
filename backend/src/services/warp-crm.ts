@@ -132,6 +132,74 @@ export function toAutofillHit(c: WarpCustomerDto, matchCount: number): WarpAutof
   };
 }
 
+// ── 딜 이벤트 push (2단계, #200 · EVNSolution/EVN-WARP#27) ──────────────────
+//
+// 견적서 작성·계약 체결 사실을 WARP 수신함으로 보낸다. WARP 는 자동 기입하지
+// 않고 **사람이 확인 후 파이프라인에 기입**한다 — 그래서 요약만 보내면 된다.
+//
+// ⚠️ fire-and-forget: 견적 저장·계약 전이가 이 push 때문에 느려지거나 실패하면
+//    안 된다. 호출부는 await 하지 않고(void), 모든 실패는 여기서 삼키고 로그만.
+//    이벤트가 유실되면 WARP 수신함에 안 뜰 뿐 — 정본(buildup DB)은 그대로다.
+
+export type WarpDealEventType = 'quote_created' | 'quote_updated' | 'contract_completed';
+
+export async function pushWarpDealEvent(type: WarpDealEventType, quoteId: number): Promise<void> {
+  if (!isWarpConfigured()) return;
+  try {
+    const { prisma } = await import('../lib/prisma.js');
+    if (!prisma) return;
+    const quote = await prisma.quote.findUnique({
+      where: { id: quoteId },
+      select: {
+        id: true, quote_no: true, status: true, model_code: true,
+        supply_price: true, final_price: true,
+        customer: { select: { id: true, name: true, phone: true, warp_customer_id: true } },
+      },
+    });
+    if (!quote) return;
+
+    const payload = {
+      // 멱등키 — 같은 이벤트 재전송은 WARP 쪽에서 1건으로 접힌다
+      event_key: `${type}:${quoteId}`,
+      type,
+      occurred_at: new Date().toISOString(),
+      quote: {
+        id: quote.id,
+        quote_no: quote.quote_no,
+        status: quote.status,
+        model_code: quote.model_code,
+        supply_price: Number(quote.supply_price),
+        final_price: Number(quote.final_price),
+      },
+      customer: quote.customer ? {
+        id: quote.customer.id,
+        name: quote.customer.name,
+        phone: quote.customer.phone,
+        warp_customer_id: quote.customer.warp_customer_id,
+      } : null,
+    };
+
+    const base = (process.env['WARP_API_BASE_URL'] ?? '').replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/external/deal-events`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env['WARP_API_KEY']!,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.warn(`[warp-crm] deal-event push 실패 (${res.status}) — ${type} quote=${quoteId}`);
+      return;
+    }
+    console.info(`[warp-crm] deal-event push — ${type} quote=${quoteId}`);
+  } catch (e) {
+    console.warn(`[warp-crm] deal-event push 오류 — ${type} quote=${quoteId}:`, e instanceof Error ? e.message : e);
+  }
+}
+
 /**
  * 이름 + 전화번호 **완전일치** 조회. 매칭 없음·미설정·오류·타임아웃 전부 null.
  * 로그에는 전화 뒷 4자리만 남긴다(개인정보).

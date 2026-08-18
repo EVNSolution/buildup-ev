@@ -13,7 +13,11 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { prisma } from '../lib/prisma.js';
+import { readFrozenDoc } from '../services/doc-freeze.js';
+import { generateQuotePdf } from '../services/quote-pdf.js';
 
 export const externalRouter = Router();
 
@@ -77,6 +81,69 @@ externalRouter.get('/customers', async (req: Request, res): Promise<void> => {
   } catch (e) {
     console.error('[GET /external/customers]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '고객 export 중 오류' } });
+  }
+});
+
+// ── GET /quotes/:id/quote-pdf — 견적서 PDF (WARP 딜 서류함 첨부용, #200) ──
+// 전자서명 발송으로 고정된 본이 있으면 그것(고객이 받은 문서), 없으면 현재 데이터로
+// 즉석 렌더 — 렌더러는 언제나 buildup 하나다(WARP 는 파일을 받아 보관만 한다).
+externalRouter.get('/quotes/:id/quote-pdf', async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+  try {
+    const frozen = await readFrozenDoc(id, 'quote');
+    const pdf = frozen ?? (await generateQuotePdf(id)).pdf;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="quote_${id}${frozen ? '_frozen' : ''}.pdf"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(pdf);
+  } catch (e) {
+    console.error(`[GET /external/quotes/${id}/quote-pdf]`, e instanceof Error ? e.message : e);
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적서를 만들 수 없습니다' } });
+  }
+});
+
+// ── GET /quotes/:id/contract-pdf — 체결된 계약서(서명본·서면 스캔본) ──
+const CONTRACT_MIME: Record<string, string> = {
+  '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.png': 'image/png', '.heic': 'image/heic',
+};
+externalRouter.get('/quotes/:id/contract-pdf', async (req: Request, res): Promise<void> => {
+  if (!prisma) {
+    res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
+    return;
+  }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } });
+    return;
+  }
+  const contract = await prisma.purchaseContract.findFirst({
+    where: { quote_id: id, status: 'COMPLETED', signed_pdf_path: { not: null } },
+    orderBy: { created_at: 'desc' },
+    select: { signed_pdf_path: true },
+  });
+  if (!contract?.signed_pdf_path) {
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: '체결된 계약서가 없습니다' } });
+    return;
+  }
+  try {
+    const buf = await readFile(contract.signed_pdf_path);
+    const ext = path.extname(contract.signed_pdf_path).toLowerCase();
+    res.setHeader('Content-Type', CONTRACT_MIME[ext] ?? 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="contract_${id}${ext || '.pdf'}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buf);
+  } catch (e) {
+    console.error(`[GET /external/quotes/${id}/contract-pdf]`, e instanceof Error ? e.message : e);
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: '계약서 파일을 읽을 수 없습니다' } });
   }
 });
 

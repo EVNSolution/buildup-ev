@@ -16,6 +16,7 @@ import { freezeQuoteDocs } from './doc-freeze.js';
 import { findSignPositions } from './sign-positions.js';
 import { generateQuotePdf } from './quote-pdf.js';
 import * as modusign from './modusign.js';
+import { pushWarpDealEvent } from './warp-crm.js';
 import type { SigningMethod } from './modusign.js';
 import { toKakaoPhone } from './modusign.js';
 import { setQuoteStatus } from './quote-status.js';
@@ -208,6 +209,8 @@ async function advanceQuoteToContracted(quoteId: number): Promise<void> {
   if (!q || !['draft', 'confirmed'].includes(q.status)) return;
   await setQuoteStatus(quoteId, 'contracted', 'system(전자서명 완료)');
   console.info(`[contract] 견적 ${quoteId} 단계 ${q.status} → contracted(계약완료)`);
+  // WARP CRM 수신함에 계약 체결 알림 (#200) — fire-and-forget, 전이를 막지 않는다
+  void pushWarpDealEvent('contract_completed', quoteId);
   /*
    * 계약완료 = **제작 배정을 기다리는 건이 생겼다**는 뜻이다.
    * 관리자가 목록을 새로고침하다 발견하게 두지 않고 먼저 알린다.
@@ -536,5 +539,7 @@ export async function registerPaperContract(
 
   await setQuoteStatus(quoteId, 'contracted', `${by} (서면계약 등록)`);
   console.info(`[contract] 견적 ${quoteId} 서면계약 등록 — ${scan.originalName} → ${filePath}`);
+  // WARP CRM 수신함에 계약 체결 알림 (#200) — 전자서명 완료와 같은 이벤트로 접힌다
+  void pushWarpDealEvent('contract_completed', quoteId);
   return saved;
 }

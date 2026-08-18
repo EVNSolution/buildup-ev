@@ -41,6 +41,73 @@ describe('인증 — 키 미설정 503 / 불일치 401 (DB 불필요)', () => {
   });
 });
 
+describe.skipIf(shouldSkipDb)('문서 제공 — 견적서·계약서 (실 DB)', () => {
+  const app = createApp();
+
+  it('잘못된 id → 400 / 체결 계약 없음 → 404', async () => {
+    await request(app).get('/api/external/quotes/abc/quote-pdf').set('x-api-key', KEY).expect(400);
+    await request(app).get('/api/external/quotes/999999999/contract-pdf').set('x-api-key', KEY).expect(404);
+  });
+
+  it('고정된 견적서가 있으면 그 파일을 그대로 준다 (즉석 렌더 없이)', async () => {
+    const { mkdtemp, writeFile: wf, rm } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const pathMod = await import('node:path');
+    const dir = await mkdtemp(pathMod.join(os.tmpdir(), 'warp-doc-'));
+    const frozenPath = pathMod.join(dir, 'frozen_quote.pdf');
+    await wf(frozenPath, '%PDF-frozen-test');
+    const quote = await prisma!.quote.create({
+      data: {
+        model_code: 'PV5_OPENBED', selections: {}, inputs: {}, supply_price: 1, final_price: 1,
+        status: 'confirmed', docs_frozen_at: new Date(), docs_frozen_quote_path: frozenPath,
+      },
+      select: { id: true },
+    });
+    try {
+      const res = await request(app)
+        .get(`/api/external/quotes/${quote.id}/quote-pdf`)
+        .set('x-api-key', KEY)
+        .expect(200)
+        .expect('Content-Type', /application\/pdf/);
+      expect(res.body.toString()).toBe('%PDF-frozen-test');
+    } finally {
+      await prisma!.quote.delete({ where: { id: quote.id } });
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('체결된 계약서(서면 스캔 포함)를 확장자에 맞는 타입으로 준다', async () => {
+    const { mkdtemp, writeFile: wf, rm } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const pathMod = await import('node:path');
+    const dir = await mkdtemp(pathMod.join(os.tmpdir(), 'warp-doc-'));
+    const signedPath = pathMod.join(dir, 'contract_paper_1.jpg');
+    await wf(signedPath, 'jpg-bytes');
+    const quote = await prisma!.quote.create({
+      data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, supply_price: 1, final_price: 1, status: 'contracted' },
+      select: { id: true },
+    });
+    const contract = await prisma!.purchaseContract.create({
+      data: {
+        quote_id: quote.id, signing_method: 'PAPER', status: 'COMPLETED',
+        customer_snapshot: {}, signed_pdf_path: signedPath, completed_at: new Date(),
+      },
+      select: { id: true },
+    });
+    try {
+      await request(app)
+        .get(`/api/external/quotes/${quote.id}/contract-pdf`)
+        .set('x-api-key', KEY)
+        .expect(200)
+        .expect('Content-Type', /image\/jpeg/);
+    } finally {
+      await prisma!.purchaseContract.delete({ where: { id: contract.id } });
+      await prisma!.quote.delete({ where: { id: quote.id } });
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe.skipIf(shouldSkipDb)('export·link 동작 (실 DB)', () => {
   const app = createApp();
 
