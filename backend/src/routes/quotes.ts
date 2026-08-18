@@ -332,6 +332,8 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
       console.error('[PATCH /quotes/:id/inputs] final_price 재계산 실패(입력 저장은 완료)', e);
     }
 
+    // 견적 내용이 바뀌었다 — WARP 수신함이 재확인 대기로 되돌아간다 (#200)
+    void pushWarpDealEvent('quote_updated', id);
     res.json({ data: { ok: true } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/inputs]', e);
@@ -405,6 +407,7 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission(
     const changed = await logQuoteChanges(id, 'options', label(prevSel), label(next),
       req.auth?.email ?? 'unknown', groups);
 
+    void pushWarpDealEvent('quote_updated', id); // 옵션 변경 — WARP 재확인 알림 (#200)
     res.json({ data: { ok: true, changed, final_price: total.real_price } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/selections]', e);
@@ -523,6 +526,7 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), requirePermission('q
     await logQuoteChanges(id, 'customer',
       (before ?? {}) as unknown as Record<string, unknown>, data,
       req.auth?.email ?? 'unknown', Object.keys(data));
+    void pushWarpDealEvent('quote_updated', id); // 고객정보 변경 — WARP 재확인 알림 (#200)
     res.json({ data: { ok: true, changed: Object.keys(data).length } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/customer]', e);

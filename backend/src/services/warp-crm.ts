@@ -141,7 +141,7 @@ export function toAutofillHit(c: WarpCustomerDto, matchCount: number): WarpAutof
 //    안 된다. 호출부는 await 하지 않고(void), 모든 실패는 여기서 삼키고 로그만.
 //    이벤트가 유실되면 WARP 수신함에 안 뜰 뿐 — 정본(buildup DB)은 그대로다.
 
-export type WarpDealEventType = 'quote_created' | 'contract_completed';
+export type WarpDealEventType = 'quote_created' | 'quote_updated' | 'contract_completed';
 
 export async function pushWarpDealEvent(type: WarpDealEventType, quoteId: number): Promise<void> {
   if (!isWarpConfigured()) return;
