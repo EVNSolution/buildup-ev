@@ -193,32 +193,22 @@ usersRouter.delete('/:email', rbac('ADMIN'), requirePermission('account.manage')
       }
     }
 
+    /*
+     * 강제(cascade) 삭제 — **없앴다. 언제나 거절한다.**
+     *
+     * 이 분기는 그 영업의 **견적·주문·서류를 통째로** 지웠다. 계약 상태를 보지도 않아,
+     * 서명이 끝난 계약이 딸린 견적도 같이 사라졌다. 사람이 퇴사하면 지우고 싶어지는데
+     * 그때 거래 기록이 함께 없어진다 — 되돌릴 방법이 없다.
+     *
+     * 계정을 못 쓰게 하려면 **비활성화**를 쓴다(status). 기록은 남기고 접근만 막는 방법이다.
+     */
     if (cascade) {
-      // is_master 전용 cascade 삭제
-      if (!req.auth!.is_master) {
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: '강제 삭제는 마스터 관리자만 가능합니다.' } });
-        return;
-      }
-      await prisma.$transaction(async (tx) => {
-        // invited_by·created_by FK를 null로 해제
-        await tx.user.updateMany({ where: { invited_by: email }, data: { invited_by: null } });
-        await tx.customer.updateMany({ where: { created_by: email }, data: { created_by: null } });
-        // quote → order → order_option·document cascade
-        const quotes = await tx.quote.findMany({ where: { sales_user_id: email }, select: { id: true } });
-        const quoteIds = quotes.map(q => q.id);
-        if (quoteIds.length > 0) {
-          const orders = await tx.order.findMany({ where: { quote_id: { in: quoteIds } }, select: { id: true } });
-          const orderIds = orders.map(o => o.id);
-          if (orderIds.length > 0) {
-            await tx.document.deleteMany({ where: { order_id: { in: orderIds } } });
-            await tx.orderOption.deleteMany({ where: { order_id: { in: orderIds } } });
-            await tx.order.deleteMany({ where: { id: { in: orderIds } } });
-          }
-          await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
-        }
-        await tx.user.delete({ where: { email } });
+      res.status(405).json({
+        error: {
+          code: 'DELETE_DISABLED',
+          message: '강제 삭제 기능은 제공하지 않습니다. 견적·계약이 함께 사라지기 때문입니다. 계정 비활성화를 사용하세요.',
+        },
       });
-      res.json({ data: { ok: true } });
       return;
     }
 
