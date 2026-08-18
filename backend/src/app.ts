@@ -23,6 +23,7 @@ import { subsidyRouter } from './routes/subsidy.js';
 import { orgsRouter } from './routes/orgs.js';
 import { regionsRouter } from './routes/regions.js';
 import { publicRouter } from './routes/public.js';
+import { externalRouter } from './routes/external.js';
 
 export function createApp() {
   const app = express();
@@ -48,6 +49,9 @@ export function createApp() {
 
   // 공개(비로그인) — 카탈로그 조회·계산·상담 접수만. 기존 라우트는 그대로 잠겨 있다.
   app.use('/api/v1/public', publicRouter);
+
+  // 서버 간(WARP CRM) — 세션이 아니라 x-api-key 공유키로 자체 인증한다 (#191)
+  app.use('/api/external', externalRouter);
 
   app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', usersRouter);
