@@ -2,7 +2,9 @@
 export interface ContractInfo {
   id: number
   status: 'DRAFT' | 'SENT' | 'VIEWED' | 'SIGNING' | 'COMPLETED' | 'REJECTED' | 'CANCELED'
-  signing_method: 'EMAIL' | 'KAKAO'
+  /** PAPER = 종이로 체결하고 스캔본을 등록한 건(전자서명을 거치지 않았다) */
+  signing_method: 'EMAIL' | 'KAKAO' | 'PAPER'
+  is_paper?: boolean
   sent_at: string | null
   completed_at: string | null
   has_signed: boolean
@@ -34,3 +36,22 @@ export async function sendContract(quoteId: number, method: 'EMAIL' | 'KAKAO'): 
 }
 
 export const contractSignedUrl = (quoteId: number) => `/api/v1/quotes/${quoteId}/contract/signed`
+
+/**
+ * 서면계약 등록 — 종이로 체결한 계약서를 올려 **계약완료**로 만든다.
+ *
+ * ⚠️ multipart 라 `apiFetch` 를 쓰지 않는다. Content-Type 을 직접 넣으면 boundary 가 빠져
+ *    서버가 본문을 못 읽는다 — fetch 가 FormData 를 보고 알아서 붙이게 둔다.
+ */
+export async function registerPaperContract(quoteId: number, file: File): Promise<ContractInfo> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`/api/v1/quotes/${quoteId}/contract/paper`, {
+    method: 'POST', credentials: 'include', body: fd,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error((body as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`)
+  }
+  return (await res.json() as { data: ContractInfo }).data
+}

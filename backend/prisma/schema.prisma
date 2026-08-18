@@ -579,7 +579,7 @@ model PurchaseContract {
   id                   Int            @id @default(autoincrement())
   quote_id             Int            // 계약은 견적(확정 시점)에 연결. 주문 생성 전에도 발송 가능.
   modusign_document_id String?        @unique @db.VarChar(80)
-  signing_method       String         @db.VarChar(10) // EMAIL | KAKAO
+  signing_method       String         @db.VarChar(10) // EMAIL | KAKAO | PAPER(서면계약)
   status               ContractStatus @default(DRAFT)
   customer_snapshot    Json           // 발송시점 고객 스냅샷(이름/연락처)
   signed_pdf_path      String?        @db.VarChar(500)

@@ -247,9 +247,16 @@ async function saveSignedPdf(contractId: number, quoteId: number, documentId: st
 export async function ensureSignedPdf(quoteId: number): Promise<string | null> {
   const p = db();
   const contract = await getLatestContract(quoteId);
-  if (!contract || contract.status !== 'COMPLETED' || !contract.modusign_document_id) return null;
+  if (!contract || contract.status !== 'COMPLETED') return null;
 
   if (contract.signed_pdf_path && existsSync(contract.signed_pdf_path)) return contract.signed_pdf_path;
+
+  /*
+   * 서면계약은 받아 올 곳이 없다 — 스캔본이 정본이고, 그건 등록할 때 이미 저장했다.
+   * 여기서 모두싸인으로 넘어가면 documentId 가 없어 헛돌거나 엉뚱한 오류가 난다.
+   * (파일이 사라졌다면 그건 복구가 아니라 사고다. null 을 주고 404 로 드러낸다.)
+   */
+  if (!contract.modusign_document_id) return null;
 
   const saved = await saveSignedPdf(contract.id, quoteId, contract.modusign_document_id);
   if (!saved) return null;
@@ -424,4 +431,100 @@ export function extractWebhookEvent(body: unknown): { documentId: string; eventT
     return null;
   }
   return { documentId: String(documentId), eventType };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 서면계약 — 전자서명을 거치지 않고 종이로 체결한 건
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `signing_method` 에 들어가는 값. EMAIL·KAKAO 는 모두싸인,
+ * PAPER 는 **종이로 체결하고 스캔본을 등록한 건**이다.
+ * 컬럼이 VarChar 라 열거형 마이그레이션 없이 값 하나가 는다.
+ */
+export const PAPER_METHOD = 'PAPER';
+
+/** 스캔본으로 받아 주는 형식 — 계약서는 보통 PDF 지만 폰으로 찍어 오는 일도 있다. */
+export const PAPER_SCAN_MIME: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/heic': '.heic',
+};
+
+/**
+ * 종이로 체결한 계약을 등록하고 견적을 **계약완료**로 올린다.
+ *
+ * 이게 필요한 이유 — 제작 배정은 `contracted` 견적만 받는데, 그 상태로 가는 길이
+ * 모두싸인 서명 완료 하나뿐이었다. 전자서명을 붙이기 전에 종이로 판 건들은
+ * 제작을 시작할 방법이 아예 없었다.
+ *
+ * **전자서명을 건너뛰는 문이라 흔적을 남기는 쪽에 무게를 둔다.**
+ *  · 스캔본이 없으면 등록하지 않는다 — 나중에 「이 건은 왜 서명이 없나」를 반드시 묻게 된다.
+ *  · 계약 이력에 PAPER 로 남아, 목록에서 전자서명 건과 구분된다.
+ *  · 견적 이력의 `changed_by` 에 서면임을 적는다.
+ *  · 서류를 고정한다 — 계약이 끝난 뒤 견적이 바뀌면 종이와 시스템이 어긋난다.
+ */
+export async function registerPaperContract(
+  quoteId: number,
+  scan: { buffer: Buffer; mime: string; originalName: string },
+  by: string,
+): Promise<PurchaseContract> {
+  const p = db();
+
+  const q = await p.quote.findUnique({ where: { id: quoteId }, select: { status: true } });
+  if (!q) throw new ContractError('견적을 찾을 수 없습니다', 'NOT_FOUND');
+  // 확정 전 견적은 계약이 성립할 수 없다. 확정 이후 단계(배정·주문)는 이미 지나간 뒤라 손대지 않는다.
+  if (q.status !== 'confirmed') {
+    throw new ContractError(
+      `견적확정 상태에서만 서면계약을 등록할 수 있습니다 (현재 ${q.status})`,
+      'NOT_SENDABLE',
+    );
+  }
+
+  /*
+   * 전자서명이 이미 나가 있으면 막는다. 고객이 링크를 받아 서명하는 중인데 여기서
+   * 계약완료로 만들면, 뒤늦게 도착한 서명 완료 웹훅과 어느 쪽이 정본인지 다투게 된다.
+   * 거절·취소된 건은 다시 종이로 진행하는 경우라 허용한다.
+   */
+  const latest = await getLatestContract(quoteId);
+  if (latest && !['REJECTED', 'CANCELED'].includes(latest.status)) {
+    throw new ContractError(
+      `전자서명이 진행 중이거나 완료된 건입니다(현재 ${latest.status}). 모두싸인에서 취소한 뒤 등록하세요.`,
+      'ALREADY_SENT',
+    );
+  }
+
+  const { customer } = await buildContractInput(quoteId);
+
+  // 서류 고정을 **먼저** 한다. 여기서 실패하면 계약을 만들지 않는다 —
+  // 계약만 남고 견적이 계속 바뀔 수 있는 상태가 제일 나쁘다.
+  await freezeQuoteDocs(quoteId);
+
+  const contract = await p.purchaseContract.create({
+    data: {
+      quote_id: quoteId,
+      signing_method: PAPER_METHOD,
+      status: 'COMPLETED',
+      completed_at: new Date(),
+      customer_snapshot: { name: customer.name, email: customer.email, phone: customer.phone, reg_no: customer.reg_no },
+    },
+  });
+
+  // 스캔본은 서명본과 **같은 자리**에 둔다 — 열람 경로가 갈라지지 않는다.
+  const ext = PAPER_SCAN_MIME[scan.mime] ?? '.bin';
+  const dir = path.join(docStorageDir(), 'quotes', String(quoteId));
+  await mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, `contract_paper_${contract.id}${ext}`);
+  await writeFile(filePath, scan.buffer);
+
+  const saved = await p.purchaseContract.update({
+    where: { id: contract.id },
+    data: { signed_pdf_path: filePath },
+  });
+
+  await setQuoteStatus(quoteId, 'contracted', `${by} (서면계약 등록)`);
+  console.info(`[contract] 견적 ${quoteId} 서면계약 등록 — ${scan.originalName} → ${filePath}`);
+  return saved;
 }
