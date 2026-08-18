@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { findCustomerByKey, hasMasterKey } from '../services/customer-master.js';
+import { digitsOnly, lookupWarpCustomer } from '../services/warp-crm.js';
 
 export const customersRouter = Router();
 
@@ -36,4 +37,20 @@ customersRouter.get('/lookup', rbac('SALES', 'ADMIN'), async (req: Request, res)
     console.error('[GET /customers/lookup]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '고객 조회 중 오류가 발생했습니다.' } });
   }
+});
+
+// ── GET /customers/warp-lookup?name=&phone= — WARP CRM 완전일치 조회(자동 기입, 부가 기능) ──
+// 브라우저가 WARP 를 직접 부르지 않도록 여기서 프록시한다 — API 키는 서버 .env 에만 있다.
+// 이름+전화 **둘 다** 완전일치해야 1건이 나온다(부분검색·목록 없음 — /lookup 과 같은 원칙).
+// WARP 미설정·다운·미매칭 전부 200 { data: null } — 부가 기능이 견적 입력을 막으면 안 된다.
+customersRouter.get('/warp-lookup', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  const { name, phone } = req.query as Record<string, string | undefined>;
+  if (!name?.trim() || digitsOnly(phone).length < 9) {
+    res.status(400).json({
+      error: { code: 'BAD_INPUT', message: '성명과 휴대폰번호가 모두 필요합니다' },
+    });
+    return;
+  }
+  const hit = await lookupWarpCustomer(name, phone!); // 실패는 내부에서 null 로 삼킨다
+  res.json({ data: hit });
 });
