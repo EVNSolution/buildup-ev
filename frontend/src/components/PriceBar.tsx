@@ -137,7 +137,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
          */
         <div style={styles.gridWrap}>
           <div style={styles.grid4}>
-            <Tile label="차량 + 특장 (VAT 포함)" text={view ? fmt(view.start) : '—'} />
+            {/* 특장만 견적에는 차량이 없다 — 「차량 + 특장」이라 적으면 없는 금액이 들어간 것처럼 읽힌다 */}
+            <Tile label={bodyOnly ? '특장 가격 (VAT 포함)' : '차량 + 특장 (VAT 포함)'} text={view ? fmt(view.start) : '—'} />
             <Tile label="구매 혜택" text={ok ? `−${fmt(ok.purchase_benefit)}` : '—'} tone="neg" />
             {/* 특장만이면 보조금이 없다 — 0원으로 굳히고 팝업도 열지 않는다 */}
             <Tile
@@ -194,7 +195,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {/* ① 차량+특장 (부가세 포함) */}
         <div style={{ ...styles.first, ...row, ...sep }}>
           {/* 좁은 화면에서는 '(VAT 포함)'이 다음 줄로 접힌다 — 잘려 사라지는 것보다 낫다 */}
-          <div style={{ ...styles.firstLabel, ...lbl }}>차량 + 특장 (VAT 포함)</div>
+          <div style={{ ...styles.firstLabel, ...lbl }}>{bodyOnly ? '특장 가격 (VAT 포함)' : '차량 + 특장 (VAT 포함)'}</div>
           <div style={stack ? styles.stackRight : undefined}>
             <FitValue text={view ? fmt(view.start) : '—'} max={24} active={!stack}
               style={{ ...styles.firstValue, ...big }} />

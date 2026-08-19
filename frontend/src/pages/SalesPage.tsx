@@ -337,6 +337,8 @@ function MyListView() {
         customerName={confirmQuoteModal.customerName}
         status={confirmQuoteModal.status}
         initialInputs={confirmQuoteModal.inputs}
+        // 특장만 견적에는 캐피탈이 없다 — 선수금·할부를 묻지 않는다
+        bodyOnly={confirmQuoteModal.inputs?.['body_only'] === true}
         onClose={() => setConfirmQuoteModal(null)}
         onDone={load}
       />

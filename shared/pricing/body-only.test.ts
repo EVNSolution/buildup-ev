@@ -69,3 +69,26 @@ describe('특장만 견적', () => {
     expect(full.car_acq_tax).not.toBe(0);
   });
 });
+
+describe('특장만 — 할부(캐피탈)는 없다', () => {
+  it('선수금과 할부 개월수를 0으로 누른다', () => {
+    // 캐피탈은 차량과 묶어 실행한다 — 차를 안 사면 실행할 것이 없다
+    const p = bodyOnlyParams({ ...QUOTE_PARAMS, down_payment_rate: 0.3, installment_months: 36 });
+    expect(p.down_payment_rate).toBe(0);
+    expect(p.installment_months).toBe(0);
+  });
+
+  it('선수금·월 납입금·할부이자가 모두 0이다', () => {
+    const r = calcQuote(bodyOnlyParams({ ...QUOTE_PARAMS, down_payment_rate: 0.3, installment_months: 36 }));
+    expect(r.down_payment).toBe(0);
+    expect(r.monthly_payment).toBe(0);
+    expect(r.installment_months).toBe(0);
+  });
+
+  it('선수금을 0으로 눌러도 실구매가는 달라지지 않는다', () => {
+    // 실구매가는 결제금액 + 등록/부대비용이라 할부 조건과 무관하다 — 눌러도 금액이 안 흔들려야 한다
+    const a = calcQuote(bodyOnlyParams({ ...QUOTE_PARAMS, down_payment_rate: 0.3, installment_months: 36 }));
+    const b = calcQuote(bodyOnlyParams({ ...QUOTE_PARAMS, down_payment_rate: 0, installment_months: 0 }));
+    expect(a.real_price).toBe(b.real_price);
+  });
+});
