@@ -308,6 +308,9 @@ export interface ApiQuote {
   /** 전자서명 현황(최신 1건). 미발송이면 null */
   /** signing_method: EMAIL·KAKAO = 전자서명 / PAPER = 종이로 체결하고 스캔본을 등록한 건 */
   contract?: { status: string; sent_at: string | null; completed_at: string | null; signing_method?: string } | null;
+  /** 숨김 — 지우지 않고 화면에서만 감춘 견적(임시저장만 가능). null 이면 보인다. */
+  hidden_at?: string | null;
+  hidden_by?: string | null;
 }
 
 /** 목록에서 「지금 뭘 해야 하나」를 보여주기 위한 요약. 상세를 열지 않아도 알 수 있게. */

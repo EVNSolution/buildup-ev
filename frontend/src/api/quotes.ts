@@ -51,11 +51,13 @@ export async function saveQuote(req: SaveQuoteRequest): Promise<{ quote_id: numb
   return body.data
 }
 
-export async function fetchQuotes(params: { status?: string; from?: string; to?: string }): Promise<ApiQuote[]> {
+export async function fetchQuotes(params: { status?: string; from?: string; to?: string; includeHidden?: boolean }): Promise<ApiQuote[]> {
   const q = new URLSearchParams()
   if (params.status) q.set('status', params.status)
   if (params.from) q.set('from', params.from)
   if (params.to) q.set('to', params.to)
+  // 숨긴 견적은 기본으로 빠진다. 되돌리려면 볼 수 있어야 해서 토글을 둔다.
+  if (params.includeHidden) q.set('include_hidden', 'true')
   const url = `/api/v1/quotes${q.toString() ? '?' + q.toString() : ''}`
   const res = await fetch(url, { credentials: 'include' })
   if (!res.ok) throw new Error(`견적 목록 로드 실패: ${res.status}`)
@@ -314,4 +316,18 @@ export async function assignSalesQuote(quoteId: number, salesUserId: string): Pr
   const body = await res.json().catch(() => ({})) as { data?: { quote_no: string }; error?: { message?: string } }
   if (!res.ok) throw new Error(body.error?.message ?? `배정 실패: ${res.status}`)
   return body.data!
+}
+
+/** 견적 숨기기 / 다시 보이기 — 지우지 않고 화면에서만 감춘다(임시저장만 가능). */
+export async function setQuoteHidden(id: number, hidden: boolean): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${id}/hidden`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hidden }),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b?.error?.message ?? `숨김 처리 실패: ${res.status}`)
+  }
 }

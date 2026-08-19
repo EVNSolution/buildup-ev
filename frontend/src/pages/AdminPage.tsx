@@ -4,7 +4,8 @@ import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User 
 import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, assignQuote, assignSalesQuote } from '../api/quotes'
+import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden } from '../api/quotes'
+import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
@@ -91,7 +92,7 @@ const MODULE_DESC: Record<string, string> = {
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
-type TabKey = 'quotes' | 'perf' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
+type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -768,10 +769,110 @@ function PerfTab() {
   return <SalesPerformance showUserFilter={canSeeAll} userOptions={users} />
 }
 
+
+// ── 고객 정리 탭 ──────────────────────────────────────────────────────────
+/**
+ * 테스트로 만들어진 고객을 **숨기는** 화면. 지우지 않는다.
+ *
+ * 숨기면 견적 화면과 **WARP 「buildup에서 불러오기」 목록에서 빠진다.**
+ * 그게 이 화면의 목적이다 — CRM 쪽에 테스트 데이터가 넘어가지 않게 한다.
+ *
+ * ⚠️ **WARP 에 이미 연결된 고객은 숨길 수 없다.** 숨기면 export 에서 빠져
+ *    그쪽에서 사라진 것처럼 보인다(서버도 막는다).
+ */
+function CustomersTab() {
+  const [rows, setRows] = useState<AdminCustomer[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+  const [includeHidden, setIncludeHidden] = useState(false)
+  const [busy, setBusy] = useState<number | null>(null)
+
+  function load() {
+    setLoading(true)
+    fetchCustomers(includeHidden)
+      .then(setRows)
+      .catch(e => setErr(e instanceof Error ? e.message : '고객 목록을 불러오지 못했습니다'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [includeHidden])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggle(c: AdminCustomer) {
+    setBusy(c.id); setErr('')
+    try {
+      await setCustomerHidden(c.id, !c.hidden_at)
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '처리 실패')
+    } finally { setBusy(null) }
+  }
+
+  const hiddenCount = rows.filter(r => r.hidden_at).length
+
+  return (
+    <div>
+      <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-label)' }}>
+          <input type="checkbox" checked={includeHidden} onChange={e => setIncludeHidden(e.target.checked)} />
+          숨긴 고객 포함
+        </label>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)' }}>
+          {rows.length}명{includeHidden && hiddenCount > 0 ? ` · 숨김 ${hiddenCount}` : ''}
+        </span>
+      </div>
+      {err && <div style={{ color: 'var(--req)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{err}</div>}
+      {loading ? <div style={{ padding: 'var(--sp-5)', color: 'var(--muted)' }}>불러오는 중…</div> : (
+        <div style={qt.tableWrap}>
+          <table style={qt.table}>
+            <thead>
+              <tr>
+                <th style={qt.th}>고객</th>
+                <th style={qt.th}>연락처</th>
+                <th style={qt.th}>생년월일·사업자</th>
+                <th style={qt.th}>견적</th>
+                <th style={qt.th}>WARP</th>
+                <th style={qt.th}>등록</th>
+                <th style={qt.th}>액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(c => (
+                <tr key={c.id} style={c.hidden_at ? { opacity: 0.5 } : undefined}>
+                  <td style={qt.td}>
+                    {c.name}
+                    {c.hidden_at && <span style={{ color: 'var(--muted)', fontSize: 'var(--fs-caption)' }}> · 숨김</span>}
+                  </td>
+                  <td style={qt.td}>{c.phone ?? '—'}</td>
+                  <td style={qt.td}>{c.reg_no ?? '—'}</td>
+                  <td style={qt.tdNum}>{c._count.quotes}</td>
+                  <td style={qt.td}>{c.warp_customer_id ? '연결됨' : '—'}</td>
+                  <td style={qt.td}>{c.created_at.slice(0, 10)}</td>
+                  <td style={qt.td}>
+                    <button
+                      style={busy === c.id || (!c.hidden_at && !!c.warp_customer_id) ? BTN.rowDisabled : BTN.row}
+                      disabled={busy === c.id || (!c.hidden_at && !!c.warp_customer_id)}
+                      title={c.warp_customer_id && !c.hidden_at
+                        ? 'WARP 에 연결된 고객은 숨길 수 없습니다'
+                        : (c.hidden_at ? '다시 보이게 합니다' : '화면에서만 감춥니다. 지우지 않습니다')}
+                      onClick={() => toggle(c)}
+                    >{busy === c.id ? '…' : (c.hidden_at ? '다시 보이기' : '숨기기')}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
 function QuotesTab() {
   // 견적 삭제를 없애면서 is_master 분기가 사라졌다 — 마스터만 할 수 있는 일이 이 탭엔 없다
   const isMobile = useIsMobile()
+  /** 숨긴 견적까지 볼지 — 숨김은 지운 게 아니라 감춘 것이라 되돌리려면 보여야 한다 */
+  const [includeHidden, setIncludeHidden] = useState(false)
+  const [hidingId, setHidingId] = useState<number | null>(null)
 
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
   const [loading, setLoading] = useState(true)
@@ -799,13 +900,14 @@ function QuotesTab() {
 
   function load() {
     setLoading(true); setErr('')
-    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined })
+    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined, includeHidden })
       .then(setQuotes)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // 숨김 포함 토글을 바꾸면 다시 읽는다(조회 조건이 바뀐다)
+  useEffect(() => { load() }, [includeHidden]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 서면계약 등록 (견적확정→계약완료). 스캔본이 있어야만 호출된다(모달이 막는다).
   async function handlePaperSubmit(file: File) {
@@ -875,6 +977,17 @@ function QuotesTab() {
    * 잘못 만든 견적은 지우지 않고 상태로 관리한다(만료·취소). 서버도 405 로 거절한다.
    */
 
+  /** 숨기기 / 다시 보이기 — 임시저장만 가능(서버가 막는다) */
+  async function handleHide(id: number, hidden: boolean) {
+    setHidingId(id); setErr('')
+    try {
+      await setQuoteHidden(id, hidden)
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '숨김 처리 실패')
+    } finally { setHidingId(null) }
+  }
+
   /** 견적 상태 → 뱃지 뜻 넷 중 하나(진행중·완료·대기·경고). 상태별로 색을 새로 만들지 않는다 */
   function statusTone(status: string): BadgeTone {
     if (status === 'draft') return 'wait'
@@ -901,6 +1014,10 @@ function QuotesTab() {
           <span style={qt.dateSep}>~</span>
           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput }} />
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-label)' }}>
+          <input type="checkbox" checked={includeHidden} onChange={e => setIncludeHidden(e.target.checked)} />
+          숨긴 견적 포함
+        </label>
         <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
       </div>
 
@@ -985,6 +1102,13 @@ function QuotesTab() {
                 )}
                 {q.status === 'contracted' && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
+                )}
+                {(q.status === 'draft' || q.hidden_at) && (
+                  <button
+                    style={{ ...(hidingId === q.id ? BTN.rowDisabled : BTN.row), width: '100%' }}
+                    disabled={hidingId === q.id}
+                    onClick={() => handleHide(q.id, !q.hidden_at)}
+                  >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '숨기기')}</button>
                 )}
               </div>
             </div>
@@ -1077,6 +1201,15 @@ function QuotesTab() {
                       )}
                       {q.status === 'contracted' && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
+                      )}
+                      {/* 숨기기는 임시저장만 — 진행 중인 건을 감추면 안 된다(서버도 막는다) */}
+                      {(q.status === 'draft' || q.hidden_at) && (
+                        <button
+                          style={hidingId === q.id ? BTN.rowDisabled : BTN.row}
+                          disabled={hidingId === q.id}
+                          title={q.hidden_at ? '다시 보이게 합니다' : '화면에서만 감춥니다. 지우지 않습니다'}
+                          onClick={() => handleHide(q.id, !q.hidden_at)}
+                        >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '숨기기')}</button>
                       )}
                     </div>
                   </td>
@@ -1193,6 +1326,7 @@ export function AdminPage() {
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
     { key: 'quotes',   label: '견적 목록', show: true },
+    { key: 'customers', label: '고객',    show: true },
     { key: 'perf',     label: '영업 성과', show: perm.stats },
     { key: 'kanban',   label: '주문 진행', show: perm.orders },
     { key: 'toggles',  label: '기능모듈',  show: perm.accounts },
@@ -1224,6 +1358,7 @@ export function AdminPage() {
         </div>
 
         {activeTab === 'quotes' && <QuotesTab />}
+        {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
         {activeTab === 'kanban' && <KanbanTab />}
 

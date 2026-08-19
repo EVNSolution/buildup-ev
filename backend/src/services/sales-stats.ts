@@ -11,6 +11,7 @@
  *    그래도 없으면 **속도 계산에서 제외**한다. 없는 시간을 지어내지 않는다.
  */
 import { prisma } from '../lib/prisma.js';
+import { VISIBLE } from '../lib/visibility.js';
 import { STATUS_SECTION, stageTimesOf } from './quote-status.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -50,7 +51,8 @@ function avgDays(list: number[]): { days: number | null; n: number } {
 export async function salesStats(range: StatsRange): Promise<SalesStat[]> {
   if (!prisma) return [];
 
-  const where: Record<string, unknown> = {};
+  // 숨긴 견적은 성과에서 뺀다 — 안 쓰기로 한 견적이 퍼널에 계속 잡히면 숫자를 못 믿는다
+  const where: Record<string, unknown> = { ...VISIBLE };
   if (range.salesUser) where['sales_user_id'] = range.salesUser;
   if (range.from || range.to) {
     where['created_at'] = { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) };
