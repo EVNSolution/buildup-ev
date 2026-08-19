@@ -19,15 +19,48 @@ import { BTN } from '../styles/buttons'
  *    체크박스 한 줄만 두고 나머지를 방침 링크로 넘기면 고지 누락이 된다 —
  *    그래서 넷을 화면에 그대로 펼쳐 두고, 체크는 그 아래에 둔다.
  *
- * ⚠️ 항목·목적·기간은 **실제 동작과 같아야 한다**. 여기 적힌 항목은 이 폼이 서버로
- *    보내는 값과 일치한다(성명·휴대폰·이메일·지역·사업자 구분, 선택으로 남기실 말씀).
+ * ⚠️ 항목·목적·기간은 **실제 동작과 같아야 한다**. 그런데 이 폼이 실제로 받는 칸은
+ *    상황에 따라 달라진다 — 특장만 견적이면 보조금 칸이 통째로 사라지고, 법인이면
+ *    지역 칸이 사라진다. 그래서 항목을 **고정 문구로 적어 두면 거짓 고지가 된다**
+ *    (안 받는 항목을 받는다고 알리는 것도 고지 위반이다).
+ *    아래 `consentRows()`가 지금 화면에 떠 있는 칸만 골라 적는다.
  *    보유 기간 문구는 처리방침 제4조와 같은 표현을 쓴다 — 둘이 갈리면 안 된다.
  */
-const CONSENT_ITEMS: [string, string][] = [
-  ['수집 항목', '성명, 휴대전화번호, 전자우편주소, 지역(시·군·구), 사업자 구분 · (선택) 남기실 말씀'],
-  ['이용 목적', '상담 신청 접수, 견적 안내 및 상담 연락, 담당 영업사원 배정'],
-  ['보유·이용 기간', '처리 목적 달성 시 또는 정보주체의 삭제 요청 시까지'],
-]
+
+/** 어떤 칸이 떠 있는지 — 수집 항목을 가르는 조건 전부. */
+export interface ConsentSituation {
+  /** 특장만 견적 — 보조금 칸이 통째로 없다 */
+  bodyOnly: boolean
+  /** 법인사업자 — 지방보조금 대상이 아니라 지역 칸이 없다 */
+  corporate: boolean
+}
+
+/**
+ * 지금 상황에서 **실제로 받는** 항목만, 필수와 선택을 갈라 적는다.
+ *
+ * 「필수」는 이 폼이 비면 보내지 못하게 막는 칸(`missing`)과 같아야 한다.
+ * 둘이 갈리면 화면의 「· 필수」 표시나 이 고지 둘 중 하나가 거짓말이 된다.
+ */
+export interface ConsentRow { key: string; tag?: '필수' | '선택'; value: string }
+
+export function consentRows(sit: ConsentSituation): ConsentRow[] {
+  const required = ['성명', '휴대전화번호', '전자우편주소']
+  // 보조금 조건 — 특장만 견적에는 이 칸들이 아예 없다
+  if (!sit.bodyOnly) {
+    required.push('사업자 구분')
+    if (!sit.corporate) required.push('지역(시·군·구)')
+    required.push('경유차 폐차 여부', '소상공인 여부', '화물자동차 운송사업허가 보유 여부')
+  }
+  const purposes = ['상담 신청 접수', '견적 안내 및 상담 연락', '담당 영업사원 배정']
+  if (!sit.bodyOnly) purposes.push('보조금 지원 대상 여부 확인 및 예상 금액 산정')
+
+  return [
+    { key: '수집 항목', tag: '필수', value: required.join(', ') },
+    { key: '수집 항목', tag: '선택', value: '남기실 말씀' },
+    { key: '이용 목적', value: purposes.join(', ') },
+    { key: '보유·이용 기간', value: '처리 목적 달성 시 또는 정보주체의 삭제 요청 시까지' },
+  ]
+}
 
 const CONSENT_TEXT = '위 내용을 확인하였으며, 개인정보 수집·이용에 동의합니다.'
 /** 거부할 권리와 그 불이익 — 동의받을 때 함께 알려야 하는 항목이다. */
@@ -158,10 +191,13 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
         <div style={s.consentBox}>
           <div style={s.consentTitle}>개인정보 수집·이용 동의 <span style={s.req}>· 필수</span></div>
           <dl style={s.consentList}>
-            {CONSENT_ITEMS.map(([k, v]) => (
-              <div key={k} style={s.consentRow}>
-                <dt style={s.consentKey}>{k}</dt>
-                <dd style={s.consentVal}>{v}</dd>
+            {consentRows({ bodyOnly, corporate: subsidy.business_type === 'corporate' }).map(r => (
+              <div key={r.key + (r.tag ?? '')} style={s.consentRow}>
+                <dt style={s.consentKey}>
+                  {r.key}
+                  {r.tag && <span style={r.tag === '필수' ? s.req : s.optTag}> · {r.tag}</span>}
+                </dt>
+                <dd style={s.consentVal}>{r.value}</dd>
               </div>
             ))}
           </dl>
@@ -210,6 +246,8 @@ const s: Record<string, React.CSSProperties> = {
   row: { marginBottom: 'var(--sp-3)' },
   label: { display: 'block', fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 'var(--sp-1)' },
   req: { color: 'var(--req)', fontWeight: 700 },
+  /** 선택 항목 — 필수와 **눈으로 갈려야** 한다. 빨강은 필수 몫이라 쓰지 않는다. */
+  optTag: { color: 'var(--muted)', fontWeight: 700 },
   field: {
     width: '100%', boxSizing: 'border-box', minHeight: 'var(--h-control)', padding: '0 var(--sp-3)',
     fontSize: 'var(--fs-body)', fontFamily: 'inherit', color: 'var(--dark)',
@@ -228,7 +266,7 @@ const s: Record<string, React.CSSProperties> = {
   consentTitle: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', marginBottom: 'var(--sp-2)' },
   consentList: { margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
   consentRow: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'flex-start' },
-  consentKey: { flex: '0 0 82px', fontSize: 'var(--fs-caption)', color: 'var(--muted)', margin: 0 },
+  consentKey: { flex: '0 0 100px', fontSize: 'var(--fs-caption)', color: 'var(--muted)', margin: 0 },
   consentVal: { flex: 1, fontSize: 'var(--fs-caption)', color: 'var(--body)', lineHeight: 1.55, margin: 0 },
   consentCheck: {
     display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-2)', cursor: 'pointer',

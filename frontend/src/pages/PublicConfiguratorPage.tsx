@@ -154,6 +154,7 @@ export function PublicConfiguratorPage() {
       </div>
 
       <PriceBar
+        bodyOnly={bodyOnly}
         calc={null}
         total={liveTotal}
         hasCustomer={subsidyReady}
