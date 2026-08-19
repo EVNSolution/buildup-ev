@@ -11,6 +11,7 @@ import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
+import { OrderFilesTab } from '../components/OrderFilesTab'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { OptionDbTab } from '../components/OptionDbTab'
 import { CustomerViewModal } from '../components/CustomerViewModal'
@@ -93,7 +94,7 @@ const MODULE_DESC: Record<string, string> = {
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
-type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
+type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -1355,6 +1356,7 @@ export function AdminPage() {
     { key: 'customers', label: '고객',    show: true },
     { key: 'perf',     label: '영업 성과', show: perm.stats },
     { key: 'kanban',   label: '주문 진행', show: perm.orders },
+    { key: 'files',    label: '파일',      show: perm.orders },
     { key: 'toggles',  label: '기능모듈',  show: perm.accounts },
     { key: 'accounts', label: '계정 관리', show: perm.accounts },
     { key: 'weights',  label: '무게상수',  show: perm.basedata },
@@ -1387,6 +1389,9 @@ export function AdminPage() {
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
         {activeTab === 'kanban' && <KanbanTab />}
+
+        {/* 주문에 딸린 사진·서류를 한자리에서 — 업로드본과 자동생성본을 갈라 본다 */}
+        {activeTab === 'files' && <OrderFilesTab />}
 
         {activeTab === 'toggles' && (
           <div style={styles.content}>

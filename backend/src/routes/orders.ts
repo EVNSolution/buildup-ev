@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
-import { STEPS, isOverdue } from '@buildup-ev/shared/process';
+import { stepsFor, BODY_ONLY_SKIPPED, isOverdue } from '@buildup-ev/shared/process';
 
 export const ordersRouter = Router();
 
@@ -76,14 +76,23 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     const now = new Date();
     const data = orders.map(({ steps, ...o }) => {
       const done = new Set(steps.filter(s => s.status === 'done').map(s => s.code));
+      /*
+       * **해당 없는 단계는 세지도, 할 일로 띄우지도 않는다.**
+       * 특장만 주문은 차량 트랙이 「차량 도착」 하나로 줄어, 나머지 넷은 skipped 로 남는다.
+       * 그걸 빼지 않으면 진행률이 영원히 12/16 에서 멈추고, 아무도 누를 수 없는
+       * 「임시번호판 반납」이 「지금 할 일」로 뜬다.
+       */
+      const bodyOnly = steps.some(s => s.status === 'skipped' && BODY_ONLY_SKIPPED.includes(s.code));
+      const defs = stepsFor(bodyOnly);
+      const applicable = new Set(defs.map(d => d.code));
       // 지금 손댈 수 있는 것 = 선행이 다 끝났고 아직 안 끝난 것
-      const openDefs = STEPS.filter(d => !done.has(d.code) && d.requires.every(q => done.has(q)));
+      const openDefs = defs.filter(d => !done.has(d.code) && d.requires.every(q => done.has(q)));
       const byCode = new Map(steps.map(s => [s.code, s]));
       return {
         ...o,
         steps: {
           done: done.size,
-          total: STEPS.length,
+          total: applicable.size,
           open: openDefs.map(d => d.label),
           // 하나라도 오래 멈춰 있으면 목록에서 바로 드러나야 한다
           // 지연 = **약속한 날을 넘긴 것**. 납기는 주문에서, 검사 마감은 신청 단계에서 온다
@@ -92,7 +101,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
           const due = d.dueFrom.from === 'order'
             ? (o.delivery_due ? o.delivery_due.toISOString().slice(0, 10) : null)
             : (byCode.get(d.dueFrom.code)?.planned_at?.toISOString().slice(0, 10) ?? null);
-          return isOverdue(d.code, { code: d.code, status: 'pending' }, due, now, done);
+          return isOverdue(d.code, { code: d.code, status: 'pending' }, due, now, done, defs);
         }),
         },
       };

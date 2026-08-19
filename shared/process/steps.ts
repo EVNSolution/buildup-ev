@@ -172,6 +172,59 @@ export function stepsOfTrack(track: Track): StepDef[] {
   return STEPS.filter(s => s.track === track);
 }
 
+/**
+ * **특장만 주문**에서는 차량 트랙에 「차량 도착」 하나만 남는다.
+ *
+ * 차가 이미 고객 것이라 우리가 할 일이 없다 — 임시번호판은 진작 반납됐고, 번호판은
+ * 달려 있고, 보험도 고객이 든 것이다. 그 단계들을 남겨 두면 아무도 누를 수 없는 칸이
+ * 넷 생기고, 그 뒤 단계가 영원히 열리지 않는다.
+ */
+export const BODY_ONLY_SKIPPED: string[] = [
+  'temp_plate_returned', 'insurance_checked', 'plate_received', 'plate_mounted',
+];
+
+/**
+ * 이 주문에 실제로 해당하는 단계 목록.
+ *
+ * 특장만 주문에서 달라지는 것은 셋뿐이다:
+ *   ① 차량 트랙은 「차량 도착」만 남는다(위 참조)
+ *   ② 「차량 도착」의 증빙이 **인수증 → 자동차등록증**으로 바뀐다.
+ *      우리가 넘겨준 차가 아니라 고객이 몰고 온 차라, 받을 인수증이 없다.
+ *      대신 튜닝신청서에 들어갈 4항목(차명·형식·등록번호·차대번호)이 여기서 확보된다.
+ *   ③ 그래서 「튜닝신청서 생성」의 선행이 **번호판·등록증 수령 → 차량 도착**이 된다.
+ *      원래 등록증을 주던 단계가 사라졌으니 등록증이 들어오는 자리를 가리켜야 한다.
+ *
+ * ⚠️ 카탈로그를 통째로 바꾸지 않고 **여기서 한 번만** 갈아 끼운다. 서버와 화면이
+ *    같은 함수를 불러야 화면에서 눌리는데 서버가 거절하는 일이 안 생긴다.
+ */
+export function stepsFor(bodyOnly: boolean): StepDef[] {
+  if (!bodyOnly) return STEPS;
+  const skip = new Set(BODY_ONLY_SKIPPED);
+  return STEPS.filter(s => !skip.has(s.code)).map(s => {
+    if (s.code === 'car_arrived') return { ...s, evidence: ['vehicle_reg'] as EvidenceKind[] };
+    if (s.code === 'tuning_drafted') return { ...s, requires: ['car_arrived'] };
+    return s;
+  });
+}
+
+export function stepMapFor(bodyOnly: boolean): Record<string, StepDef> {
+  return bodyOnly ? Object.fromEntries(stepsFor(true).map(s => [s.code, s])) : STEP_BY_CODE;
+}
+
+/**
+ * **어느 단계에나 덧붙일 수 있는 증빙** — 완료를 막지 않는다.
+ *
+ * 현장 사진은 필수 증빙이 아니어도 많을수록 좋다. 나중에 「그때 이 부분이 어땠나」를
+ * 물을 때 남아 있는 것은 사진뿐이고, 그때 가서는 다시 찍을 수 없다.
+ * 필수 증빙과 달리 **여러 장**을 올린다는 전제로 다룬다.
+ */
+export const EXTRA_EVIDENCE: EvidenceKind[] = ['inspection_photo'];
+
+/** 이 단계에 이 증빙을 붙일 수 있나 — 필수 증빙이거나, 어디에나 붙는 덧증빙이거나. */
+export function acceptsEvidence(def: StepDef, kind: EvidenceKind): boolean {
+  return def.evidence.includes(kind) || EXTRA_EVIDENCE.includes(kind);
+}
+
 /** 진행 한 건 — DB(`order_step`) 에서 읽어 온 모양. */
 export interface StepState {
   code: string;
@@ -191,14 +244,17 @@ export function canComplete(
   code: string,
   states: StepState[],
   uploadedKinds: EvidenceKind[],
+  /** 이 주문의 카탈로그. 특장만 주문은 `stepsFor(true)` 를 넘긴다 */
+  defs: StepDef[] = STEPS,
 ): StepGate {
-  const def = STEP_BY_CODE[code];
+  const byDef = defs === STEPS ? STEP_BY_CODE : Object.fromEntries(defs.map(d => [d.code, d]));
+  const def = byDef[code];
   if (!def) return { ok: false, reason: '알 수 없는 단계입니다' };
 
   const byCode = new Map(states.map(s => [s.code, s]));
   const missing = def.requires.filter(r => byCode.get(r)?.status !== 'done');
   if (missing.length > 0) {
-    const names = missing.map(m => STEP_BY_CODE[m]?.label ?? m).join(' · ');
+    const names = missing.map(m => byDef[m]?.label ?? m).join(' · ');
     return { ok: false, reason: `선행 단계가 완료되지 않았습니다 — ${names}` };
   }
 
@@ -212,8 +268,8 @@ export function canComplete(
 }
 
 /** 선행이 다 끝나 지금 손댈 수 있는 단계인가. */
-export function isOpen(code: string, doneCodes: Set<string>): boolean {
-  const def = STEP_BY_CODE[code];
+export function isOpen(code: string, doneCodes: Set<string>, defs: StepDef[] = STEPS): boolean {
+  const def = (defs === STEPS ? STEP_BY_CODE : Object.fromEntries(defs.map(d => [d.code, d])))[code];
   if (!def || doneCodes.has(code)) return false;
   return def.requires.every(q => doneCodes.has(q));
 }
@@ -225,10 +281,10 @@ export function isOpen(code: string, doneCodes: Set<string>): boolean {
  *    이미 열려서 며칠째 멈춰 있던 단계의 시계까지 리셋되어, 오래 방치된 건이 영원히
  *    재촉되지 않는다(실제로 그랬다).
  */
-export function newlyOpened(completed: string, doneBefore: Set<string>): string[] {
+export function newlyOpened(completed: string, doneBefore: Set<string>, defs: StepDef[] = STEPS): string[] {
   const after = new Set(doneBefore); after.add(completed);
-  return STEPS
-    .filter(s => isOpen(s.code, after) && !isOpen(s.code, doneBefore))
+  return defs
+    .filter(s => isOpen(s.code, after, defs) && !isOpen(s.code, doneBefore, defs))
     .map(s => s.code);
 }
 
@@ -239,15 +295,15 @@ export function newlyOpened(completed: string, doneBefore: Set<string>): string[
  * 얹었다는 기록이 된다. 뒤에서부터 풀어야 앞뒤가 맞는다 — 무엇을 먼저 되돌려야 하는지
  * 이름으로 알려 준다.
  */
-export function canUndo(code: string, states: StepState[]): StepGate {
-  const def = STEP_BY_CODE[code];
+export function canUndo(code: string, states: StepState[], defs: StepDef[] = STEPS): StepGate {
+  const def = (defs === STEPS ? STEP_BY_CODE : Object.fromEntries(defs.map(d => [d.code, d])))[code];
   if (!def) return { ok: false, reason: '알 수 없는 단계입니다' };
   if (states.find(s => s.code === code)?.status !== 'done') {
     return { ok: false, reason: '완료된 단계만 취소할 수 있습니다' };
   }
   const done = new Set(states.filter(s => s.status === 'done').map(s => s.code));
   // 이 단계를 선행으로 삼는 단계 중 이미 끝난 것
-  const blockers = STEPS.filter(s => s.requires.includes(code) && done.has(s.code));
+  const blockers = defs.filter(s => s.requires.includes(code) && done.has(s.code));
   if (blockers.length > 0) {
     const names = blockers.map(b => b.label).join(' · ');
     return { ok: false, reason: `후속 단계를 먼저 취소하십시오 — ${names}` };
@@ -282,9 +338,10 @@ export function isOverdue(
   due: string | null | undefined,
   now: Date,
   doneCodes: Set<string>,
+  defs: StepDef[] = STEPS,
 ): boolean {
   if (!state || state.status === 'done' || state.status === 'skipped') return false;
-  if (!isOpen(code, doneCodes)) return false;
+  if (!isOpen(code, doneCodes, defs)) return false;
   return overdueDays(due, now) !== null;
 }
 

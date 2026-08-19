@@ -20,7 +20,7 @@ import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
-import { STEPS } from '@buildup-ev/shared/process';
+import { stepsFor } from '@buildup-ev/shared/process';
 
 export const quotesRouter = Router();
 
@@ -944,8 +944,10 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
      * 여기서 안 만들면 특장사가 상세를 열 때 만들어지긴 하지만, 그러면 목록의 진행 요약이
      * 잠시 비어 보인다(아직 아무도 상세를 안 열었을 뿐인데).
      */
+    // 특장만 주문은 차량 트랙이 「차량 도착」 하나로 줄어든다 — 처음부터 그 표를 깐다
+    const bodyOnly = (updatedQuote?.inputs as { body_only?: unknown } | null)?.body_only === true;
     await prisma.orderStep.createMany({
-      data: STEPS.map(s => ({
+      data: stepsFor(bodyOnly).map(s => ({
         order_id: order.id, code: s.code, track: s.track, status: 'pending', entered_at: now,
       })),
       skipDuplicates: true,
