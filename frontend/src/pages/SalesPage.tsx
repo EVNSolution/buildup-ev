@@ -273,7 +273,6 @@ function MyListView() {
     {contractPrep && (
       <QuoteSaveModal
         mode="contract"
-        bodyOnly={((contractPrep.quote.inputs ?? {}) as Record<string, unknown>)['body_only'] === true}
         initial={customerEditValues(contractPrep.quote)}
         regions={regions}
         saving={prepSaving}
@@ -297,10 +296,6 @@ function MyListView() {
               tel: values.buyer_tel,
             })
             await saveQuoteInputs(q.id, {
-              // 특장만 견적이면 보유 차종을 여기서 받아 견적서·계약서에 싣는다
-              ...(((q.inputs ?? {}) as Record<string, unknown>)['body_only'] === true
-                ? { vehicle_owned: { model: values.owned_model.trim() } }
-                : {}),
               biz_type: mapBizType(values.subsidy.business_type),
               is_sosang: values.subsidy.is_small_business ?? false,
               region: values.subsidy.region_code,
@@ -611,6 +606,8 @@ export function SalesPage() {
    */
   const [bodyOnly, setBodyOnly] = useState(false)
   const [v2lConfirmed, setV2lConfirmed] = useState(false)
+  /** 보유 차종 — 특장만 견적의 전제라 임시저장 단계에서 받는다 */
+  const [ownedModel, setOwnedModel] = useState('')
   const [localSubsidyOff, setLocalSubsidyOff] = useState(false)  // 지방보조금 소진 시 견적별 미적용
 
 
@@ -775,6 +772,7 @@ export function SalesPage() {
         ...quotePriceExtras({ promotionZeroed, promotionDiscount, localSubsidyOff }),
         // 특장만 견적 — 차량 금액·보조금이 빠진다. 보유 차종은 계약서 단계에서 받는다.
         body_only: bodyOnly || undefined,
+        vehicle_owned: bodyOnly ? { model: ownedModel.trim() } : undefined,
         customer: {
           name: v.name.trim(),
           // 법인만 값이 있다 → 계약서 {{ceo_name}}. 개인이면 보내지 않는다.
@@ -835,6 +833,7 @@ export function SalesPage() {
       {/* 견적 저장 단계에서만 고객·계약 정보를 받는다 — 진입 시 팝업은 없앴다 */}
       {showSaveModal && (
         <QuoteSaveModal
+          bodyOnly={bodyOnly}
           initial={valuesFromCustomer(customer, subsidyInputs)}
           regions={regions}
           saving={isSaving}
@@ -936,8 +935,10 @@ export function SalesPage() {
           onToggleBodyOnly={v => {
             setBodyOnly(v)
             // 차량 구매로 되돌리면 확인은 무효다 — 그 확인은 고객 차량에 대한 것이었다
-            if (!v) setV2lConfirmed(false)
+            if (!v) { setV2lConfirmed(false); setOwnedModel('') }
           }}
+          ownedModel={ownedModel}
+          onOwnedModelChange={setOwnedModel}
           v2lConfirmed={v2lConfirmed}
           onV2lConfirmedChange={setV2lConfirmed}
           promotionDiscount={promotionDiscount}

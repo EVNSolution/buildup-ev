@@ -174,7 +174,12 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
    * 채우라는 400 을 받고 **상담 신청을 아예 넣을 수 없었다**(실제 제보).
    * 화면이 안 받는 값을 서버가 요구하면 그 조합은 통째로 막힌다.
    */
-  const needRegion = bizType !== 'corporation';
+  /*
+   * 특장만 견적에도 지역을 요구하지 않는다 — 보조금이 없어 쓰이지 않는 값이다.
+   * 화면에서 칸을 감췄으므로 여기서 요구하면 **채울 수 없는 값 때문에 접수가 막힌다**
+   * (법인에서 실제로 그랬다).
+   */
+  const needRegion = bizType !== 'corporation' && body.body_only !== true;
   const missing = [
     [name, '성명'], [phone, '휴대폰'], [email, '이메일'],
     ...(needRegion ? [[region, '지역']] : []),

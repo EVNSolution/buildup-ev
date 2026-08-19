@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { OWNED_MODEL_PLACEHOLDER } from './BodyOnlyPanel'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
 import { lookupCustomer, lookupWarpCustomer, type WarpVehicleInfo } from '../api/quotes'
@@ -262,6 +261,32 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
     }
   }
 
+  // 주소는 보조금 칸 안에 있었지만 **보조금과 무관한 값**이다(계약서에 들어간다).
+  // 특장만 견적에서 보조금 칸을 감출 때도 이 블록은 남아야 해서 따로 뺐다.
+  const addressBlock = (<>
+            {/* 지역 바로 다음이 주소 — 두 칸으로 나눠 놓아야 팝업이 한 화면에 들어온다 */}
+            <div style={s.row}>
+              <label style={s.label}>주소<Tag need={forContract} /></label>
+              <div style={s.addrRow}>
+                <input
+                  style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
+                  onChange={e => set('address', e.target.value)}
+                />
+                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>검색</button>
+              </div>
+              {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
+            </div>
+            <div style={s.row}>
+              <label style={s.label}>세부주소<Tag need={forContract} /></label>
+              <input
+                ref={addrRef}
+                style={s.field} type="text" value={v.address_detail}
+                placeholder="동·호수 등"
+                onChange={e => set('address_detail', e.target.value)}
+              />
+            </div>
+  </>)
+
   return (
     <>
         <div style={s.sectionTitle}>고객 정보</div>
@@ -372,36 +397,21 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
 
-        <div style={s.sectionTitle}>보조금 조건</div>
+        {/*
+          특장만 견적에는 **보조금이 없다** — 차를 안 사니 EV 보조금 대상이 아니다.
+          지역·소상공인·화물허가증·경유차는 금액에 아무 영향도 주지 않으므로 칸을 감춘다.
+          답이 쓰이지 않는 질문을 남겨 두면 채우게 되고, 채우면 견적서에서 헷갈린다.
+          **주소는 남긴다** — 계약서에 들어가는 값이라 보조금과 무관하다.
+        */}
+        <div style={s.sectionTitle}>{bodyOnly ? '주소' : '보조금 조건'}</div>
         <div style={s.grid}>
-        {/* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */}
-        <SubsidyForm
-          value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
-          afterRegion={<>
-            {/* 지역 바로 다음이 주소 — 두 칸으로 나눠 놓아야 팝업이 한 화면에 들어온다 */}
-            <div style={s.row}>
-              <label style={s.label}>주소<Tag need={forContract} /></label>
-              <div style={s.addrRow}>
-                <input
-                  style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
-                  onChange={e => set('address', e.target.value)}
-                />
-                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>검색</button>
-              </div>
-              {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
-            </div>
-            <div style={s.row}>
-              <label style={s.label}>세부주소<Tag need={forContract} /></label>
-              <input
-                ref={addrRef}
-                style={s.field} type="text" value={v.address_detail}
-                placeholder="동·호수 등"
-                onChange={e => set('address_detail', e.target.value)}
-              />
-            </div>
-          </>}
-        />
-
+        {bodyOnly ? addressBlock : (
+          /* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */
+          <SubsidyForm
+            value={v.subsidy} onChange={x => set('subsidy', x)} regions={regions} hideBusinessType
+            afterRegion={addressBlock}
+          />
+        )}
         </div>
 
         <div style={s.sectionTitle}>
@@ -409,25 +419,6 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
           <span style={s.optional}> · 비우면 계약서에 공란</span>
         </div>
         <div style={s.grid}>
-        {/*
-          특장만 견적에서만 뜬다 — 어떤 차에 얹는지는 계약서에 적혀야 한다.
-          ⚠️ 우리 특장은 **PV5 오픈베드**에 얹도록 설계돼 있어 다른 차에는 올릴 수 없다.
-        */}
-        {bodyOnly && (
-          <div style={s.row}>
-            <label style={s.label}>
-              보유 차종<Tag need={forContract} />
-              <Note>PV5 오픈베드 차량에만 장착할 수 있습니다</Note>
-            </label>
-            <input
-              style={s.field}
-              type="text"
-              placeholder={OWNED_MODEL_PLACEHOLDER}
-              value={v.owned_model}
-              onChange={e => set('owned_model', e.target.value)}
-            />
-          </div>
-        )}
         <div style={s.row}>
           <label style={s.label}>계약처</label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />

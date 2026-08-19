@@ -41,7 +41,11 @@ export function BodyOnlyToggle({ on, onToggle }: { on: boolean; onToggle: (v: bo
  *
  * 여기서는 **알리기만** 한다. 실제 확인(체크)은 특장 탭에서 냉동을 고르는 그 자리에서 받는다.
  */
-export function BodyOnlyNotice() {
+export function BodyOnlyNotice({ model, onModelChange }: {
+  /** 보유 차종 — **임시저장 단계**에서 받는다. 어떤 차에 얹는지는 견적의 전제다. */
+  model: string
+  onModelChange: (v: string) => void
+}) {
   return (
     <div style={s.box}>
       <div style={s.title}>특장만 견적</div>
@@ -50,10 +54,20 @@ export function BodyOnlyNotice() {
         견적에서 빠집니다.
       </div>
       <ul style={s.list}>
-        <li><b>PV5 오픈베드</b> 차량에만 얹을 수 있습니다.</li>
+        <li><b>PV5 오픈베드</b> 차량에만 장착할 수 있습니다.</li>
         <li>{V2L_NOTICE}</li>
       </ul>
-      <div style={s.hint}>보유 차량의 차종은 계약서 생성 단계에서 입력합니다.</div>
+      <label style={s.field}>
+        <span style={s.fieldLabel}>보유 차종<span style={s.req}> · 필수</span></span>
+        <input
+          style={s.input}
+          type="text"
+          placeholder={OWNED_MODEL_PLACEHOLDER}
+          value={model}
+          onChange={e => onModelChange(e.target.value)}
+        />
+      </label>
+      <div style={s.hint}>계약서 생성 시 차량등록증과 차량 정보 입력이 필요합니다.</div>
     </div>
   )
 }
@@ -95,12 +109,20 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 'var(--fs-caption)', lineHeight: 1.6,
   },
   hint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 'var(--sp-3)' },
+  field: { display: 'block', marginTop: 'var(--sp-4)' },
+  fieldLabel: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginBottom: 4 },
+  req: { color: 'var(--req)', fontWeight: 700 },
+  input: {
+    width: '100%', padding: 'var(--sp-2) var(--sp-3)', borderRadius: 6,
+    border: 'var(--hairline)', fontSize: 'var(--fs-label)', fontFamily: 'inherit',
+  },
   confirmNeed: {
-    borderRadius: 8, padding: 'var(--sp-3)', marginTop: 'var(--sp-3)',
+    // 아래 간격이 좁아 다음 블록과 붙어 보였다 — 옵션 행 사이와 같은 간격으로 맞춘다
+    borderRadius: 8, padding: 'var(--sp-3)', margin: 'var(--sp-3) 0 var(--sp-5)',
     background: 'rgba(214,69,69,.06)', border: '1px solid var(--req)',
   },
   confirmOk: {
-    borderRadius: 8, padding: 'var(--sp-3)', marginTop: 'var(--sp-3)',
+    borderRadius: 8, padding: 'var(--sp-3)', margin: 'var(--sp-3) 0 var(--sp-5)',
     background: 'rgba(200,210,0,.10)', border: 'var(--hairline)',
   },
   check: {

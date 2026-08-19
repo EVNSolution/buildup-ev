@@ -59,7 +59,11 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
   const [err, setErr] = useState('')
 
   const filled = (v: string) => !!v.trim()
-  const regionOk = subsidy.business_type === 'corporate' || !!subsidy.region_code
+  /*
+   * 지역은 **지방보조금을 고르는 값**이다. 특장만 견적에는 보조금이 없고,
+   * 법인은 애초에 지방보조금 대상이 아니다 — 둘 다 요구하지 않는다.
+   */
+  const regionOk = bodyOnly || subsidy.business_type === 'corporate' || !!subsidy.region_code
   const missing = [
     [filled(name), '성명'],
     [phone.replace(/\D/g, '').length >= 10, '휴대폰'],
@@ -128,12 +132,21 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           보조금 조건 — 가격바 팝업과 **같은 폼**을 쓴다.
           여기서 고른 값이 곧 화면에 보이는 금액의 근거라, 신청 직전에 한 번 더 보여 준다.
         */}
-        <div style={s.section}>보조금 조건</div>
         {/*
-          여기서는 「· 필수」를 감추지 않는다 — 신청 전에 **채워야 하는 목록**이기 때문이다.
-          (가격바 팝업만 감춘다. 거기는 지금 값을 바꿔 보는 자리다)
+          특장만 견적에는 **보조금이 없다**(차를 안 사니 EV 보조금 대상이 아니다).
+          답이 금액에 아무 영향도 주지 않는 질문이라 칸을 통째로 감춘다 —
+          공개 창구에서 굳이 물으면 신청이 길어지기만 한다.
         */}
-        <SubsidyForm value={subsidy} onChange={onSubsidyChange} regions={regions} compact />
+        {!bodyOnly && (
+          <>
+            <div style={s.section}>보조금 조건</div>
+            {/*
+              여기서는 「· 필수」를 감추지 않는다 — 신청 전에 **채워야 하는 목록**이기 때문이다.
+              (가격바 팝업만 감춘다. 거기는 지금 값을 바꿔 보는 자리다)
+            */}
+            <SubsidyForm value={subsidy} onChange={onSubsidyChange} regions={regions} compact />
+          </>
+        )}
 
         {/* 봇 잡이 — 사람 눈에 보이지 않는다 */}
         <input

@@ -19,6 +19,7 @@ import { setQuoteStatus } from '../services/quote-status.js';
 import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
+import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import { STEPS } from '@buildup-ev/shared/process';
 
 export const quotesRouter = Router();
@@ -156,10 +157,15 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
 
 // ── PATCH /quotes/:id/hidden — 숨기기 / 다시 보이기 ─────────────────────────
 /**
- * 지우지 않고 화면에서만 감춘다. **임시저장(draft)만** 가능하다.
+ * 지우지 않고 화면에서만 감춘다.
  *
- * 확정 이상을 숨기면 퍼널 통계가 왜곡되고 진행 중인 거래가 화면에서 사라진다.
- * 계약이 하나라도 붙어 있으면 거부한다 — 서명 요청만 보낸 상태여도 마찬가지다.
+ * **계약서가 고객에게 나가기 전까지는 언제든 숨길 수 있다**(영업사원도 가능).
+ * 잘못 만든 견적을 정리하는 일은 흔하고, 그때마다 관리자를 부를 이유가 없다.
+ * 나간 뒤에는 숨길 수 없다 — 고객이 이미 받아 본 것이고 서명이 진행 중일 수 있다.
+ * 다만 **마스터는 무엇이든** 숨길 수 있다(잘못 나간 계약까지 정리해야 하는 사람이 하나는 필요하다).
+ *
+ * 견적 상태로 가르지 않는다. 예전엔 임시저장만 숨길 수 있게 했는데, 확정만 해 두고
+ * 계약서를 안 보낸 견적이 정리되지 않아 테스트 데이터가 쌓였다.
  * (삭제는 아예 없앴다. #198)
  */
 quotesRouter.patch('/:id/hidden', rbac('ADMIN', 'SALES'), async (req: Request, res): Promise<void> => {
@@ -175,8 +181,10 @@ quotesRouter.patch('/:id/hidden', rbac('ADMIN', 'SALES'), async (req: Request, r
   try {
     const quote = await prisma.quote.findUnique({
       where: { id },
-      select: { id: true, status: true, sales_user_id: true, hidden_at: true,
-                _count: { select: { contracts: true } } },
+      select: {
+        id: true, sales_user_id: true, hidden_at: true,
+        _count: { select: { contracts: { where: SENT_CONTRACT_FILTER } } },
+      },
     });
     if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
     if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
@@ -184,17 +192,10 @@ quotesRouter.patch('/:id/hidden', rbac('ADMIN', 'SALES'), async (req: Request, r
     }
 
     // 다시 보이기는 언제나 허용한다 — 잘못 숨긴 것을 되돌리는 길은 막지 않는다
-    if (hidden) {
-      if (quote.status !== 'draft') {
-        res.status(409).json({ error: { code: 'NOT_HIDABLE',
-          message: `임시저장 견적만 숨길 수 있습니다 (현재 ${quote.status}). 진행 중인 건은 감추면 안 됩니다.` } });
-        return;
-      }
-      if (quote._count.contracts > 0) {
-        res.status(409).json({ error: { code: 'NOT_HIDABLE',
-          message: '계약이 있는 견적은 숨길 수 없습니다.' } });
-        return;
-      }
+    if (hidden && !canHideAnything(req.auth) && quote._count.contracts > 0) {
+      res.status(409).json({ error: { code: 'NOT_HIDABLE',
+        message: '계약서가 고객에게 발송된 견적은 숨길 수 없습니다.' } });
+      return;
     }
 
     const updated = await prisma.quote.update({

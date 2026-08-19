@@ -7,6 +7,7 @@
  */
 import { Router } from 'express';
 import { visibilityWhere, viewOf } from '../lib/visibility.js';
+import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import type { Request } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
@@ -85,7 +86,8 @@ customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void>
     const withContract = ids.length
       ? await prisma.quote.groupBy({
         by: ['customer_id'],
-        where: { customer_id: { in: ids }, contracts: { some: {} } },
+        // 「숨길 수 있는가」의 기준과 같아야 한다 — 발송된 계약만 센다
+        where: { customer_id: { in: ids }, contracts: { some: SENT_CONTRACT_FILTER } },
         _count: { _all: true },
       })
       : [];
@@ -112,12 +114,12 @@ customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void>
  * 고객 숨기기는 「이 고객은 안 쓴다(대개 테스트로 만든 것)」는 선언이다. 그러면 그 고객의
  * 견적도 안 쓰는 것이라, 따로 하나씩 숨기게 하면 손이 많이 가고 빠뜨리기 쉽다.
  *
- * ⚠️ **계약이 하나라도 있으면 거부한다.** 계약은 실거래의 증거다 — 그런 고객은
- *    테스트가 아니고, 숨기면 진행 중인 거래가 화면에서 사라진다.
- *    (견적 하나만 숨길 때는 임시저장으로 제한하지만, 여기서는 확정 견적도 함께 숨긴다.
- *     「이 고객은 실재하지 않는다」는 더 강한 결정이기 때문이다.)
+ * ⚠️ **계약서가 고객에게 발송된 견적이 하나라도 있으면 거부한다.** 고객이 이미 받아 본
+ *    것이고 서명이 진행 중일 수 있다. 견적 숨기기와 **같은 기준**이다(lib/hide-rules.ts).
  *
  * ⚠️ **WARP 에 연결된 고객도 거부한다.** 숨기면 export 에서 빠져 그쪽에서 증발한 것처럼 보인다.
+ *
+ * 다만 **마스터는 무엇이든** 숨길 수 있다 — 잘못 나간 것까지 정리해야 하는 사람이 하나는 필요하다.
  *
  * 되돌릴 때는 **이때 함께 숨긴 견적만** 되돌린다. 원래 따로 숨겨 둔 견적까지 되살리면
  * 사람이 내린 결정을 덮어쓰게 된다 — 그래서 hidden_by 에 표식을 남겨 구분한다.
@@ -144,19 +146,19 @@ customersRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): P
     });
     if (!c) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '고객을 찾을 수 없습니다' } }); return; }
 
-    if (hidden) {
+    if (hidden && !canHideAnything(req.auth)) {
       if (c.warp_customer_id) {
         res.status(409).json({ error: { code: 'NOT_HIDABLE',
           message: 'WARP 에 연결된 고객은 숨길 수 없습니다. 숨기면 CRM 쪽에서 사라진 것처럼 보입니다.' } });
         return;
       }
-      // 계약이 붙은 견적이 하나라도 있으면 실거래다 — 테스트가 아니다
-      const withContract = await prisma.quote.count({
-        where: { customer_id: id, contracts: { some: {} } },
+      // 계약서가 나간 견적이 하나라도 있으면 숨길 수 없다 — 견적 숨기기와 같은 기준
+      const sent = await prisma.quote.count({
+        where: { customer_id: id, contracts: { some: SENT_CONTRACT_FILTER } },
       });
-      if (withContract > 0) {
+      if (sent > 0) {
         res.status(409).json({ error: { code: 'NOT_HIDABLE',
-          message: `계약이 있는 견적을 가진 고객은 숨길 수 없습니다 (${withContract}건).` } });
+          message: `계약서가 발송된 견적이 있어 숨길 수 없습니다 (${sent}건).` } });
         return;
       }
     }
