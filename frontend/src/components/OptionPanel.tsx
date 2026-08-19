@@ -3,6 +3,7 @@ import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
+import { BodyOnlyPanel, BodyOnlyToggle, V2lNotice, type OwnedVehicle } from './BodyOnlyPanel'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { QuoteExtras } from './QuoteExtras'
@@ -30,6 +31,17 @@ interface Props {
   publicMode?: boolean
   /** 주 버튼 문구를 갈아끼운다(공개 화면 = 「상담 신청」). 미지정이면 기존 문구. */
   saveLabel?: string
+  /**
+   * 특장만 견적 — 차를 이미 가진 고객. 트림을 고르지 않고 보유 차량을 직접 적는다.
+   * 공개 화면에는 주지 않는다(영업이 판단할 성격의 견적이다).
+   */
+  bodyOnly?: boolean
+  onToggleBodyOnly?: (v: boolean) => void
+  ownedVehicle?: OwnedVehicle
+  onOwnedVehicleChange?: (v: OwnedVehicle) => void
+  /** 냉동 + 특장만일 때 필요한 V2L 확인 */
+  v2lConfirmed?: boolean
+  onV2lConfirmedChange?: (v: boolean) => void
   savedQuote: { quote_id: number; pricing: PricingOk } | null
   saveError: string
   isUnsupported: boolean
@@ -68,6 +80,12 @@ export function OptionPanel({
   compact = false,
   publicMode = false,
   saveLabel,
+  bodyOnly,
+  onToggleBodyOnly,
+  ownedVehicle,
+  onOwnedVehicleChange,
+  v2lConfirmed,
+  onV2lConfirmedChange,
   savedQuote,
   saveError,
   isUnsupported,
@@ -116,13 +134,38 @@ export function OptionPanel({
 
       <div style={styles.scroll}>
         {activeTab === 'vehicle' && (
-          <VehicleOptionsTab
-            groups={groupsByCategory(bundle, OPTION_CATEGORY.vehicle, hiddenGroupCodes)}
-            selections={selections}
-            onSelect={onSelect}
-            hiddenValueCodes={hiddenValueCodes}
-            optionPrices={optionPrices}
-          />
+          <>
+            {/* 특장만이면 트림을 고를 이유가 없다 — 차량을 팔지 않는다 */}
+            {!bodyOnly && (
+              <VehicleOptionsTab
+                groups={groupsByCategory(bundle, OPTION_CATEGORY.vehicle, hiddenGroupCodes)}
+                selections={selections}
+                onSelect={onSelect}
+                hiddenValueCodes={hiddenValueCodes}
+                optionPrices={optionPrices}
+              />
+            )}
+            {onToggleBodyOnly && (
+              <div style={{ marginTop: bodyOnly ? 0 : 'var(--sp-4)' }}>
+                <BodyOnlyToggle on={!!bodyOnly} onToggle={onToggleBodyOnly} />
+              </div>
+            )}
+            {bodyOnly && ownedVehicle && onOwnedVehicleChange && (
+              <BodyOnlyPanel value={ownedVehicle} onChange={onOwnedVehicleChange} />
+            )}
+            {/*
+              냉동은 차량 전원으로 냉동기를 돌린다 — V2L 포트가 없으면 설치 자체가 안 된다.
+              차를 우리가 팔면 안내만 하고, 고객 차에 얹을 때는 **확인을 받아야** 한다.
+            */}
+            <div style={{ marginTop: 'var(--sp-4)' }}>
+              <V2lNotice
+                bodyOnly={!!bodyOnly}
+                reeferSelected={selections['BODYTYPE'] === 'BODY_REEFER'}
+                confirmed={!!v2lConfirmed}
+                onConfirmedChange={onV2lConfirmedChange}
+              />
+            </div>
+          </>
         )}
         {activeTab === 'body' && (
           <BodyOptionsTab

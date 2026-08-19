@@ -86,31 +86,56 @@
 
   <div class="cols">
 
-    <!-- ══ 차량 정보 ══ -->
+    <!--
+      ══ 차량 정보 ══
+      특장만 견적(고객이 차를 이미 갖고 있다)이면 이 칸이 통째로 「고객 보유 차량」으로 바뀐다.
+      차량을 팔지 않으니 가격·보조금·차량 등록비가 하나도 없다 — 0원으로 채워 두면
+      「보조금 0원」처럼 읽혀 고객이 오해한다. 아예 다른 칸을 쓴다.
+
+      두 갈래는 0/1 개짜리 each 로 가른다(이 엔진에는 if 가 없다).
+    -->
     <div class="col">
+      <!-- each:carSection -->
       <h2 class="sec">차량 정보</h2>
       <table>
         <colgroup><col style="width:63%"><col style="width:37%"></colgroup>
-        <tr class="grp"><td class="k"><span class="cir">①</span> 차량 가격</td><td class="num">{{ car.price }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">②</span> 탁송료</td><td class="num">{{ car.deliveryFee }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">①</span> 차량 가격</td><td class="num">{{ item.price }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">②</span> 탁송료</td><td class="num">{{ item.deliveryFee }}</td></tr>
         <!-- each:benefitRows --><tr><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:benefitRows -->
-        <tr class="grp"><td class="k"><span class="cir">③</span> 구매 혜택</td><td class="num">{{ car.benefitTotal }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">③</span> 구매 혜택</td><td class="num">{{ item.benefitTotal }}</td></tr>
         <!-- each:subsidyRows --><tr><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:subsidyRows -->
-        <tr class="grp"><td class="k"><span class="cir">④</span> EV보조금 합계</td><td class="num">{{ car.subsidyTotal }}</td></tr>
-        <tr class="grp"><td class="k">차량 결제 금액 (①+②-③-④)</td><td class="num">{{ car.paymentAmount }}</td></tr>
-        <tr><td class="k">계약금</td><td class="num">{{ car.downPayment }}</td></tr>
-        <tr><td class="k">선수금</td><td class="num">{{ car.advancePayment }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">⑤</span> 인도금(차량)</td><td class="num">{{ car.deliveryPayment }}</td></tr>
-        <tr><td class="k">차량 취득세</td><td class="num">{{ car.acqTax }}</td></tr>
-        <tr><td class="k">공채할인액</td><td class="num">{{ car.bondDiscount }}</td></tr>
-        <tr><td class="k">번호판금액</td><td class="num">{{ car.plateFee }}</td></tr>
-        <tr><td class="k">증지대</td><td class="num">{{ car.stampFee }}</td></tr>
-        <tr><td class="k">의무보험료</td><td class="num">{{ car.insuranceFee }}</td></tr>
-        <tr><td class="k">등록대행료</td><td class="num">{{ car.regAgencyFee }}</td></tr>
-        <tr class="grp"><td class="k"><span class="cir">⑥</span> 등록/부대비용</td><td class="num">{{ car.regCost }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">④</span> EV보조금 합계</td><td class="num">{{ item.subsidyTotal }}</td></tr>
+        <tr class="grp"><td class="k">차량 결제 금액 (①+②-③-④)</td><td class="num">{{ item.paymentAmount }}</td></tr>
+        <tr><td class="k">계약금</td><td class="num">{{ item.downPayment }}</td></tr>
+        <tr><td class="k">선수금</td><td class="num">{{ item.advancePayment }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">⑤</span> 인도금(차량)</td><td class="num">{{ item.deliveryPayment }}</td></tr>
+        <tr><td class="k">차량 취득세</td><td class="num">{{ item.acqTax }}</td></tr>
+        <tr><td class="k">공채할인액</td><td class="num">{{ item.bondDiscount }}</td></tr>
+        <tr><td class="k">번호판금액</td><td class="num">{{ item.plateFee }}</td></tr>
+        <tr><td class="k">증지대</td><td class="num">{{ item.stampFee }}</td></tr>
+        <tr><td class="k">의무보험료</td><td class="num">{{ item.insuranceFee }}</td></tr>
+        <tr><td class="k">등록대행료</td><td class="num">{{ item.regAgencyFee }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">⑥</span> 등록/부대비용</td><td class="num">{{ item.regCost }}</td></tr>
         <!-- pad:car -->
-        <tr class="final"><td class="k">차량 초기 납부 금액 (⑤+⑥)</td><td class="num">{{ car.initialPayment }}</td></tr>
+        <tr class="final"><td class="k">차량 초기 납부 금액 (⑤+⑥)</td><td class="num">{{ item.initialPayment }}</td></tr>
       </table>
+      <!-- /each:carSection -->
+
+      <!-- each:ownedSection -->
+      <h2 class="sec">고객 보유 차량</h2>
+      <table>
+        <colgroup><col style="width:40%"><col style="width:60%"></colgroup>
+        <tr class="grp"><td class="k">차명</td><td>{{ item.carName }}</td></tr>
+        <tr><td class="k">형식</td><td>{{ item.typeName }}</td></tr>
+        <tr><td class="k">자동차등록번호</td><td>{{ item.plateNo }}</td></tr>
+        <tr><td class="k">차대번호</td><td>{{ item.vin }}</td></tr>
+        <tr class="blank"><td>&nbsp;</td><td></td></tr>
+        <tr><td class="k" colspan="2">고객이 보유한 차량에 특장만 제작·장착하는 견적입니다.</td></tr>
+        <tr><td class="k" colspan="2">차량 가격·탁송료·EV보조금·차량 등록비는 포함되지 않습니다.</td></tr>
+        <!-- pad:car -->
+        <tr class="final"><td class="k">차량 초기 납부 금액</td><td class="num">해당 없음</td></tr>
+      </table>
+      <!-- /each:ownedSection -->
     </div>
 
     <!-- ══ 특장 정보 ══ -->

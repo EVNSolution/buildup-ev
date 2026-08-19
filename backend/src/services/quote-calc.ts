@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import {
   assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE,
   dieselDeducts, toDieselStatus, type QuoteParams,
+  bodyOnlyParams,
 } from '@buildup-ev/shared/pricing';
 
 export type CustomerInput = {
@@ -53,6 +54,11 @@ export type QuoteExtraInput = {
    */
   promotion_discount?: number;
   local_subsidy_off?: boolean;   // 견적별 지방보조금 미적용(영업 토글)
+  /**
+   * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 얹는다.
+   * 차량에 딸린 입력을 통째로 0으로 만든다(shared 의 `bodyOnlyParams` 한 곳에서).
+   */
+  body_only?: boolean;
 };
 
 export async function buildQuoteParams(
@@ -90,7 +96,7 @@ export async function buildQuoteParams(
   // 지방보조금 미적용: 관리자 DB 토글(subsidy_local.active=false) 또는 견적별 영업 토글
   const localOff = extra?.local_subsidy_off === true || subsidyLoc?.active === false;
 
-  return {
+  const params: QuoteParams = {
     car_price: Math.round(trim_price * 1.1),   // D10 VAT포함
     delivery_fee: taxMap['delivery_fee'] ?? 188_000,
     commercial_discount: taxMap['commercial_discount'] ?? 0,
@@ -136,4 +142,11 @@ export async function buildQuoteParams(
     // 구조변경 비용 — tax_config 로 관리(관리자페이지에서 변경). 미설정 시 40만원.
     structure_change_fee: taxMap['structure_change_fee'] ?? 400_000,
   };
+
+  /*
+   * 특장만 견적이면 차량에 딸린 입력을 통째로 0으로 만든다.
+   * 여기서 하나씩 0을 채우지 않고 shared 한 곳에 맡긴다 — 화면도 같은 함수를 쓰므로
+   * 견적서와 화면이 다른 값을 말할 수 없다.
+   */
+  return extra?.body_only ? bodyOnlyParams(params) : params;
 }

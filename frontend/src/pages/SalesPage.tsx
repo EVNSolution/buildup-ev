@@ -8,6 +8,7 @@ import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { quotePriceExtras } from '@shared/pricing/quote-request'
+import { EMPTY_OWNED_VEHICLE, type OwnedVehicle } from '../components/BodyOnlyPanel'
 import { fetchPricingBundle } from '../api/models'
 import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs, acceptSalesQuote } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
@@ -600,6 +601,13 @@ export function SalesPage() {
   })
   /** 프로모션 금액 할인(원, VAT 포함) — 무상제공과 별개다 */
   const [promotionDiscount, setPromotionDiscount] = useState(0)
+  /**
+   * 특장만 견적 — 고객이 차를 이미 갖고 있다. 차량가·보조금·차량 등록비가 전부 빠진다.
+   * 냉동을 고르려면 V2L 확인이 필요하다(차량 전원으로 냉동기를 돌린다).
+   */
+  const [bodyOnly, setBodyOnly] = useState(false)
+  const [ownedVehicle, setOwnedVehicle] = useState<OwnedVehicle>(EMPTY_OWNED_VEHICLE)
+  const [v2lConfirmed, setV2lConfirmed] = useState(false)
   const [localSubsidyOff, setLocalSubsidyOff] = useState(false)  // 지방보조금 소진 시 견적별 미적용
 
 
@@ -696,9 +704,9 @@ export function SalesPage() {
   const liveTotal = useMemo<QuoteResult | null>(
     () => buildLiveTotal({
       bundle, selections, subsidyInputs, subsidyLocal, subsidyReady,
-      promotionZeroed, promotionDiscount, localSubsidyOff, customer,
+      promotionZeroed, promotionDiscount, localSubsidyOff, customer, bodyOnly,
     }),
-    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff],
+    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -742,6 +750,14 @@ export function SalesPage() {
   async function handleSave(v: QuoteSaveValues) {
     if (!bundle) return
     if (liveCalc?.status === 'unsupported') return
+    /*
+     * 냉동은 차량 전원으로 냉동기를 돌린다. 고객 차에 얹는 경우 V2L 이 없으면
+     * **설치 자체가 불가능하다** — 확인 없이 견적이 나가면 되돌릴 수 없다.
+     */
+    if (bodyOnly && selections['BODYTYPE'] === 'BODY_REEFER' && !v2lConfirmed) {
+      setSaveError('냉동 사양은 차량의 V2L 포트 확인이 필요합니다. 「차량 트림」에서 확인란을 체크해 주세요.')
+      return
+    }
 
     setIsSaving(true)
     setSaveError('')
@@ -754,6 +770,9 @@ export function SalesPage() {
         // 화면 금액을 만든 입력을 그대로 싣는다 — 손으로 옮겨 적지 않는다.
         // 여기서 하나라도 빠지면 화면 금액과 저장된 견적이 어긋난다(#182).
         ...quotePriceExtras({ promotionZeroed, promotionDiscount, localSubsidyOff }),
+        // 특장만 견적 — 차량 금액·보조금이 빠지고, 보유 차량 정보가 견적서에 실린다
+        body_only: bodyOnly || undefined,
+        vehicle_owned: bodyOnly ? { ...ownedVehicle } : undefined,
         customer: {
           name: v.name.trim(),
           // 법인만 값이 있다 → 계약서 {{ceo_name}}. 개인이면 보내지 않는다.
@@ -911,6 +930,16 @@ export function SalesPage() {
           onMemoChange={setMemo}
           promotionZeroed={promotionZeroed}
           onTogglePromotion={togglePromotion}
+          bodyOnly={bodyOnly}
+          onToggleBodyOnly={v => {
+            setBodyOnly(v)
+            // 차량 구매로 되돌리면 확인은 무효다 — 그 확인은 고객 차량에 대한 것이었다
+            if (!v) { setV2lConfirmed(false); setOwnedVehicle(EMPTY_OWNED_VEHICLE) }
+          }}
+          ownedVehicle={ownedVehicle}
+          onOwnedVehicleChange={setOwnedVehicle}
+          v2lConfirmed={v2lConfirmed}
+          onV2lConfirmedChange={setV2lConfirmed}
           promotionDiscount={promotionDiscount}
           onPromotionDiscountChange={setPromotionDiscount}
           localSubsidyOff={localSubsidyOff}

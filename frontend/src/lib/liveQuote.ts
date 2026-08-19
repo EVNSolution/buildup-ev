@@ -1,6 +1,6 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, bodyOnlyParams, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import { mapBizType } from './quoteCustomer'
 import type { SubsidyInputs } from '../components/SubsidyInputs'
 
@@ -26,6 +26,8 @@ export interface LiveTotalArgs {
   /** 프로모션 할인액(원, VAT 포함). 특장 가격에서 뺀다 */
   promotionDiscount?: number
   localSubsidyOff?: boolean
+  /** 특장만 견적 — 고객이 차를 이미 갖고 있어 차량 금액·보조금이 전부 빠진다 */
+  bodyOnly?: boolean
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null
 }
@@ -43,7 +45,7 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
   const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
   const t = bundle.tax_all ?? {}
   const biz = mapBizType(subsidyInputs.business_type)
-  return calcQuote({
+  const params = {
     car_price: Math.round(trim_price * 1.1),
     delivery_fee: t['delivery_fee'] ?? bundle.tax.delivery_fee,
     commercial_discount: t['commercial_discount'] ?? 0,
@@ -83,5 +85,10 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
     // 구조변경 비용 — tax_config 값. 백엔드(buildQuoteParams)와 같은 기본값을 써야
     // 화면 가격과 견적서 PDF 가 어긋나지 않는다.
     structure_change_fee: t['structure_change_fee'] ?? 400_000,
-  })
+  }
+  /*
+   * 특장만이면 차량에 딸린 입력을 통째로 0으로 만든다 — **백엔드와 같은 함수**를 쓴다.
+   * 각자 0을 채우면 한쪽만 빠뜨렸을 때 화면과 견적서가 다른 금액을 말한다.
+   */
+  return calcQuote(args.bodyOnly ? bodyOnlyParams(params) : params)
 }

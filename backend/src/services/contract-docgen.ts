@@ -225,6 +225,8 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
     promotion_discount: inp['promotion_discount'] as number | undefined,
+    // 특장만 견적 — 저장 시점의 선택을 그대로 따라야 금액이 재현된다
+    body_only: inp['body_only'] === true,
     local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
   }, quote.created_at.getFullYear());
   const q = calcQuote(params);

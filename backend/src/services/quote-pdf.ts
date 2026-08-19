@@ -117,6 +117,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
     promotion_discount: inp['promotion_discount'] as number | undefined,
+    // 특장만 견적 — 저장 시점의 선택을 그대로 따라야 금액이 재현된다
+    body_only: inp['body_only'] === true,
     local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
   }, quote.created_at.getFullYear());
   const r = calcQuote(params);
@@ -190,6 +192,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
 
 
 
+  const bodyOnly = inp['body_only'] === true;
+
   const data = {
     vehicleModel: modelName,
     workDate: quote.created_at.toISOString().slice(0, 10),
@@ -197,7 +201,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     customerName: quote.customer?.name ?? '',
     modelSubtitle: `${modelName} : PV5 ${trimName} ${bodyDisp}탑차 – ${topDisp}`,
     optionSummary,
-    car: {
+    // car 는 each 안에서 item.* 로 읽는다(아래 carSection). 여기 남겨 두면 토큰이 두 벌이 된다.
+    carUnused: {
       price: won(r.car_price), deliveryFee: won(r.delivery_fee),
       benefitTotal: wonNeg(r.purchase_benefit), subsidyTotal: wonNeg(r.subsidy_total),
       paymentAmount: won(r.car_payment), downPayment: won(r.car_deposit), advancePayment: won(r.down_payment),
@@ -243,6 +248,32 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   html = renderEach(html, 'benefitRows', benefitRows);
   html = renderEach(html, 'subsidyRows', subsidyRows);
   html = renderEach(html, 'topOptions', topOptions);
+
+  /*
+   * 차량 칸은 두 갈래다 — 차를 파는 견적이면 금액 표, 특장만이면 「고객 보유 차량」.
+   *
+   * ⚠️ **순서가 중요하다.** benefitRows·subsidyRows 는 carSection **안에** 있다.
+   *    바깥을 먼저 펼치면 `{{ item.label }}` 같은 안쪽 토큰까지 바깥 item 으로 먹어 버려
+   *    할인·보조금 줄이 빈칸이 된다. 안쪽을 먼저 펼친 뒤 바깥을 편다.
+   *    renderPad 보다도 앞이어야 한다 — 두 갈래에 `pad:car` 가 하나씩 있어,
+   *    갈래를 먼저 정리하지 않으면 엉뚱한 쪽을 채운다.
+   */
+  const owned = (inp['vehicle_owned'] ?? {}) as Record<string, string>;
+  html = renderEach(html, 'carSection', bodyOnly ? [] : [{
+    price: won(r.car_price), deliveryFee: won(r.delivery_fee),
+    benefitTotal: wonNeg(r.purchase_benefit), subsidyTotal: wonNeg(r.subsidy_total),
+    paymentAmount: won(r.car_payment), downPayment: won(r.car_deposit), advancePayment: won(r.down_payment),
+    deliveryPayment: won(r.car_delivery), acqTax: won(r.car_acq_tax), bondDiscount: won(r.bond_discount),
+    plateFee: won(r.plate), stampFee: won(r.stamp), insuranceFee: won(r.insurance), regAgencyFee: won(r.reg_agency),
+    regCost: won(r.car_reg_cost), initialPayment: won(r.car_initial),
+  }]);
+  html = renderEach(html, 'ownedSection', bodyOnly ? [{
+    carName: owned['car_name'] ?? '—',
+    typeName: owned['type_name'] ?? '—',
+    plateNo: owned['plate_no'] ?? '—',
+    vin: owned['vin'] ?? '—',
+  }] : []);
+
   html = renderPad(html);
   html = renderTokens(html, data);
 
