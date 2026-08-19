@@ -31,6 +31,20 @@ jobs:
   validate:
     name: 소스와 배포 계약 검증
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres@sha256:44c4ee9810eff91f7eab4d822642e01115b1a9eccce4bcbdde7604752d68eac6
+        env:
+          POSTGRES_DB: buildup_ev
+          POSTGRES_USER: buildup
+          POSTGRES_PASSWORD: test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U buildup -d buildup_ev"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: 정확한 소스 받기
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -57,11 +71,27 @@ jobs:
             src/__tests__/runtime-config.test.ts \
             src/__tests__/health.test.ts
           npm run --workspace=backend build
+      - name: Prisma migration 검증
+        env:
+          DATABASE_URL: postgresql://buildup:test-only@127.0.0.1:5432/buildup_ev
+        run: |
+          npm run --workspace=backend db:migrate:deploy
+          npm run --workspace=backend db:migrate:deploy
+          npm run --workspace=backend db:migrate:status
+          npm exec --workspace=backend -- prisma migrate diff \
+            --exit-code \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma
       - name: 배포 계약 테스트
         run: |
           python3 -m unittest discover -s deploy/tests -p 'test_*.py'
+          DATABASE_URL='postgresql://buildup:test-only@127.0.0.1:5432/buildup_ev' \
+            npm exec --workspace=backend -- prisma validate --schema prisma/schema.prisma
           bash -n deploy/setup-deploy.sh
           bash -n deploy/remote-deploy.sh
+          bash -n deploy/backup-database.sh
+          bash -n deploy/baseline-existing-database.sh
+          bash -n deploy/apply-schema-migrations.sh
 
   deploy:
     name: 운영 슬롯 배포

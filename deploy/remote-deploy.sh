@@ -42,13 +42,15 @@ PY
 
 write_manifest() {
   local target="$MANIFEST_DIR/$slot.json"
-  python3 - "$target" "$slot" "$SOURCE_REVISION" "$LOCKFILE_SHA256" "$SSM_VERSION" "$WORKFLOW_RUN_ID" "$ACTOR" "${current:-none}" "${old_active_revision:-none}" <<'PY'
+  python3 - "$target" "$slot" "$SOURCE_REVISION" "$LOCKFILE_SHA256" "$SCHEMA_MIGRATION_SHA256" "$SCHEMA_MIGRATION_COUNT" "$SSM_VERSION" "$WORKFLOW_RUN_ID" "$ACTOR" "${current:-none}" "${old_active_revision:-none}" <<'PY'
 import datetime, json, os, sys, tempfile
-target, slot, revision, lockfile, ssm_version, workflow_run_id, actor, previous_slot, previous_revision = sys.argv[1:]
+target, slot, revision, lockfile, migration_sha, migration_count, ssm_version, workflow_run_id, actor, previous_slot, previous_revision = sys.argv[1:]
 data = {
     'slot': slot,
     'sourceRevision': revision,
     'lockfileSha256': lockfile,
+    'schemaMigrationSha256': migration_sha,
+    'schemaMigrationCount': int(migration_count),
     'ssmParameterVersion': int(ssm_version),
     'workflowRunId': workflow_run_id,
     'actor': actor,
@@ -188,10 +190,16 @@ git checkout -B deploy-target "$SOURCE_REVISION"
 git reset --hard "$SOURCE_REVISION"
 test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
 LOCKFILE_SHA256="$(sha256sum package-lock.json | awk '{print $1}')"
+SCHEMA_MIGRATION_SHA256="$(find backend/prisma/migrations -type f \( -name migration.sql -o -name migration_lock.toml \) -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
+SCHEMA_MIGRATION_COUNT="$(find backend/prisma/migrations -mindepth 2 -maxdepth 2 -type f -name migration.sql | wc -l | tr -d ' ')"
 
 fetch_and_validate_env
 npm ci
 npm exec --workspace=backend -- prisma generate
+if ! APP_BASE_DIR="$APP_BASE_DIR" SOURCE_REVISION="$SOURCE_REVISION" deploy/apply-schema-migrations.sh; then
+  append_evidence "event=schema-migration-blocked" "slot=$slot" "revision=$SOURCE_REVISION" "schemaMigrationSha256=$SCHEMA_MIGRATION_SHA256" "schemaMigrationCount=$SCHEMA_MIGRATION_COUNT"
+  exit 1
+fi
 npm run --workspace=backend db:drift
 npm run --workspace=frontend build
 chmod -R a+rX frontend/dist
@@ -289,10 +297,10 @@ if [[ "$current" =~ ^(blue|green)$ ]]; then
 fi
 printf '%s\n' "$slot" > "$APP_BASE_DIR/.active-slot.candidate"
 mv "$APP_BASE_DIR/.active-slot.candidate" "$APP_BASE_DIR/active-slot"
-printf '%s revision=%s ssmVersion=%s lockfile=%s previous=%s\n' \
-  "$(date +%Y%m%d-%H%M%S)" "$SOURCE_REVISION" "$SSM_VERSION" "$LOCKFILE_SHA256" "$old_active_revision" >> "$APP_BASE_DIR/deploy.log"
-append_evidence "event=activated" "slot=$slot" "revision=$SOURCE_REVISION" "ssmVersion=$SSM_VERSION" "lockfileSha256=$LOCKFILE_SHA256" "previous=${current:-none}" "previousRevision=$old_active_revision"
+printf '%s revision=%s ssmVersion=%s lockfile=%s migration=%s previous=%s\n' \
+  "$(date +%Y%m%d-%H%M%S)" "$SOURCE_REVISION" "$SSM_VERSION" "$LOCKFILE_SHA256" "$SCHEMA_MIGRATION_SHA256" "$old_active_revision" >> "$APP_BASE_DIR/deploy.log"
+append_evidence "event=activated" "slot=$slot" "revision=$SOURCE_REVISION" "ssmVersion=$SSM_VERSION" "lockfileSha256=$LOCKFILE_SHA256" "schemaMigrationSha256=$SCHEMA_MIGRATION_SHA256" "schemaMigrationCount=$SCHEMA_MIGRATION_COUNT" "previous=${current:-none}" "previousRevision=$old_active_revision"
 pm2 save
 systemctl enable --now pm2-root >/dev/null 2>&1 || true
 
-echo "release=revision:${SOURCE_REVISION},slot:${slot},ssm:${SSM_VERSION},lockfile:${LOCKFILE_SHA256}"
+echo "release=revision:${SOURCE_REVISION},slot:${slot},ssm:${SSM_VERSION},lockfile:${LOCKFILE_SHA256},migration:${SCHEMA_MIGRATION_SHA256}"

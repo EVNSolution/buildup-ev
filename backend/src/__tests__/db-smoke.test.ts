@@ -1,6 +1,6 @@
 /**
  * DB smoke test — DATABASE_URL 없으면 자동 skip.
- * `docker compose up -d && npx prisma db push && npx prisma db seed` 후 실행.
+ * `docker compose up -d && npm run db:migrate:deploy && npm run db:seed` 후 실행.
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';

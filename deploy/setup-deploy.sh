@@ -125,6 +125,7 @@ EOF_FONTCONF
 
 install_pkg ca-certificates git openssl unzip
 if ! need_cmd curl; then install_pkg curl; fi
+if ! need_cmd flock; then install_pkg util-linux; fi
 install_caddy
 disable_legacy_caddy_container
 require_docgen_deps

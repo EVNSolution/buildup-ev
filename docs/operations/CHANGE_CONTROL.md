@@ -39,10 +39,21 @@ BUILDUP-EV는 컨테이너 이미지가 아니라 EC2의 PM2 blue-green 슬롯�
 | --- | --- |
 | Source revision | 실제 checkout한 40자리 Git SHA |
 | Lockfile SHA-256 | 설치 의존성 입력인 `package-lock.json` 해시 |
+| Migration SHA-256 | 적용 대상 migration SQL과 provider lock의 결합 해시 |
 | SSM parameter version | 운영 애플리케이션 ENV의 적용 버전 |
 | Workflow run ID | 배포 명령을 시작한 GitHub Actions 실행 |
 
 서버는 슬롯별 manifest와 append-only `deploy-evidence.jsonl`에 이 값을 남긴다. 배포 성공 판단은 GitHub 표시나 브랜치 이름이 아니라 활성 슬롯의 `/api/readyz` revision 일치로 한다.
+
+## DB 변경 통제
+
+1. `schema.prisma` 변경과 `backend/prisma/migrations/` SQL을 같은 Issue와 PR에 넣는다.
+2. migration SQL에서 destructive DDL과 데이터 변환을 분리하고, 이전 active 슬롯과 호환되는지 검토한다.
+3. CI에서 migration history와 배포 순서 계약을 검증한다.
+4. 운영 배포는 미적용 migration이 있을 때만 backup을 만들고, `prisma migrate deploy` 이후 전체 schema diff를 확인한다.
+5. migration 이름, checksum, backup 경로, workflow run과 source revision을 운영 증거로 연결한다.
+
+운영 DB 수동 SQL은 장애 복구나 이미 적용된 hotfix를 migration history와 화해시키는 경우에만 허용한다. 그 경우에도 Issue 전용 SQL, backup, 적용자, 적용 시각, `migrate resolve` 판단을 남긴다.
 
 ## 커밋 기록
 
