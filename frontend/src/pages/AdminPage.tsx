@@ -22,6 +22,7 @@ import { Tabs } from '../components/ui/Tabs'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
+import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -48,31 +49,6 @@ const QUOTE_STATUS_LABELS: Record<string, string> = {
   assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
-const QUOTE_STATUS_FLOW = [
-  { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed',  label: '견적확정', desc: '견적서 생성 완료' },
-  { key: 'contracted', label: '계약완료', desc: '전자서명 완료' },
-  { key: 'assigned',   label: '배정완료', desc: '관리자가 특장사 배정' },
-  { key: 'ordered',    label: '주문진행', desc: '특장사 수락 · 제작 진행' },
-  { key: 'completed',  label: '완료',     desc: '특장사 전 공정 완료' },
-] as const
-
-function quoteStatusTip(status: string): React.ReactNode {
-  return (
-    <div>
-      <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>견적 상태</div>
-      {QUOTE_STATUS_FLOW.map((s, i) => (
-        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? 'var(--lime)' : 'var(--line)', fontSize: 11 }}>
-          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
-          <span>{s.label}</span>
-          <span style={{ fontSize: 9.5, color: 'var(--muted)', marginLeft: 'var(--sp-1)' }}>({s.desc})</span>
-          {s.key === status && <span style={{ fontSize: 9, color: 'var(--lime)', marginLeft: 2 }}>← 현재</span>}
-        </div>
-      ))}
-      {status === 'expired' && <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 5 }}>만료/취소된 견적입니다</div>}
-    </div>
-  )
-}
 
 /**
  * 기능모듈 설명 — **DB 의 feature_module 코드와 짝이 맞아야 한다.**
@@ -1091,7 +1067,7 @@ function QuotesTab() {
             <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
-                <Tooltip text={quoteStatusTip(q.status)} placement="below">
+                <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                   <Badge tone={statusTone(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</Badge>
                 </Tooltip>
               </div>
@@ -1202,7 +1178,7 @@ function QuotesTab() {
                   </td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
-                    <Tooltip text={quoteStatusTip(q.status)} placement="below">
+                    <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                       <Badge tone={statusTone(q.status)}>
                         {QUOTE_STATUS_LABELS[q.status] ?? q.status}
                       </Badge>

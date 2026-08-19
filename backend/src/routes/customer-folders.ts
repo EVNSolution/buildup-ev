@@ -12,7 +12,7 @@ import { Router, type Request, type Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { prisma } from '../lib/prisma.js';
-import { rbac, ownQuotesOnly } from '../middleware/rbac.js';
+import { rbac, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { VISIBLE } from '../lib/visibility.js';
 import {
   groupCustomers, collectDocs, resolveDocId,
@@ -43,9 +43,14 @@ function guard(fn: (req: Request, res: Response) => Promise<void>) {
  */
 function quoteScope(req: Request) {
   const auth = req.auth!;
+  /*
+   * 영업 화면은 `scope=mine` 을 붙여 부른다 — 겸직 계정이라도 남의 고객은 안 본다.
+   * 견적 목록과 같은 규칙이어야 두 화면이 갈리지 않는다(마스터는 제외).
+   */
+  const mine = ownQuotesOnly(auth) || scopedToMine(auth, (req.query as { scope?: unknown }).scope);
   return {
     ...VISIBLE,
-    ...(ownQuotesOnly(auth) ? { sales_user_id: auth.email } : {}),
+    ...(mine ? { sales_user_id: auth.email } : {}),
   };
 }
 

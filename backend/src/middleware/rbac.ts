@@ -117,6 +117,23 @@ export function ownQuotesOnly(auth: AuthContext): boolean {
   return !isAdmin(auth) && auth.roles.includes('SALES');
 }
 
+/**
+ * **영업 화면에서는 남의 견적을 보지 않는다** — 겸직 계정이라도.
+ *
+ * 영업과 관리자 권한을 함께 가진 계정은 `isAdmin` 이 참이라 지금까지 **영업 화면에서도
+ * 전사 견적이 보였다.** 관리자 화면에서 전체를 보는 것과, 영업으로 일하는 화면에서
+ * 남의 담당 건이 섞여 보이는 것은 전혀 다른 일이다.
+ *
+ * 어느 화면에서 부르는지는 서버가 알 수 없어 **화면이 `scope=mine` 을 붙여 알린다.**
+ * ⚠️ 이 값은 **좁히기만 한다** — 없다고 넓어지지 않고, 붙였다고 남의 것이 보이지도 않는다.
+ *    그래서 화면이 보낸 값을 그대로 믿어도 권한이 새지 않는다.
+ *
+ * 마스터 계정은 제외한다(전수 조사·대리 처리를 해야 하는 자리다).
+ */
+export function scopedToMine(auth: AuthContext, scope: unknown): boolean {
+  return scope === 'mine' && !auth.is_master;
+}
+
 export function ownOrgOnly(auth: AuthContext): boolean {
   return !isAdmin(auth) && auth.roles.includes('MAKER');
 }

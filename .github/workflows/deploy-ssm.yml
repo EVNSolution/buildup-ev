@@ -72,6 +72,7 @@ jobs:
             src/__tests__/quote-template.test.ts \
             src/__tests__/doc-archive.test.ts \
             src/__tests__/customer-folders.test.ts \
+            src/__tests__/sales-scope.test.ts \
             src/__tests__/runtime-config.test.ts \
             src/__tests__/health.test.ts
           npm run --workspace=backend build

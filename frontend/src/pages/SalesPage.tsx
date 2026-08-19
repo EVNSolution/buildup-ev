@@ -29,6 +29,7 @@ import { ConfirmQuoteModal } from '../components/ConfirmQuoteModal'
 import { InboxPanel } from '../components/InboxPanel'
 import { QuoteAcceptModal } from '../components/QuoteAcceptModal'
 import { Tooltip } from '../components/Tooltip'
+import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
 import { CustomerFolders } from '../components/CustomerFolders'
@@ -48,31 +49,6 @@ const QUOTE_STATUS_KO: Record<string, string> = {
   assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
-const QUOTE_STATUS_FLOW = [
-  { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed',  label: '견적확정', desc: '견적서 생성 완료' },
-  { key: 'contracted', label: '계약완료', desc: '전자서명 완료' },
-  { key: 'assigned',   label: '배정완료', desc: '관리자가 특장사 배정' },
-  { key: 'ordered',    label: '주문진행', desc: '특장사 수락 · 제작 진행' },
-  { key: 'completed',  label: '완료',     desc: '특장사 전 공정 완료' },
-] as const
-
-function quoteStatusTip(status: string): React.ReactNode {
-  return (
-    <div>
-      <div style={{ fontWeight: 700, marginBottom: 5, fontSize: 10.5, letterSpacing: 0.3 }}>견적 상태</div>
-      {QUOTE_STATUS_FLOW.map((s, i) => (
-        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '2px 0', fontWeight: s.key === status ? 700 : 400, color: s.key === status ? 'var(--lime)' : 'var(--line)', fontSize: 11 }}>
-          <span style={{ width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
-          <span>{s.label}</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginLeft: 'var(--sp-1)' }}>({s.desc})</span>
-          {s.key === status && <span style={{ fontSize: 9, color: 'var(--lime)', marginLeft: 2 }}>← 현재</span>}
-        </div>
-      ))}
-      {status === 'expired' && <div style={{ fontSize: 10, color: 'var(--warn)', marginTop: 5 }}>만료/취소된 견적입니다</div>}
-    </div>
-  )
-}
 
 
 // 전자서명 진행 상태 — 팝업을 열지 않아도 목록에서 바로 보이게 한다.
@@ -132,7 +108,7 @@ function MyListWithFolders() {
       </div>
       {/* 목록은 자기 안에 스크롤 칸(lv.root)을 이미 갖고 있다 — 서류함에도 같은 칸을 준다 */}
       {view === 'list' ? <MyListView /> : (
-        <div style={lv.root}><CustomerFolders /></div>
+        <div style={lv.root}><CustomerFolders mine /></div>
       )}
     </div>
   )
@@ -198,7 +174,13 @@ function MyListView() {
 
   function load() {
     setLoading(true); setErr('')
-    Promise.all([fetchQuotes({}), fetchOrders({})])
+    /*
+     * `scope: 'mine'` — **영업 화면에서는 내 담당 건만 본다.**
+     * 영업+관리자를 겸한 계정은 서버가 관리자로 보아, 예전엔 여기서도 전사 견적이 나왔다.
+     * 관리자 화면에서 전체를 보는 것과, 영업으로 일하는 화면에 남의 담당이 섞이는 것은
+     * 전혀 다른 일이다(마스터 계정은 제외 — 전수 조사·대리 처리를 해야 한다).
+     */
+    Promise.all([fetchQuotes({ scope: 'mine' }), fetchOrders({ scope: 'mine' })])
       .then(([q, o]) => { setQuotes(q); setOrders(o) })
       .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
       .finally(() => setLoading(false))
@@ -458,7 +440,7 @@ function MyListView() {
                       <td style={lv.td}>{q.customer?.name ?? '—'}</td>
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
-                        <Tooltip text={quoteStatusTip(q.status)} placement="below">
+                        <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                           <Badge tone={q.status === 'draft' ? 'wait' : (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered') ? 'progress' : 'done'}>
                             {QUOTE_STATUS_KO[q.status] ?? q.status}
                           </Badge>

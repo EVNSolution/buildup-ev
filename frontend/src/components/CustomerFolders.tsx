@@ -19,17 +19,23 @@ import { BTN } from '../styles/buttons'
  *   · 그 아래로 시간 역순. **내용이 같은 판은 한 줄만** 보인다(견적서는 열 때마다
  *     다시 만들어지므로, 그대로 늘어놓으면 무엇이 달라졌는지 읽을 수 없다)
  */
-export function CustomerFolders() {
+export function CustomerFolders({ mine }: {
+  /**
+   * 영업 화면에서 참으로 준다 — **겸직(영업+관리자) 계정이라도 남의 고객은 안 본다.**
+   * 관리자 화면에서 전체를 보는 것과, 영업으로 일하는 화면에 남의 담당이 섞이는 것은 다른 일이다.
+   */
+  mine?: boolean
+} = {}) {
   const [rows, setRows] = useState<ApiFolderRow[] | null>(null)
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')
   const [openKey, setOpenKey] = useState<number | null>(null)
 
   useEffect(() => {
-    fetchFolders()
+    fetchFolders(mine)
       .then(setRows)
       .catch(e => setErr(e instanceof Error ? e.message : '서류함을 불러오지 못했습니다'))
-  }, [])
+  }, [mine])
 
   // 사람들이 실제로 기억하는 것들 — 이름·연락처·생년월일(사업자번호)
   const shown = useMemo(() => {
@@ -43,7 +49,7 @@ export function CustomerFolders() {
   if (!rows) return <div style={s.muted}>불러오는 중입니다.</div>
 
   if (openKey !== null) {
-    return <FolderView folderKey={openKey} onBack={() => setOpenKey(null)} />
+    return <FolderView folderKey={openKey} mine={mine} onBack={() => setOpenKey(null)} />
   }
 
   return (
@@ -82,16 +88,16 @@ export function CustomerFolders() {
   )
 }
 
-function FolderView({ folderKey, onBack }: { folderKey: number; onBack: () => void }) {
+function FolderView({ folderKey, mine, onBack }: { folderKey: number; mine?: boolean; onBack: () => void }) {
   const [res, setRes] = useState<ApiFolder | null>(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
     setRes(null)
-    fetchFolder(folderKey)
+    fetchFolder(folderKey, mine)
       .then(setRes)
       .catch(e => setErr(e instanceof Error ? e.message : '서류를 불러오지 못했습니다'))
-  }, [folderKey])
+  }, [folderKey, mine])
 
   if (err) return <><button style={s.back} onClick={onBack}>← 서류함</button><div style={s.err}>{err}</div></>
   if (!res) return <><button style={s.back} onClick={onBack}>← 서류함</button><div style={s.muted}>불러오는 중입니다.</div></>
@@ -120,21 +126,21 @@ function FolderView({ folderKey, onBack }: { folderKey: number; onBack: () => vo
       {pinned.length > 0 && (
         <section style={s.pinBox}>
           <div style={s.pinTitle}>서명 요청 시점 정본</div>
-          {pinned.map(d => <DocRow key={d.id} d={d} folderKey={folderKey} strong />)}
+          {pinned.map(d => <DocRow key={d.id} d={d} folderKey={folderKey} mine={mine} strong />)}
         </section>
       )}
 
       {rest.length > 0 && (
         <section>
           <div style={s.histTitle}>이전 내역 <span style={s.histHint}>· 내용이 바뀐 판만</span></div>
-          {rest.map(d => <DocRow key={d.id} d={d} folderKey={folderKey} />)}
+          {rest.map(d => <DocRow key={d.id} d={d} folderKey={folderKey} mine={mine} />)}
         </section>
       )}
     </div>
   )
 }
 
-function DocRow({ d, folderKey, strong }: { d: ApiFolder['data'][number]; folderKey: number; strong?: boolean }) {
+function DocRow({ d, folderKey, mine, strong }: { d: ApiFolder['data'][number]; folderKey: number; mine?: boolean; strong?: boolean }) {
   return (
     <div style={s.doc}>
       <span style={strong ? s.docKindOn : s.docKind}>{d.kind}</span>
@@ -142,9 +148,9 @@ function DocRow({ d, folderKey, strong }: { d: ApiFolder['data'][number]; folder
         {d.quoteNo ? `${d.quoteNo} · ` : ''}{fmtWhen(d.at)} · {fmtBytes(d.size)}
       </span>
       <span style={s.spacer} />
-      <a href={folderFileUrl(folderKey, d.id)} target="_blank" rel="noreferrer" style={s.link}>열기</a>
+      <a href={folderFileUrl(folderKey, d.id, false, mine)} target="_blank" rel="noreferrer" style={s.link}>열기</a>
       {/* 확인과 챙김은 다른 행동이라 따로 둔다 */}
-      <a href={folderFileUrl(folderKey, d.id, true)} style={s.link}>받기</a>
+      <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>받기</a>
     </div>
   )
 }
