@@ -107,12 +107,19 @@ function fmtDate(s: string)  { return s ? s.slice(0, 10) : '—' }
  *
  * 목록은 건별·날짜순이라 「이 고객한테 지금까지 뭘 보냈나」에 답하지 못한다.
  * 같은 자리에서 고객별 서류함으로 건너갈 수 있게 둔다.
+ *
+ * ⚠️ **이 자리는 스크롤 사슬의 한 마디다.** 영업 화면은 높이 100%를 잡고
+ *    `overflow:hidden` 으로 닫아 둔 세로 플렉스라, 안쪽에서 실제로 스크롤되는 칸이
+ *    `flex:1 · minHeight:0 · overflowY:auto` 를 갖고 있어야 한다.
+ *    여기에 평범한 `<div>` 를 끼우면 그 사슬이 끊겨 **아래가 잘린 채 스크롤되지 않는다**
+ *    (서류함을 붙이면서 실제로 그렇게 됐다 — 목록도 길어지면 같이 잘렸다).
+ *    그래서 이 래퍼도 세로 플렉스로 두고, 스크롤은 **각 보기가 자기 칸에서** 맡는다.
  */
 function MyListWithFolders() {
   const [view, setView] = useState<'list' | 'folders'>('list')
   return (
-    <div>
-      <div style={{ padding: '0 var(--sp-4)', marginTop: 'var(--sp-3)' }}>
+    <div style={lv.viewWrap}>
+      <div style={lv.viewSwitch}>
         <Segmented
           items={[
             { value: 'list' as const, label: '견적·주문' },
@@ -123,8 +130,9 @@ function MyListWithFolders() {
           size="sm"
         />
       </div>
+      {/* 목록은 자기 안에 스크롤 칸(lv.root)을 이미 갖고 있다 — 서류함에도 같은 칸을 준다 */}
       {view === 'list' ? <MyListView /> : (
-        <div style={{ padding: 'var(--sp-4)' }}><CustomerFolders /></div>
+        <div style={lv.root}><CustomerFolders /></div>
       )}
     </div>
   )
@@ -1119,6 +1127,10 @@ const lv: Record<string, React.CSSProperties> = {
     padding: 'var(--sp-2) var(--sp-3)', marginBottom: 'var(--sp-3)',
   },
   root: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
+  /** 보기 전환 래퍼 — 스크롤 사슬을 잇는다(위 MyListWithFolders 주석 참조) */
+  viewWrap: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' },
+  /** 전환 버튼 줄 — 줄어들지 않는다. 줄어들면 스크롤이 이 줄까지 먹는다 */
+  viewSwitch: { flexShrink: 0, padding: '0 24px', marginTop: 'var(--sp-3)' },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
