@@ -43,6 +43,7 @@ class DeploymentContractTest(unittest.TestCase):
         ):
             self.assertIn(token, REMOTE)
         self.assertIn('test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"', REMOTE)
+        self.assertIn('caddy validate --config "$caddy_candidate" --adapter caddyfile', REMOTE)
         self.assertNotIn("npm cache clean", REMOTE)
 
 
