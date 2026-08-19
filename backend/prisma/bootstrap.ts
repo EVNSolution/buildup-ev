@@ -42,6 +42,19 @@ async function main() {
       active:         true,
       is_master:      true, // DEV: master surface switcher
       password_hash:  hash,
+      /*
+       * ⚠️ **빈 배열이라도 반드시 실어 보낸다.**
+       *
+       * schema.prisma 는 `extra_roles Role[] @default([])` 라고 적혀 있지만, 운영 DB 의
+       * 컬럼에는 그 기본값이 붙어 있지 않다(NOT NULL · DEFAULT 없음). 그래서 이 칸을
+       * 빼고 INSERT 하면 **Null constraint violation 으로 계정 생성 자체가 실패한다** —
+       * 기존 계정의 비밀번호 재설정(update 갈래)만 되고 새 관리자는 만들 수 없었다.
+       *
+       * 계정 관리 화면(routes/users.ts)이 멀쩡한 이유도 같다 — 거기는 값을 실어 보낸다.
+       * 컬럼 기본값을 고치는 것은 운영 DB DDL 이라 별건이고, 코드에서 명시하면 기본값이
+       * 있든 없든 통한다.
+       */
+      extra_roles:    [],
     },
   });
 

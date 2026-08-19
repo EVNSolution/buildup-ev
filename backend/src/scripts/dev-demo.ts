@@ -52,6 +52,8 @@ async function ensureDemoAccounts(makerOrg: string) {
       create: {
         email: a.email, org_code, role: a.role, name: a.name,
         password_hash: hash, must_change_pw: false, active: true, status: 'active',
+        // 컬럼에 기본값이 없다 — 빼면 INSERT 가 실패한다(bootstrap.ts 주석 참조)
+        extra_roles: [],
       },
       // 이미 있으면 비밀번호와 잠금만 푼다 — 역할·조직은 손대지 않는다
       update: { password_hash: hash, must_change_pw: false, active: true, status: 'active', login_attempts: 0, locked_until: null },

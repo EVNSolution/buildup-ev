@@ -14,9 +14,12 @@ import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
  * '견적서 생성' = 입력 저장 + draft→confirmed → 이후 '견적서' 버튼에서 PDF 조회 가능.
  * 생성 이후(수정 모드)엔 '저장'만 노출.
  *
- * ⚠️ **특장만 견적에는 캐피탈이 없다.** 할부는 차량과 특장을 묶어 실행하는 것이라,
- *    차를 안 사면 실행할 것이 없다. 선수금 비율·할부 개월수를 물으면 답이 금액에
- *    아무 영향도 주지 않는 질문이 되고, 견적서에는 있지도 않은 월 납입금이 찍힌다.
+ * ⚠️ **특장만 견적에는 여기서 받을 것이 하나도 없다.**
+ *    · 선수금·할부 — 캐피탈은 차량과 특장을 묶어 실행한다. 차를 안 사면 실행할 것이 없다
+ *    · 면세구분   — 공채할인에만 걸리는 값인데, 공채는 차량 등록에 딸린 것이라 0이다
+ *    · 영업용 번호판 — 차량 취득세율을 가르는 값인데, 그 세금 자체가 0이다
+ *    넷 다 답이 금액에 아무 영향도 주지 않는 질문이다. 물으면 「뭘 골라야 하나」만 남는다.
+ *    그래서 특장만이면 입력 없이 **생성 버튼만** 둔다.
  */
 interface Props {
   quoteId: number
@@ -52,8 +55,9 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
       // 특장만이면 캐피탈이 없다 — 0으로 눌러 저장한다(shared 의 bodyOnlyParams 와 같은 값)
       down_payment_rate: bodyOnly ? 0 : (Number(downPct) || 0) / 100,
       installment_months: bodyOnly ? 0 : months,
-      tax_exempt_type: taxExempt,
-      has_biz_plate: bizPlate,
+      // 차량에 딸린 값 — 특장만이면 쓰이지 않는다. 묻지 않았으니 남기지도 않는다
+      tax_exempt_type: bodyOnly ? DEFAULT_TAX_EXEMPT_TYPE : taxExempt,
+      has_biz_plate: bodyOnly ? false : bizPlate,
     }
   }
 
@@ -78,7 +82,10 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 
         <div style={s.form}>
           {bodyOnly ? (
-            <div style={s.ok}>특장만 견적입니다 — 할부(캐피탈)는 차량과 묶어 실행하므로 적용되지 않습니다.</div>
+            <div style={s.ok}>
+              특장만 견적입니다 — 할부(캐피탈)·면세구분·영업용 번호판은 차량에 딸린 값이라
+              적용되지 않습니다. 그대로 생성하시면 됩니다.
+            </div>
           ) : (
             <>
               <label style={s.label}>선수금 비율 <span style={s.unit}>(%)</span></label>
@@ -96,18 +103,18 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
                   ))
                 }
               </select>
+
+              <label style={s.label}>면세구분</label>
+              <select style={s.input} value={taxExempt} onChange={(e) => setTaxExempt(e.target.value)}>
+                {TAX_EXEMPT_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+
+              <label style={s.check}>
+                <input type="checkbox" checked={bizPlate} onChange={(e) => setBizPlate(e.target.checked)} style={s.cbox} />
+                영업용 번호판 보유 <span style={s.unit}>(취득세 4% 적용)</span>
+              </label>
             </>
           )}
-
-          <label style={s.label}>면세구분</label>
-          <select style={s.input} value={taxExempt} onChange={(e) => setTaxExempt(e.target.value)}>
-            {TAX_EXEMPT_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-
-          <label style={s.check}>
-            <input type="checkbox" checked={bizPlate} onChange={(e) => setBizPlate(e.target.checked)} style={s.cbox} />
-            영업용 번호판 보유 <span style={s.unit}>(취득세 4% 적용)</span>
-          </label>
 
           <div style={s.note}>
             {isConfirmed

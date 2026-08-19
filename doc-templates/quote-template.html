@@ -204,11 +204,15 @@
         <!-- /each:custNormal -->
 
         <!-- each:custOnly -->
+        <!--
+          특장만 견적에는 **부가세 환급 시 가격을 적지 않는다.**
+          환급은 사업자가 나중에 돌려받는 돈이라 지금 낼 금액이 아닌데, 맨 아랫줄에
+          굵게 적혀 있으면 그것을 결제 금액으로 읽는다. 낼 금액은 옆 칸의 「특장 총 금액」이다.
+        -->
         <tr><td class="lab">고객명</td><td class="cval" colspan="2">{{ cust.name }}</td></tr>
         <tr><td class="lab">구분</td><td class="cval" colspan="2">{{ cust.bizType }}</td></tr>
         <tr class="grp"><td class="k">계약금</td><td class="num" colspan="2">{{ cust.deposit }}</td></tr>
         <!-- pad:cust -->
-        <tr class="final"><td class="k" colspan="2">부가세 환급 시 가격</td><td class="num">{{ cust.vatRefundPrice }}</td></tr>
         <!-- /each:custOnly -->
       </table>
     </div>
