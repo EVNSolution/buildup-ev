@@ -66,6 +66,17 @@ export function toDieselStatus(status: unknown, legacyConversion?: unknown): Die
 
 export interface QuoteParams {
   // ── 차량 (VAT 포함) ──
+  /**
+   * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 얹는 경우.
+   *
+   * 차량에 딸린 금액(차량가·탁송료·구매혜택·EV보조금·차량 취득세·공채·번호판·증지대·
+   * 의무보험·등록대행)은 **호출부가 0으로 넘긴다**. 여기서는 그 0들로 계산이 자연히 맞고,
+   * 아래 두 가지만 따로 갈라진다 — 선수금이 붙을 곳과, 취득세 감면.
+   *
+   * 특장 취득세(2%)·등록부가수수료·구조변경 비용은 **그대로 남는다**. 구조변경 절차의
+   * 비용이라 차를 어디서 샀는지와 무관하다.
+   */
+  body_only?: boolean;
   car_price: number;            // D10 차량가격(트림, VAT포함)
   delivery_fee: number;         // D11 탁송료
   commercial_discount: number;  // D12 현대커머셜 할인
@@ -169,16 +180,25 @@ export interface QuoteResult {
   real_price: number;
 }
 
+/** 부호를 뒤집되 **-0 을 만들지 않는다**(견적서에 「-0 원」으로 찍힌다). */
+function neg(v: number): number {
+  return v === 0 ? 0 : -v;
+}
+
 /** 총견적서 계산 — 차량견적서 시트 수식 재현. */
 export function calcQuote(p: QuoteParams): QuoteResult {
   // ── 차량 결제 금액 ──
   const partnership_discount = (p.car_price - p.commercial_discount) * p.partnership_rate; // D13
-  const purchase_benefit = -(p.commercial_discount + partnership_discount);                // D14
+  /*
+   * ⚠️ `-(0)` 은 **-0** 이다. 그대로 두면 견적서에 「-0 원」으로 찍힌다(실측 확인).
+   *    특장만 견적처럼 값이 0인 경우가 생기므로 여기서 +0 으로 눕힌다.
+   */
+  const purchase_benefit = neg(p.commercial_discount + partnership_discount);               // D14
   const subsidy_national = p.diesel_conversion ? p.subsidy_national - p.diesel_deduction : p.subsidy_national; // D15
   const subsidy_local = p.is_corporation || p.local_subsidy_off ? 0 : p.subsidy_local;      // D16
   const subsidy_sosang = p.is_sosang ? subsidy_national * p.sosang_rate : 0;               // D17
   const subsidy_takbae = p.is_individual && p.has_transport_license ? subsidy_national * p.takbae_rate : 0; // D18
-  const subsidy_total = -(subsidy_national + subsidy_local + subsidy_sosang + subsidy_takbae); // D19
+  const subsidy_total = neg(subsidy_national + subsidy_local + subsidy_sosang + subsidy_takbae); // D19
   const car_payment = p.car_price + p.delivery_fee + purchase_benefit + subsidy_total;     // D20
 
   // ── 특장 결제 금액 ──
@@ -186,12 +206,21 @@ export function calcQuote(p: QuoteParams): QuoteResult {
 
   // ── 계약금·선수금·인도금 ──
   const down_payment = (car_payment + body_payment - p.car_deposit - p.body_deposit) * p.down_payment_rate; // D22
-  const car_delivery = p.car_deposit + down_payment;                                        // D23 (선수금 전액 차량측)
-  const body_delivery = p.body_deposit;                                                      // I23 (특장 선수금 0)
+  /*
+   * 선수금은 차량측에 붙는다(D23). 다만 **특장만 견적에는 차량이 없다** —
+   * 그대로 두면 존재하지 않는 차량 인도금에 금액이 잡힌다. 그때는 특장측으로 보낸다.
+   */
+  const car_delivery = p.body_only ? 0 : p.car_deposit + down_payment;                       // D23
+  const body_delivery = p.body_only ? p.body_deposit + down_payment : p.body_deposit;        // I23
 
   // ── 취득세·등록/부대 ──
   const acqRate = p.has_biz_plate ? p.acq_tax_rate_biz : p.acq_tax_rate_normal;
-  const car_acq_tax = floor10(((p.car_price + p.delivery_fee + purchase_benefit) / 11) * 10 * acqRate - p.acq_tax_relief); // D24
+  /*
+   * ⚠️ 특장만이면 차량 취득세는 0이다. 감면(−140만)을 그대로 빼면 **음수 세금**이 되어
+   *    실구매가를 깎아 버린다 — 차를 안 샀는데 세금을 돌려받는 셈이라 말이 안 된다.
+   */
+  const car_acq_tax = p.body_only ? 0
+    : floor10(((p.car_price + p.delivery_fee + purchase_benefit) / 11) * 10 * acqRate - p.acq_tax_relief); // D24
   const bond_discount = p.is_seoul_normal ? p.bond_discount : 0;                             // D25
   const car_reg_cost = car_acq_tax + bond_discount + p.plate + p.stamp + p.insurance + p.reg_agency; // D30
   const car_initial = car_delivery + car_reg_cost;                                           // D31

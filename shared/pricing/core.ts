@@ -21,6 +21,8 @@ export {
   dieselDeducts, toDieselStatus, DIESEL_STATUS_LABEL,
 } from './quote.js';
 export type { QuoteParams, QuoteResult, DieselStatus } from './quote.js';
+// 특장만 견적 — 차량에 딸린 입력을 한 곳에서 0으로 만든다
+export { bodyOnlyParams } from './body-only.js';
 
 // 가격바가 보여줄 파생값(계산은 여기 한 곳에만 — 화면·앱이 공유한다)
 export { priceBarView } from './pricebar.js';
