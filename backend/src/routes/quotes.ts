@@ -18,7 +18,7 @@ import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js'
 import { setQuoteStatus } from '../services/quote-status.js';
 import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
-import { visibleUnless, wantsHidden, VISIBLE } from '../lib/visibility.js';
+import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { STEPS } from '@buildup-ev/shared/process';
 
 export const quotesRouter = Router();
@@ -105,11 +105,10 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
     return;
   }
   const auth = req.auth!;
-  const { status, from, to, include_hidden } = req.query as Record<string, string | undefined>;
+  const { status, from, to, view } = req.query as Record<string, string | undefined>;
 
-  // 숨긴 견적은 기본으로 빼고, 관리자가 「숨김 포함」을 켜면 함께 보여 준다.
-  // 숨김은 지운 게 아니라 감춘 것이라, 되돌리려면 볼 수 있어야 한다.
-  const where: Prisma.QuoteWhereInput = { ...visibleUnless(wantsHidden(include_hidden)) };
+  // 「진행 중」이 기본. 「숨김」을 고르면 **숨긴 것만** 나온다(섞이면 무엇이 숨겨졌는지 모른다).
+  const where: Prisma.QuoteWhereInput = { ...visibilityWhere(viewOf(view)) };
   if (ownQuotesOnly(auth)) where.sales_user_id = auth.email;
   if (status) where.status = status as QuoteStatus;
   if (from || to) {

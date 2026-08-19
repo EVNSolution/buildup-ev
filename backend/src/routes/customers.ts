@@ -6,7 +6,7 @@
  *    호출자는 성명과 생년월일(사업자번호)을 **둘 다** 알고 있어야 한다.
  */
 import { Router } from 'express';
-import { visibleUnless, wantsHidden } from '../lib/visibility.js';
+import { visibilityWhere, viewOf } from '../lib/visibility.js';
 import type { Request } from 'express';
 import { rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
@@ -63,10 +63,10 @@ customersRouter.get('/warp-lookup', rbac('SALES', 'ADMIN'), async (req: Request,
  */
 customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
-  const { include_hidden } = req.query as Record<string, string | undefined>;
+  const { view } = req.query as Record<string, string | undefined>;
   try {
     const rows = await prisma.customer.findMany({
-      where: { ...visibleUnless(wantsHidden(include_hidden)) },
+      where: { ...visibilityWhere(viewOf(view)) },
       orderBy: { created_at: 'desc' },
       select: {
         id: true, name: true, phone: true, email: true, reg_no: true,
@@ -75,7 +75,23 @@ customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void>
         _count: { select: { quotes: true } },
       },
     });
-    res.json({ data: rows });
+
+    /*
+     * 「숨길 수 있는가」를 화면이 판단하려면 **계약 수**가 필요하다.
+     * 계약이 붙은 견적을 가진 고객은 실거래라 숨길 수 없다(서버도 막는다).
+     * 고객마다 따로 세지 않고 한 번에 모아 센다 — 목록이 길어져도 질의는 하나다.
+     */
+    const ids = rows.map(r => r.id);
+    const withContract = ids.length
+      ? await prisma.quote.groupBy({
+        by: ['customer_id'],
+        where: { customer_id: { in: ids }, contracts: { some: {} } },
+        _count: { _all: true },
+      })
+      : [];
+    const contractCount = new Map(withContract.map(g => [g.customer_id, g._count._all]));
+
+    res.json({ data: rows.map(r => ({ ...r, contract_quotes: contractCount.get(r.id) ?? 0 })) });
   } catch (e) {
     console.error('[GET /customers]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '고객 목록 조회 중 오류가 발생했습니다.' } });
@@ -90,6 +106,24 @@ customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void>
  * **WARP 쪽에서 그 고객이 증발한 것처럼 보인다.** 그래서 여기서 막는다.
  * (2026-08-18 기준 연결된 고객은 0명 — 지금이 테스트 고객을 정리하기 좋은 시점이다)
  */
+/**
+ * 고객을 숨기면 **그 고객의 견적도 함께 숨긴다.**
+ *
+ * 고객 숨기기는 「이 고객은 안 쓴다(대개 테스트로 만든 것)」는 선언이다. 그러면 그 고객의
+ * 견적도 안 쓰는 것이라, 따로 하나씩 숨기게 하면 손이 많이 가고 빠뜨리기 쉽다.
+ *
+ * ⚠️ **계약이 하나라도 있으면 거부한다.** 계약은 실거래의 증거다 — 그런 고객은
+ *    테스트가 아니고, 숨기면 진행 중인 거래가 화면에서 사라진다.
+ *    (견적 하나만 숨길 때는 임시저장으로 제한하지만, 여기서는 확정 견적도 함께 숨긴다.
+ *     「이 고객은 실재하지 않는다」는 더 강한 결정이기 때문이다.)
+ *
+ * ⚠️ **WARP 에 연결된 고객도 거부한다.** 숨기면 export 에서 빠져 그쪽에서 증발한 것처럼 보인다.
+ *
+ * 되돌릴 때는 **이때 함께 숨긴 견적만** 되돌린다. 원래 따로 숨겨 둔 견적까지 되살리면
+ * 사람이 내린 결정을 덮어쓰게 된다 — 그래서 hidden_by 에 표식을 남겨 구분한다.
+ */
+const cascadeMark = (email: string) => `system(고객 숨김 · ${email})`;
+
 customersRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = Number(req.params['id']);
@@ -100,31 +134,57 @@ customersRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): P
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'hidden 은 true 또는 false' } }); return;
   }
 
+  const by = req.auth?.email ?? 'unknown';
+  const mark = cascadeMark(by);
+
   try {
     const c = await prisma.customer.findUnique({
       where: { id },
-      select: { id: true, warp_customer_id: true },
+      select: { id: true, name: true, warp_customer_id: true },
     });
     if (!c) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '고객을 찾을 수 없습니다' } }); return; }
 
-    // 다시 보이기는 언제나 허용 — 되돌리는 길은 막지 않는다
-    if (hidden && c.warp_customer_id) {
-      res.status(409).json({ error: { code: 'NOT_HIDABLE',
-        message: 'WARP 에 연결된 고객은 숨길 수 없습니다. 숨기면 CRM 쪽에서 사라진 것처럼 보입니다.' } });
-      return;
+    if (hidden) {
+      if (c.warp_customer_id) {
+        res.status(409).json({ error: { code: 'NOT_HIDABLE',
+          message: 'WARP 에 연결된 고객은 숨길 수 없습니다. 숨기면 CRM 쪽에서 사라진 것처럼 보입니다.' } });
+        return;
+      }
+      // 계약이 붙은 견적이 하나라도 있으면 실거래다 — 테스트가 아니다
+      const withContract = await prisma.quote.count({
+        where: { customer_id: id, contracts: { some: {} } },
+      });
+      if (withContract > 0) {
+        res.status(409).json({ error: { code: 'NOT_HIDABLE',
+          message: `계약이 있는 견적을 가진 고객은 숨길 수 없습니다 (${withContract}건).` } });
+        return;
+      }
     }
 
-    const updated = await prisma.customer.update({
-      where: { id },
-      data: hidden
-        ? { hidden_at: new Date(), hidden_by: req.auth?.email ?? 'unknown' }
-        : { hidden_at: null, hidden_by: null },
-      select: { id: true, name: true, hidden_at: true, hidden_by: true },
-    });
-    console.info(`[customers] 고객 ${id} ${hidden ? '숨김' : '다시 보이기'} — ${req.auth?.email ?? 'unknown'}`);
-    res.json({ data: updated });
+    const [updated, quotes] = await prisma.$transaction([
+      prisma.customer.update({
+        where: { id },
+        data: hidden ? { hidden_at: new Date(), hidden_by: by } : { hidden_at: null, hidden_by: null },
+        select: { id: true, name: true, hidden_at: true, hidden_by: true },
+      }),
+      hidden
+        // 아직 안 숨겨진 견적만 표식을 달아 숨긴다(이미 사람이 숨긴 건 그대로 둔다)
+        ? prisma.quote.updateMany({
+          where: { customer_id: id, hidden_at: null },
+          data: { hidden_at: new Date(), hidden_by: mark },
+        })
+        // 되돌릴 때는 **이때 함께 숨긴 것만** — 사람이 따로 숨긴 견적은 건드리지 않는다
+        : prisma.quote.updateMany({
+          where: { customer_id: id, hidden_by: mark },
+          data: { hidden_at: null, hidden_by: null },
+        }),
+    ]);
+
+    console.info(`[customers] 고객 ${id}(${c.name}) ${hidden ? '숨김' : '다시 보이기'} — ${by} · 견적 ${quotes.count}건 동반`);
+    res.json({ data: { ...updated, quotes_affected: quotes.count } });
   } catch (e) {
     console.error('[PATCH /customers/:id/hidden]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '숨김 처리 중 오류가 발생했습니다.' } });
   }
 });
+
