@@ -99,7 +99,8 @@ publicRouter.post('/quotes/calculate-total', readLimiter, async (req: Request, r
   }
   try {
     const params = await buildQuoteParams(
-      model_code, selections, subsidyOnly(customer), undefined,
+      model_code, selections, subsidyOnly(customer),
+      { body_only: (req.body as { body_only?: boolean }).body_only === true },
       year ?? new Date().getFullYear(),
     );
     res.json({ data: calcQuote(params) });
@@ -147,6 +148,8 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
     contact?: { name?: string; phone?: string; email?: string; memo?: string };
     subsidy?: PublicSubsidyInput;
     agreed?: boolean;
+    /** 특장만 견적 — 고객이 차를 이미 갖고 있다(차량 금액·보조금이 전부 빠진다) */
+    body_only?: boolean;
     /** 봇 잡이 — 사람 눈에 안 보이는 칸. 채워져 오면 봇이다. */
     website?: string;
   };
@@ -190,7 +193,8 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
   try {
     const calcYear = body.year ?? new Date().getFullYear();
     // ⚠️ 금액은 **서버가 계산한다**. 화면이 보낸 숫자는 쓰지 않는다.
-    const params = await buildQuoteParams(body.model_code, body.selections, subsidyOnly(body.subsidy), undefined, calcYear);
+    const params = await buildQuoteParams(body.model_code, body.selections, subsidyOnly(body.subsidy),
+      { body_only: body.body_only === true }, calcYear);
     const total = calcQuote(params);
 
     const customer = await prisma.customer.create({
@@ -211,6 +215,8 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
           has_transport_license: body.subsidy?.has_transport_license === true,
           diesel_status: str(body.subsidy?.diesel_status, 20) ?? 'none',
           memo: str(body.contact?.memo, 500) ?? '',
+          // 특장만 견적 — 영업이 이어받을 때 같은 금액이 나와야 한다
+          body_only: body.body_only === true,
           // 동의 시각 — 언제 받은 동의인지 남긴다(방침 이행 근거)
           consent_at: new Date().toISOString(),
         } as unknown as Prisma.InputJsonValue,

@@ -52,6 +52,8 @@ export function customerEditValues(q: ApiQuote): QuoteSaveValues {
     buyer_relation: str('buyer_relation'),
     buyer_regno: str('buyer_regno'),
     buyer_tel: str('buyer_tel'),
+    // 특장만 견적의 보유 차종 — inputs.vehicle_owned.model 에 저장된다
+    owned_model: String(((inp['vehicle_owned'] ?? {}) as Record<string, unknown>)['model'] ?? ''),
   }
 }
 

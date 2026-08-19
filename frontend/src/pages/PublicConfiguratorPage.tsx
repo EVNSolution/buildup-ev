@@ -38,6 +38,12 @@ export function PublicConfiguratorPage() {
   const [selections, setSelections] = useState<Record<string, string>>({})
   const [subsidyInputs, setSubsidyInputs] = useState<SubsidyInputs>(DEFAULT_SUBSIDY_INPUTS)
   const [regions, setRegions] = useState<string[]>([])
+  /**
+   * 특장만 견적 — 차를 이미 가진 고객. 공개 화면에도 둔다(그런 문의가 실제로 온다).
+   * 냉동을 고르려면 V2L 확인이 필요하다 — 고객 차량의 사실이라 우리가 알 수 없다.
+   */
+  const [bodyOnly, setBodyOnly] = useState(false)
+  const [v2lConfirmed, setV2lConfirmed] = useState(false)
   const [subsidyLocal, setSubsidyLocal] = useState(0)
   const [showInquiry, setShowInquiry] = useState(false)
   const [doneId, setDoneId] = useState<number | null>(null)
@@ -83,8 +89,8 @@ export function PublicConfiguratorPage() {
 
   // 금액 계산 — 영업 화면과 **같은 함수**
   const liveTotal = useMemo(
-    () => buildLiveTotal({ bundle, selections, subsidyInputs, subsidyLocal, subsidyReady }),
-    [bundle, selections, subsidyInputs, subsidyLocal, subsidyReady],
+    () => buildLiveTotal({ bundle, selections, subsidyInputs, subsidyLocal, subsidyReady, bodyOnly }),
+    [bundle, selections, subsidyInputs, subsidyLocal, subsidyReady, bodyOnly],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -134,6 +140,10 @@ export function PublicConfiguratorPage() {
           saveError=""
           isUnsupported={false}
           /* 공개 화면 — 메모·프로모션·지방보조금 소진은 아예 없다(영업 재량 값) */
+          bodyOnly={bodyOnly}
+          onToggleBodyOnly={v => { setBodyOnly(v); if (!v) setV2lConfirmed(false) }}
+          v2lConfirmed={v2lConfirmed}
+          onV2lConfirmedChange={setV2lConfirmed}
           publicMode
           saveLabel="상담 신청"
           memo="" onMemoChange={() => {}}
@@ -156,6 +166,7 @@ export function PublicConfiguratorPage() {
 
       {showInquiry && (
         <InquiryModal
+          bodyOnly={bodyOnly}
           modelCode={MODEL_CODE}
           selections={selections}
           subsidy={subsidyInputs}

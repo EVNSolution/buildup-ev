@@ -43,9 +43,11 @@ interface Props {
   regions: string[]
   onClose: () => void
   onDone: (inquiryId: number) => void
+  /** 특장만 견적 — 금액은 서버가 다시 계산하므로 이 값이 함께 가야 맞는다 */
+  bodyOnly?: boolean
 }
 
-export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, regions, onClose, onDone }: Props) {
+export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, regions, onClose, onDone, bodyOnly = false }: Props) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -87,6 +89,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           diesel_status: subsidy.diesel_status || 'none',
         },
         agreed,
+        body_only: bodyOnly || undefined,
         website,
       })
       onDone(inquiry_id)

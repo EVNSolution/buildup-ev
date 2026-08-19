@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { OWNED_MODEL_PLACEHOLDER } from './BodyOnlyPanel'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
 import { lookupCustomer, lookupWarpCustomer, type WarpVehicleInfo } from '../api/quotes'
@@ -30,12 +31,19 @@ export interface QuoteSaveValues {
   buyer_relation: string
   buyer_regno: string
   buyer_tel: string
+  /**
+   * 특장만 견적에서 고객이 보유한 **차종**. 계약서 단계에서만 받는다 —
+   * 견적 단계에서는 금액만 보면 되고, 등록번호·차대번호는 계약 이후
+   * 특장사가 자동차등록증을 보고 채운다.
+   */
+  owned_model: string
 }
 
 export function emptyQuoteSaveValues(subsidy: SubsidyInputs): QuoteSaveValues {
   return {
     subsidy, name: '', ceo_name: '', email: '', phone: '', address: '', address_detail: '',
     contract_party: '', buyer_agent: '', buyer_relation: '', buyer_regno: '', buyer_tel: '',
+    owned_model: '',
   }
 }
 
@@ -55,6 +63,8 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
     buyer_relation: c.buyer_relation ?? '',
     buyer_regno: c.buyer_regno ?? '',
     buyer_tel: c.buyer_tel ?? '',
+    // 고객 마스터에는 없는 값(견적별). 호출부가 inputs 에서 채워 넣는다.
+    owned_model: '',
   }
 }
 
@@ -117,18 +127,25 @@ interface Props {
    * contract 계약서 만들기 직전 확인 — 생년월일·주소·세부주소가 여기서 필수가 된다
    */
   mode?: 'create' | 'edit' | 'contract'
+  /** 특장만 견적 — 계약서 단계에서 보유 차종을 함께 받는다 */
+  bodyOnly?: boolean
 }
 
 /**
  * 입력칸 본문만 — 저장 팝업과 견적 수정 팝업의 「고객정보」 탭이 **같은 폼**을 쓴다.
  * 한쪽에만 칸을 더하면 다른 쪽에서 고칠 수 없는 값이 생긴다.
  */
-export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
+export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyOnly = false }: {
   v: QuoteSaveValues
   setV: React.Dispatch<React.SetStateAction<QuoteSaveValues>>
   regions: string[]
   /** 계약서 단계 — 생년월일·주소·세부주소가 여기서 필수가 된다 */
   forContract?: boolean
+  /**
+   * 특장만 견적 — 계약서 단계에서 **보유 차종**을 받는다.
+   * 견적 단계에서는 묻지 않는다(금액에 영향이 없고, 아직 정해지지 않았을 수 있다).
+   */
+  bodyOnly?: boolean
 }) {
   const set = <K extends keyof QuoteSaveValues>(k: K, val: QuoteSaveValues[K]) => setV(p => ({ ...p, [k]: val }))
 
@@ -392,6 +409,25 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false }: {
           <span style={s.optional}> · 비우면 계약서에 공란</span>
         </div>
         <div style={s.grid}>
+        {/*
+          특장만 견적에서만 뜬다 — 어떤 차에 얹는지는 계약서에 적혀야 한다.
+          ⚠️ 우리 특장은 **PV5 오픈베드**에 얹도록 설계돼 있어 다른 차에는 올릴 수 없다.
+        */}
+        {bodyOnly && (
+          <div style={s.row}>
+            <label style={s.label}>
+              보유 차종<Tag need={forContract} />
+              <Note>PV5 오픈베드 차량에만 장착할 수 있습니다</Note>
+            </label>
+            <input
+              style={s.field}
+              type="text"
+              placeholder={OWNED_MODEL_PLACEHOLDER}
+              value={v.owned_model}
+              onChange={e => set('owned_model', e.target.value)}
+            />
+          </div>
+        )}
         <div style={s.row}>
           <label style={s.label}>계약처</label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
@@ -476,7 +512,7 @@ export function missingForContract(v: QuoteSaveValues): string[] {
 /** 예전 이름 — 견적 기준. 남은 호출부가 다 옮겨지면 지운다. */
 export const missingRequired = missingForQuote
 
-export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create' }: Props) {
+export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create', bodyOnly = false }: Props) {
   const [v, setV] = useState<QuoteSaveValues>(initial)
   const isEdit = mode === 'edit'
   // 계약서 단계에서는 사람을 특정하는 값(생년월일·주소)까지 있어야 한다
@@ -497,7 +533,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
             : '저장 후에도 견적 목록의 「수정」에서 고칠 수 있습니다.'}
         </p>
 
-        <QuoteCustomerForm v={v} setV={setV} regions={regions} forContract={forContract} />
+        <QuoteCustomerForm v={v} setV={setV} regions={regions} forContract={forContract} bodyOnly={bodyOnly} />
 
         {error && <div style={s.error}>{error}</div>}
 

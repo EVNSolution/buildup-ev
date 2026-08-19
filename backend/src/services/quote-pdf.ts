@@ -268,10 +268,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     regCost: won(r.car_reg_cost), initialPayment: won(r.car_initial),
   }]);
   html = renderEach(html, 'ownedSection', bodyOnly ? [{
-    carName: owned['car_name'] ?? '—',
-    typeName: owned['type_name'] ?? '—',
-    plateNo: owned['plate_no'] ?? '—',
-    vin: owned['vin'] ?? '—',
+    // 계약서 단계에서 받는다 — 견적 단계에는 아직 없을 수 있다
+    model: owned['model'] || '(계약 단계에서 입력)',
   }] : []);
 
   html = renderPad(html);
