@@ -1,6 +1,7 @@
 import type { ApiOptionGroup } from '@shared/types/index'
 import { valueUnitPrice, doorAddUnitPrice } from '@shared/pricing/core'
 import { OptRow, PriceBtn } from '../OptionRow'
+import { V2lConfirm } from '../BodyOnlyPanel'
 
 interface Props {
   groups: ApiOptionGroup[]
@@ -9,11 +10,21 @@ interface Props {
   disabledGroupCodes: Set<string>
   hiddenValueCodes: Set<string>
   optionPrices: Record<string, number>
+  /**
+   * 특장만 견적이면 냉동을 고를 때 **V2L 확인**을 받는다.
+   * 우리가 파는 차(기본·플러스)는 모두 V2L 이 있어 확인할 것이 없다 — 고객 차일 때만이다.
+   */
+  v2lNeeded?: boolean
+  v2lConfirmed?: boolean
+  onV2lConfirmedChange?: (v: boolean) => void
 }
 
 const ORDER = ['BODYTYPE', 'TOP', 'DOORTYPE', 'DOORADD']
 
-export function BodyOptionsTab({ groups, selections, onSelect, disabledGroupCodes, hiddenValueCodes, optionPrices }: Props) {
+export function BodyOptionsTab({
+  groups, selections, onSelect, disabledGroupCodes, hiddenValueCodes, optionPrices,
+  v2lNeeded = false, v2lConfirmed = false, onV2lConfirmedChange,
+}: Props) {
   const price = (c: string) => optionPrices[c] ?? 0
   const byCode: Record<string, ApiOptionGroup> = Object.fromEntries(groups.map(g => [g.code, g]))
   const ordered = ORDER.map(c => byCode[c]).filter(Boolean) as ApiOptionGroup[]
@@ -53,19 +64,29 @@ export function BodyOptionsTab({ groups, selections, onSelect, disabledGroupCode
         // 세그먼트(단일 선택): 특장형태·탑크기·도어종류
         const showPrice = group.code !== 'BODYTYPE' // 탑 가격은 탑크기 버튼에 표시
         const values = group.values.filter(v => !hiddenValueCodes.has(v.code))
+        /*
+         * 냉동을 고르는 **그 자리**에서 V2L 을 확인받는다. 다른 탭에 두면
+         * 무엇 때문에 묻는지 알기 어렵고, 고르고 나서 잊는다.
+         */
+        const askV2l = group.code === 'BODYTYPE' && v2lNeeded && selections['BODYTYPE'] === 'BODY_REEFER'
         return (
-          <OptRow key={group.code} label={group.name} required={group.required}>
-            {values.map(v => (
-              <PriceBtn
-                key={v.code}
-                label={v.name}
-                price={showPrice ? valueUnitPrice(group.code, v.code, selections, price) : undefined}
-                selected={selections[group.code] === v.code}
-                disabled={disabled}
-                onClick={() => onSelect(group.code, v.code)}
-              />
-            ))}
-          </OptRow>
+          <div key={group.code}>
+            <OptRow label={group.name} required={group.required}>
+              {values.map(v => (
+                <PriceBtn
+                  key={v.code}
+                  label={v.name}
+                  price={showPrice ? valueUnitPrice(group.code, v.code, selections, price) : undefined}
+                  selected={selections[group.code] === v.code}
+                  disabled={disabled}
+                  onClick={() => onSelect(group.code, v.code)}
+                />
+              ))}
+            </OptRow>
+            {askV2l && onV2lConfirmedChange && (
+              <V2lConfirm confirmed={v2lConfirmed} onChange={onV2lConfirmedChange} />
+            )}
+          </div>
         )
       })}
     </div>

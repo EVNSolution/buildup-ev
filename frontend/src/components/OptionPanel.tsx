@@ -3,7 +3,7 @@ import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
-import { BodyOnlyPanel, BodyOnlyToggle, V2lNotice, type OwnedVehicle } from './BodyOnlyPanel'
+import { BodyOnlyToggle, BodyOnlyNotice } from './BodyOnlyPanel'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { QuoteExtras } from './QuoteExtras'
@@ -37,9 +37,7 @@ interface Props {
    */
   bodyOnly?: boolean
   onToggleBodyOnly?: (v: boolean) => void
-  ownedVehicle?: OwnedVehicle
-  onOwnedVehicleChange?: (v: OwnedVehicle) => void
-  /** 냉동 + 특장만일 때 필요한 V2L 확인 */
+  /** 냉동 + 특장만일 때 필요한 V2L 확인 — 실제 체크는 특장 탭의 냉동 블럭에서 받는다 */
   v2lConfirmed?: boolean
   onV2lConfirmedChange?: (v: boolean) => void
   savedQuote: { quote_id: number; pricing: PricingOk } | null
@@ -82,8 +80,6 @@ export function OptionPanel({
   saveLabel,
   bodyOnly,
   onToggleBodyOnly,
-  ownedVehicle,
-  onOwnedVehicleChange,
   v2lConfirmed,
   onV2lConfirmedChange,
   savedQuote,
@@ -150,21 +146,11 @@ export function OptionPanel({
                 <BodyOnlyToggle on={!!bodyOnly} onToggle={onToggleBodyOnly} />
               </div>
             )}
-            {bodyOnly && ownedVehicle && onOwnedVehicleChange && (
-              <BodyOnlyPanel value={ownedVehicle} onChange={onOwnedVehicleChange} />
-            )}
             {/*
-              냉동은 차량 전원으로 냉동기를 돌린다 — V2L 포트가 없으면 설치 자체가 안 된다.
-              차를 우리가 팔면 안내만 하고, 고객 차에 얹을 때는 **확인을 받아야** 한다.
+              안내는 **특장만을 골랐을 때만** 뜬다. 차량을 사는 견적에는 해당 없는 이야기라
+              늘 띄워 두면 읽지 않게 된다. 확인(체크)은 냉동을 고르는 자리에서 받는다.
             */}
-            <div style={{ marginTop: 'var(--sp-4)' }}>
-              <V2lNotice
-                bodyOnly={!!bodyOnly}
-                reeferSelected={selections['BODYTYPE'] === 'BODY_REEFER'}
-                confirmed={!!v2lConfirmed}
-                onConfirmedChange={onV2lConfirmedChange}
-              />
-            </div>
+            {bodyOnly && <BodyOnlyNotice />}
           </>
         )}
         {activeTab === 'body' && (
@@ -175,6 +161,10 @@ export function OptionPanel({
             disabledGroupCodes={disabledGroupCodes}
             hiddenValueCodes={hiddenValueCodes}
             optionPrices={optionPrices}
+            /* 냉동을 고르는 그 자리에서 V2L 을 확인받는다 — 특장만 견적일 때만 */
+            v2lNeeded={!!bodyOnly}
+            v2lConfirmed={!!v2lConfirmed}
+            onV2lConfirmedChange={onV2lConfirmedChange}
           />
         )}
         {activeTab === 'interior' && (
