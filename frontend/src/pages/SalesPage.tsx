@@ -31,6 +31,7 @@ import { QuoteAcceptModal } from '../components/QuoteAcceptModal'
 import { Tooltip } from '../components/Tooltip'
 import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
+import { CustomerFolders } from '../components/CustomerFolders'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useIsCompact } from '../hooks/useIsCompact'
@@ -100,6 +101,34 @@ function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string)  { return s ? s.slice(0, 10) : '—' }
 
 
+
+/**
+ * 견적·주문 목록 위에 **보기 전환**을 하나 얹는다.
+ *
+ * 목록은 건별·날짜순이라 「이 고객한테 지금까지 뭘 보냈나」에 답하지 못한다.
+ * 같은 자리에서 고객별 서류함으로 건너갈 수 있게 둔다.
+ */
+function MyListWithFolders() {
+  const [view, setView] = useState<'list' | 'folders'>('list')
+  return (
+    <div>
+      <div style={{ padding: '0 var(--sp-4)', marginTop: 'var(--sp-3)' }}>
+        <Segmented
+          items={[
+            { value: 'list' as const, label: '견적·주문' },
+            { value: 'folders' as const, label: '고객 서류함' },
+          ]}
+          value={view}
+          onChange={setView}
+          size="sm"
+        />
+      </div>
+      {view === 'list' ? <MyListView /> : (
+        <div style={{ padding: 'var(--sp-4)' }}><CustomerFolders /></div>
+      )}
+    </div>
+  )
+}
 
 function MyListView() {
   const [quotes, setQuotes]   = useState<ApiQuote[]>([])
@@ -862,7 +891,7 @@ export function SalesPage() {
         />
       </div>
 
-      {salesTab === 'list' && <MyListView />}
+      {salesTab === 'list' && <MyListWithFolders />}
       {salesTab === 'me' && canSeeStats && (
         <div style={styles.meWrap}>
           <SalesPerformance />

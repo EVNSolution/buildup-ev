@@ -12,6 +12,7 @@ import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderFilesTab } from '../components/OrderFilesTab'
+import { CustomerFolders } from '../components/CustomerFolders'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { OptionDbTab } from '../components/OptionDbTab'
 import { CustomerViewModal } from '../components/CustomerViewModal'
@@ -892,6 +893,35 @@ function CustomersTab() {
 }
 
 // ── 견적 목록 탭 ──────────────────────────────────────────────────────────
+/**
+ * 견적 목록 위에 **보기 전환**을 하나 얹는다.
+ *
+ * 견적 목록은 건별·날짜순이라 「이 고객한테 지금까지 뭘 보냈나」에 답하지 못한다.
+ * 같은 자리에서 고객별 서류함으로 건너갈 수 있게 둔다 — 탭을 새로 만들면
+ * 최상단이 길어지고, 두 화면이 사실상 같은 질문에 답한다는 것이 안 보인다.
+ */
+type QuotesView = 'list' | 'folders'
+
+function QuotesWithFolders() {
+  const [view, setView] = useState<QuotesView>('list')
+  return (
+    <div>
+      <div style={{ marginBottom: 'var(--sp-3)' }}>
+        <Segmented
+          items={[
+            { value: 'list' as const, label: '견적 목록' },
+            { value: 'folders' as const, label: '고객 서류함' },
+          ]}
+          value={view}
+          onChange={setView}
+          size="sm"
+        />
+      </div>
+      {view === 'list' ? <QuotesTab /> : <CustomerFolders />}
+    </div>
+  )
+}
+
 function QuotesTab() {
   // 견적 삭제를 없애면서 is_master 분기가 사라졌다 — 마스터만 할 수 있는 일이 이 탭엔 없다
   const isMobile = useIsMobile()
@@ -1385,7 +1415,7 @@ export function AdminPage() {
           <Tabs items={TABS} value={activeTab} onChange={setActiveTab} wrap={isMobile} />
         </div>
 
-        {activeTab === 'quotes' && <QuotesTab />}
+        {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
         {activeTab === 'kanban' && <KanbanTab />}
