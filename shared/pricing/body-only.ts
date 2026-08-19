@@ -15,6 +15,10 @@ import type { QuoteParams } from './quote.js';
  *
  * **남는 것** — 특장 취득세(2%)·등록부가수수료·구조변경 비용.
  * 구조변경 절차에 드는 비용이라 차를 어디서 샀는지와 무관하다.
+ *
+ * **할부(캐피탈)도 없다.** 캐피탈은 차량과 특장을 묶어 실행하는 것이라, 차를 안 사면
+ * 실행할 것이 없다. 선수금 비율·할부 개월수를 0으로 눌러 두지 않으면 존재하지 않는
+ * 할부에 선수금이 잡히고 월 납입금이 찍힌다.
  */
 export function bodyOnlyParams(p: QuoteParams): QuoteParams {
   return {
@@ -28,6 +32,9 @@ export function bodyOnlyParams(p: QuoteParams): QuoteParams {
     subsidy_local: 0,
     diesel_deduction: 0,
     car_deposit: 0,
+    // 캐피탈은 차량과 묶어 실행한다 — 차가 없으면 할부도 없다
+    down_payment_rate: 0,
+    installment_months: 0,
     /*
      * ⚠️ 감면을 0으로 두는 것이 중요하다. 차량 취득세는 0인데 감면(−140만)만 남으면
      *    **음수 세금**이 되어 실구매가를 깎는다. calcQuote 도 body_only 면 0으로 막지만,

@@ -13,12 +13,18 @@ import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
  *
  * '견적서 생성' = 입력 저장 + draft→confirmed → 이후 '견적서' 버튼에서 PDF 조회 가능.
  * 생성 이후(수정 모드)엔 '저장'만 노출.
+ *
+ * ⚠️ **특장만 견적에는 캐피탈이 없다.** 할부는 차량과 특장을 묶어 실행하는 것이라,
+ *    차를 안 사면 실행할 것이 없다. 선수금 비율·할부 개월수를 물으면 답이 금액에
+ *    아무 영향도 주지 않는 질문이 되고, 견적서에는 있지도 않은 월 납입금이 찍힌다.
  */
 interface Props {
   quoteId: number
   customerName?: string
   status: string
   initialInputs?: Record<string, unknown>
+  /** 특장만 견적 — 캐피탈(선수금·할부) 입력을 받지 않는다 */
+  bodyOnly?: boolean
   onClose: () => void
   onDone: () => void
 }
@@ -26,7 +32,7 @@ interface Props {
 // 면세구분 — 엑셀 수식상 '일반인'+서울만 공채할인. 나머지는 placeholder(내일 수정 예정).
 const TAX_EXEMPT_OPTIONS = ['일반인', '면세사업자', '기타']
 
-export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, onClose, onDone }: Props) {
+export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, bodyOnly = false, onClose, onDone }: Props) {
   const init = initialInputs ?? {}
   const isConfirmed = status !== 'draft'
 
@@ -43,8 +49,9 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 
   function payload() {
     return {
-      down_payment_rate: (Number(downPct) || 0) / 100,
-      installment_months: months,
+      // 특장만이면 캐피탈이 없다 — 0으로 눌러 저장한다(shared 의 bodyOnlyParams 와 같은 값)
+      down_payment_rate: bodyOnly ? 0 : (Number(downPct) || 0) / 100,
+      installment_months: bodyOnly ? 0 : months,
       tax_exempt_type: taxExempt,
       has_biz_plate: bizPlate,
     }
@@ -70,21 +77,27 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
         </div>
 
         <div style={s.form}>
-          <label style={s.label}>선수금 비율 <span style={s.unit}>(%)</span></label>
-          <input style={s.input} type="number" min={0} max={100} step={1} value={downPct}
-            onChange={(e) => setDownPct(e.target.value)} />
+          {bodyOnly ? (
+            <div style={s.ok}>특장만 견적입니다 — 할부(캐피탈)는 차량과 묶어 실행하므로 적용되지 않습니다.</div>
+          ) : (
+            <>
+              <label style={s.label}>선수금 비율 <span style={s.unit}>(%)</span></label>
+              <input style={s.input} type="number" min={0} max={100} step={1} value={downPct}
+                onChange={(e) => setDownPct(e.target.value)} />
 
-          <label style={s.label}>할부 개월수 <span style={s.unit}>(개월 · 이율)</span></label>
-          <select style={s.input} value={months} onChange={(e) => setMonths(Number(e.target.value))}>
-            {rates.length === 0
-              ? <option value={0}>일시불</option>
-              : rates.map((r) => (
-                <option key={r.months} value={r.months}>
-                  {r.label ?? (r.months === 0 ? '일시불' : `${r.months}개월`)}{r.months > 0 ? ` · ${(r.rate * 100).toFixed(1)}%` : ''}
-                </option>
-              ))
-            }
-          </select>
+              <label style={s.label}>할부 개월수 <span style={s.unit}>(개월 · 이율)</span></label>
+              <select style={s.input} value={months} onChange={(e) => setMonths(Number(e.target.value))}>
+                {rates.length === 0
+                  ? <option value={0}>일시불</option>
+                  : rates.map((r) => (
+                    <option key={r.months} value={r.months}>
+                      {r.label ?? (r.months === 0 ? '일시불' : `${r.months}개월`)}{r.months > 0 ? ` · ${(r.rate * 100).toFixed(1)}%` : ''}
+                    </option>
+                  ))
+                }
+              </select>
+            </>
+          )}
 
           <label style={s.label}>면세구분</label>
           <select style={s.input} value={taxExempt} onChange={(e) => setTaxExempt(e.target.value)}>

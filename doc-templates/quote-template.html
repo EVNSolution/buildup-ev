@@ -145,6 +145,13 @@
           **무상제공(0원 처리)된 옵션**과 **프로모션 할인 행**은 눈에 띄어야 한다.
         -->
         <!-- each:topOptions --><tr class="{{ item.cls }}"><td class="k">{{ item.label }}</td><td class="num">{{ item.amount }}</td></tr><!-- /each:topOptions -->
+        <!--
+          차를 파는 견적과 특장만 견적은 **셈이 다르다.**
+          차를 팔면 계약금·선수금을 빼고 인도금을 잡아 캐피탈로 넘긴다.
+          특장만이면 캐피탈 실행이 없다(차량과 묶어 실행하는 것이라) — 가격과 부대비용을
+          그대로 더한 총액이 답이다. 두 갈래는 0/1 개짜리 each 로 가른다.
+        -->
+        <!-- each:topNormal -->
         <tr class="grp"><td class="k"><span class="cir">⑦</span> 특장 가격 (VAT 포함)</td><td class="num">{{ top.priceTotal }}</td></tr>
         <tr><td class="k">계약금</td><td class="num">{{ top.downPayment }}</td></tr>
         <tr class="grp"><td class="k"><span class="cir">⑧</span> 인도금(특장)</td><td class="num">{{ top.deliveryPayment }}</td></tr>
@@ -154,6 +161,17 @@
         <tr class="grp"><td class="k"><span class="cir">⑨</span> 등록/부대비용</td><td class="num">{{ top.regCost }}</td></tr>
         <!-- pad:top -->
         <tr class="final"><td class="k">특장 초기 납부 금액 (⑧+⑨)</td><td class="num">{{ top.initialPayment }}</td></tr>
+        <!-- /each:topNormal -->
+
+        <!-- each:topOnly -->
+        <tr class="grp"><td class="k"><span class="cir">①</span> 특장 가격 (VAT 포함)</td><td class="num">{{ top.priceTotal }}</td></tr>
+        <tr><td class="k">특장 취득세 (2.0%)</td><td class="num">{{ top.acqTax }}</td></tr>
+        <tr><td class="k">등록부가수수료</td><td class="num">{{ top.etcRegFee }}</td></tr>
+        <tr><td class="k">구조변경 비용</td><td class="num">{{ top.structureFee }}</td></tr>
+        <tr class="grp"><td class="k"><span class="cir">②</span> 등록/부대비용</td><td class="num">{{ top.regCost }}</td></tr>
+        <!-- pad:top -->
+        <tr class="final"><td class="k">특장 총 금액 (①+②)</td><td class="num">{{ top.bodyTotal }}</td></tr>
+        <!-- /each:topOnly -->
       </table>
     </div>
 
@@ -162,6 +180,12 @@
       <h2 class="sec">고객 정보</h2>
       <table>
         <colgroup><col style="width:44%"><col style="width:28%"><col style="width:28%"></colgroup>
+        <!--
+          고객 정보도 두 갈래다. 보조금 조건(지역·소상공인·화물운송·경유차)과 할부 조건은
+          **차를 살 때만 쓰이는 값**이다. 특장만 견적에 적어 두면 받지도 않은 값이
+          견적서에 찍혀, 고객이 「이건 뭐냐」고 묻게 된다.
+        -->
+        <!-- each:custNormal -->
         <tr><td class="lab">고객명</td><td class="cval" colspan="2">{{ cust.name }}</td></tr>
         <tr><td class="lab">구분</td><td class="cval" colspan="2">{{ cust.bizType }}</td></tr>
         <tr><td class="lab">지역</td><td class="cval" colspan="2">{{ cust.region }}</td></tr>
@@ -177,6 +201,15 @@
         <tr class="grp"><td class="k">월 납입금</td><td class="num" colspan="2">{{ inst.monthlyPayment }}</td></tr>
         <!-- pad:cust -->
         <tr class="final"><td class="k" colspan="2">부가세 환급 시 가격</td><td class="num">{{ cust.vatRefundPrice }}</td></tr>
+        <!-- /each:custNormal -->
+
+        <!-- each:custOnly -->
+        <tr><td class="lab">고객명</td><td class="cval" colspan="2">{{ cust.name }}</td></tr>
+        <tr><td class="lab">구분</td><td class="cval" colspan="2">{{ cust.bizType }}</td></tr>
+        <tr class="grp"><td class="k">계약금</td><td class="num" colspan="2">{{ cust.deposit }}</td></tr>
+        <!-- pad:cust -->
+        <tr class="final"><td class="k" colspan="2">부가세 환급 시 가격</td><td class="num">{{ cust.vatRefundPrice }}</td></tr>
+        <!-- /each:custOnly -->
       </table>
     </div>
 
@@ -188,7 +221,11 @@
       <div class="mt">고객님께서 꼭 알아두셔야 할 사항</div>
       <ul>
         <!-- 고정 문구(수정 시 이 HTML에서 직접 변경) -->
-        <li>탁송료 및 보조금 등은 차량 출고 시점에 따라 변경될 수 있습니다.</li>
+        <!--
+          탁송료·보조금은 **차를 살 때만 있는 것**이다. 특장만 견적에 적어 두면
+          있지도 않은 금액이 바뀔 수 있다고 알리는 셈이 된다.
+        -->
+        <!-- each:noteDelivery --><li>탁송료 및 보조금 등은 차량 출고 시점에 따라 변경될 수 있습니다.</li><!-- /each:noteDelivery -->
         <li>당사의 프로모션은 매달 변경될 수 있습니다.</li>
       </ul>
     </div>

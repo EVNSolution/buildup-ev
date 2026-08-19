@@ -69,6 +69,7 @@ jobs:
             src/__tests__/permissions.test.ts \
             src/__tests__/permission-modules.test.ts \
             src/__tests__/body-only-required.test.ts \
+            src/__tests__/quote-template.test.ts \
             src/__tests__/runtime-config.test.ts \
             src/__tests__/health.test.ts
           npm run --workspace=backend build

@@ -219,6 +219,12 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       priceTotal: won(r.body_payment),
       paymentAmount: won(r.body_payment), downPayment: won(r.body_deposit), deliveryPayment: won(r.body_delivery),
       acqTax: won(r.body_acq_tax), etcRegFee: won(r.etc_fee), structureFee: won(r.structure_change_fee), regCost: won(r.body_reg_cost), initialPayment: won(r.body_initial),
+      /*
+       * 특장만 견적의 총액 — **특장 가격 + 등록/부대비용.**
+       * 차를 파는 견적처럼 계약금을 빼고 인도금을 잡지 않는다. 캐피탈은 차량과 묶어
+       * 실행하는 것이라 특장만이면 실행할 것이 없고, 고객이 낼 총액이 곧 답이다.
+       */
+      bodyTotal: won(r.body_payment + r.body_reg_cost),
     },
     cust: {
       name: quote.customer?.name ?? '', bizType: BIZ_DISP[bizType] ?? bizType, region,
@@ -226,6 +232,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       // 엑셀 '입력 시트' C5 선택지 문구 그대로(경유차없음 / 유지 / 폐차). 옛 견적은 boolean 으로 복원.
       dieselStatus: DIESEL_STATUS_LABEL[toDieselStatus(inp['diesel_status'], inp['diesel_conversion'])],
       hasCommercialPlate: ox(!!inp['has_biz_plate']), advanceRate: `${Math.round(downRate * 100)}%`,
+      // 특장 계약금 — 기준데이터(body_deposit)에서 온다. 양식에 숫자를 박지 않는다
+      deposit: won(r.body_deposit),
       vatRefundPrice: won(r.vat_refund_price),
     },
     inst: {
@@ -248,6 +256,18 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   html = renderEach(html, 'benefitRows', benefitRows);
   html = renderEach(html, 'subsidyRows', subsidyRows);
   html = renderEach(html, 'topOptions', topOptions);
+  /*
+   * 특장·고객 칸도 두 갈래다 — 차를 파는 견적이면 인도금·할부까지, 특장만이면 총액만.
+   * ⚠️ topOptions 를 **먼저** 편 뒤에 갈래를 가른다. 옵션 행이 두 갈래 바깥에 있어
+   *    순서가 뒤바뀌면 갈래 안의 `{{ item.* }}` 을 옵션 item 으로 먹어 버린다.
+   *    renderPad 보다도 앞이어야 한다 — 갈래마다 pad 가 하나씩 들어 있다.
+   */
+  html = renderEach(html, 'topNormal', bodyOnly ? [] : [{}]);
+  html = renderEach(html, 'topOnly', bodyOnly ? [{}] : []);
+  html = renderEach(html, 'custNormal', bodyOnly ? [] : [{}]);
+  html = renderEach(html, 'custOnly', bodyOnly ? [{}] : []);
+  // 탁송료·보조금 안내는 차를 살 때만 해당한다
+  html = renderEach(html, 'noteDelivery', bodyOnly ? [] : [{}]);
 
   /*
    * 차량 칸은 두 갈래다 — 차를 파는 견적이면 금액 표, 특장만이면 「고객 보유 차량」.
