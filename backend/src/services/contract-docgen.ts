@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { prisma } from '../lib/prisma.js';
+import { archiveCustomerDoc } from './doc-archive.js';
 import { calcQuote } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams } from './quote-calc.js';
 
@@ -457,6 +458,22 @@ export async function renderContractPdfForQuote(quoteId: number): Promise<{ pdf:
   const tokens = await buildContractTokensFromQuote(quoteId);
   const { pdf, pages, warnings } = await renderFromTokens(tokens);
   const who = tokens.buyer_name ? `_${tokens.buyer_name}` : '';
+
+  // 고객별 보관함 — 견적서와 같은 폴더에 순서대로 쌓인다(내용이 달라졌을 때만)
+  const q = await prisma?.quote.findUnique({
+    where: { id: quoteId },
+    select: { customer_id: true, quote_no: true, customer: { select: { name: true } } },
+  });
+  if (q) {
+    await archiveCustomerDoc({
+      customerId: q.customer_id,
+      customerName: q.customer?.name,
+      quoteNo: q.quote_no,
+      kind: '계약서',
+      pdf,
+    });
+  }
+
   return { pdf, filename: `특장매매계약서_${tokens.contract_no}${who}.pdf`, pages, warnings };
 }
 

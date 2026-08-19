@@ -16,6 +16,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { TuningApplication } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { archiveCustomerDoc } from './doc-archive.js';
 import { docStorageDir } from '../lib/soffice.js';
 import * as modusign from './modusign.js';
 import { toKakaoPhone, type SigningMethod } from './modusign.js';
@@ -55,6 +56,24 @@ async function saveTuningSignedPdf(appId: number, orderId: number, documentId: s
     await mkdir(dir, { recursive: true });
     const filePath = path.join(dir, `tuning_signed_${appId}.pdf`);
     await writeFile(filePath, pdf);
+
+    /*
+     * 고객별 보관함에도 한 장 — 견적서·계약서와 같은 폴더에 순서대로 쌓인다.
+     * 튜닝신청서는 **주문**에 붙지만 보관함은 고객 단위라, 주문 → 견적 → 고객으로 거슬러 간다.
+     */
+    const o = await prisma?.order.findUnique({
+      where: { id: orderId },
+      select: { quote: { select: { customer_id: true, quote_no: true, customer: { select: { name: true } } } } },
+    });
+    if (o?.quote) {
+      await archiveCustomerDoc({
+        customerId: o.quote.customer_id,
+        customerName: o.quote.customer?.name,
+        quoteNo: o.quote.quote_no,
+        kind: '튜닝신청서_서명본',
+        pdf,
+      });
+    }
     return filePath;
   } catch (e) {
     console.error(`[tuning] 서명본 저장 실패(상태는 반영함) app=${appId}:`, e instanceof Error ? e.message : e);
