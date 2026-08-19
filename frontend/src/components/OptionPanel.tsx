@@ -155,7 +155,7 @@ export function OptionPanel({
               안내는 **특장만을 골랐을 때만** 뜬다. 차량을 사는 견적에는 해당 없는 이야기라
               늘 띄워 두면 읽지 않게 된다. 확인(체크)은 냉동을 고르는 자리에서 받는다.
             */}
-            {bodyOnly && onOwnedModelChange && (
+            {bodyOnly && (
               <BodyOnlyNotice model={ownedModel ?? ''} onModelChange={onOwnedModelChange} />
             )}
           </>

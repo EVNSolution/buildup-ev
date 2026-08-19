@@ -8,8 +8,21 @@ import { BTN } from '../styles/buttons'
  * 등록번호·차대번호는 계약 이후 특장사가 자동차등록증을 보고 채운다.
  */
 
-/** ⚠️ 우리 특장은 **PV5 오픈베드**에 얹도록 설계돼 있다. 다른 차에는 올릴 수 없다. */
-export const OWNED_MODEL_PLACEHOLDER = '예: PV5 오픈베드 플러스 롱레인지'
+/**
+ * 고를 수 있는 보유 차종.
+ *
+ * ⚠️ 우리 특장은 **PV5 오픈베드**에 장착하도록 설계돼 있다 — 다른 차에는 올릴 수 없다.
+ * 그래서 직접 입력이 아니라 **고르게** 한다. 손으로 적으면 「포터」 같은 값이 들어와
+ * 견적서·구조변경 서류가 틀린 차를 가리키게 된다.
+ *
+ * 가격은 넣지 않는다 — 고객이 이미 산 차라 우리 판매가와 무관하다.
+ */
+export const OWNED_MODELS = [
+  '오픈베드 베이직 스탠다드',
+  '오픈베드 베이직 롱레인지',
+  '오픈베드 플러스 스탠다드',
+  '오픈베드 플러스 롱레인지',
+] as const
 
 /**
  * 냉동기는 주행 중에도 **차량 전원**으로 돌아간다 — V2L 포트가 없으면 설치 자체가 불가능하다.
@@ -44,7 +57,11 @@ export function BodyOnlyToggle({ on, onToggle }: { on: boolean; onToggle: (v: bo
 export function BodyOnlyNotice({ model, onModelChange }: {
   /** 보유 차종 — **임시저장 단계**에서 받는다. 어떤 차에 얹는지는 견적의 전제다. */
   model: string
-  onModelChange: (v: string) => void
+  /**
+   * 없으면 **안내만** 하고 보유 차종은 묻지 않는다 — 공개 창구가 그렇다.
+   * 거기서 받는 값은 상담 연락처뿐이고, 어떤 차인지는 영업이 임시저장할 때 채운다.
+   */
+  onModelChange?: (v: string) => void
 }) {
   return (
     <div style={s.box}>
@@ -57,16 +74,15 @@ export function BodyOnlyNotice({ model, onModelChange }: {
         <li><b>PV5 오픈베드</b> 차량에만 장착할 수 있습니다.</li>
         <li>{V2L_NOTICE}</li>
       </ul>
-      <label style={s.field}>
-        <span style={s.fieldLabel}>보유 차종<span style={s.req}> · 필수</span></span>
-        <input
-          style={s.input}
-          type="text"
-          placeholder={OWNED_MODEL_PLACEHOLDER}
-          value={model}
-          onChange={e => onModelChange(e.target.value)}
-        />
-      </label>
+      {onModelChange && (
+        <label style={s.field}>
+          <span style={s.fieldLabel}>보유 차종<span style={s.req}> · 필수</span></span>
+          <select style={s.input} value={model} onChange={e => onModelChange(e.target.value)}>
+            <option value="">선택하세요</option>
+            {OWNED_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
+      )}
       <div style={s.hint}>계약서 생성 시 차량등록증과 차량 정보 입력이 필요합니다.</div>
     </div>
   )

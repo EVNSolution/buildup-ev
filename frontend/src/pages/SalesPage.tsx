@@ -899,6 +899,7 @@ export function SalesPage() {
 
           {!compact && (
             <PriceBar
+            bodyOnly={bodyOnly}
               calc={displayCalc}
               total={liveTotal}
               hasCustomer={subsidyReady}
@@ -950,6 +951,7 @@ export function SalesPage() {
         {/* 좁은 창에서는 가격바가 폭 전체를 쓴다 — 좁은 칸에 욱여넣으면 금액이 잘린다 */}
         {compact && (
           <PriceBar
+            bodyOnly={bodyOnly}
             calc={displayCalc}
             total={liveTotal}
             hasCustomer={subsidyReady}

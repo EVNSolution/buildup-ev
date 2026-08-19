@@ -21,6 +21,11 @@ interface Props {
   /** 「보조금」 블록 팝업에서 그 자리에서 고치는 입력값 */
   subsidy: SubsidyInputs
   onSubsidyChange: (v: SubsidyInputs) => void
+  /**
+   * 특장만 견적 — 차를 안 사니 **EV 보조금이 없다**. 0원으로 고정하고 누르지 못하게 한다.
+   * 답이 금액에 아무 영향도 주지 않는 칸을 열어 두면 채우게 되고, 채우면 헷갈린다.
+   */
+  bodyOnly?: boolean
   /** 지역 선택 목록(지방보조금 조회 기준) */
   regions: string[]
   /**
@@ -80,7 +85,7 @@ function FitValue({ text, max, min = 11, active, style }: {
   return <span style={{ ...style, display: 'block', fontSize: size, whiteSpace: 'nowrap' }}>{text}</span>
 }
 
-export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions, compact = false, summary = false }: Props) {
+export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, regions, compact = false, summary = false, bodyOnly = false }: Props) {
   // 화면이 1:1 보다 세로로 길면 옆으로 늘어놓지 않고 **세로로 쌓는다**.
   // 좁은 폭에 6칸을 욱여넣으면 글자를 아무리 줄여도 읽히지 않는다.
   const portrait = useIsPortrait()
@@ -134,11 +139,14 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           <div style={styles.grid4}>
             <Tile label="차량 + 특장 (VAT 포함)" text={view ? fmt(view.start) : '—'} />
             <Tile label="구매 혜택" text={ok ? `−${fmt(ok.purchase_benefit)}` : '—'} tone="neg" />
+            {/* 특장만이면 보조금이 없다 — 0원으로 굳히고 팝업도 열지 않는다 */}
             <Tile
-              label="보조금" arrow onClick={() => setShowSubsidy(v => !v)}
-              text={!hasCustomer ? '정보 입력 필요' : ok ? `−${fmt(ok.subsidy_total)}` : '—'}
-              tone={hasCustomer ? 'neg' : 'muted'}
-              popup={showSubsidy && (
+              label="보조금"
+              arrow={!bodyOnly}
+              onClick={bodyOnly ? undefined : () => setShowSubsidy(v => !v)}
+              text={bodyOnly ? '해당 없음' : !hasCustomer ? '정보 입력 필요' : ok ? `−${fmt(ok.subsidy_total)}` : '—'}
+              tone={bodyOnly ? 'muted' : hasCustomer ? 'neg' : 'muted'}
+              popup={!bodyOnly && showSubsidy && (
                 <SubsidyPopup
                   value={subsidy} onChange={onSubsidyChange} regions={regions} ok={ok}
                   onClose={() => setShowSubsidy(false)}
@@ -198,15 +206,15 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {stack && <Op stack={stack}>−</Op>}
         {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
         <div
-          style={{ ...styles.block, ...styles.clickable, ...row, ...sep, ...(stack ? null : styles.blockWide) }}
-          onClick={() => setShowSubsidy(v => !v)}
+          style={{ ...styles.block, ...(bodyOnly ? null : styles.clickable), ...row, ...sep, ...(stack ? null : styles.blockWide) }}
+          onClick={bodyOnly ? undefined : () => setShowSubsidy(v => !v)}
         >
-          <div style={{ ...styles.blockLabel, ...lbl }}>{sign('−')}보조금 ▸</div>
+          <div style={{ ...styles.blockLabel, ...lbl }}>{sign('−')}보조금{bodyOnly ? '' : ' ▸'}</div>
           <div style={stack ? styles.stackRight : undefined}>
             <FitValue
-              text={!hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
+              text={bodyOnly ? '해당 없음' : !hasCustomer ? '정보 입력 필요' : ok ? fmt(ok.subsidy_total) : '—'}
               max={24} active={!stack}
-              style={{ ...styles.blockValue, ...big, ...(hasCustomer ? styles.negVal : styles.mutedVal) }} />
+              style={{ ...styles.blockValue, ...big, ...(!bodyOnly && hasCustomer ? styles.negVal : styles.mutedVal) }} />
             {/*
               합계만 보면 왜 그 금액인지 알 수 없다 — 네 가지 내역을 항상 같은 순서로 보여준다.
               0원인 항목도 남긴다(빠진 게 아니라 해당 없음이라는 뜻이 드러나야 한다).
