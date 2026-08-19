@@ -46,6 +46,8 @@ export interface ApiStepsResponse {
     accepted_at: string | null
     /** YYYY-MM-DD */
     delivery_due: string | null
+    /** 특장만 주문 — 차량 트랙이 「차량 도착」 하나로 줄어든다 */
+    body_only: boolean
   }
 }
 

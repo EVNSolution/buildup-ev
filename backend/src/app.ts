@@ -6,6 +6,7 @@ import { quotesRouter } from './routes/quotes.js';
 import { customersRouter } from './routes/customers.js';
 import { loadCalcRouter } from './routes/load-calc.js';
 import { ordersRouter } from './routes/orders.js';
+import { orderFilesRouter } from './routes/order-files.js';
 import { stepsRouter } from './routes/steps.js';
 import { docsRouter } from './routes/docs.js';
 import { authRouter } from './routes/auth.js';
@@ -90,6 +91,11 @@ export function createApp() {
   app.use('/api/v1/quotes', quotesRouter);
   app.use('/api/v1/customers', customersRouter); // 고객 마스터 완전일치 조회(자동 기입)
   app.use('/api/v1/load-calc', loadCalcRouter);
+  /*
+   * ⚠️ 파일 목록은 `ordersRouter` **앞**에 둔다. 뒤에 두면 `/orders/file-index` 가
+   *    `ordersRouter.get('/:id')` 에 먼저 걸려 「유효하지 않은 주문 번호」가 된다.
+   */
+  app.use('/api/v1/orders', orderFilesRouter);
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/orders', docsRouter);
   app.use('/api/v1/orders', stepsRouter);

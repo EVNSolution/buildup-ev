@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   STEPS, STEP_BY_CODE, canComplete, overdueDays, isOverdue, keepsOriginal,
-  stepsOfTrack, newlyOpened, isOpen, canUndo, type StepState,
+  stepsOfTrack, newlyOpened, isOpen, canUndo, stepsFor, acceptsEvidence, type StepState,
 } from './steps';
 
 /** 전부 done 인 상태 — 여기서 하나씩 빼며 게이트를 확인한다. */
@@ -232,5 +232,70 @@ describe('트랙', () => {
     const n = (['vehicle', 'body', 'tuning', 'merged'] as const)
       .map(t => stepsOfTrack(t).length).reduce((a, b) => a + b, 0);
     expect(n).toBe(STEPS.length);
+  });
+});
+
+describe('특장만 주문 — 차량 트랙은 「차량 도착」 하나만', () => {
+  const defs = stepsFor(true);
+  const codes = defs.map(s => s.code);
+
+  it('차량 트랙에 남는 단계는 차량 도착뿐이다', () => {
+    expect(defs.filter(s => s.track === 'vehicle').map(s => s.code)).toEqual(['car_arrived']);
+  });
+
+  it('빠진 단계를 선행으로 삼는 단계가 남아 있지 않다', () => {
+    // 남겨 두면 아무도 열 수 없는 단계가 생긴다 — 주문이 그 자리에서 영원히 멈춘다
+    for (const s of defs) {
+      for (const r of s.requires) {
+        expect(codes, `${s.code} → ${r}`).toContain(r);
+      }
+    }
+  });
+
+  it('차량 도착의 증빙은 인수증이 아니라 자동차등록증이다', () => {
+    // 우리가 넘겨준 차가 아니라 고객이 몰고 온 차다 — 받을 인수증이 없다
+    const car = defs.find(s => s.code === 'car_arrived')!;
+    expect(car.evidence).toEqual(['vehicle_reg']);
+    expect(STEP_BY_CODE['car_arrived']!.evidence).toContain('receipt');  // 일반 주문은 그대로
+  });
+
+  it('튜닝신청서는 차량 도착만으로 시작된다', () => {
+    expect(defs.find(s => s.code === 'tuning_drafted')!.requires).toEqual(['car_arrived']);
+  });
+
+  it('일반 주문 카탈로그는 손대지 않는다', () => {
+    expect(stepsFor(false)).toBe(STEPS);
+  });
+
+  it('등록증만 올리면 차량 도착을 넘길 수 있다', () => {
+    const states: StepState[] = defs.map(s => ({ code: s.code, status: 'pending' as const }));
+    expect(canComplete('car_arrived', states, ['vehicle_reg'], defs).ok).toBe(true);
+    expect(canComplete('car_arrived', states, [], defs).ok).toBe(false);
+  });
+
+  it('특장만이어도 장착은 차 도착과 제작 완료를 함께 기다린다', () => {
+    const states: StepState[] = defs.map(s => ({
+      code: s.code, status: s.code === 'car_arrived' ? 'done' as const : 'pending' as const,
+    }));
+    expect(canComplete('mounted', states, [], defs).ok).toBe(false);
+  });
+});
+
+describe('덧증빙 — 검수 사진은 어느 단계에나 붙는다', () => {
+  it('필수 증빙이 아닌 단계에도 검수 사진은 받는다', () => {
+    expect(acceptsEvidence(STEP_BY_CODE['build_done']!, 'inspection_photo')).toBe(true);
+    expect(acceptsEvidence(STEP_BY_CODE['mounted']!, 'inspection_photo')).toBe(true);
+  });
+
+  it('아무 서류나 아무 단계에 붙지는 않는다', () => {
+    expect(acceptsEvidence(STEP_BY_CODE['build_done']!, 'receipt')).toBe(false);
+    expect(acceptsEvidence(STEP_BY_CODE['mounted']!, 'tuning_approval')).toBe(false);
+  });
+
+  it('덧증빙은 완료를 막지 않는다 — 없어도 넘어간다', () => {
+    const states: StepState[] = STEPS.map(s => ({
+      code: s.code, status: s.code === 'car_arrived' || s.code === 'build_done' ? 'done' as const : 'pending' as const,
+    }));
+    expect(canComplete('mounted', states, [], STEPS).ok).toBe(true);
   });
 });

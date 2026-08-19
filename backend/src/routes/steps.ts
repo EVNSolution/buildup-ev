@@ -15,7 +15,8 @@ import { setQuoteStatus } from '../services/quote-status.js';
 import { rbac, isAdmin, requirePermission } from '../middleware/rbac.js';
 import {
   STEPS, STEP_BY_CODE, canComplete, canUndo, isOverdue, overdueDays, newlyOpened,
-  type EvidenceKind, type StepState,
+  stepsFor, stepMapFor, acceptsEvidence, EXTRA_EVIDENCE,
+  type EvidenceKind, type StepDef, type StepState,
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
@@ -73,7 +74,12 @@ function orderId(req: Request): number | null {
  */
 type LoadResult =
   | { err: 503 | 404 | 403 }
-  | { order: { id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null; created_at: Date; accepted_at: Date | null; delivery_due: Date | null } };
+  | { order: {
+      id: number; quote_id: number; maker_org_id: string | null; assigned_at: Date | null;
+      created_at: Date; accepted_at: Date | null; delivery_due: Date | null;
+      /** 특장만 주문 — 단계 카탈로그가 달라진다(차량 트랙이 「차량 도착」 하나로 줄어든다) */
+      body_only: boolean;
+    } };
 
 /** 접근 실패를 상태에 맞는 코드·문구로. 404 에 FORBIDDEN 을 실어 보내지 않는다. */
 function denyOrder(res: Response, err: 503 | 404 | 403): void {
@@ -92,7 +98,8 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
     select: {
       id: true, quote_id: true, maker_org_id: true, assigned_at: true, created_at: true,
       accepted_at: true, delivery_due: true,
-      quote: { select: { sales_user_id: true } },
+      // 특장만 여부는 견적 입력에 남아 있다(견적서를 다시 뽑아도 같은 금액이 나와야 해서)
+      quote: { select: { sales_user_id: true, inputs: true } },
     },
   });
   if (!order) return { err: 404 };
@@ -104,18 +111,44 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
       (auth.roles.includes('SALES') && order.quote?.sales_user_id === auth.email);
     if (!mine) return { err: 403 };
   }
-  return { order };
+  const inputs = order.quote?.inputs as { body_only?: unknown } | null;
+  return { order: { ...order, body_only: inputs?.body_only === true } };
 }
 
 /**
  * 단계 행이 없으면 만들어 준다 — 이관 스크립트를 못 돌린 주문(새로 생긴 주문 등)도
  * 화면이 비지 않게. 이미 있으면 건드리지 않는다.
  */
-async function ensureSteps(id: number, base: Date) {
+async function ensureSteps(id: number, base: Date, defs: StepDef[] = STEPS) {
+  /*
+   * 특장만 주문이 **나중에** 그렇게 정해질 수도 있다(견적을 고쳐 저장하면).
+   * 이미 만들어 둔 행 중 해당 없는 단계는 **지우지 않고** 「해당 없음(skipped)」으로 표시한다 —
+   * 지우면 그때까지의 기록도 함께 사라진다. 이미 끝난 것은 건드리지 않는다.
+   */
+  const applicable = new Set(defs.map(d => d.code));
   const n = await prisma!.orderStep.count({ where: { order_id: id } });
-  if (n > 0) return;
+  if (n > 0) {
+    if (applicable.size < STEPS.length) {
+      await prisma!.orderStep.updateMany({
+        where: { order_id: id, code: { notIn: [...applicable] }, status: 'pending' },
+        data: { status: 'skipped' },
+      });
+    } else {
+      /*
+       * 반대 방향도 되돌아와야 한다 — 특장만으로 잘못 저장했다가 고치면
+       * 차량 단계가 「해당 없음」인 채로 남아, **아무도 누를 수 없는 주문**이 된다.
+       * 「해당 없음」을 붙이는 곳이 여기뿐이라(다른 이유로 skipped 가 되는 일이 없다)
+       * 되돌려도 남의 기록을 덮어쓰지 않는다.
+       */
+      await prisma!.orderStep.updateMany({
+        where: { order_id: id, status: 'skipped' },
+        data: { status: 'pending' },
+      });
+    }
+    return;
+  }
   await prisma!.orderStep.createMany({
-    data: STEPS.map(s => ({
+    data: defs.map(s => ({
       order_id: id, code: s.code, track: s.track, status: 'pending', entered_at: base,
     })),
     skipDuplicates: true,
@@ -129,7 +162,8 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
   const r = await loadOrder(id, req);
   if ('err' in r) { denyOrder(res, r.err); return; }
 
-  await ensureSteps(id, r.order.assigned_at ?? r.order.created_at);
+  const defs = stepsFor(r.order.body_only);
+  await ensureSteps(id, r.order.assigned_at ?? r.order.created_at, defs);
 
   const [rows, files] = await Promise.all([
     prisma!.orderStep.findMany({ where: { order_id: id } }),
@@ -148,7 +182,7 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
    * 이 단계의 마감이 언제인가 — **약속한 날**에서만 온다.
    * 납기일은 주문에서(수락하며 약속), 검사 마감은 안전검사 신청 단계에서(신청하며 적음).
    */
-  const dueOf = (def: (typeof STEPS)[number]): string | null => {
+  const dueOf = (def: StepDef): string | null => {
     if (!def.dueFrom) return null;
     if (def.dueFrom.from === 'order') {
       return r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null;
@@ -157,8 +191,9 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
     return src?.planned_at ? fromDbDate(src.planned_at) : null;
   };
 
-  // 카탈로그 순서로 내려준다 — 화면이 정렬을 다시 하지 않게
-  const data = STEPS.map(def => {
+  // 카탈로그 순서로 내려준다 — 화면이 정렬을 다시 하지 않게.
+  // 특장만 주문에서는 해당 없는 차량 단계가 여기서 이미 빠져 있다.
+  const data = defs.map(def => {
     const row = byCode.get(def.code);
     const mine = files.filter(f => f.step_code === def.code);
     const due = dueOf(def);
@@ -175,7 +210,7 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
       due_at: due,
       /** 마감을 며칠 넘겼나. 안 넘겼거나 마감이 없으면 null */
       overdue_days: row && row.status !== 'done' ? overdueDays(due, now) : null,
-      stalled: isOverdue(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, due, now, doneCodes),
+      stalled: isOverdue(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, due, now, doneCodes, defs),
       files: mine.map(f => ({
         id: f.id, kind: f.kind, name: f.original_name, size: f.size_bytes,
         kept_original: f.kept_original, uploaded_by: f.uploaded_by, uploaded_at: f.uploaded_at.toISOString(),
@@ -194,6 +229,8 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
       assigned_at: r.order.assigned_at?.toISOString() ?? null,
       accepted_at: r.order.accepted_at?.toISOString() ?? null,
       delivery_due: r.order.delivery_due ? fromDbDate(r.order.delivery_due) : null,
+      /** 특장만 주문 — 화면이 차량 트랙 안내를 다르게 적는다 */
+      body_only: r.order.body_only,
     },
   });
 }));
@@ -206,9 +243,14 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
   const r = await loadOrder(id, req);
   if ('err' in r) { denyOrder(res, r.err); return; }
 
-  await ensureSteps(id, r.order.assigned_at ?? r.order.created_at);
+  const defs = stepsFor(r.order.body_only);
+  await ensureSteps(id, r.order.assigned_at ?? r.order.created_at, defs);
 
-  const def = STEP_BY_CODE[code]!;
+  // 이 주문에 해당하지 않는 단계는 완료할 수 없다 — 특장만 주문의 번호판 단계 같은 것
+  const def = stepMapFor(r.order.body_only)[code];
+  if (!def) {
+    res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '이 주문에는 해당하지 않는 단계입니다' } }); return;
+  }
   const [rows, files] = await Promise.all([
     prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } }),
     prisma!.orderFile.findMany({ where: { order_id: id, step_code: code }, select: { kind: true } }),
@@ -224,6 +266,7 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
     code,
     rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })),
     files.map(f => f.kind as EvidenceKind),
+    defs,
   );
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
 
@@ -272,7 +315,7 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
    *    그래서 이번 완료 **전에는 안 열렸는데 후에 열린** 것만 고른다.
    */
   const before = new Set(rows.filter(x => x.status === 'done').map(x => x.code));
-  const opened = newlyOpened(code, before);
+  const opened = newlyOpened(code, before, defs);
   if (opened.length > 0) {
     await prisma!.orderStep.updateMany({
       where: { order_id: id, code: { in: opened }, status: 'pending' },
@@ -311,7 +354,7 @@ stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), canC
   if ('err' in r) { denyOrder(res, r.err); return; }
 
   const rows = await prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } });
-  const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })));
+  const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })), stepsFor(r.order.body_only));
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
 
   const now = new Date();
@@ -358,19 +401,23 @@ stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), canC
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     const code = String(req.params['code'] ?? '');
-    const def = STEP_BY_CODE[code];
-    if (id === null || !def) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
+    if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
 
     const r = await loadOrder(id, req);
     if ('err' in r) { denyOrder(res, r.err); return; }
+
+    // 특장만 주문은 「차량 도착」이 받는 증빙이 다르다(인수증 → 자동차등록증)
+    const def = stepMapFor(r.order.body_only)[code];
+    if (!def) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '이 주문에는 해당하지 않는 단계입니다' } }); return; }
 
     const file = req.file;
     if (!file) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '파일이 첨부되지 않았습니다' } }); return; }
 
     // 이 단계가 요구하는 증빙 종류만 받는다 — 아무 데나 아무 파일이 쌓이지 않게
     const kind = String((req.body as { kind?: unknown })?.kind ?? '') as EvidenceKind;
-    if (!def.evidence.includes(kind)) {
-      res.status(400).json({ error: { code: 'BAD_INPUT', message: `이 단계에 등록할 수 있는 증빙이 아닙니다 — ${def.evidence.map(e => EVIDENCE_LABEL[e]).join(' · ') || '없음'}` } });
+    if (!acceptsEvidence(def, kind)) {
+      const ok = [...def.evidence, ...EXTRA_EVIDENCE].map(e => EVIDENCE_LABEL[e]).join(' · ');
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: `이 단계에 등록할 수 있는 증빙이 아닙니다 — ${ok}` } });
       return;
     }
 
@@ -426,7 +473,15 @@ stepsRouter.get('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), guard(asy
   const mime = f.mime && ALLOWED_MIME[f.mime] ? f.mime : 'application/octet-stream';
   res.setHeader('Content-Type', mime);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(f.original_name ?? 'file')}`);
+  /*
+   * `?dl=1` 이면 **받아 두는 것**이다 — 관리자 「파일」 화면에서 챙겨 갈 때 쓴다.
+   * 기본은 그대로 열어 본다(사진을 확인하러 누르는 일이 훨씬 잦다).
+   */
+  const asAttachment = req.query['dl'] === '1';
+  res.setHeader(
+    'Content-Disposition',
+    `${asAttachment ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(f.original_name ?? 'file')}`,
+  );
   createReadStream(abs).pipe(res);
 }));
 

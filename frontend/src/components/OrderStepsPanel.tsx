@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  STEPS, STEP_BY_CODE, TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
+  TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
+  stepsFor, stepMapFor, EXTRA_EVIDENCE,
   type EvidenceKind, type Track, type StepState, type StepDef,
 } from '@shared/process/steps'
 import {
@@ -74,6 +75,15 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
   }
   useEffect(() => { load() }, [orderId])   // eslint-disable-line react-hooks/exhaustive-deps
 
+  /*
+   * **이 주문의 카탈로그** — 특장만 주문은 차량 트랙이 「차량 도착」 하나로 줄고,
+   * 그 단계가 받는 증빙도 인수증이 아니라 자동차등록증이다.
+   * 서버가 같은 함수로 판정하므로, 화면에서 눌리는데 서버가 거절하는 일이 없다.
+   */
+  const bodyOnly = res?.order.body_only === true
+  const defs = useMemo(() => stepsFor(bodyOnly), [bodyOnly])
+  const defByCode = useMemo(() => stepMapFor(bodyOnly), [bodyOnly])
+
   const steps = res?.data ?? null
   const states: StepState[] = useMemo(
     () => (steps ?? []).map(s => ({ code: s.code, status: s.status })),
@@ -91,7 +101,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
         : 'later'
 
   async function handleComplete(code: string) {
-    const def = STEP_BY_CODE[code]!
+    const def = defByCode[code]!
     setBusy(code); setErr('')
     try {
       await completeStep(orderId, code, def.dateLabel ? dates[code] : undefined)
@@ -107,15 +117,31 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
     finally { setBusy(null) }
   }
 
-  async function handleUpload(code: string, kind: EvidenceKind, file: File) {
+  /**
+   * 증빙 등록 — **여러 장을 한 번에** 받는다(검수 사진은 보통 여러 장이다).
+   *
+   * 한 장씩 차례로 올린다. 한꺼번에 보내면 그중 하나가 너무 커서 거부될 때
+   * 나머지까지 함께 죽는다 — 무엇이 안 올라갔는지도 알 수 없다.
+   * 실패하면 **어느 파일에서 멈췄는지** 이름을 적어 준다.
+   */
+  async function handleUpload(code: string, kind: EvidenceKind, picked: File[]) {
     setBusy(code + kind); setErr('')
+    let ok = 0
     try {
-      // 사진만 줄인다 — 서류는 글자를 읽어야 해서 원본 그대로 간다
-      const { file: out } = keepsOriginal(kind) ? { file } : await shrinkImage(file)
-      await uploadStepFile(orderId, code, kind, out)
+      for (const file of picked) {
+        // 사진만 줄인다 — 서류는 글자를 읽어야 해서 원본 그대로 간다
+        const { file: out } = keepsOriginal(kind) ? { file } : await shrinkImage(file)
+        await uploadStepFile(orderId, code, kind, out)
+        ok++
+      }
+    } catch (e) {
+      const why = e instanceof Error ? e.message : '파일 등록에 실패했습니다'
+      const rest = picked[ok]?.name
+      setErr(picked.length > 1 ? `${ok}장 등록 후 실패${rest ? ` (${rest})` : ''} — ${why}` : why)
+    } finally {
       load()
-    } catch (e) { setErr(e instanceof Error ? e.message : '파일 등록에 실패했습니다') }
-    finally { setBusy(null) }
+      setBusy(null)
+    }
   }
 
   async function handleDelete(fileId: number) {
@@ -182,7 +208,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
       {err && <div style={s.err}>{err}</div>}
 
       {TRACK_ORDER.map(track => {
-        const list = STEPS.filter(d => d.track === track)
+        const list = defs.filter(d => d.track === track)
         const n = list.filter(d => doneCodes.has(d.code)).length
         const late = list.some(d => byCode.get(d.code)?.stalled && !doneCodes.has(d.code))
         return (
@@ -203,14 +229,16 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
             </div>
 
             {list.map(def => {
-              const st = byCode.get(def.code)!
+              // 카탈로그에는 있는데 단계 행이 아직 없을 수 있다(주문 직후 한순간) — 건너뛴다
+              const st = byCode.get(def.code)
+              if (!st) return null
               const phase = phaseOf(def)
               const kinds = st.files.map(f => f.kind)
-              const gate = canComplete(def.code, states, kinds)
+              const gate = canComplete(def.code, states, kinds, defs)
               const needDate = !!def.dateLabel
               const dateOk = !needDate || !!dates[def.code]
               const ackOk = !def.ackLabel || acked.has(def.code)
-              const undo = canUndo(def.code, states)
+              const undo = canUndo(def.code, states, defs)
 
               return (
                 <div key={def.code} style={phase === 'now' ? (st.stalled ? s.rowNowLate : s.rowNow) : s.row}>
@@ -255,7 +283,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
 
                     {phase === 'later' && (
                       <span style={s.laterWhy}>
-                        {def.requires.filter(q => !doneCodes.has(q)).map(q => STEP_BY_CODE[q]!.label).join(' · ')} 뒤
+                        {def.requires.filter(q => !doneCodes.has(q)).map(q => defByCode[q]?.label ?? q).join(' · ')} 뒤
                       </span>
                     )}
 
@@ -335,7 +363,18 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                         <EvidenceRow key={kind} kind={kind} orderId={orderId}
                           files={st.files.filter(f => f.kind === kind)}
                           canEdit={canEdit} busy={busy === def.code + kind}
-                          onPick={f => handleUpload(def.code, kind, f)} onDelete={handleDelete} />
+                          onPick={fs => handleUpload(def.code, kind, fs)} onDelete={handleDelete} />
+                      ))}
+                      {/*
+                        **검수 사진은 어느 단계에나 붙는다** — 완료를 막지 않는 덧증빙이다.
+                        나중에 「그때 이 부분이 어땠나」를 물을 때 남아 있는 것은 사진뿐이고,
+                        그때 가서는 다시 찍을 수 없다. 그래서 필수가 아닌 자리에도 열어 둔다.
+                      */}
+                      {EXTRA_EVIDENCE.filter(k => !def.evidence.includes(k)).map(kind => (
+                        <EvidenceRow key={kind} kind={kind} orderId={orderId} optional
+                          files={st.files.filter(f => f.kind === kind)}
+                          canEdit={canEdit} busy={busy === def.code + kind}
+                          onPick={fs => handleUpload(def.code, kind, fs)} onDelete={handleDelete} />
                       ))}
 
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
@@ -374,13 +413,15 @@ function Rec({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 /** 증빙 한 종류 — 올린 것 목록 + 올리기 버튼. */
-function EvidenceRow({ kind, orderId, files, canEdit, busy, onPick, onDelete }: {
+function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, onDelete }: {
   kind: EvidenceKind
   orderId: number
   files: { id: number; name: string | null; size: number | null }[]
   canEdit: boolean
   busy: boolean
-  onPick: (f: File) => void
+  /** 완료를 막지 않는 덧증빙 — 없어도 넘어간다. 그걸 화면에 적어 준다 */
+  optional?: boolean
+  onPick: (files: File[]) => void
   onDelete: (id: number) => void
 }) {
   const ref = useRef<HTMLInputElement>(null)
@@ -388,18 +429,21 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, onPick, onDelete }: 
   return (
     <div style={s.evidence}>
       <div style={s.evidenceHead}>
-        <span style={files.length > 0 ? s.evidenceOk : s.evidenceNeed}>
+        <span style={files.length > 0 ? s.evidenceOk : optional ? s.evidenceOpt : s.evidenceNeed}>
           {files.length > 0 ? '✓' : '·'} {EVIDENCE_LABEL[kind]}
+          {optional && <span style={s.optTag}> · 선택</span>}
+          {files.length > 1 && <span style={s.optTag}> · {files.length}장</span>}
         </span>
         <span style={s.evidenceHint}>{original ? '원본 저장' : `긴 변 ${MAX_EDGE}px 로 축소 저장`}</span>
         {canEdit && (
           <button style={busy ? BTN.rowDisabled : BTN.row} disabled={busy} onClick={() => ref.current?.click()}>
-            {busy ? '등록 중' : '등록'}
+            {busy ? '등록 중' : files.length > 0 ? '추가' : '등록'}
           </button>
         )}
-        <input ref={ref} type="file" style={{ display: 'none' }}
+        {/* 여러 장 고를 수 있다 — 검수 사진은 한 장으로 끝나는 일이 드물다 */}
+        <input ref={ref} type="file" multiple style={{ display: 'none' }}
           accept={original ? 'image/*,application/pdf' : 'image/*'}
-          onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = '' }} />
+          onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length) onPick(fs); e.target.value = '' }} />
       </div>
       {files.map(f => (
         <div key={f.id} style={s.file}>
@@ -477,6 +521,8 @@ const s: Record<string, React.CSSProperties> = {
   evidence: { marginTop: 'var(--sp-2)' },
   evidenceHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   evidenceOk: { fontSize: 'var(--fs-label)', color: 'var(--dark)' },
+  evidenceOpt: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)' },
+  optTag: { fontWeight: 400, color: 'var(--muted)' },
   evidenceNeed: { fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 600 },
   evidenceHint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', flex: 1, minWidth: 0 },
   file: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginTop: 3, paddingLeft: 14 },
