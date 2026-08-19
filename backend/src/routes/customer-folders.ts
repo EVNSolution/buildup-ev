@@ -12,7 +12,7 @@ import { Router, type Request, type Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { prisma } from '../lib/prisma.js';
-import { rbac, isAdmin } from '../middleware/rbac.js';
+import { rbac, ownQuotesOnly } from '../middleware/rbac.js';
 import { VISIBLE } from '../lib/visibility.js';
 import {
   groupCustomers, collectDocs, resolveDocId,
@@ -34,42 +34,71 @@ function guard(fn: (req: Request, res: Response) => Promise<void>) {
 }
 
 /**
- * 이 사용자가 볼 수 있는 고객 그룹 전부.
+ * **내가 볼 수 있는 견적**의 조건 — 견적 목록(`GET /quotes`)과 **글자 그대로 같아야 한다.**
  *
- * 영업은 자기 견적에 붙은 고객만 본다 — 견적을 못 보는 고객의 서류를 볼 이유가 없다.
- * 숨긴 고객은 빼되, **숨긴 고객의 서류가 다른 행에 섞여 있으면** 그 행은 그대로 보인다
- * (같은 사람인데 한 행만 숨긴 경우 — 숨김은 목록 정리용이지 서류를 없애는 뜻이 아니다).
+ * ⚠️ 처음엔 고객 쪽에서 「내 견적이 하나라도 붙은 고객」으로 골랐다. 그런데 그 조건에는
+ *    견적의 숨김 여부가 빠져 있어, **숨긴 견적의 고객이 서류함에만 남았다** —
+ *    「견적·주문에는 아무것도 없는데 서류함에는 고객이 둘」이 됐다(실제 제보).
+ *    범위는 한 곳에서만 정해야 두 화면이 갈리지 않는다.
  */
-async function visibleGroups(req: Request): Promise<CustomerGroup[]> {
+function quoteScope(req: Request) {
   const auth = req.auth!;
-  const where = isAdmin(auth)
-    ? { ...VISIBLE }
-    : { ...VISIBLE, quotes: { some: { sales_user_id: auth.email } } };
-
-  const rows = await prisma!.customer.findMany({
-    where,
-    select: { id: true, name: true, reg_no: true, phone: true, updated_at: true },
-  });
-  return groupCustomers(rows as FolderCustomer[]);
+  return {
+    ...VISIBLE,
+    ...(ownQuotesOnly(auth) ? { sales_user_id: auth.email } : {}),
+  };
 }
 
-/** 그룹의 **최근 활동 시각** — 고객 행 수정과 서류 발행 중 더 나중 것. */
-async function lastActivity(g: CustomerGroup): Promise<{ at: Date; quotes: number }> {
+/**
+ * 이 사용자가 볼 수 있는 고객 그룹 전부.
+ *
+ * **고객이 아니라 견적에서 출발한다.** 서류함은 「내가 견적을 낸 고객」의 서류를 모으는
+ * 자리라, 볼 수 있는 견적이 하나도 없는 고객은 애초에 여기 있을 일이 없다.
+ * (고객 쪽에서 출발하면 조건을 하나 빠뜨렸을 때 남의 고객이 조용히 섞인다)
+ */
+async function visibleGroups(req: Request): Promise<{ groups: CustomerGroup[]; quoteCount: Map<number, number> }> {
+  const quotes = await prisma!.quote.findMany({
+    where: quoteScope(req),
+    select: { customer_id: true },
+  });
+  const ids = [...new Set(quotes.map(q => q.customer_id).filter((v): v is number => v !== null))];
+  if (ids.length === 0) return { groups: [], quoteCount: new Map() };
+
+  const rows = await prisma!.customer.findMany({
+    where: { id: { in: ids }, ...VISIBLE },
+    select: { id: true, name: true, reg_no: true, phone: true, updated_at: true },
+  });
+  const groups = groupCustomers(rows as FolderCustomer[]);
+
+  // 고객 행별 견적 수 — 그룹으로 합쳐 화면에 「견적 N건」으로 적는다
+  const per = new Map<number, number>();
+  for (const q of quotes) {
+    if (q.customer_id === null) continue;
+    per.set(q.customer_id, (per.get(q.customer_id) ?? 0) + 1);
+  }
+  return { groups, quoteCount: per };
+}
+
+/**
+ * 그룹의 **최근 활동 시각** — 고객 행 수정과 서류 발행 중 더 나중 것.
+ * ⚠️ 세는 견적은 **범위 안의 것만**이다. 남의 견적 시각이 섞이면 내 목록에 없는 건 때문에
+ *    고객이 맨 위로 올라온다.
+ */
+async function lastActivity(req: Request, g: CustomerGroup): Promise<Date> {
   const agg = await prisma!.quote.aggregate({
-    where: { customer_id: { in: g.ids }, ...VISIBLE },
+    where: { customer_id: { in: g.ids }, ...quoteScope(req) },
     _max: { created_at: true, docs_frozen_at: true, docs_emailed_at: true },
-    _count: { _all: true },
   });
   const times = [g.updatedAt, agg._max.created_at, agg._max.docs_frozen_at, agg._max.docs_emailed_at]
     .filter((d): d is Date => !!d);
-  return { at: new Date(Math.max(...times.map(d => d.getTime()))), quotes: agg._count._all };
+  return new Date(Math.max(...times.map(d => d.getTime())));
 }
 
 // ── GET /customer-folders — 폴더 목록(최근 변경 순) ─────────────────────────
 customerFoldersRouter.get('/', rbac('ADMIN', 'SALES'), guard(async (req, res) => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결이 필요합니다' } }); return; }
 
-  const groups = await visibleGroups(req);
+  const { groups, quoteCount } = await visibleGroups(req);
   const rows = await Promise.all(groups.map(async g => ({
     key: g.key,
     name: g.name,
@@ -77,12 +106,13 @@ customerFoldersRouter.get('/', rbac('ADMIN', 'SALES'), guard(async (req, res) =>
     phone: g.phone,
     /** 한 사람인데 고객 행이 여럿인 경우 — 화면에서 「행 2개」로 알려 준다 */
     merged: g.ids.length,
-    ...await lastActivity(g),
+    quotes: g.ids.reduce((n, id) => n + (quoteCount.get(id) ?? 0), 0),
+    at: await lastActivity(req, g),
   })));
 
   // 최근에 손댄 고객이 위로 — 「방금 뭘 했더라」가 가장 잦은 질문이다
   rows.sort((a, b) => b.at.getTime() - a.at.getTime());
-  res.json({ data: rows.map(r => ({ ...r, last_activity: r.at.toISOString(), at: undefined })) });
+  res.json({ data: rows.map(({ at, ...r }) => ({ ...r, last_activity: at.toISOString() })) });
 }));
 
 // ── GET /customer-folders/:key — 폴더 안 ───────────────────────────────────
@@ -92,11 +122,11 @@ customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res
   if (!Number.isInteger(key)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 고객 번호입니다' } }); return; }
 
   // ⚠️ 목록과 **같은 범위**로 다시 찾는다 — 주소창에서 열쇠만 바꿔 남의 서류를 열 수 없게
-  const g = (await visibleGroups(req)).find(x => x.key === key);
+  const g = (await visibleGroups(req)).groups.find(x => x.key === key);
   if (!g) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '고객을 찾을 수 없습니다' } }); return; }
 
   const quotes = await prisma.quote.findMany({
-    where: { customer_id: { in: g.ids }, ...VISIBLE },
+    where: { customer_id: { in: g.ids }, ...quoteScope(req) },
     select: {
       quote_no: true, docs_frozen_at: true,
       docs_frozen_quote_path: true, docs_frozen_contract_path: true,
@@ -124,7 +154,7 @@ customerFoldersRouter.get('/:key/file/:docId', rbac('ADMIN', 'SALES'), guard(asy
   const key = Number(req.params['key']);
   if (!Number.isInteger(key)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 고객 번호입니다' } }); return; }
 
-  const g = (await visibleGroups(req)).find(x => x.key === key);
+  const g = (await visibleGroups(req)).groups.find(x => x.key === key);
   if (!g) { res.status(404).json({ error: { code: 'NOT_FOUND' } }); return; }
 
   /*
@@ -135,7 +165,7 @@ customerFoldersRouter.get('/:key/file/:docId', rbac('ADMIN', 'SALES'), guard(asy
   if (!abs) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 파일입니다' } }); return; }
 
   const quotes = await prisma.quote.findMany({
-    where: { customer_id: { in: g.ids }, ...VISIBLE },
+    where: { customer_id: { in: g.ids }, ...quoteScope(req) },
     select: { quote_no: true, docs_frozen_at: true, docs_frozen_quote_path: true, docs_frozen_contract_path: true },
   });
   const pinned: PinnedInput[] = quotes.filter(q => q.docs_frozen_at).map(q => ({

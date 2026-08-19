@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { groupCustomers, resolveDocId, docId, type FolderCustomer } from '../services/customer-folders.js';
 
 /**
@@ -144,5 +146,29 @@ describe('파일 열쇠', () => {
     process.env['DOC_STORAGE_DIR'] = '/tmp/doc-store-test';
     const abs = '/tmp/doc-store-test/customers/7_홍길동/0001_2026-08-19_견적서.pdf';
     expect(resolveDocId(docId(abs))).toBe(abs);
+  });
+});
+
+describe('범위는 견적 목록과 같아야 한다', () => {
+  const SRC = readFileSync(path.resolve(__dirname, '../routes/customer-folders.ts'), 'utf8');
+
+  it('견적을 읽는 곳은 모두 quoteScope 를 거친다', () => {
+    /*
+     * 서류함이 견적 목록보다 넓게 보면 「견적·주문에는 없는데 서류함에는 있다」가 된다.
+     * 실제로 그랬다 — 고객 쪽에서 `quotes: { some: { sales_user_id } }` 로 골랐는데
+     * 그 조건에 견적의 숨김 여부가 빠져 있어, 숨긴 견적의 고객이 서류함에만 남았다.
+     */
+    // 호출 지점마다 그 뒤 한 덩어리 안에 quoteScope 가 있는지 본다
+    const calls = [...SRC.matchAll(/\.quote\.(?:findMany|aggregate)\(/g)];
+    expect(calls.length, '견적을 읽는 곳이 하나도 안 잡혔다 — 검사식을 고쳐야 한다').toBeGreaterThan(0);
+    for (const m of calls) {
+      const chunk = SRC.slice(m.index!, m.index! + 260);
+      expect(chunk, `quoteScope 를 안 거친다:\n${chunk}`).toMatch(/quoteScope\(req\)/);
+    }
+  });
+
+  it('고객을 견적 없이 훑지 않는다 — 볼 수 있는 견적에서 출발한다', () => {
+    // customer 를 먼저 훑으면 조건을 하나 빠뜨렸을 때 남의 고객이 조용히 섞인다
+    expect(SRC).not.toMatch(/quotes:\s*\{\s*some:/);
   });
 });
