@@ -51,13 +51,13 @@ export async function saveQuote(req: SaveQuoteRequest): Promise<{ quote_id: numb
   return body.data
 }
 
-export async function fetchQuotes(params: { status?: string; from?: string; to?: string; includeHidden?: boolean }): Promise<ApiQuote[]> {
+export async function fetchQuotes(params: { status?: string; from?: string; to?: string; view?: 'active' | 'hidden' }): Promise<ApiQuote[]> {
   const q = new URLSearchParams()
   if (params.status) q.set('status', params.status)
   if (params.from) q.set('from', params.from)
   if (params.to) q.set('to', params.to)
-  // 숨긴 견적은 기본으로 빠진다. 되돌리려면 볼 수 있어야 해서 토글을 둔다.
-  if (params.includeHidden) q.set('include_hidden', 'true')
+  // 「숨김」은 숨긴 것만 — 진행 중인 것과 섞지 않는다
+  if (params.view === 'hidden') q.set('view', 'hidden')
   const url = `/api/v1/quotes${q.toString() ? '?' + q.toString() : ''}`
   const res = await fetch(url, { credentials: 'include' })
   if (!res.ok) throw new Error(`견적 목록 로드 실패: ${res.status}`)

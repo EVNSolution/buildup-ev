@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { VISIBLE, visibleUnless, wantsHidden } from '../lib/visibility.js';
+import { VISIBLE, visibilityWhere, viewOf } from '../lib/visibility.js';
 
 /**
  * 숨김 필터를 **빠뜨리지 않았는가.**
@@ -45,15 +45,19 @@ describe('숨김 필터', () => {
     expect(VISIBLE).toEqual({ hidden_at: null });
   });
 
-  it('숨김 포함이면 조건을 걸지 않는다', () => {
-    expect(visibleUnless(false)).toEqual({ hidden_at: null });
-    expect(visibleUnless(true)).toEqual({});
+  /**
+   * 「숨김」은 **숨긴 것만**이다. 예전엔 「숨김 포함」이라 전체가 나와,
+   * 숨김 보기에서 무엇이 숨겨졌는지 알 수 없었다.
+   */
+  it('진행 중 보기는 안 숨긴 것만, 숨김 보기는 숨긴 것만', () => {
+    expect(visibilityWhere('active')).toEqual({ hidden_at: null });
+    expect(visibilityWhere('hidden')).toEqual({ hidden_at: { not: null } });
   });
 
-  it("include_hidden 은 정확히 'true' 일 때만 참 — 아무 값이나 통과시키지 않는다", () => {
-    expect(wantsHidden('true')).toBe(true);
-    for (const v of ['false', '1', 'yes', '', undefined, null, true]) {
-      expect(wantsHidden(v), `${String(v)} 가 통과했다`).toBe(false);
+  it("view 는 정확히 'hidden' 일 때만 숨김 보기 — 나머지는 전부 진행 중", () => {
+    expect(viewOf('hidden')).toBe('hidden');
+    for (const v of ['active', 'true', '1', 'yes', '', undefined, null, true]) {
+      expect(viewOf(v), `${String(v)} 가 숨김 보기로 새어 들어갔다`).toBe('active');
     }
   });
 

@@ -6,6 +6,7 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden } from '../api/quotes'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
+import { Segmented } from '../components/ui/Segmented'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
@@ -784,42 +785,53 @@ function CustomersTab() {
   const [rows, setRows] = useState<AdminCustomer[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [includeHidden, setIncludeHidden] = useState(false)
+  const [note, setNote] = useState('')
+  /** 보기 — 「사용 중」과 「숨김」을 **섞지 않는다.** 정리 작업은 숨긴 것만 따로 보는 게 편하다 */
+  const [view, setView] = useState<'active' | 'hidden'>('active')
   const [busy, setBusy] = useState<number | null>(null)
 
   function load() {
     setLoading(true)
-    fetchCustomers(includeHidden)
+    fetchCustomers(view)
       .then(setRows)
       .catch(e => setErr(e instanceof Error ? e.message : '고객 목록을 불러오지 못했습니다'))
       .finally(() => setLoading(false))
   }
-  useEffect(load, [includeHidden])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [view])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggle(c: AdminCustomer) {
+    const hiding = !c.hidden_at
+    // 견적이 함께 숨겨지는 건 놀랄 일이라 미리 알린다
+    if (hiding && c._count.quotes > 0) {
+      if (!window.confirm(`${c.name} 고객을 숨깁니다.\n\n이 고객의 견적 ${c._count.quotes}건도 함께 숨겨집니다.\n지우는 것이 아니라 화면에서만 감추며, 언제든 되돌릴 수 있습니다.`)) return
+    }
     setBusy(c.id); setErr('')
     try {
-      await setCustomerHidden(c.id, !c.hidden_at)
+      const r = await setCustomerHidden(c.id, hiding)
       load()
+      if (hiding && r.quotes_affected > 0) setNote(`${c.name} · 견적 ${r.quotes_affected}건도 함께 숨겼습니다`)
+      else if (!hiding && r.quotes_affected > 0) setNote(`${c.name} · 함께 숨겼던 견적 ${r.quotes_affected}건을 되돌렸습니다`)
+      else setNote('')
     } catch (e) {
       setErr(e instanceof Error ? e.message : '처리 실패')
     } finally { setBusy(null) }
   }
 
-  const hiddenCount = rows.filter(r => r.hidden_at).length
-
   return (
     <div>
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-label)' }}>
-          <input type="checkbox" checked={includeHidden} onChange={e => setIncludeHidden(e.target.checked)} />
-          숨긴 고객 포함
-        </label>
+        <Segmented
+          items={[{ value: 'active', label: '사용 중' }, { value: 'hidden', label: '숨김' }]}
+          value={view}
+          onChange={setView}
+          size="sm"
+        />
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)' }}>
-          {rows.length}명{includeHidden && hiddenCount > 0 ? ` · 숨김 ${hiddenCount}` : ''}
+          {view === 'hidden' ? `숨긴 고객 ${rows.length}명` : `${rows.length}명`}
         </span>
       </div>
       {err && <div style={{ color: 'var(--req)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{err}</div>}
+      {note && <div style={{ color: 'var(--muted)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{note}</div>}
       {loading ? <div style={{ padding: 'var(--sp-5)', color: 'var(--muted)' }}>불러오는 중…</div> : (
         <div style={qt.tableWrap}>
           <table style={qt.table}>
@@ -829,6 +841,7 @@ function CustomersTab() {
                 <th style={qt.th}>연락처</th>
                 <th style={qt.th}>생년월일·사업자</th>
                 <th style={qt.th}>견적</th>
+                <th style={qt.th}>계약</th>
                 <th style={qt.th}>WARP</th>
                 <th style={qt.th}>등록</th>
                 <th style={qt.th}>액션</th>
@@ -844,17 +857,28 @@ function CustomersTab() {
                   <td style={qt.td}>{c.phone ?? '—'}</td>
                   <td style={qt.td}>{c.reg_no ?? '—'}</td>
                   <td style={qt.tdNum}>{c._count.quotes}</td>
+                  <td style={qt.tdNum}>{c.contract_quotes || '—'}</td>
                   <td style={qt.td}>{c.warp_customer_id ? '연결됨' : '—'}</td>
                   <td style={qt.td}>{c.created_at.slice(0, 10)}</td>
                   <td style={qt.td}>
-                    <button
-                      style={busy === c.id || (!c.hidden_at && !!c.warp_customer_id) ? BTN.rowDisabled : BTN.row}
-                      disabled={busy === c.id || (!c.hidden_at && !!c.warp_customer_id)}
-                      title={c.warp_customer_id && !c.hidden_at
-                        ? 'WARP 에 연결된 고객은 숨길 수 없습니다'
-                        : (c.hidden_at ? '다시 보이게 합니다' : '화면에서만 감춥니다. 지우지 않습니다')}
-                      onClick={() => toggle(c)}
-                    >{busy === c.id ? '…' : (c.hidden_at ? '다시 보이기' : '숨기기')}</button>
+                    {(() => {
+                      // 숨길 수 없는 이유를 버튼 자리에서 바로 알려 준다
+                      const blocked = !c.hidden_at
+                        ? (c.warp_customer_id ? 'WARP 에 연결된 고객은 숨길 수 없습니다'
+                          : c.contract_quotes > 0 ? `계약이 있는 견적 ${c.contract_quotes}건이 있어 숨길 수 없습니다` : '')
+                        : ''
+                      const off = busy === c.id || !!blocked
+                      return (
+                        <button
+                          style={off ? BTN.rowDisabled : BTN.row}
+                          disabled={off}
+                          title={blocked || (c.hidden_at
+                            ? '고객과 함께 숨긴 견적을 되돌립니다'
+                            : '고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다')}
+                          onClick={() => toggle(c)}
+                        >{busy === c.id ? '…' : (c.hidden_at ? '다시 보이기' : '고객 숨기기')}</button>
+                      )
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -870,8 +894,8 @@ function CustomersTab() {
 function QuotesTab() {
   // 견적 삭제를 없애면서 is_master 분기가 사라졌다 — 마스터만 할 수 있는 일이 이 탭엔 없다
   const isMobile = useIsMobile()
-  /** 숨긴 견적까지 볼지 — 숨김은 지운 게 아니라 감춘 것이라 되돌리려면 보여야 한다 */
-  const [includeHidden, setIncludeHidden] = useState(false)
+  /** 보기 — 「진행 중」과 「숨김」을 섞지 않는다. 정리는 숨긴 것만 따로 보는 게 편하다 */
+  const [view, setView] = useState<'active' | 'hidden'>('active')
   const [hidingId, setHidingId] = useState<number | null>(null)
 
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
@@ -900,14 +924,14 @@ function QuotesTab() {
 
   function load() {
     setLoading(true); setErr('')
-    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined, includeHidden })
+    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined, view })
       .then(setQuotes)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
   }
 
-  // 숨김 포함 토글을 바꾸면 다시 읽는다(조회 조건이 바뀐다)
-  useEffect(() => { load() }, [includeHidden]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 보기를 바꾸면 다시 읽는다(조회 조건이 바뀐다)
+  useEffect(() => { load() }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 서면계약 등록 (견적확정→계약완료). 스캔본이 있어야만 호출된다(모달이 막는다).
   async function handlePaperSubmit(file: File) {
@@ -1014,10 +1038,12 @@ function QuotesTab() {
           <span style={qt.dateSep}>~</span>
           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput }} />
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-label)' }}>
-          <input type="checkbox" checked={includeHidden} onChange={e => setIncludeHidden(e.target.checked)} />
-          숨긴 견적 포함
-        </label>
+        <Segmented
+          items={[{ value: 'active', label: '진행 중' }, { value: 'hidden', label: '숨김' }]}
+          value={view}
+          onChange={setView}
+          size="sm"
+        />
         <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
       </div>
 
@@ -1108,7 +1134,7 @@ function QuotesTab() {
                     style={{ ...(hidingId === q.id ? BTN.rowDisabled : BTN.row), width: '100%' }}
                     disabled={hidingId === q.id}
                     onClick={() => handleHide(q.id, !q.hidden_at)}
-                  >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '숨기기')}</button>
+                  >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                 )}
               </div>
             </div>
@@ -1207,9 +1233,9 @@ function QuotesTab() {
                         <button
                           style={hidingId === q.id ? BTN.rowDisabled : BTN.row}
                           disabled={hidingId === q.id}
-                          title={q.hidden_at ? '다시 보이게 합니다' : '화면에서만 감춥니다. 지우지 않습니다'}
+                          title={q.hidden_at ? '다시 보이게 합니다' : '이 견적만 화면에서 감춥니다. 지우지 않습니다'}
                           onClick={() => handleHide(q.id, !q.hidden_at)}
-                        >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '숨기기')}</button>
+                        >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                       )}
                     </div>
                   </td>
