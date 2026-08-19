@@ -37,16 +37,23 @@ async function jsonOrThrow(res: Response, what: string) {
   throw new Error(body.error?.message ?? `${what} 실패: ${res.status}`)
 }
 
-export async function fetchFolders(): Promise<ApiFolderRow[]> {
-  const res = await fetch('/api/v1/customer-folders', { credentials: 'include' })
+/**
+ * `mine` — **영업 화면에서 부를 때 참으로 준다.** 겸직(영업+관리자) 계정이라도
+ * 남의 담당 고객은 보지 않는다. 좁히기만 하므로 권한이 넓어지는 일은 없다.
+ */
+const mineQ = (mine?: boolean) => (mine ? '?scope=mine' : '')
+
+export async function fetchFolders(mine?: boolean): Promise<ApiFolderRow[]> {
+  const res = await fetch(`/api/v1/customer-folders${mineQ(mine)}`, { credentials: 'include' })
   return (await jsonOrThrow(res, '서류함 조회') as { data: ApiFolderRow[] }).data
 }
 
-export async function fetchFolder(key: number): Promise<ApiFolder> {
-  const res = await fetch(`/api/v1/customer-folders/${key}`, { credentials: 'include' })
+export async function fetchFolder(key: number, mine?: boolean): Promise<ApiFolder> {
+  const res = await fetch(`/api/v1/customer-folders/${key}${mineQ(mine)}`, { credentials: 'include' })
   return await jsonOrThrow(res, '서류함 조회') as ApiFolder
 }
 
-export function folderFileUrl(key: number, docId: string, download = false): string {
-  return `/api/v1/customer-folders/${key}/file/${docId}${download ? '?dl=1' : ''}`
+export function folderFileUrl(key: number, docId: string, download = false, mine?: boolean): string {
+  const qs = [mine ? 'scope=mine' : '', download ? 'dl=1' : ''].filter(Boolean).join('&')
+  return `/api/v1/customer-folders/${key}/file/${docId}${qs ? '?' + qs : ''}`
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac, requirePermission, ownQuotesOnly } from '../middleware/rbac.js';
+import { rbac, requirePermission, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
@@ -109,11 +109,16 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
     return;
   }
   const auth = req.auth!;
-  const { status, from, to, view } = req.query as Record<string, string | undefined>;
+  const { status, from, to, view, scope } = req.query as Record<string, string | undefined>;
 
   // 「진행 중」이 기본. 「숨김」을 고르면 **숨긴 것만** 나온다(섞이면 무엇이 숨겨졌는지 모른다).
   const where: Prisma.QuoteWhereInput = { ...visibilityWhere(viewOf(view)) };
-  if (ownQuotesOnly(auth)) where.sales_user_id = auth.email;
+  /*
+   * 영업 화면은 `scope=mine` 을 붙여 부른다 — **겸직 계정이라도 남의 견적은 안 본다.**
+   * 관리자 화면에서 전체를 보는 것과, 영업으로 일하는 화면에 남의 담당 건이 섞이는 것은
+   * 전혀 다른 일이다. 이 값은 좁히기만 하므로 화면이 보낸 값을 믿어도 권한이 새지 않는다.
+   */
+  if (ownQuotesOnly(auth) || scopedToMine(auth, scope)) where.sales_user_id = auth.email;
   if (status) where.status = status as QuoteStatus;
   if (from || to) {
     where.created_at = {

@@ -55,8 +55,16 @@ export async function saveQuote(req: SaveQuoteRequest): Promise<{ quote_id: numb
   return body.data
 }
 
-export async function fetchQuotes(params: { status?: string; from?: string; to?: string; view?: 'active' | 'hidden' }): Promise<ApiQuote[]> {
+export async function fetchQuotes(params: {
+  status?: string; from?: string; to?: string; view?: 'active' | 'hidden'
+  /**
+   * `'mine'` — **영업 화면에서 부를 때 붙인다.** 겸직(영업+관리자) 계정이라도
+   * 남의 담당 견적은 보지 않는다. 좁히기만 하므로 붙여서 권한이 넓어지는 일은 없다.
+   */
+  scope?: 'mine'
+}): Promise<ApiQuote[]> {
   const q = new URLSearchParams()
+  if (params.scope) q.set('scope', params.scope)
   if (params.status) q.set('status', params.status)
   if (params.from) q.set('from', params.from)
   if (params.to) q.set('to', params.to)

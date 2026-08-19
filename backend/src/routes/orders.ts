@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices } from '../middleware/rbac.js';
+import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
@@ -17,14 +17,19 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     return;
   }
   const auth = req.auth!;
-  const { status, from, to } = req.query as Record<string, string | undefined>;
+  const { status, from, to, scope } = req.query as Record<string, string | undefined>;
 
   const where: Prisma.OrderWhereInput = {};
   /*
    * 범위는 **가진 역할 전부**로 정한다. 관리자면 전체, 아니면 겸직한 역할만큼 넓힌다
    * (영업+특장 겸직이면 자기 견적의 주문 ∪ 자기 조직에 배정된 주문).
+   *
+   * 단 영업 화면(`scope=mine`)에서는 **겸직 계정이라도 자기 견적의 주문만** 본다 —
+   * 견적 목록과 같은 규칙이다(마스터는 제외).
    */
-  if (!isAdmin(auth)) {
+  if (scopedToMine(auth, scope)) {
+    where.quote = { sales_user_id: auth.email };
+  } else if (!isAdmin(auth)) {
     const scopes: Prisma.OrderWhereInput[] = [];
     if (auth.roles.includes('MAKER')) scopes.push({ maker_org_id: auth.org_code });
     if (auth.roles.includes('SALES')) scopes.push({ quote: { sales_user_id: auth.email } });

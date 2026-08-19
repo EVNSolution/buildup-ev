@@ -1,9 +1,11 @@
 import type { ApiOrder, ApiOrderMakerDetail, OrderVehicleInfo, Org } from '@shared/types/index'
 
 export async function fetchOrders(
-  params: { status?: string; from?: string; to?: string },
+  /** `scope: 'mine'` — 영업 화면에서 붙인다(겸직 계정이라도 남의 주문은 안 본다) */
+  params: { status?: string; from?: string; to?: string; scope?: 'mine' },
 ): Promise<ApiOrder[]> {
   const q = new URLSearchParams()
+  if (params.scope) q.set('scope', params.scope)
   if (params.status) q.set('status', params.status)
   if (params.from) q.set('from', params.from)
   if (params.to) q.set('to', params.to)

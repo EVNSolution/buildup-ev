@@ -2,6 +2,17 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsTouch } from '../hooks/useIsTouch'
 
+/**
+ * 말풍선 폭 — **내용에 맞춰 고른다.** 기본값 하나로 버티면 줄이 많은 설명이 접혀 무너진다.
+ * 좁은 화면에서도 좌우 8px 여백을 남기고 들어가도록 화면 폭에 맞춰 줄어든다(아래 clamp).
+ */
+export const TIP_WIDTH = {
+  /** 한두 줄짜리 짧은 설명 */
+  base: 220,
+  /** 여러 줄에 각각 이름+설명이 붙는 것(견적 상태 흐름 같은) */
+  wide: 300,
+} as const
+
 interface Props {
   text: React.ReactNode
   children: React.ReactNode
@@ -49,8 +60,13 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
     if (closeOpenTooltip && closeOpenTooltip !== close) closeOpenTooltip()
     const r = triggerRef.current.getBoundingClientRect()
     const cx = r.left + r.width / 2
+    /*
+     * 화면보다 넓은 말풍선은 있을 수 없다 — 넓은 설명을 좁은 휴대폰에서 열면
+     * 왼쪽으로 밀려 잘린다. 좌우 8px 을 남기고 들어갈 만큼으로 줄인다.
+     */
+    const w = Math.min(maxWidth, window.innerWidth - 16)
     // left edge of tooltip, clamped to stay inside viewport
-    const left = Math.max(8, Math.min(cx - maxWidth / 2, window.innerWidth - maxWidth - 8))
+    const left = Math.max(8, Math.min(cx - w / 2, window.innerWidth - w - 8))
     if (placement === 'above') {
       setPos({ bottom: window.innerHeight - r.top + 6, left })
     } else {
@@ -95,7 +111,7 @@ export function Tooltip({ text, children, placement = 'below', maxWidth = 220, m
       bottom: pos.bottom,
       left: pos.left,
       minWidth,
-      maxWidth,
+      maxWidth: `min(${maxWidth}px, calc(100vw - 16px))`,
       zIndex: 9999,
       background: 'var(--dark)',
       color: '#fff',
