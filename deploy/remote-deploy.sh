@@ -250,7 +250,7 @@ ${SERVER_NAME} {
 EOF_CADDY
 chmod 644 "$caddy_candidate"
 
-if ! caddy validate --config "$caddy_candidate"; then
+if ! caddy validate --config "$caddy_candidate" --adapter caddyfile; then
   cleanup_file "$caddy_candidate"
   cleanup_file "$caddy_backup"
   pm2 delete "$pm2_name" >/dev/null 2>&1 || true
