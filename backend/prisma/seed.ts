@@ -74,11 +74,18 @@ async function main() {
   }));
   const first  = users.filter(u => !u.invited_by);
   const second = users.filter(u =>  u.invited_by);
+  /*
+   * `extra_roles` 는 **create 갈래에만** 넣는다.
+   * 운영 DB 컬럼에 기본값이 없어(NOT NULL · DEFAULT 없음) 빼면 INSERT 가 실패한다.
+   * 그렇다고 update 에도 넣으면 다시 시드할 때마다 **겸직 역할이 지워진다** —
+   * 시드는 계정을 만들어 주는 것이지 사람이 정한 겸직을 되돌리는 것이 아니다.
+   */
+  const withDefaults = (u: (typeof users)[number]) => ({ ...u, extra_roles: [] });
   for (const u of first)  {
-    await prisma.user.upsert({ where: { email: u.email }, update: u, create: u });
+    await prisma.user.upsert({ where: { email: u.email }, update: u, create: withDefaults(u) });
   }
   for (const u of second) {
-    await prisma.user.upsert({ where: { email: u.email }, update: u, create: u });
+    await prisma.user.upsert({ where: { email: u.email }, update: u, create: withDefaults(u) });
   }
   console.log(`  user: ${users.length}`);
 
