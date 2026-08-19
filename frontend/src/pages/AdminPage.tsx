@@ -841,7 +841,7 @@ function CustomersTab() {
                 <th style={qt.th}>연락처</th>
                 <th style={qt.th}>생년월일·사업자</th>
                 <th style={qt.th}>견적</th>
-                <th style={qt.th}>계약</th>
+                <th style={qt.th}>발송</th>
                 <th style={qt.th}>WARP</th>
                 <th style={qt.th}>등록</th>
                 <th style={qt.th}>액션</th>
@@ -865,7 +865,7 @@ function CustomersTab() {
                       // 숨길 수 없는 이유를 버튼 자리에서 바로 알려 준다
                       const blocked = !c.hidden_at
                         ? (c.warp_customer_id ? 'WARP 에 연결된 고객은 숨길 수 없습니다'
-                          : c.contract_quotes > 0 ? `계약이 있는 견적 ${c.contract_quotes}건이 있어 숨길 수 없습니다` : '')
+                          : c.contract_quotes > 0 ? `계약서가 발송된 견적 ${c.contract_quotes}건이 있어 숨길 수 없습니다` : '')
                         : ''
                       const off = busy === c.id || !!blocked
                       return (
@@ -1129,7 +1129,7 @@ function QuotesTab() {
                 {q.status === 'contracted' && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                 )}
-                {(q.status === 'draft' || q.hidden_at) && (
+                {(
                   <button
                     style={{ ...(hidingId === q.id ? BTN.rowDisabled : BTN.row), width: '100%' }}
                     disabled={hidingId === q.id}
@@ -1228,8 +1228,8 @@ function QuotesTab() {
                       {q.status === 'contracted' && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                       )}
-                      {/* 숨기기는 임시저장만 — 진행 중인 건을 감추면 안 된다(서버도 막는다) */}
-                      {(q.status === 'draft' || q.hidden_at) && (
+                      {/* 계약서가 나가기 전까지는 언제든 숨길 수 있다(서버가 최종 판단) */}
+                      {(
                         <button
                           style={hidingId === q.id ? BTN.rowDisabled : BTN.row}
                           disabled={hidingId === q.id}

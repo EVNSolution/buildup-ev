@@ -122,11 +122,15 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
   const masterBypass = masterBypassEnabled({ is_master: dbUser.is_master });
   let permissions: string[];
   if (masterBypass) {
-    // 로컬 개발용 surface 전환 계정만 모든 활성 모듈을 본다.
+    // 개발 환경의 무제한 우회 — 모든 활성 모듈을 본다. 운영에서는 이 갈래로 오지 않는다.
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     permissions = allMods.map(m => m.code);
   } else {
-    const roles = rolesOf({ role: dbUser.role as Role, extra_roles: dbUser.extra_roles as Role[] });
+    /*
+     * 마스터는 세 역할을 가진 계정이다 — is_master 를 넘겨야 영업·관리·특장 권한이
+     * 모두 계산된다. 빠뜨리면 주 역할(ADMIN) 권한만 받아 다른 화면이 비어 보인다.
+     */
+    const roles = rolesOf({ role: dbUser.role as Role, extra_roles: dbUser.extra_roles as Role[], is_master: dbUser.is_master });
     const acs = await prisma.accessControl.findMany({
       where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
     });
@@ -145,7 +149,11 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
         must_change_pw: dbUser.must_change_pw,
         invited_by: dbUser.invited_by ?? undefined,
         active: dbUser.active,
-        is_master: masterBypass,
+        /*
+         * 화면 전환기가 읽는 값이라 **사실 그대로** 내려준다.
+         * 여기에 masterBypass(운영에서 false)를 넣었더니 마스터에게 관리자 화면만 보였다.
+         */
+        is_master: dbUser.is_master,
       },
       org: {
         code: dbUser.org.code,

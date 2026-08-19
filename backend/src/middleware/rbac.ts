@@ -38,6 +38,14 @@ function testPermissionBypassEnabled(): boolean {
 }
 
 /** 테스트용 surface 전환은 개발·테스트에서만 허용한다. */
+/**
+ * **권한 무제한 우회** — requirePermission 을 통째로 건너뛴다. 운영에서는 꺼 둔다.
+ *
+ * ⚠️ 이것은 「마스터가 세 화면을 쓸 수 있는가」와 **다른 이야기**다.
+ *    한동안 둘을 이 함수 하나로 판단해, 운영에서 우회를 끄자 마스터의 화면 전환까지
+ *    함께 꺼졌다(2026-08-19 — 마스터에게 관리자 화면만 보였다).
+ *    화면·역할은 `masterRoles` 가, 무제한 우회는 이 함수가 맡는다.
+ */
 export function masterBypassEnabled(auth: Pick<AuthContext, 'is_master'>): boolean {
   return process.env['NODE_ENV'] !== 'production' && auth.is_master === true;
 }
@@ -80,11 +88,16 @@ export function injectJwtAuth(req: Request, res: Response, next: NextFunction): 
   prisma.user.findUnique({ where: { email: payload.email } })
     .then(user => {
       if (user && user.status === 'active' && user.active) {
-        const masterBypass = masterBypassEnabled({ is_master: user.is_master });
+        /*
+         * 마스터는 **세 역할을 가진 계정**이다(영업·관리·특장 화면을 오간다).
+         * 이건 권한 우회가 아니라 역할 보유라 운영에서도 그대로다 —
+         * 실제 권한은 그 역할들의 access_control 로 계산되므로 감사할 수 있다.
+         * 무제한 우회(masterBypassEnabled)는 별개로 운영에서 꺼져 있다.
+         */
         req.auth = {
           email: user.email,
           role: user.role as Role,
-          roles: rolesOf({ role: user.role as Role, extra_roles: user.extra_roles as Role[], is_master: masterBypass }),
+          roles: rolesOf({ role: user.role as Role, extra_roles: user.extra_roles as Role[], is_master: user.is_master }),
           org_code: user.org_code,
           is_master: user.is_master,
         };

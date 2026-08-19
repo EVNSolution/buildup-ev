@@ -37,6 +37,9 @@ interface Props {
    */
   bodyOnly?: boolean
   onToggleBodyOnly?: (v: boolean) => void
+  /** 보유 차종 — 특장만 견적의 전제라 여기서 받는다 */
+  ownedModel?: string
+  onOwnedModelChange?: (v: string) => void
   /** 냉동 + 특장만일 때 필요한 V2L 확인 — 실제 체크는 특장 탭의 냉동 블럭에서 받는다 */
   v2lConfirmed?: boolean
   onV2lConfirmedChange?: (v: boolean) => void
@@ -80,6 +83,8 @@ export function OptionPanel({
   saveLabel,
   bodyOnly,
   onToggleBodyOnly,
+  ownedModel,
+  onOwnedModelChange,
   v2lConfirmed,
   onV2lConfirmedChange,
   savedQuote,
@@ -150,7 +155,9 @@ export function OptionPanel({
               안내는 **특장만을 골랐을 때만** 뜬다. 차량을 사는 견적에는 해당 없는 이야기라
               늘 띄워 두면 읽지 않게 된다. 확인(체크)은 냉동을 고르는 자리에서 받는다.
             */}
-            {bodyOnly && <BodyOnlyNotice />}
+            {bodyOnly && onOwnedModelChange && (
+              <BodyOnlyNotice model={ownedModel ?? ''} onModelChange={onOwnedModelChange} />
+            )}
           </>
         )}
         {activeTab === 'body' && (
