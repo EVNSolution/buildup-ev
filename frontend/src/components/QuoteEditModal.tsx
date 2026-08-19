@@ -12,7 +12,7 @@ import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { QuoteCustomerForm, missingRequired, type QuoteSaveValues } from './QuoteSaveModal'
 import { QuoteExtras } from './QuoteExtras'
-import { customerEditValues, mapBizType } from '../lib/quoteCustomer'
+import { customerEditValues, mapBizType, isBodyOnly } from '../lib/quoteCustomer'
 import { fetchRegions } from '../api/quotes'
 import { BTN } from '../styles/buttons'
 import { usePermission } from './PermGate'
@@ -253,7 +253,8 @@ function CustomerTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps)
   const [regions, setRegions] = useState<string[]>([])
   useEffect(() => { fetchRegions().then(setRegions).catch(() => setRegions([])) }, [])
 
-  const missing = missingRequired(v)
+  // 특장만 견적은 보조금 조건을 묻지 않는다 — 화면에 없는 값을 필수로 두면 저장이 막힌다
+  const missing = missingRequired(v, isBodyOnly(quote))
 
   async function save() {
     setBusy(true)
@@ -290,7 +291,8 @@ function CustomerTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps)
   return (
     <>
       <div style={s.scroll}>
-        <QuoteCustomerForm v={v} setV={setV} regions={regions} />
+        {/* 특장만 견적이면 보조금 칸을 감춘다 — 필수 판정과 같은 조건을 봐야 한다 */}
+        <QuoteCustomerForm v={v} setV={setV} regions={regions} bodyOnly={isBodyOnly(quote)} />
       </div>
       <SaveBar
         frozen={frozen} busy={busy || missing.length > 0} onSave={save}

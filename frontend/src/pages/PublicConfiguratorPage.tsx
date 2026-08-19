@@ -43,6 +43,12 @@ export function PublicConfiguratorPage() {
    * 냉동을 고르려면 V2L 확인이 필요하다 — 고객 차량의 사실이라 우리가 알 수 없다.
    */
   const [bodyOnly, setBodyOnly] = useState(false)
+  /*
+   * 보유 차종 — **공개 창구에서도 고르게 한다.**
+   * 어떤 차에 얹는지는 견적의 전제라, 영업이 나중에 물어보려면 통화를 한 번 더 해야 한다.
+   * 4택 드롭다운이라 묻는 값이 늘어도 신청이 길어지지 않는다.
+   */
+  const [ownedModel, setOwnedModel] = useState('')
   const [v2lConfirmed, setV2lConfirmed] = useState(false)
   const [subsidyLocal, setSubsidyLocal] = useState(0)
   const [showInquiry, setShowInquiry] = useState(false)
@@ -141,7 +147,9 @@ export function PublicConfiguratorPage() {
           isUnsupported={false}
           /* 공개 화면 — 메모·프로모션·지방보조금 소진은 아예 없다(영업 재량 값) */
           bodyOnly={bodyOnly}
-          onToggleBodyOnly={v => { setBodyOnly(v); if (!v) setV2lConfirmed(false) }}
+          onToggleBodyOnly={v => { setBodyOnly(v); if (!v) { setV2lConfirmed(false); setOwnedModel('') } }}
+          ownedModel={ownedModel}
+          onOwnedModelChange={setOwnedModel}
           v2lConfirmed={v2lConfirmed}
           onV2lConfirmedChange={setV2lConfirmed}
           publicMode
@@ -168,6 +176,7 @@ export function PublicConfiguratorPage() {
       {showInquiry && (
         <InquiryModal
           bodyOnly={bodyOnly}
+          ownedModel={ownedModel}
           modelCode={MODEL_CODE}
           selections={selections}
           subsidy={subsidyInputs}

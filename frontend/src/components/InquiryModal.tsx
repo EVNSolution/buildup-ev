@@ -78,9 +78,11 @@ interface Props {
   onDone: (inquiryId: number) => void
   /** 특장만 견적 — 금액은 서버가 다시 계산하므로 이 값이 함께 가야 맞는다 */
   bodyOnly?: boolean
+  /** 특장만 견적에서 고객이 고른 보유 차종. 차량 트림 화면에서 고른다 */
+  ownedModel?: string
 }
 
-export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, regions, onClose, onDone, bodyOnly = false }: Props) {
+export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, regions, onClose, onDone, bodyOnly = false, ownedModel = '' }: Props) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -101,12 +103,22 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
     [filled(name), '성명'],
     [phone.replace(/\D/g, '').length >= 10, '휴대폰'],
     [/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()), '이메일'],
-    // 보조금 조건은 **전부** 필수 — 하나라도 비면 화면에 보인 실구매가가 달라진다.
-    // 「· 필수」라고 써 놓고 비운 채 보내지게 두면 그 표시가 거짓말이 된다.
-    [regionOk, '지역'],
-    [subsidy.diesel_status !== '', '경유차 폐차여부'],
-    [subsidy.is_small_business !== null, '소상공인'],
-    [subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
+    // 특장만이면 어떤 차에 얹는지가 견적의 전제다 — 「차량 트림」 화면에서 고른다
+    [!bodyOnly || !!ownedModel, '보유 차종'],
+    /*
+     * 보조금 조건은 **전부** 필수 — 하나라도 비면 화면에 보인 실구매가가 달라진다.
+     * 「· 필수」라고 써 놓고 비운 채 보내지게 두면 그 표시가 거짓말이 된다.
+     *
+     * ⚠️ 단 **특장만 견적에는 이 칸들이 아예 없다**(보조금 대상이 아니라 통째로 감춘다).
+     *    그런데도 필수로 두면 채울 수 없는 값을 요구하는 셈이라 신청 버튼이 영영 안 열린다 —
+     *    영업 화면의 「견적 저장」에서 실제로 그렇게 막혔다.
+     */
+    ...(bodyOnly ? [] : [
+      [regionOk, '지역'],
+      [subsidy.diesel_status !== '', '경유차 폐차여부'],
+      [subsidy.is_small_business !== null, '소상공인'],
+      [subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
+    ] as [boolean, string][]),
   ].filter(([ok]) => !ok).map(([, k]) => k as string)
 
   const canSubmit = missing.length === 0 && agreed && !busy
@@ -127,6 +139,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
         },
         agreed,
         body_only: bodyOnly || undefined,
+        vehicle_owned: bodyOnly && ownedModel ? { model: ownedModel } : undefined,
         website,
       })
       onDone(inquiry_id)

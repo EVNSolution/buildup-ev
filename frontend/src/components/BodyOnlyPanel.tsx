@@ -66,10 +66,7 @@ export function BodyOnlyNotice({ model, onModelChange }: {
   return (
     <div style={s.box}>
       <div style={s.title}>특장만 견적</div>
-      <div style={s.desc}>
-        고객이 보유한 차량에 특장만 제작·장착합니다. 차량 가격·탁송료·EV보조금·차량 등록비가
-        견적에서 빠집니다.
-      </div>
+      <div style={s.desc}>고객이 보유한 차량에 특장만 제작·장착합니다.</div>
       <ul style={s.list}>
         <li><b>PV5 오픈베드</b> 차량에만 장착할 수 있습니다.</li>
         <li>{V2L_NOTICE}</li>
