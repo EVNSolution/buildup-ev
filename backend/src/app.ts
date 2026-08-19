@@ -24,6 +24,7 @@ import { orgsRouter } from './routes/orgs.js';
 import { regionsRouter } from './routes/regions.js';
 import { publicRouter } from './routes/public.js';
 import { externalRouter } from './routes/external.js';
+import { prisma } from './lib/prisma.js';
 
 export function createApp() {
   const app = express();
@@ -39,12 +40,37 @@ export function createApp() {
    *
    * 'loopback' 으로 좁힌다 — 신뢰하는 것은 **우리 Caddy 한 홉**뿐이고,
    * 바깥에서 보낸 X-Forwarded-For 를 그대로 믿지 않는다.
-   */
+  */
   app.set('trust proxy', 'loopback');
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    next();
+  });
   app.use(express.json());
   app.use(cookieParser());
   // BigInt → Number (Prisma의 BigInt 컬럼이 JSON.stringify를 막는 문제 해결)
   app.set('json replacer', (_: string, v: unknown) => typeof v === 'bigint' ? Number(v) : v);
+
+  app.get('/api/healthz', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true, revision: process.env['RELEASE_REVISION'] ?? 'local', slot: process.env['RELEASE_SLOT'] ?? 'local' });
+  });
+  app.get('/api/readyz', async (_req, res): Promise<void> => {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!prisma) {
+      res.status(503).json({ ok: false, revision: process.env['RELEASE_REVISION'] ?? 'local', reason: 'database-unavailable' });
+      return;
+    }
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ ok: true, revision: process.env['RELEASE_REVISION'] ?? 'local', slot: process.env['RELEASE_SLOT'] ?? 'local' });
+    } catch {
+      res.status(503).json({ ok: false, revision: process.env['RELEASE_REVISION'] ?? 'local', reason: 'database-unavailable' });
+    }
+  });
   app.use(injectJwtAuth);
 
   // 공개(비로그인) — 카탈로그 조회·계산·상담 접수만. 기존 라우트는 그대로 잠겨 있다.

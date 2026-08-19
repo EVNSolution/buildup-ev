@@ -33,10 +33,11 @@ gh run watch
 
 ```bash
 curl -fsS -o /dev/null -w 'frontend=%{http_code}\n' https://buildup-ev.cleversystem.ai/
-curl -sS -o /dev/null -w 'api=%{http_code}\n' https://buildup-ev.cleversystem.ai/api/v1/auth/me
+curl -fsS https://buildup-ev.cleversystem.ai/api/healthz
+curl -fsS https://buildup-ev.cleversystem.ai/api/readyz
 ```
 
-정상값은 frontend `200`, 인증 없는 API `403` 또는 `200`이다.
+정상값은 frontend `200`이며 health와 ready 응답의 `ok`가 `true`여야 한다. 배포 완료 판단에는 ready 응답의 `revision`이 배포한 source revision과 같은지도 확인한다.
 
 ## 3. 서버 접속과 상태 확인
 
@@ -56,6 +57,20 @@ sudo systemctl status caddy --no-pager
 sudo docker ps --filter name=buildup-ev-postgres
 python3 -c 'import openpyxl; print(openpyxl.__version__)'
 soffice --version
+```
+
+비밀값 없이 현재 릴리스 증거를 확인한다.
+
+```bash
+sudo python3 - <<'PY'
+import json
+from pathlib import Path
+base = Path('/opt/buildup-ev')
+slot = (base / 'active-slot').read_text().strip()
+manifest = json.loads((base / 'manifests' / f'{slot}.json').read_text())
+for key in ('slot', 'sourceRevision', 'lockfileSha256', 'ssmParameterVersion', 'workflowRunId', 'actor', 'preparedAt'):
+    print(f'{key}={manifest[key]}')
+PY
 ```
 
 ## 4. PostgreSQL 로컬 터널
@@ -90,9 +105,8 @@ aws ssm get-parameter \
 필수값 이름만 확인한 뒤 편집한다. 값은 출력하지 않는다.
 
 ```bash
-grep -q '^DATABASE_URL=.' "$ENV_FILE"
-grep -q '^JWT_SECRET=.' "$ENV_FILE"
 ${EDITOR:-vi} "$ENV_FILE"
+python3 deploy/validate-env.py "$ENV_FILE"
 ```
 
 변경 전 버전을 기록하고 같은 SecureString에 덮어쓴다.
@@ -129,16 +143,7 @@ chmod 700 /opt/buildup-ev/shared/backups
 docker exec buildup-ev-postgres pg_dump -U buildup -d buildup_ev -Fc > "/opt/buildup-ev/shared/backups/buildup_ev_$(date +%Y%m%d-%H%M%S).dump"
 ```
 
-현재 active 슬롯에서 명시적으로 한 번 실행한다.
-
-```bash
-slot="$(cat /opt/buildup-ev/active-slot)"
-cd "/opt/buildup-ev/releases/$slot"
-DATABASE_URL="$(sed -n 's/^DATABASE_URL=//p' .env)" npm run --workspace=backend db:push
-exit
-```
-
-`db:seed`는 권한 기준 테이블을 재생성하므로 별도 검토와 백업 없이는 실행하지 않는다. `RUN_DB_PUSH`, `RUN_DB_SEED` 환경변수로 배포와 묶지 않는다.
+그 다음 변경 컬럼과 rollback이 명시된 Issue 전용 SQL runbook을 검토해 실행한다. 운영에서 `prisma db push`, `migrate reset`, `db:seed`를 사용하지 않는다. `RUN_DB_PUSH`, `RUN_DB_SEED` 환경변수로 배포와 묶지도 않는다.
 
 ## 7. 장애 복구
 
@@ -146,6 +151,7 @@ exit
 - 배포 후 코드 장애: 문제 커밋을 `git revert`하여 `main`에 반영하고 정상 배포를 다시 실행한다.
 - 환경값 문제: Parameter Store의 직전 내용을 복원한 뒤 정상 배포를 다시 실행한다.
 - DB 문제: 자동 롤백이 없으므로 스키마 작업 전에 만든 dump를 기준으로 판단한다.
+- 배포 결과 확인: active 슬롯 manifest의 source revision과 `/api/readyz` revision을 비교한다.
 
 ## 금지 사항
 

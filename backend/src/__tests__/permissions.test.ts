@@ -8,11 +8,11 @@
  * 4. GET /me/permissions — 활성 모듈코드 배열
  * 5. org 격리 stub — SALES/MAKER는 orgScope 통과, 인증 없으면 403
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { mergePermissions } from '../lib/permissions.js';
-import { canSeeQuotePrices, isAdmin, ownOrgOnly } from '../middleware/rbac.js';
+import { canSeeQuotePrices, isAdmin, masterBypassEnabled, ownOrgOnly, requirePermission } from '../middleware/rbac.js';
 import type { AuthContext } from '../middleware/rbac.js';
 import type { AccessControl } from '@buildup-ev/shared/types';
 import { authCookie } from './helpers.js';
@@ -134,7 +134,7 @@ describe('canSeeQuotePrices — 금액을 볼 자격', () => {
     expect(canSeeQuotePrices(ctx(['MAKER', 'ADMIN']))).toBe(true);
   });
 
-  it('마스터 계정은 볼 수 있다', () => {
+  it('로컬 개발의 마스터 계정은 볼 수 있다', () => {
     expect(canSeeQuotePrices(ctx(['MAKER'], { is_master: true }))).toBe(true);
   });
 
@@ -143,6 +143,38 @@ describe('canSeeQuotePrices — 금액을 볼 자격', () => {
     expect(ownOrgOnly(maker)).toBe(true);
     expect(isAdmin(maker)).toBe(false);
     expect(canSeeQuotePrices(maker)).toBe(false);
+  });
+});
+
+describe('운영 권한 경계', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('운영에서는 is_master 표시만으로 역할을 우회하지 않는다', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const masterMaker = ctx(['MAKER'], { is_master: true });
+    expect(masterBypassEnabled(masterMaker)).toBe(false);
+    expect(isAdmin(masterMaker)).toBe(false);
+    expect(canSeeQuotePrices(masterMaker)).toBe(false);
+  });
+
+  it('권한 저장소 조회 실패는 503으로 닫고 다음 핸들러를 실행하지 않는다', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('ALLOW_TEST_PERMISSION_BYPASS', 'false');
+    const req = { auth: ctx(['ADMIN']) } as Parameters<ReturnType<typeof requirePermission>>[0];
+    const json = vi.fn();
+    const status = vi.fn(() => ({ json }));
+    const next = vi.fn();
+    const middleware = requirePermission('account.manage', async () => {
+      throw new Error('permission store unavailable');
+    });
+
+    await middleware(req, { status } as never, next);
+
+    expect(status).toHaveBeenCalledWith(503);
+    expect(json).toHaveBeenCalledWith({
+      error: { code: 'PERMISSION_UNAVAILABLE', message: '권한 확인을 사용할 수 없습니다.' },
+    });
+    expect(next).not.toHaveBeenCalled();
   });
 });
 

@@ -7,9 +7,11 @@
 - 배포는 `main` 반영 → GitHub Actions → AWS OIDC → SSM Run Command 한 경로만 사용한다.
 - SSH, PEM, 로컬 빌드 산출물 업로드는 사용하지 않는다.
 - 운영 환경값의 원본은 SSM SecureString `/buildup-ev/app-env` 하나다.
+- 배포 대상은 workflow가 받은 40자리 Git SHA 하나다. 서버에서 `main`을 다시 해석하지 않는다.
 - 일반 배포는 DB push, seed, 관리자 bootstrap, OS 패키지 설치를 실행하지 않는다.
 - 서버 준비는 인스턴스당 한 번, 애플리케이션 배포는 변경마다 실행한다.
 - 실패한 신규 슬롯은 트래픽을 받지 않으며 기존 슬롯을 유지한다.
+- 이미지 digest 대신 source revision, lockfile SHA-256, SSM version, workflow run ID를 릴리스 증거로 사용한다.
 
 ## 현재 구성
 
@@ -62,22 +64,26 @@ GitHub Actions Secret은 다음 네 개만 사용한다.
 4. **인스턴스 준비 확인**
    - `/opt/buildup-ev/.setup-complete`가 없을 때만 `setup-deploy.sh`를 실행한다.
    - Python, openpyxl, LibreOffice가 없으면 문서 기능을 조용히 끄지 않고 배포를 중단한다.
-5. **반대 blue/green 슬롯 준비**
-   - 현재 active 슬롯의 반대편에 `main`을 checkout한다.
-   - SSM SecureString을 슬롯의 권한 제한된 `.env`로 복원한다.
+5. **반대 blue-green 슬롯 준비**
+   - 현재 active 슬롯의 반대편에 workflow가 전달한 정확한 source revision을 checkout한다.
+   - SSM SecureString의 값과 version을 읽고 ENV 계약을 검증한 뒤 mode `0600` `.env`로 복원한다.
 6. **의존성·Prisma Client·프론트 빌드**
    - `npm ci`, `prisma generate`, 프론트 빌드만 수행한다.
    - `db:push`, `db:seed`, `bootstrap`은 수행하지 않는다.
-7. **신규 백엔드 기동과 상태 확인**
+7. **신규 백엔드 기동과 readiness 확인**
    - PM2로 신규 포트에 실행한다.
-   - `/api/v1/auth/me`가 `403` 또는 `200`을 반환해야 다음 단계로 간다.
+   - `/api/readyz`가 DB 연결과 정확한 source revision을 증명해야 다음 단계로 간다.
 8. **Caddy 전환과 외부 확인**
    - Caddy 설정을 검증하고 신규 슬롯으로 reload한다.
-   - 프론트가 `200`일 때만 active 슬롯을 기록한다.
+   - TLS 경로의 `/api/readyz`와 프론트가 정상일 때만 active 슬롯을 기록한다.
+   - 실패하면 이전 Caddy 설정을 복원하고 신규 프로세스를 제거한다.
+9. **배포 증거 기록**
+   - `/opt/buildup-ev/manifests/<slot>.json`에 슬롯 manifest를 기록한다.
+   - `/opt/buildup-ev/deploy-evidence.jsonl`에 준비 차단, 롤백, 활성화 결과를 append-only로 기록한다.
 
 ## DB와 운영 환경 변경
 
-- 스키마 변경은 코드 배포와 분리한다. 필요한 경우 운영자가 서버에서 백업을 만든 뒤 `db:push`를 한 번 실행한다.
+- 스키마 변경은 코드 배포와 분리한다. 운영 백업과 변경 전용 SQL 검토가 끝난 경우에만 별도 runbook으로 실행한다.
 - `db:seed`는 권한 기준 테이블을 다시 생성하므로 정상 배포에서 실행하지 않는다.
 - 운영 환경 변경은 기존 파라미터를 안전한 임시 파일로 내려받아 수정하고 같은 경로에 덮어쓴 뒤 정상 배포를 재실행한다.
 - 환경값, `DATABASE_URL`, JWT 비밀값, DB 비밀번호를 콘솔·문서·커밋에 출력하지 않는다.
@@ -89,11 +95,11 @@ GitHub Actions Secret은 다음 네 개만 사용한다.
 - DB 변경은 자동 롤백되지 않는다. 그래서 일반 배포에서 DB 명령을 제거했고, 필요 시 반드시 먼저 dump를 만든다.
 - 운영 환경 변경 전후에는 Parameter Store 버전을 기록한다.
 
-## 에이전트 스킬의 역할
+## 책임 경계
 
-- `ponytail`: 새 Action·스크립트·설정 추가를 억제하고 기존 경로를 삭제·축소하는 판단에 사용한다.
-- `find-docs`: AWS와 GitHub CLI/IAM 동작을 공식 문서로 확인할 때 사용한다.
-- 스킬은 권한을 대신하지 않는다. 실제 실행 기준은 이 저장소의 workflow, shell script, `RUN.md`, IAM 정책이다.
+- 배포 안정성과 내부 계정·권한 기준은 [`docs/security/SECURITY_MODEL.md`](../docs/security/SECURITY_MODEL.md)를 따른다.
+- 변경 주체와 Git 증거 규칙은 [`docs/operations/CHANGE_CONTROL.md`](../docs/operations/CHANGE_CONTROL.md)를 따른다.
+- 외부 API 계약은 이번 배포 안정화 범위가 아니다. HQ 이관 경계는 [`docs/security/HQ_HANDOFF.md`](../docs/security/HQ_HANDOFF.md)에만 기록한다.
 
 ## 공식 근거
 

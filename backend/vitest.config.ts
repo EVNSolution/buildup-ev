@@ -16,6 +16,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    env: { JWT_SECRET: 'test-secret-vitest-do-not-use-in-prod' },
+    env: {
+      JWT_SECRET: 'test-secret-vitest-do-not-use-in-prod',
+      ALLOW_TEST_AUTH_BYPASS: 'true',
+      ALLOW_TEST_PERMISSION_BYPASS: 'true',
+    },
   },
 });

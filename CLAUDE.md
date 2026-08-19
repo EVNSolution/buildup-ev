@@ -2,6 +2,14 @@
 
 > Claude Code가 **매 세션 읽는 프로젝트 컨텍스트**다. 이 파일을 repo 루트에 둘 것. 상세 스펙은 `docs/` 참조.
 
+## 작업 주체와 실행 규칙
+
+- 실제 작업자와 최종 결정권자는 `OziinG`다. Issue, PR, Commit 등 공개 증거에는 이 이름만 남긴다.
+- OziinG의 현재 지시와 미커밋 작업을 가장 높은 우선순위로 보존한다.
+- 읽기 전용 조사, fetch, 깨끗한 main의 fast-forward, 최신 origin/main 기준 브랜치 생성, 로컬 구현·테스트·문서화는 반복 질문 없이 진행한다.
+- 운영 직접 변경, 비밀값 노출, 운영 데이터 변경, OziinG의 미커밋 작업을 덮어쓸 위험이 있을 때만 멈춘다.
+- 상세 변경 통제는 `docs/operations/CHANGE_CONTROL.md`, 보안 기준은 `docs/security/SECURITY_MODEL.md`, 외부 연동의 HQ 이관 경계는 `docs/security/HQ_HANDOFF.md`를 따른다.
+
 ## 프로젝트
 buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이터 + 견적 + 발주 + 구조변경 서류 자동화** 웹 플랫폼. EV&Solution 자체 소유·개발.
 배포 인프라는 배포 담당이 세팅·지원하고, **일상적인 변경 배포는 `main` push(자동배포)로 직접 수행**한다. 상세는 아래 `## 배포·운영` 참조.
@@ -46,12 +54,14 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
      오래된 로컬 브랜치를 이어 쓰지 말 것(squash 병합본과 충돌한다. 실제로 두 번 났다).
   2. 개발
   3. **GitHub 에 issue 를 만들고 PR 을 만든 뒤** 병합·배포. PR 본문에 `Closes #N` 으로 잇는다.
-- 장수 브랜치를 만들지 않는다. 기능 단위로 짧게 → 병합 후 로컬 브랜치 삭제.
-- `main`=안정. 기능마다 `feature/...` 브랜치 → **작게 자주 커밋** → 푸시 → PR → 병합.
+- 장수 브랜치를 만들지 않는다. 기능 단위로 짧게 작업하고 검증 후 하나의 의사결정 단위로 커밋한다.
+- `main`=안정. 기능 브랜치 → Issue 연결 → Draft PR → 검토 → squash merge 순서를 지킨다.
 - `.env`(키·비번) **커밋 금지**(`.env.example`만). node_modules/dist 등 `.gitignore`.
 - 컴포넌트 기반 + RBAC 라우팅 + 데이터레이어 분리(추후 API 교체 가능 구조).
+- 세부 절차와 릴리스 증거 규칙은 `docs/operations/CHANGE_CONTROL.md`가 정본이다.
 
 ## 배포·운영 (반드시 준수 — 여기서 사고 많이 남)
+- 배포 구조와 명령의 정본은 `deploy/README.md`, `deploy/RUN.md`다. 보안 판단은 `docs/security/SECURITY_MODEL.md`를 따른다.
 - **배포 = `origin/main`에 push하면 GitHub Actions가 자동 배포.** 수동 rsync·서버 직접 빌드로 배포하지 말 것.
 - ⚠️ **`main` push = 프로덕션 즉시 반영.** 검증 끝난 것만 push. 데모·운영 중엔 특히 신중히(불안하면 배포 담당과 함께).
 - ⚠️ **git 밖 변경(rsync·서버 직접 수정)은 다음 자동배포가 git 기준으로 덮어써 소실됨.** 모든 변경은 반드시 **커밋 → push**로 git에 남길 것.
@@ -70,7 +80,7 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 - 🔴 **`schema.prisma` 를 고쳤으면 운영 DB 에도 반드시 반영하고 배포할 것.**
   Prisma 는 모델의 **모든 컬럼을 SELECT** 한다. 컬럼 하나가 DB 에 없으면 그 테이블을 읽는
   기능이 **전부** `P2022` 로 죽는다. 2026-08-18 에 `customer.warp_customer_id`·`updated_at`
-  누락으로 견적서·계약서·메일 발송이 며칠간 막혔다 — 배포 헬스체크(`/auth/me`)는 그 테이블을
+  누락으로 견적서·계약서·메일 발송이 며칠간 막혔다 — 당시 배포 헬스체크(`/auth/me`)는 그 테이블을
   건드리지 않아 **매번 초록불이었다.**
   · 대조: `npm run --workspace=backend db:drift` (배포 스크립트가 새 슬롯 띄우기 **전에** 자동 실행)
   · 반영은 격리 SQL 로(`ALTER TABLE … ADD COLUMN IF NOT EXISTS …`). 전체 `prisma db push` 는 운영에서 금지 — 컬럼을 지울 수 있다.

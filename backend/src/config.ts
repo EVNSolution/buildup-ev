@@ -26,3 +26,24 @@ export const config = {
   jwtSecret: process.env['JWT_SECRET'] ?? '',
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
 };
+
+export function validateRuntimeConfig(candidate = config, runtimeEnv: NodeJS.ProcessEnv = process.env): string[] {
+  if (candidate.nodeEnv !== 'production') return [];
+  const errors: string[] = [];
+  if (!candidate.dbUrl.startsWith('postgresql://') && !candidate.dbUrl.startsWith('postgres://')) {
+    errors.push('DATABASE_URL must use PostgreSQL');
+  }
+  if (candidate.jwtSecret.length < 32) errors.push('JWT_SECRET must contain at least 32 characters');
+  if (!Number.isInteger(candidate.port) || candidate.port < 1 || candidate.port > 65535) {
+    errors.push('PORT must be an integer between 1 and 65535');
+  }
+  for (const key of ['BOOTSTRAP_ADMIN_EMAIL', 'BOOTSTRAP_ADMIN_PW', 'CORS_ORIGIN']) {
+    if (key in runtimeEnv) errors.push(`${key} must not be present in production runtime ENV`);
+  }
+  return errors;
+}
+
+export function assertRuntimeConfig(): void {
+  const errors = validateRuntimeConfig();
+  if (errors.length) throw new Error(`Invalid production configuration: ${errors.join('; ')}`);
+}
