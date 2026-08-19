@@ -456,18 +456,30 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
  *
  * 예전엔 둘을 한 벌로 묶어, 가볍게 금액만 뽑아 보려 해도 주소까지 받아야 했다.
  */
-function missingBase(v: QuoteSaveValues): string[] {
+function missingBase(v: QuoteSaveValues, bodyOnly = false): string[] {
   const isCorporate = v.subsidy.business_type === 'corporate'
   const filled = (x: string) => !!x.trim()
-  const required: [boolean, string][] = [
-    [filled(v.name), isCorporate ? '상호' : '성명'],
-    [!isCorporate || filled(v.ceo_name), '대표이사'],
-    [filled(v.phone), '휴대폰'],
+  /*
+   * 보조금 조건 — **특장만 견적에는 없다.** 차를 안 사니 EV보조금 대상이 아니라
+   * 화면에서 칸을 통째로 감춰 두었는데, 필수 목록에는 그대로 남아 있었다.
+   * 그래서 「사업자 구분·성명·휴대폰」을 다 채워도 저장 버튼이 열리지 않았다 —
+   * 채울 수 없는 칸을 요구하니 **아무리 해도 저장되지 않는다**(실제 제보).
+   *
+   * ⚠️ 화면에 없는 값을 필수로 두면 이런 식으로 막힌다. 감추는 곳과 요구하는 곳은
+   *    반드시 같은 조건을 봐야 한다.
+   */
+  const subsidyNeeded: [boolean, string][] = bodyOnly ? [] : [
     // 법인은 지방보조금 대상이 아니라 지역 칸 자체가 없다 — 필수에서도 뺀다
     [isCorporate || filled(v.subsidy.region_code), '지역'],
     [v.subsidy.diesel_status !== '', '경유차 폐차여부'],
     [v.subsidy.is_small_business !== null, '소상공인'],
     [v.subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
+  ]
+  const required: [boolean, string][] = [
+    [filled(v.name), isCorporate ? '상호' : '성명'],
+    [!isCorporate || filled(v.ceo_name), '대표이사'],
+    [filled(v.phone), '휴대폰'],
+    ...subsidyNeeded,
     [!(v.buyer_agent.trim() && !v.buyer_relation.trim()), '관계'],
   ]
   return required.filter(([ok]) => !ok).map(([, label]) => label)
@@ -481,12 +493,12 @@ function missingBase(v: QuoteSaveValues): string[] {
  */
 
 /** 견적서를 만들기 위해 필요한 것 — 금액에 걸리는 값과 연락처 */
-export function missingForQuote(v: QuoteSaveValues): string[] {
-  return missingBase(v)
+export function missingForQuote(v: QuoteSaveValues, bodyOnly = false): string[] {
+  return missingBase(v, bodyOnly)
 }
 
 /** 계약서를 만들기 위해 추가로 필요한 것 — 사람을 특정하는 값 */
-export function missingForContract(v: QuoteSaveValues): string[] {
+export function missingForContract(v: QuoteSaveValues, bodyOnly = false): string[] {
   const isCorporate = v.subsidy.business_type === 'corporate'
   const filled = (x: string) => !!x.trim()
   const regNoOk = filled(v.buyer_regno) && !regNoError(v.buyer_regno)
@@ -497,7 +509,7 @@ export function missingForContract(v: QuoteSaveValues): string[] {
     [filled(v.address), '주소'],
     [filled(v.address_detail), '세부주소'],
   ]
-  return [...missingBase(v), ...extra.filter(([ok]) => !ok).map(([, label]) => label)]
+  return [...missingBase(v, bodyOnly), ...extra.filter(([ok]) => !ok).map(([, label]) => label)]
 }
 
 /** 예전 이름 — 견적 기준. 남은 호출부가 다 옮겨지면 지운다. */
@@ -508,7 +520,8 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   const isEdit = mode === 'edit'
   // 계약서 단계에서는 사람을 특정하는 값(생년월일·주소)까지 있어야 한다
   const forContract = mode === 'contract'
-  const canSave = (forContract ? missingForContract(v) : missingForQuote(v)).length === 0 && !saving
+  const missing = forContract ? missingForContract(v, bodyOnly) : missingForQuote(v, bodyOnly)
+  const canSave = missing.length === 0 && !saving
 
   // 바깥을 눌러도 닫히지 않는다 — 입력 도중 실수로 눌러 전부 날아가던 문제.
   // 닫기는 '취소' 와 ✕ 로만.
@@ -527,6 +540,14 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
         <QuoteCustomerForm v={v} setV={setV} regions={regions} forContract={forContract} bodyOnly={bodyOnly} />
 
         {error && <div style={s.error}>{error}</div>}
+
+        {/*
+          왜 아직 저장할 수 없는지 **이름으로** 적는다. 잠긴 버튼만 두면 무엇이 빈 건지
+          알 수 없어, 다 채웠다고 생각하며 계속 누르게 된다(실제 제보).
+        */}
+        {!saving && missing.length > 0 && (
+          <div style={s.needHint}>{missing.join(' · ')} 을(를) 입력해 주세요</div>
+        )}
 
         <div style={s.btnRow}>
           <button style={{ ...s.btnOk, ...(canSave ? null : s.btnOff) }} onClick={() => canSave && onSave(v)} disabled={!canSave}>
@@ -602,6 +623,7 @@ const s: Record<string, React.CSSProperties> = {
     display: 'grid', gap: 2,
   },
   error: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-3)' },
+  needHint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 'var(--sp-3)' },
   btnRow: { display: 'flex', gap: 8, marginTop: 14 },
   btnOk: {
     flex: 1, fontSize: 14, fontWeight: 700, minHeight: 'var(--h-control)', padding: '0 11px', borderRadius: 9,

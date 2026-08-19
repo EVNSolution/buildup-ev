@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
 import { buildLiveTotal } from '../lib/liveQuote'
-import { mapBizType, customerEditValues } from '../lib/quoteCustomer'
+import { mapBizType, customerEditValues, isBodyOnly } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
@@ -273,6 +273,8 @@ function MyListView() {
     {contractPrep && (
       <QuoteSaveModal
         mode="contract"
+        // 특장만 견적은 보조금 조건 칸이 없다 — 필수 판정도 같은 조건을 봐야 막히지 않는다
+        bodyOnly={isBodyOnly(contractPrep.quote)}
         initial={customerEditValues(contractPrep.quote)}
         regions={regions}
         saving={prepSaving}
@@ -521,7 +523,7 @@ function MyListView() {
                             onClick={() => {
                               setPrepErr('')
                               // 계약서에 필요한 값이 비어 있으면 확인 팝업부터 — 서명은 그 계약서를 보내는 일이다
-                              if (missingForContract(customerEditValues(q)).length) {
+                              if (missingForContract(customerEditValues(q), isBodyOnly(q)).length) {
                                 setContractPrep({ quote: q, next: 'sign' })
                               } else {
                                 setContractQuote({

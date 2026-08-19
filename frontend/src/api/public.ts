@@ -49,6 +49,8 @@ export interface InquiryInput {
   agreed: boolean
   /** 특장만 견적 — 차량 금액·보조금이 전부 빠진다(금액은 서버가 다시 계산한다) */
   body_only?: boolean
+  /** 특장만일 때 고객이 고른 보유 차종 */
+  vehicle_owned?: { model: string }
   /** 봇 잡이 — 화면에서 감춘 칸. 사람은 비워 둔 채로 보낸다. */
   website?: string
 }

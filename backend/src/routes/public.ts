@@ -150,6 +150,8 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
     agreed?: boolean;
     /** 특장만 견적 — 고객이 차를 이미 갖고 있다(차량 금액·보조금이 전부 빠진다) */
     body_only?: boolean;
+    /** 고객이 고른 보유 차종(PV5 오픈베드 4트림 중 하나) */
+    vehicle_owned?: { model?: string };
     /** 봇 잡이 — 사람 눈에 안 보이는 칸. 채워져 오면 봇이다. */
     website?: string;
   };
@@ -222,6 +224,13 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
           memo: str(body.contact?.memo, 500) ?? '',
           // 특장만 견적 — 영업이 이어받을 때 같은 금액이 나와야 한다
           body_only: body.body_only === true,
+          /*
+           * 어떤 차에 얹는지 — 고객이 고른 값 그대로 남긴다.
+           * 영업이 이어받아 견적을 열었을 때 여기서 되읽는다(다시 물어보지 않게).
+           */
+          vehicle_owned: body.body_only === true
+            ? { model: str(body.vehicle_owned?.model, 60) ?? '' }
+            : {},
           // 동의 시각 — 언제 받은 동의인지 남긴다(방침 이행 근거)
           consent_at: new Date().toISOString(),
         } as unknown as Prisma.InputJsonValue,

@@ -26,6 +26,16 @@ export function unmapBizType(v: unknown): CustomerInfo['business_type'] {
 }
 
 /**
+ * 이 견적이 **특장만 견적인가** — `inputs` 스냅샷에 남아 있다.
+ *
+ * 필수 입력 판정이 이 값에 걸린다(특장만이면 보조금 조건을 묻지 않는다).
+ * 곳곳에서 `inputs['body_only']` 를 직접 파면 한 곳을 빠뜨렸을 때 그 화면만 막힌다.
+ */
+export function isBodyOnly(q: ApiQuote): boolean {
+  return ((q.inputs ?? {}) as Record<string, unknown>)['body_only'] === true
+}
+
+/**
  * 저장된 견적 → 고객정보 수정 폼 초기값.
  * 고객 행(customer)과 견적 입력 스냅샷(inputs) 두 곳에 나뉘어 있어 여기서 합친다.
  */
