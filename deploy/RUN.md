@@ -68,7 +68,7 @@ from pathlib import Path
 base = Path('/opt/buildup-ev')
 slot = (base / 'active-slot').read_text().strip()
 manifest = json.loads((base / 'manifests' / f'{slot}.json').read_text())
-for key in ('slot', 'sourceRevision', 'lockfileSha256', 'ssmParameterVersion', 'workflowRunId', 'actor', 'preparedAt'):
+for key in ('slot', 'sourceRevision', 'lockfileSha256', 'schemaMigrationSha256', 'schemaMigrationCount', 'ssmParameterVersion', 'workflowRunId', 'actor', 'preparedAt'):
     print(f'{key}={manifest[key]}')
 PY
 ```
@@ -132,30 +132,52 @@ rm -f "$ENV_FILE"
 
 환경값은 다음 정상 배포부터 적용된다. GitHub Secret의 `APP_ENV`는 사용하지 않는다.
 
-## 6. 스키마 변경이 반드시 필요할 때
+## 6. Prisma 스키마 변경
 
-일반 배포에서는 실행하지 않는다. 먼저 3번으로 서버에 접속하고 DB dump를 만든다.
+`schema.prisma`를 바꿀 때는 같은 PR에 migration SQL을 생성한다. 운영 DB에 직접 `db push`하지 않는다.
+
+```bash
+npm exec --workspace=backend -- prisma migrate dev \
+  --name <변경이름> \
+  --create-only
+```
+
+생성된 `backend/prisma/migrations/<시각>_<변경이름>/migration.sql`을 검토한다. 기존 active 슬롯이 계속 동작할 수 있도록 테이블·nullable 컬럼·인덱스를 먼저 추가하고, 삭제·이름 변경·타입 변경은 사용 중단 후 별도 배포로 미룬다.
+
+PR이 병합되면 정상 배포가 다음을 자동 수행한다.
+
+1. 미적용 migration 확인
+2. `/opt/buildup-ev/shared/backups/schema-*.dump` 생성 및 `pg_restore -l` 검증
+3. `prisma migrate deploy`
+4. migration status와 전체 Prisma schema diff 확인
+5. 기존 `db:drift` 확인
+6. candidate 슬롯 기동
+
+백업은 최근 10개를 유지한다. migration 실패 시 기존 active 슬롯은 유지되지만 DB 변경은 자동 역실행하지 않는다. 실패한 migration 파일을 수정하거나 `resolve --applied`로 우회하지 말고 Issue 전용 복구 runbook을 만든다.
+
+### 기존 운영 DB baseline
+
+Prisma Migrate 도입 당시의 한 번뿐인 절차다. 전체 DB→schema diff가 `deploy/baseline-expected-drift.sql`과 정확히 같을 때만 backup 후 baseline을 적용 표시한다.
 
 ```bash
 sudo -s
-mkdir -p /opt/buildup-ev/shared/backups
-chmod 700 /opt/buildup-ev/shared/backups
-docker exec buildup-ev-postgres pg_dump -U buildup -d buildup_ev -Fc > "/opt/buildup-ev/shared/backups/buildup_ev_$(date +%Y%m%d-%H%M%S).dump"
+cd /opt/buildup-ev/releases/<검증한-revision>
+SOURCE_REVISION="$(git rev-parse HEAD)" deploy/baseline-existing-database.sh
 ```
 
-그 다음 변경 컬럼과 rollback이 명시된 Issue 전용 SQL runbook을 검토해 실행한다. 운영에서 `prisma db push`, `migrate reset`, `db:seed`를 사용하지 않는다. `RUN_DB_PUSH`, `RUN_DB_SEED` 환경변수로 배포와 묶지도 않는다.
+`schema_baseline=already-applied` 이후에는 이 명령을 반복할 필요가 없다.
 
 ## 7. 장애 복구
 
 - 배포 도중 실패: 기존 active 슬롯이 유지되므로 Actions 로그의 첫 실패 원인만 수정한다.
 - 배포 후 코드 장애: 문제 커밋을 `git revert`하여 `main`에 반영하고 정상 배포를 다시 실행한다.
 - 환경값 문제: Parameter Store의 직전 내용을 복원한 뒤 정상 배포를 다시 실행한다.
-- DB 문제: 자동 롤백이 없으므로 스키마 작업 전에 만든 dump를 기준으로 판단한다.
+- DB 문제: 자동 롤백이 없으므로 `/opt/buildup-ev/shared/backups/`의 migration 직전 dump를 기준으로 전용 복구 runbook을 작성한다.
 - 배포 결과 확인: active 슬롯 manifest의 source revision과 `/api/readyz` revision을 비교한다.
 
 ## 금지 사항
 
 - PEM/SSH, rsync, `/srv/buildup-ev`, Docker Caddy 절차를 사용하지 않는다.
 - 운영 `.env`, `DATABASE_URL`, JWT 비밀값, DB 비밀번호를 커밋하거나 터미널에 출력하지 않는다.
-- 정상 배포에서 `db:push`, `db:seed`, `bootstrap`, OS 패키지 설치를 실행하지 않는다.
+- 운영에서 `db:push`, `migrate dev`, `migrate reset`, `accept-data-loss`, `db:seed`, `bootstrap`을 실행하지 않는다.
 - 개인 관리자 권한이 있어야만 실행되는 명령을 일반 운영 절차로 추가하지 않는다.

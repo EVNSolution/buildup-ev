@@ -22,6 +22,7 @@ class DeploymentContractTest(unittest.TestCase):
         self.assertIn("ACTOR: ${{ github.actor }}", WORKFLOW)
         self.assertIn('test "$SOURCE_REVISION" = "$(git rev-parse HEAD)"', WORKFLOW)
         self.assertNotIn("DEPLOY_REF", WORKFLOW)
+        self.assertRegex(WORKFLOW, r"image: postgres@sha256:[0-9a-f]{64}")
 
     def test_operational_env_never_passes_through_github(self):
         self.assertNotIn("secrets.APP_ENV", WORKFLOW)
@@ -34,17 +35,29 @@ class DeploymentContractTest(unittest.TestCase):
             "SOURCE_REVISION must be a full Git SHA",
             "SSM_VERSION",
             "LOCKFILE_SHA256",
+            "SCHEMA_MIGRATION_SHA256",
+            "schemaMigrationCount",
             "deploy-evidence.jsonl",
             "write_manifest",
             "public_ready_matches",
             "slot-record-reconciled",
             "restore_caddy",
             "switch-rolled-back",
+            "schema-migration-blocked",
         ):
             self.assertIn(token, REMOTE)
         self.assertIn('test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"', REMOTE)
         self.assertIn('caddy validate --config "$caddy_candidate" --adapter caddyfile', REMOTE)
         self.assertNotIn("npm cache clean", REMOTE)
+
+    def test_schema_migrations_finish_before_candidate_start(self):
+        migrate = REMOTE.index("deploy/apply-schema-migrations.sh")
+        drift = REMOTE.index("npm run --workspace=backend db:drift")
+        candidate = REMOTE.index("pm2 start")
+        self.assertLess(migrate, drift)
+        self.assertLess(drift, candidate)
+        self.assertNotIn("prisma db push", REMOTE)
+        self.assertIn("Prisma migration 검증", WORKFLOW)
 
 
 if __name__ == "__main__":

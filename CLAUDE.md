@@ -76,14 +76,14 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
   - 어느 슬롯이 서비스 중인지: `sudo cat /etc/caddy/Caddyfile.d/buildup-ev.caddy` 의 `reverse_proxy` 포트
   - 수동 재시작이 필요하면: `sudo pm2 restart buildup-ev-<활성슬롯>` · Caddy 는 `sudo systemctl reload caddy` (컨테이너·유닛 이름 추측 금지)
 - **비밀정보 커밋·출력 절대 금지**: `.env`, `*.pem`(BUILDUP-EV-key.pem), `JWT_SECRET`, `DATABASE_URL`. **서버 `.env`는 건드리지 말 것**(JWT_SECRET 불일치 사고 원인).
-- **DB 스키마/seed 변경 전 백업**: `sudo docker exec buildup-ev-postgres pg_dump …`. seed는 **참조 테이블만 upsert**인지 확인 — 주문·견적 등 트랜잭션 테이블에 `delete/truncate` 금지.
+- **DB 스키마 변경은 Prisma migration으로만**: `schema.prisma`와 `backend/prisma/migrations/` SQL을 함께 커밋한다. 배포가 미적용 migration 전에 검증된 `pg_dump`를 만든다. seed는 **참조 테이블만 upsert**인지 확인 — 주문·견적 등 트랜잭션 테이블에 `delete/truncate` 금지.
 - 🔴 **`schema.prisma` 를 고쳤으면 운영 DB 에도 반드시 반영하고 배포할 것.**
   Prisma 는 모델의 **모든 컬럼을 SELECT** 한다. 컬럼 하나가 DB 에 없으면 그 테이블을 읽는
   기능이 **전부** `P2022` 로 죽는다. 2026-08-18 에 `customer.warp_customer_id`·`updated_at`
   누락으로 견적서·계약서·메일 발송이 며칠간 막혔다 — 당시 배포 헬스체크(`/auth/me`)는 그 테이블을
   건드리지 않아 **매번 초록불이었다.**
   · 대조: `npm run --workspace=backend db:drift` (배포 스크립트가 새 슬롯 띄우기 **전에** 자동 실행)
-  · 반영은 격리 SQL 로(`ALTER TABLE … ADD COLUMN IF NOT EXISTS …`). 전체 `prisma db push` 는 운영에서 금지 — 컬럼을 지울 수 있다.
+  · 반영은 검토된 forward-only migration SQL과 `prisma migrate deploy`로 한다. 전체 `prisma db push`는 운영에서 금지한다.
 - **프론트/백 반영 경로 다름**: 브라우저에서 도는 로직(예 LoadCalcTab의 `calcBom`) 변경 → **프론트 재빌드** 필요. 백엔드 템플릿·라우트는 런타임 로드 → **백엔드 재시작**. (PDF는 되는데 화면 탭은 옛값이면 프론트 빌드 안 된 것.)
 - **배포 반영 확인은 활성 슬롯에서**: 새 라우트가 떴는지 보려면 `curl -o /dev/null -w %{http_code} http://localhost:<활성포트>/api/v1/<경로>` — **404 면 옛 릴리스, 403(인증필요) 이면 반영된 것**. 비활성 슬롯은 이전 코드라 404 가 정상이다.
 - **서버 `.env` 는 릴리스마다 새로 쓰인다** — 배포가 SSM SecureString `/buildup-ev/app-env` 로 덮어쓴다. 서버 파일을 직접 고치면 다음 배포에 사라지므로, 키 추가는 **반드시 SSM 파라미터에** 해야 한다.
@@ -94,8 +94,8 @@ buildup-ev = 전기 특장차(STEGO-K / PV5 기반 등)의 **3D 컨피규레이�
 
 - **기존 테이블·컬럼을 지우거나 이름을 바꾸지 않는다.** 타입도 바꾸지 않는다. 필요하면 **새로 더한다**(추가만 허용).
 - **행을 지우지 않는다.** 잘못 들어간 데이터도 지우지 말고 **상태로 관리**한다(만료·취소·비활성).
-- **`prisma db push`·`migrate reset` 운영 금지.** 반영은 `ALTER TABLE … ADD COLUMN IF NOT EXISTS …` 같은 **격리 SQL** 로, 백업 뒤에.
-- 스키마를 고쳤으면 운영 DB 에도 반영한다(위 배포 항목의 `db:drift` 참조).
+- **`prisma db push`·`migrate dev`·`migrate reset`·`accept-data-loss` 운영 금지.** 반영은 검토된 migration SQL을 배포의 `migrate deploy`로만 수행한다.
+- 스키마를 고쳤으면 migration 파일도 같은 PR에 넣는다. 배포는 migration status, 전체 Prisma diff, `db:drift`를 모두 확인한다.
 
 **삭제 기능은 제품에 없다.** 되살리지 말 것 — `backend/src/__tests__/permission-modules.test.ts` 의
 「삭제 기능은 되살아나지 않는다」가 지킨다.

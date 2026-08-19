@@ -1,5 +1,5 @@
 # db/schema
 
-SQL DDL 파일 위치. 테이블 정의, 인덱스, 제약조건 등 스키마 마이그레이션 파일을 여기에 둔다.
+Prisma Migrate 도입 전의 SQL DDL 이력과 설계 참고 자료다. 신규 운영 migration의 정본은 `backend/prisma/migrations/`이며, 이 디렉터리에 독립 적용 SQL을 추가하지 않는다.
 
 참고: `docs/buildup-ev_DB스키마_v0.1.md`

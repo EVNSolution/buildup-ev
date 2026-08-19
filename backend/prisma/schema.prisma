@@ -1,6 +1,6 @@
 // buildup-ev Prisma schema
 // datasource: PostgreSQL (docker-compose 기본값)
-// 마이그레이션 방식: prisma db push (ERD 안정 전까지 마이그레이션 파일 없음)
+// 마이그레이션 방식: 검토된 prisma/migrations SQL을 운영에서 migrate deploy로만 적용
 
 generator client {
   provider = "prisma-client-js"
@@ -52,7 +52,7 @@ model User {
   /// 주 역할 — 로그인 후 첫 화면·배지의 기준(하나뿐)
   role           Role
   /// 겸직 — 주 역할 외에 더 가진 역할. 권한은 역할들의 합집합으로 본다.
-  extra_roles    Role[]
+  extra_roles    Role[]     @default([])
   name           String     @db.VarChar(60)
   phone          String?    @db.VarChar(20)
   status         UserStatus @default(invited)
@@ -281,7 +281,7 @@ model QuoteChangeLog {
   changed_by String   @db.VarChar(120)
   changed_at DateTime @default(now())
 
-  quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+  quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([quote_id, changed_at])
   @@map("quote_change_log")
@@ -496,7 +496,7 @@ model OrderStep {
   done_by    String?   @db.VarChar(120)
   note       String?   @db.VarChar(300)
 
-  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([order_id, code], map: "order_step_unique")
   @@index([order_id], map: "order_step_order_idx")
@@ -520,7 +520,7 @@ model OrderFile {
   uploaded_by   String   @db.VarChar(120)
   uploaded_at   DateTime @default(now())
 
-  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([order_id, step_code], map: "order_file_order_idx")
   @@map("order_file")

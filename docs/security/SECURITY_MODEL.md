@@ -27,6 +27,14 @@
 - 신규 슬롯이 DB readiness와 정확한 revision을 증명하기 전에는 Caddy 트래픽을 전환하지 않는다.
 - 전환 후 내부 TLS 경로와 프론트를 확인한다. 실패하면 이전 Caddy 설정을 복원하고 신규 PM2 프로세스를 제거한다.
 
+## DB migration 경계
+
+- 운영 schema 변경은 Git에 커밋된 Prisma migration SQL만 `migrate deploy`로 적용한다.
+- 미적용 migration이 있으면 먼저 PostgreSQL custom-format backup을 생성하고 복원 목록 검사를 통과시킨다.
+- migration ledger가 없는 기존 DB에는 자동 DDL을 적용하지 않는다. 검토된 baseline diff가 정확히 일치할 때만 별도 baseline 절차를 허용한다.
+- `db push`, `migrate reset`, `accept-data-loss`와 자동 seed는 운영에서 금지한다.
+- Blue/Green 배포 중 이전 active 코드가 계속 실행되므로 migration은 expand-contract를 따른다. 기존 객체 삭제와 타입 변경은 같은 배포에서 하지 않는다.
+
 ## 노출 제한
 
 - health 응답은 상태, revision, slot만 반환한다.
