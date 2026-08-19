@@ -152,6 +152,8 @@ if ! need_cmd aws; then
   /tmp/aws/install --update
 fi
 
+# Node가 평가할 식이며 shell이 backtick을 확장하면 안 된다.
+# shellcheck disable=SC2016
 if ! need_cmd node || [ "$(node -p 'Number(process.versions.node.split(`.`)[0])')" -lt 20 ]; then
   if need_cmd apt-get; then
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash -

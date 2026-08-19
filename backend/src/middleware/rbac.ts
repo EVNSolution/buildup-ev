@@ -7,14 +7,21 @@ import { mergePermissions } from '../lib/permissions.js';
 
 export interface AuthContext {
   email: string;
-  /** 주 역할 — 표시·기본 화면용 */
   role: Role;
-  /** 이 계정이 가진 역할 전부(주 역할 포함). 권한·접근 판정은 **이것**을 본다. */
   roles: Role[];
   org_code: string;
-  // DEV: master surface switcher — true이면 rbac 역할 체크 우회
+  /** 보호 대상 마스터 계정 표시. 운영 권한 우회 여부와는 별개다. */
   is_master?: boolean;
 }
+
+interface PermissionRecord {
+  subject_type: string;
+  subject_ref: string;
+  module_code: string;
+  enabled: boolean;
+}
+
+type PermissionLookup = (auth: AuthContext) => Promise<PermissionRecord[]>;
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -22,12 +29,33 @@ declare module 'express-serve-static-core' {
   }
 }
 
-/**
- * JWT cookie 기반 인증 컨텍스트 주입.
- * TEST 환경: JWT payload 직접 신뢰 (DB 조회 생략).
- * 운영 환경: JWT 검증 후 DB에서 user.status/active 확인.
- */
-export function injectJwtAuth(req: Request, _res: Response, next: NextFunction): void {
+function testAuthBypassEnabled(): boolean {
+  return process.env['NODE_ENV'] === 'test' && process.env['ALLOW_TEST_AUTH_BYPASS'] === 'true';
+}
+
+function testPermissionBypassEnabled(): boolean {
+  return process.env['NODE_ENV'] === 'test' && process.env['ALLOW_TEST_PERMISSION_BYPASS'] === 'true';
+}
+
+/** 테스트용 surface 전환은 개발·테스트에서만 허용한다. */
+export function masterBypassEnabled(auth: Pick<AuthContext, 'is_master'>): boolean {
+  return process.env['NODE_ENV'] !== 'production' && auth.is_master === true;
+}
+
+async function loadAccessControls(auth: AuthContext): Promise<PermissionRecord[]> {
+  if (!prisma) throw new Error('permission store unavailable');
+  return prisma.accessControl.findMany({
+    where: {
+      OR: [
+        { subject_type: 'role', subject_ref: { in: auth.roles } },
+        { subject_type: 'user', subject_ref: auth.email },
+      ],
+    },
+  });
+}
+
+/** JWT를 검증한 뒤 DB의 현재 계정 상태와 역할만 신뢰한다. */
+export function injectJwtAuth(req: Request, res: Response, next: NextFunction): void {
   const token = req.cookies?.['access_token'] as string | undefined;
   if (!token) { next(); return; }
 
@@ -38,83 +66,60 @@ export function injectJwtAuth(req: Request, _res: Response, next: NextFunction):
     next(); return;
   }
 
-  if (process.env['NODE_ENV'] === 'test') {
+  if (testAuthBypassEnabled()) {
     req.auth = { email: payload.email, role: payload.role as Role, roles: [payload.role as Role], org_code: payload.org_code };
     next();
     return;
   }
 
   if (!prisma) {
-    req.auth = { email: payload.email, role: payload.role as Role, roles: [payload.role as Role], org_code: payload.org_code };
-    next();
+    res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE', message: '계정 확인을 사용할 수 없습니다.' } });
     return;
   }
 
   prisma.user.findUnique({ where: { email: payload.email } })
     .then(user => {
       if (user && user.status === 'active' && user.active) {
-        /*
-         * ⚠️ 역할은 **토큰이 아니라 DB** 에서 읽는다. 토큰에 박아 두면 관리자가 역할을
-         *    더해 줘도 다시 로그인하기 전까지 반영되지 않는다.
-         */
+        const masterBypass = masterBypassEnabled({ is_master: user.is_master });
         req.auth = {
           email: user.email,
           role: user.role as Role,
-          roles: rolesOf({ role: user.role as Role, extra_roles: user.extra_roles as Role[], is_master: user.is_master }),
+          roles: rolesOf({ role: user.role as Role, extra_roles: user.extra_roles as Role[], is_master: masterBypass }),
           org_code: user.org_code,
           is_master: user.is_master,
         };
       }
       next();
     })
-    .catch(() => next());
+    .catch(() => {
+      res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE', message: '계정 확인을 사용할 수 없습니다.' } });
+    });
 }
 
-/**
- * 자료를 어디까지 보여줄지 — **역할 하나가 아니라 가진 역할 전부**로 판단한다.
- *
- * 예전에는 `auth.role === 'SALES'` 로 "내 견적만" 을 걸었다. 겸직이 생기면서 이 판정이
- * 틀어진다: 주 역할이 영업이고 관리를 겸한 계정은 관리 화면에서도 자기 견적만 보게 된다.
- * 그래서 "관리자인가"를 먼저 묻고, 아니면 남은 역할로 범위를 정한다.
- */
 export function isAdmin(auth: AuthContext): boolean {
-  return !!auth.is_master || auth.roles.includes('ADMIN');
+  return masterBypassEnabled(auth) || auth.roles.includes('ADMIN');
 }
 
-/** 남의 견적은 못 보는 자리인가(순수 영업). */
 export function ownQuotesOnly(auth: AuthContext): boolean {
   return !isAdmin(auth) && auth.roles.includes('SALES');
 }
 
-/** 자기 조직에 배정된 주문만 보는 자리인가(순수 특장사). */
 export function ownOrgOnly(auth: AuthContext): boolean {
   return !isAdmin(auth) && auth.roles.includes('MAKER');
 }
 
-/**
- * 견적 금액(공급가·실구매가)을 볼 자격이 있는가.
- *
- * 관리자이거나 영업이면 본다. 둘 다 아니면(= 순수 특장사) 보지 못한다 —
- * 특장 제작에 고객이 얼마에 샀는지는 필요 없고, 특장사는 원가 협상 상대이기도 하다.
- * 개인정보 처리방침의 위탁 범위("작업 진행에 필요한 범위")와도 이 판정이 맞물린다.
- *
- * ⚠️ 판정을 라우트마다 손으로 적지 말 것. 예전에 주문 **목록**만 이 판정을 빠뜨려
- *    특장사 응답에 금액이 그대로 실려 나갔다(상세는 처음부터 빼고 있었다).
- */
 export function canSeeQuotePrices(auth: AuthContext): boolean {
   return isAdmin(auth) || auth.roles.includes('SALES');
 }
 
-/** 역할 기반 접근 제어. 허용 역할 목록에 없으면 403.
- * DEV: is_master=true인 계정은 역할 체크 우회 (surface 전환 테스트용). */
+/** 역할 기반 접근 제어. 운영에서는 실제 역할만 인정한다. */
 export function rbac(...allowed: Role[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.auth) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '권한 없음' } });
       return;
     }
-    // 겸직 포함 — 가진 역할 중 하나라도 허용 목록에 있으면 통과
-    if (req.auth.is_master || req.auth.roles.some(r => allowed.includes(r))) {
+    if (masterBypassEnabled(req.auth) || req.auth.roles.some(role => allowed.includes(role))) {
       next();
       return;
     }
@@ -130,58 +135,42 @@ export function orgScope(req: Request, res: Response, next: NextFunction): void 
   next();
 }
 
-/**
- * 권한 보유 여부만 확인한다(막지는 않는다).
- * "권한이 있으면 전체, 없으면 본인 것만" 처럼 **결과 범위를 가르는** 데 쓴다.
- * 역할로 가르면 계정별 토글이 무시되므로 여기서도 같은 판정을 쓴다.
- */
-export async function hasPermission(req: Request, code: string): Promise<boolean> {
+/** 권한 보유 여부만 확인한다. 조회 장애는 권한 없음으로 처리한다. */
+export async function hasPermission(
+  req: Request,
+  code: string,
+  lookup: PermissionLookup = loadAccessControls,
+): Promise<boolean> {
   if (!req.auth) return false;
-  if (req.auth.is_master) return true;
-  if (!prisma || process.env['NODE_ENV'] === 'test') return true;
+  if (masterBypassEnabled(req.auth)) return true;
+  if (testPermissionBypassEnabled()) return true;
   try {
-    const acs = await prisma.accessControl.findMany({
-      where: {
-        OR: [
-          { subject_type: 'role', subject_ref: { in: req.auth.roles } },
-          { subject_type: 'user', subject_ref: req.auth.email },
-        ],
-      },
-    });
+    const acs = await lookup(req.auth);
     return mergePermissions(req.auth.roles, req.auth.email, acs).includes(code);
   } catch {
     return false;
   }
 }
 
-/** 권한 모듈 코드 기반 접근 제어. 역할 체크(rbac) 이후에 체인으로 사용.
- * DEV: is_master=true이면 우회. TEST/DB없음이면 우회. */
-export function requirePermission(code: string) {
+/** 권한 저장소가 없거나 조회에 실패하면 요청을 허용하지 않는다. */
+export function requirePermission(code: string, lookup: PermissionLookup = loadAccessControls) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.auth) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '인증 필요' } });
       return;
     }
-    if (req.auth.is_master) { next(); return; }
-    if (!prisma || process.env['NODE_ENV'] === 'test') { next(); return; }
+    if (masterBypassEnabled(req.auth) || testPermissionBypassEnabled()) { next(); return; }
 
     try {
-      const acs = await prisma.accessControl.findMany({
-        where: {
-          OR: [
-            { subject_type: 'role', subject_ref: { in: req.auth.roles } },
-            { subject_type: 'user', subject_ref: req.auth.email },
-          ],
-        },
-      });
-      const perms = mergePermissions(req.auth.roles, req.auth.email, acs);
-      if (!perms.includes(code)) {
+      const acs = await lookup(req.auth);
+      const permissions = mergePermissions(req.auth.roles, req.auth.email, acs);
+      if (!permissions.includes(code)) {
         res.status(403).json({ error: { code: 'PERMISSION_DENIED', message: `'${code}' 권한이 없습니다.` } });
         return;
       }
       next();
     } catch {
-      next();
+      res.status(503).json({ error: { code: 'PERMISSION_UNAVAILABLE', message: '권한 확인을 사용할 수 없습니다.' } });
     }
   };
 }

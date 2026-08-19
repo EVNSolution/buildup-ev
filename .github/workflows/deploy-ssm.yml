@@ -1,17 +1,19 @@
-name: Deploy via SSM
+name: BUILDUP-EV 검증 및 배포
+run-name: BUILDUP-EV 검증 및 배포
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-buildup-ev-ssm
+  group: deploy-buildup-ev-production
   cancel-in-progress: false
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -26,59 +28,90 @@ env:
   API_PORT_GREEN: '3102'
 
 jobs:
-  # 배포 전 관문. 여기서 막히면 프로덕션에 나가지 않는다.
-  #
-  # ⚠️ **shared 만 돌린다.** shared 는 DB 도 서버도 필요 없는 순수 계산·계약이라
-  #    러너에서 그대로 돈다. backend 테스트는 DB 를 요구해 여기선 못 돌린다 —
-  #    넣으면 매 배포가 실패하고, 그러면 이 관문 자체를 꺼 버리게 된다.
-  test:
-    name: shared 테스트
+  validate:
+    name: 소스와 배포 계약 검증
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - name: 정확한 소스 받기
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+      - name: Node 준비
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
-      - run: npm ci
-      - run: npx vitest run
+          cache: npm
+      - name: 의존성 설치
+        run: npm ci
+      - name: High 취약점 검사
+        run: npm audit --audit-level=high
+      - name: 계산 계약 테스트
+        run: npx vitest run
         working-directory: shared
+      - name: 백엔드 테스트와 빌드
+        run: |
+          npm exec --workspace=backend -- prisma generate
+          npm run --workspace=backend test -- \
+            src/__tests__/permissions.test.ts \
+            src/__tests__/permission-modules.test.ts \
+            src/__tests__/runtime-config.test.ts \
+            src/__tests__/health.test.ts
+          npm run --workspace=backend build
+      - name: 배포 계약 테스트
+        run: |
+          python3 -m unittest discover -s deploy/tests -p 'test_*.py'
+          bash -n deploy/setup-deploy.sh
+          bash -n deploy/remote-deploy.sh
 
   deploy:
-    name: Deploy main
-    needs: test
+    name: 운영 슬롯 배포
+    if: github.event_name != 'pull_request'
+    needs: validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - name: Checkout deploy scripts
-        uses: actions/checkout@v5
+      - name: 정확한 배포 소스 받기
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
 
-      - name: Validate required secrets
+      - name: 배포 입력 검증
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test "$SOURCE_REVISION" = "$(git rev-parse HEAD)"
           test -n "$AWS_REGION" || { echo 'Missing secret: AWS_REGION'; exit 1; }
           test -n "$AWS_ROLE_ARN" || { echo 'Missing secret: AWS_ROLE_ARN'; exit 1; }
           test -n "$EC2_INSTANCE_ID" || { echo 'Missing secret: EC2_INSTANCE_ID'; exit 1; }
           test -n "$SERVER_NAME" || { echo 'Missing secret: SERVER_NAME'; exit 1; }
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+      - name: AWS 임시 권한 구성
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Send SSM deploy command
+      - name: SSM 배포 명령 전송
         id: ssm
         env:
-          DEPLOY_REF: main
+          SOURCE_REVISION: ${{ github.sha }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
         run: |
           set -euo pipefail
           remote_b64="$(base64 -w 0 deploy/remote-deploy.sh)"
           setup_b64="$(base64 -w 0 deploy/setup-deploy.sh)"
-          export remote_b64 setup_b64
+          validator_b64="$(base64 -w 0 deploy/validate-env.py)"
+          export remote_b64 setup_b64 validator_b64
 
           python3 - <<'PY' > /tmp/buildup-ev-ssm-commands.json
           import json, os, shlex
           remote_env = {
-              'DEPLOY_REF': os.environ['DEPLOY_REF'],
               'APP_BASE_DIR': os.environ['APP_BASE_DIR'],
               'REPO_URL': os.environ['REPO_URL'],
               'PM2_APP_PREFIX': os.environ['PM2_APP_PREFIX'],
@@ -86,15 +119,17 @@ jobs:
               'SSM_APP_ENV_PARAM': os.environ['SSM_APP_ENV_PARAM'],
               'API_PORT_BLUE': os.environ['API_PORT_BLUE'],
               'API_PORT_GREEN': os.environ['API_PORT_GREEN'],
+              'SOURCE_REVISION': os.environ['SOURCE_REVISION'],
+              'WORKFLOW_RUN_ID': os.environ['WORKFLOW_RUN_ID'],
+              'ACTOR': os.environ['ACTOR'],
           }
-          run_remote = ' '.join(f'{k}={shlex.quote(v)}' for k, v in remote_env.items()) + ' /tmp/buildup-ev-remote-deploy.sh'
+          run_remote = ' '.join(f'{key}={shlex.quote(value)}' for key, value in remote_env.items()) + ' /tmp/buildup-ev-remote-deploy.sh'
           commands = [
               'set -eu',
-              "cat >/tmp/buildup-ev-setup.b64 <<'EOF'\n" + os.environ['setup_b64'] + "\nEOF",
-              "cat >/tmp/buildup-ev-remote.b64 <<'EOF'\n" + os.environ['remote_b64'] + "\nEOF",
-              'base64 -d /tmp/buildup-ev-setup.b64 >/tmp/buildup-ev-setup.sh',
-              'base64 -d /tmp/buildup-ev-remote.b64 >/tmp/buildup-ev-remote-deploy.sh',
-              'chmod +x /tmp/buildup-ev-setup.sh /tmp/buildup-ev-remote-deploy.sh',
+              "printf '%s' '" + os.environ['setup_b64'] + "' | base64 -d > /tmp/buildup-ev-setup.sh",
+              "printf '%s' '" + os.environ['validator_b64'] + "' | base64 -d > /tmp/buildup-ev-validate-env.py",
+              "printf '%s' '" + os.environ['remote_b64'] + "' | base64 -d > /tmp/buildup-ev-remote-deploy.sh",
+              'chmod 700 /tmp/buildup-ev-setup.sh /tmp/buildup-ev-validate-env.py /tmp/buildup-ev-remote-deploy.sh',
               run_remote,
           ]
           print(json.dumps({'commands': commands}))
@@ -103,7 +138,7 @@ jobs:
           command_id="$(aws ssm send-command \
             --instance-ids "$EC2_INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "buildup-ev deploy ${DEPLOY_REF}" \
+            --comment "${ACTOR} BUILDUP-EV release ${SOURCE_REVISION}" \
             --timeout-seconds 3600 \
             --parameters file:///tmp/buildup-ev-ssm-commands.json \
             --query 'Command.CommandId' \
@@ -111,9 +146,10 @@ jobs:
           echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
           echo "SSM command: $command_id"
 
-      - name: Wait for deployment
+      - name: 배포 완료 대기
         env:
           COMMAND_ID: ${{ steps.ssm.outputs.command_id }}
+          SOURCE_REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
           deadline=$((SECONDS + 3600))
@@ -129,20 +165,32 @@ jobs:
             case "$status" in
               Success|Failed|Cancelled|TimedOut|Cancelling|Undeliverable|Terminated|DeliveryTimedOut) break ;;
             esac
-            sleep 15
+            sleep 5
           done
 
-          aws ssm get-command-invocation \
+          stdout="$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID" \
             --query StandardOutputContent \
-            --output text || true
-
-          echo '--- stderr ---'
-          aws ssm get-command-invocation \
+            --output text || true)"
+          stderr="$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$EC2_INSTANCE_ID" \
             --query StandardErrorContent \
-            --output text || true
+            --output text || true)"
+          printf '%s\n' "$stdout"
+          printf '%s\n' "$stderr" >&2
+
+          release="$(printf '%s\n' "$stdout" | awk '/^release=/{value=$0} END{print value}')"
+          {
+            echo '## BUILDUP-EV 배포 결과'
+            echo
+            echo '| 항목 | 값 |'
+            echo '| --- | --- |'
+            echo "| Revision | \`$SOURCE_REVISION\` |"
+            [ -z "$release" ] || echo "| Release | \`$release\` |"
+            echo "| SSM command | \`$COMMAND_ID\` |"
+            echo "| Result | \`$status\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
           test "$status" = Success

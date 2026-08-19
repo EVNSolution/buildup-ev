@@ -5,9 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "declaration": true,
+    "noEmit": true,
     "skipLibCheck": true,
     "paths": {
       "@buildup-ev/shared/load-calc": ["../shared/load-calc/core.ts"],

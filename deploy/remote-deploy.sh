@@ -3,24 +3,163 @@ set -euo pipefail
 
 APP_BASE_DIR="${APP_BASE_DIR:-/opt/buildup-ev}"
 REPO_URL="${REPO_URL:-https://github.com/EVNSolution/buildup-ev.git}"
-DEPLOY_REF="${DEPLOY_REF:-main}"
 PM2_APP_PREFIX="${PM2_APP_PREFIX:-buildup-ev}"
 SERVER_NAME="${SERVER_NAME:?SERVER_NAME required}"
 SSM_APP_ENV_PARAM="${SSM_APP_ENV_PARAM:-/buildup-ev/app-env}"
 API_PORT_BLUE="${API_PORT_BLUE:-3101}"
 API_PORT_GREEN="${API_PORT_GREEN:-3102}"
+SOURCE_REVISION="${SOURCE_REVISION:?SOURCE_REVISION required}"
+WORKFLOW_RUN_ID="${WORKFLOW_RUN_ID:?WORKFLOW_RUN_ID required}"
+ACTOR="${ACTOR:?ACTOR required}"
+VALIDATOR="${VALIDATOR:-/tmp/buildup-ev-validate-env.py}"
 SETUP_MARKER="$APP_BASE_DIR/.setup-complete"
+EVIDENCE_FILE="$APP_BASE_DIR/deploy-evidence.jsonl"
+MANIFEST_DIR="$APP_BASE_DIR/manifests"
+CADDY_FILE=/etc/caddy/Caddyfile.d/buildup-ev.caddy
+
+[[ "$SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]] || { echo 'SOURCE_REVISION must be a full Git SHA.' >&2; exit 2; }
+[[ "$WORKFLOW_RUN_ID" =~ ^[0-9]+$ ]] || { echo 'WORKFLOW_RUN_ID must be numeric.' >&2; exit 2; }
+[[ "$ACTOR" =~ ^[A-Za-z0-9-]+$ ]] || { echo 'ACTOR must be a GitHub login.' >&2; exit 2; }
+
+cleanup_file() {
+  local target="$1"
+  [ ! -e "$target" ] || shred -u "$target" 2>/dev/null || rm -f "$target"
+}
+
+append_evidence() {
+  python3 - "$EVIDENCE_FILE" "$ACTOR" "$WORKFLOW_RUN_ID" "$@" <<'PY'
+import datetime, json, os, sys
+path, actor, workflow_run_id, *pairs = sys.argv[1:]
+event = dict(pair.split('=', 1) for pair in pairs)
+event['actor'] = actor
+event['workflowRunId'] = workflow_run_id
+event['timestamp'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'a', encoding='utf-8') as target:
+    target.write(json.dumps(event, ensure_ascii=False) + '\n')
+PY
+}
+
+write_manifest() {
+  local target="$MANIFEST_DIR/$slot.json"
+  python3 - "$target" "$slot" "$SOURCE_REVISION" "$LOCKFILE_SHA256" "$SSM_VERSION" "$WORKFLOW_RUN_ID" "$ACTOR" "${current:-none}" "${old_active_revision:-none}" <<'PY'
+import datetime, json, os, sys, tempfile
+target, slot, revision, lockfile, ssm_version, workflow_run_id, actor, previous_slot, previous_revision = sys.argv[1:]
+data = {
+    'slot': slot,
+    'sourceRevision': revision,
+    'lockfileSha256': lockfile,
+    'ssmParameterVersion': int(ssm_version),
+    'workflowRunId': workflow_run_id,
+    'actor': actor,
+    'previousSlot': previous_slot,
+    'previousRevision': previous_revision,
+    'preparedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}
+os.makedirs(os.path.dirname(target), exist_ok=True)
+fd, temporary = tempfile.mkstemp(dir=os.path.dirname(target), prefix='.manifest-', text=True)
+with os.fdopen(fd, 'w', encoding='utf-8') as output:
+    json.dump(data, output, ensure_ascii=False, indent=2)
+    output.write('\n')
+os.replace(temporary, target)
+PY
+}
+
+fetch_and_validate_env() {
+  local payload env_candidate
+  payload="$(mktemp)"
+  env_candidate="$(mktemp)"
+  chmod 600 "$payload" "$env_candidate"
+
+  if ! aws ssm get-parameter --name "$SSM_APP_ENV_PARAM" --with-decryption --output json >"$payload"; then
+    cleanup_file "$payload"
+    cleanup_file "$env_candidate"
+    echo "Unable to read SSM SecureString: $SSM_APP_ENV_PARAM" >&2
+    return 1
+  fi
+  if ! SSM_VERSION="$(python3 - "$payload" "$env_candidate" <<'PY'
+import json, os, sys
+payload, target = sys.argv[1:]
+with open(payload, encoding='utf-8') as source:
+    parameter = json.load(source)['Parameter']
+with open(target, 'w', encoding='utf-8') as output:
+    output.write(parameter['Value'].rstrip('\n') + '\n')
+os.chmod(target, 0o600)
+print(parameter['Version'])
+PY
+)"; then
+    cleanup_file "$payload"
+    cleanup_file "$env_candidate"
+    echo 'Unable to decode SSM application ENV.' >&2
+    return 1
+  fi
+  if ! "$VALIDATOR" "$env_candidate"; then
+    cleanup_file "$payload"
+    cleanup_file "$env_candidate"
+    return 1
+  fi
+  install -m 0600 "$env_candidate" .env.candidate
+  mv .env.candidate .env
+  cleanup_file "$payload"
+  cleanup_file "$env_candidate"
+  export SSM_VERSION
+}
+
+ready_matches() {
+  local url="$1"
+  curl -fsS --max-time 5 "$url" 2>/dev/null |
+    python3 -c 'import json,sys
+try: body=json.load(sys.stdin)
+except (json.JSONDecodeError, UnicodeError): raise SystemExit(1)
+raise SystemExit(0 if body.get("ok") is True and body.get("revision")==sys.argv[1] else 1)' "$SOURCE_REVISION"
+}
+
+public_ready_matches() {
+  curl -fsS --max-time 5 --resolve "${SERVER_NAME}:443:127.0.0.1" "https://${SERVER_NAME}/api/readyz" 2>/dev/null |
+    python3 -c 'import json,sys
+try: body=json.load(sys.stdin)
+except (json.JSONDecodeError, UnicodeError): raise SystemExit(1)
+raise SystemExit(0 if body.get("ok") is True and body.get("revision")==sys.argv[1] else 1)' "$SOURCE_REVISION"
+}
+
+reload_caddy() {
+  caddy validate --config /etc/caddy/Caddyfile
+  if systemctl is-active --quiet caddy; then
+    systemctl reload caddy
+  else
+    systemctl restart caddy
+  fi
+}
+
+restore_caddy() {
+  local caddy_file="$1" backup="$2" had_config="$3"
+  if [ "$had_config" = 1 ]; then cp "$backup" "$caddy_file"; else rm -f "$caddy_file"; fi
+  reload_caddy
+}
 
 if [ ! -f "$SETUP_MARKER" ]; then
   APP_BASE_DIR="$APP_BASE_DIR" /tmp/buildup-ev-setup.sh
 fi
 test -f "$SETUP_MARKER"
+test -x "$VALIDATOR"
 
-get_param() {
-  aws ssm get-parameter --name "$1" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || true
-}
-
-current="$(cat "$APP_BASE_DIR/active-slot" 2>/dev/null || true)"
+recorded_current="$(cat "$APP_BASE_DIR/active-slot" 2>/dev/null || true)"
+observed_current=
+if [ -f "$CADDY_FILE" ]; then
+  if grep -Fq "reverse_proxy 127.0.0.1:${API_PORT_BLUE}" "$CADDY_FILE"; then
+    observed_current=blue
+  elif grep -Fq "reverse_proxy 127.0.0.1:${API_PORT_GREEN}" "$CADDY_FILE"; then
+    observed_current=green
+  fi
+fi
+if [[ "$observed_current" =~ ^(blue|green)$ ]]; then
+  current="$observed_current"
+  if [ "$recorded_current" != "$observed_current" ]; then
+    append_evidence "event=slot-record-reconciled" "recorded=${recorded_current:-none}" "observed=$observed_current"
+  fi
+else
+  current="$recorded_current"
+fi
 if [ "$current" = blue ]; then
   slot=green
   port="$API_PORT_GREEN"
@@ -31,63 +170,73 @@ fi
 
 slot_dir="$APP_BASE_DIR/releases/$slot"
 pm2_name="$PM2_APP_PREFIX-$slot"
-ts="$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$APP_BASE_DIR/releases" "$APP_BASE_DIR/logs"
+mkdir -p "$APP_BASE_DIR/releases" "$APP_BASE_DIR/logs" "$MANIFEST_DIR"
+
+old_active_revision=none
+if [[ "$current" =~ ^(blue|green)$ ]] && [ -d "$APP_BASE_DIR/releases/$current/.git" ]; then
+  old_active_revision="$(git -C "$APP_BASE_DIR/releases/$current" rev-parse HEAD)"
+fi
 
 if [ ! -d "$slot_dir/.git" ]; then
   rm -rf "$slot_dir"
-  git clone "$REPO_URL" "$slot_dir"
+  git clone --no-checkout "$REPO_URL" "$slot_dir"
 fi
 
 cd "$slot_dir"
-old_commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
-git fetch --prune origin "$DEPLOY_REF"
-git checkout -B deploy-target FETCH_HEAD
-git reset --hard FETCH_HEAD
-new_commit="$(git rev-parse --short HEAD)"
+git fetch --no-tags --prune origin "$SOURCE_REVISION"
+git checkout -B deploy-target "$SOURCE_REVISION"
+git reset --hard "$SOURCE_REVISION"
+test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
+LOCKFILE_SHA256="$(sha256sum package-lock.json | awk '{print $1}')"
 
-env_text="$(get_param "$SSM_APP_ENV_PARAM")"
-if [ -z "$env_text" ] || [ "$env_text" = None ]; then
-  echo "Missing SSM SecureString: $SSM_APP_ENV_PARAM" >&2
-  exit 1
-fi
-( umask 077; printf '%s\n' "$env_text" > .env )
-
+fetch_and_validate_env
 npm ci
 npm exec --workspace=backend -- prisma generate
-
-# ── 스키마 대조 ── 새 슬롯을 띄우기 전에 막는다.
-#
-# 2026-08-18: WARP 연동에서 customer 에 컬럼 두 개가 늘었는데 운영 DB 에 반영되지 않아
-# 고객을 읽는 기능이 전부 P2022 로 죽었다(견적서·계약서·메일). 그런데 아래 헬스체크는
-# /api/v1/auth/me 라 고객 테이블을 건드리지 않아 **배포는 매번 초록불이었다.**
-# 여기서 멈추면 옛 슬롯이 계속 서비스한다 — 어긋난 채로 나가는 것보다 낫다.
 npm run --workspace=backend db:drift
-
 npm run --workspace=frontend build
-npm cache clean --force >/dev/null 2>&1 || true
 chmod -R a+rX frontend/dist
 
 pm2 delete "$pm2_name" >/dev/null 2>&1 || true
-DOC_STORAGE_DIR="$APP_BASE_DIR/shared/documents" PORT="$port" NODE_ENV=production pm2 start ./node_modules/.bin/tsx --name "$pm2_name" -- backend/src/server.ts
+DOC_STORAGE_DIR="$APP_BASE_DIR/shared/documents" \
+PORT="$port" \
+NODE_ENV=production \
+RELEASE_REVISION="$SOURCE_REVISION" \
+RELEASE_SLOT="$slot" \
+pm2 start ./node_modules/.bin/tsx --name "$pm2_name" -- backend/src/server.ts
 
-ok=0
-for _ in $(seq 1 30); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}/api/v1/auth/me" || true)"
-  if [ "$code" = 403 ] || [ "$code" = 200 ]; then ok=1; break; fi
-  sleep 2
+candidate_ready=0
+for _ in $(seq 1 45); do
+  if ready_matches "http://127.0.0.1:${port}/api/readyz"; then candidate_ready=1; break; fi
+  sleep 1
 done
-if [ "$ok" != 1 ]; then
-  echo "New slot $slot did not become healthy on port $port" >&2
-  pm2 logs "$pm2_name" --lines 80 --nostream || true
+if [ "$candidate_ready" != 1 ]; then
+  append_evidence "event=prepare-blocked" "slot=$slot" "revision=$SOURCE_REVISION" "ssmVersion=$SSM_VERSION"
+  pm2 logs "$pm2_name" --lines 40 --nostream || true
+  pm2 delete "$pm2_name" >/dev/null 2>&1 || true
+  echo "Candidate slot $slot did not become ready." >&2
   exit 1
 fi
 
 test -f frontend/dist/index.html
-cat > /etc/caddy/Caddyfile.d/buildup-ev.caddy <<EOF_CADDY
+write_manifest
+
+caddy_backup="$(mktemp)"
+caddy_candidate="$(mktemp /etc/caddy/Caddyfile.d/.buildup-ev-candidate.XXXXXX)"
+had_caddy_config=0
+if [ -f "$CADDY_FILE" ]; then
+  cp "$CADDY_FILE" "$caddy_backup"
+  had_caddy_config=1
+fi
+cat > "$caddy_candidate" <<EOF_CADDY
 ${SERVER_NAME} {
 	root * ${slot_dir}/frontend/dist
 	encode gzip zstd
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+	}
 
 	handle /api/* {
 		reverse_proxy 127.0.0.1:${port}
@@ -99,46 +248,51 @@ ${SERVER_NAME} {
 	}
 }
 EOF_CADDY
-chmod 644 /etc/caddy/Caddyfile.d/buildup-ev.caddy
+chmod 644 "$caddy_candidate"
 
-caddy validate --config /etc/caddy/Caddyfile
-if systemctl is-active --quiet caddy; then
-  systemctl reload caddy
-else
-  if pgrep -x caddy >/dev/null; then
-    caddy stop || true
-    sleep 1
-  fi
-  if pgrep -x caddy >/dev/null; then
-    pkill -x caddy || true
-    sleep 1
-  fi
-  systemctl reset-failed caddy || true
-  systemctl restart caddy
+if ! caddy validate --config "$caddy_candidate"; then
+  cleanup_file "$caddy_candidate"
+  cleanup_file "$caddy_backup"
+  pm2 delete "$pm2_name" >/dev/null 2>&1 || true
+  append_evidence "event=switch-blocked" "candidate=$slot" "restored=${current:-none}" "reason=caddy-validation"
+  exit 1
 fi
-systemctl is-active --quiet caddy
+mv "$caddy_candidate" "$CADDY_FILE"
 
-active_config_ok=0
-for _ in $(seq 1 10); do
-  active_config="$(curl -fsS http://127.0.0.1:2019/config/ || true)"
-  if printf '%s' "$active_config" | grep -q "127.0.0.1:${port}" \
-    && printf '%s' "$active_config" | grep -q "${slot_dir}/frontend/dist"; then
-    active_config_ok=1
-    break
-  fi
-  sleep 1
-done
-frontend_code="$(curl -k -s -o /dev/null -w '%{http_code}' --resolve "${SERVER_NAME}:443:127.0.0.1" "https://${SERVER_NAME}/" || true)"
-if [ "$active_config_ok" != 1 ] || [ "$frontend_code" != 200 ]; then
-  echo "Caddy did not serve the new slot $slot on port $port (frontend HTTP $frontend_code)" >&2
-  systemctl status caddy --no-pager || true
-  curl -s http://127.0.0.1:2019/config/ || true
+if ! reload_caddy; then
+  restore_caddy "$CADDY_FILE" "$caddy_backup" "$had_caddy_config"
+  cleanup_file "$caddy_backup"
+  pm2 delete "$pm2_name" >/dev/null 2>&1 || true
+  append_evidence "event=switch-rolled-back" "candidate=$slot" "restored=${current:-none}" "reason=caddy"
   exit 1
 fi
 
-printf '%s\n' "$slot" > "$APP_BASE_DIR/active-slot"
-printf '%s %s %s previous=%s\n' "$ts" "$slot" "$new_commit" "${old_commit:-none}" >> "$APP_BASE_DIR/deploy.log"
+external_ready=0
+for _ in $(seq 1 15); do
+  if public_ready_matches; then external_ready=1; break; fi
+  sleep 1
+done
+frontend_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 --resolve "${SERVER_NAME}:443:127.0.0.1" "https://${SERVER_NAME}/" || true)"
+if [ "$external_ready" != 1 ] || [ "$frontend_code" != 200 ]; then
+  restore_caddy "$CADDY_FILE" "$caddy_backup" "$had_caddy_config"
+  cleanup_file "$caddy_backup"
+  pm2 delete "$pm2_name" >/dev/null 2>&1 || true
+  append_evidence "event=switch-rolled-back" "candidate=$slot" "restored=${current:-none}" "reason=external-verification"
+  echo "Candidate verification failed; restored ${current:-previous configuration}." >&2
+  exit 1
+fi
+cleanup_file "$caddy_backup"
+
+if [[ "$current" =~ ^(blue|green)$ ]]; then
+  printf '%s\n' "$current" > "$APP_BASE_DIR/.previous-slot.candidate"
+  mv "$APP_BASE_DIR/.previous-slot.candidate" "$APP_BASE_DIR/previous-slot"
+fi
+printf '%s\n' "$slot" > "$APP_BASE_DIR/.active-slot.candidate"
+mv "$APP_BASE_DIR/.active-slot.candidate" "$APP_BASE_DIR/active-slot"
+printf '%s revision=%s ssmVersion=%s lockfile=%s previous=%s\n' \
+  "$(date +%Y%m%d-%H%M%S)" "$SOURCE_REVISION" "$SSM_VERSION" "$LOCKFILE_SHA256" "$old_active_revision" >> "$APP_BASE_DIR/deploy.log"
+append_evidence "event=activated" "slot=$slot" "revision=$SOURCE_REVISION" "ssmVersion=$SSM_VERSION" "lockfileSha256=$LOCKFILE_SHA256" "previous=${current:-none}" "previousRevision=$old_active_revision"
 pm2 save
 systemctl enable --now pm2-root >/dev/null 2>&1 || true
 
-echo "Deployed $new_commit to $slot on port $port. Previous active slot stayed $current."
+echo "release=revision:${SOURCE_REVISION},slot:${slot},ssm:${SSM_VERSION},lockfile:${LOCKFILE_SHA256}"

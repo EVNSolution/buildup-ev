@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, CookieOptions } from 'express';
 import rateLimit from 'express-rate-limit';
-import { rbac } from '../middleware/rbac.js';
+import { masterBypassEnabled, rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { signToken } from '../lib/jwt.js';
 import { verifyPassword, hashPassword } from '../lib/password.js';
@@ -119,9 +119,10 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '사용자를 찾을 수 없습니다.' } });
     return;
   }
+  const masterBypass = masterBypassEnabled({ is_master: dbUser.is_master });
   let permissions: string[];
-  if (dbUser.is_master) {
-    // DEV: master gets all active modules regardless of role defaults
+  if (masterBypass) {
+    // 로컬 개발용 surface 전환 계정만 모든 활성 모듈을 본다.
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     permissions = allMods.map(m => m.code);
   } else {
@@ -144,7 +145,7 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
         must_change_pw: dbUser.must_change_pw,
         invited_by: dbUser.invited_by ?? undefined,
         active: dbUser.active,
-        is_master: dbUser.is_master, // DEV: master surface switcher
+        is_master: masterBypass,
       },
       org: {
         code: dbUser.org.code,
@@ -164,9 +165,9 @@ authRouter.get('/me/permissions', rbac('SALES', 'ADMIN', 'MAKER'), async (req: R
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } });
     return;
   }
-  const { email, roles, is_master } = req.auth!;
+  const { email, roles } = req.auth!;
   let perms: string[];
-  if (is_master) {
+  if (masterBypassEnabled(req.auth!)) {
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     perms = allMods.map(m => m.code);
   } else {

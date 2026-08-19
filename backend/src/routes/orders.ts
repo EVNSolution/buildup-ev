@@ -134,7 +134,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
         res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
         return;
       }
-      if (!auth.is_master && order.maker_org_id !== auth.org_code) {
+      if (order.maker_org_id !== auth.org_code) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
         return;
       }
@@ -185,7 +185,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       return;
     }
 
-    // ADMIN / SALES (+ is_master): 전체 응답 + options·documents
+    // ADMIN / SALES: 전체 응답 + options·documents
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
