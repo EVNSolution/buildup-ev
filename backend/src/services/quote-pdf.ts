@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
 import { calcQuote, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, type CustomerInput } from './quote-calc.js';
+import { archiveCustomerDoc } from './doc-archive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE = readFileSync(path.resolve(__dirname, '../../..', 'doc-templates/quote-template.html'), 'utf-8');
@@ -302,6 +303,20 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     // @ts-expect-error puppeteer 타입이 setContent 의 'networkidle0' 을 좁게 잡음(런타임 지원 — 웹폰트 로드 대기)
     await page.setContent(html, { waitUntil: 'networkidle0' });
     const pdf = Buffer.from(await page.pdf({ printBackground: true, preferCSSPageSize: true }));
+
+    /*
+     * 고객별 보관함에 한 장 쌓는다 — **내용이 달라졌을 때만** 새 번호를 받는다.
+     * 견적서는 화면에서 열 때마다 여기를 지나므로, 그냥 쌓으면 같은 파일이 수십 장 생긴다.
+     * 보관이 실패해도 견적서는 그대로 나간다(이 함수는 예외를 던지지 않는다).
+     */
+    await archiveCustomerDoc({
+      customerId: quote.customer_id,
+      customerName: quote.customer?.name,
+      quoteNo: quote.quote_no,
+      kind: '견적서',
+      pdf,
+    });
+
     const customerSlug = (quote.customer?.name ?? '').replace(/\s+/g, '_') || 'unknown';
     return { pdf, filename: `견적서_${customerSlug}_${quoteId}.pdf`, customerName: quote.customer?.name ?? null };
   } finally {

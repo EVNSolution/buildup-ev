@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { ContractStatus, PurchaseContract, Customer } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { archiveCustomerDoc } from './doc-archive.js';
 import { docStorageDir } from '../lib/soffice.js';
 import { type ContractInput } from './contract-pdf.js';
 import { renderContractPdfForQuote, isCorporateContract } from './contract-docgen.js';
@@ -219,6 +220,22 @@ async function advanceQuoteToContracted(quoteId: number): Promise<void> {
   await notifyContractSigned(quoteId);
 }
 
+
+/**
+ * 서명본을 **고객별 보관함**에도 한 장 쌓는다(견적서·계약서와 같은 폴더, 생성 순서대로).
+ * 보관은 곁다리라 실패해도 조용히 지나간다 — 서명 완료 처리가 막히면 안 된다.
+ */
+async function archiveSigned(quoteId: number, kind: '계약서_서명본', pdf: Buffer): Promise<void> {
+  const q = await prisma?.quote.findUnique({
+    where: { id: quoteId },
+    select: { customer_id: true, quote_no: true, customer: { select: { name: true } } },
+  });
+  if (!q) return;
+  await archiveCustomerDoc({
+    customerId: q.customer_id, customerName: q.customer?.name, quoteNo: q.quote_no, kind, pdf,
+  });
+}
+
 /**
  * 완료된 서명본 PDF 를 내려받아 저장한다. **실패해도 예외를 던지지 않는다**(경로 or null).
  * 서명 완료 상태 전이가 부수 작업 때문에 막히면 안 된다.
@@ -230,6 +247,8 @@ async function saveSignedPdf(contractId: number, quoteId: number, documentId: st
     await mkdir(dir, { recursive: true });
     const filePath = path.join(dir, `contract_signed_${contractId}.pdf`);
     await writeFile(filePath, pdf);
+    // 고객별 보관함에도 한 장 — **서명본은 여기서 가장 중요한 서류**다
+    await archiveSigned(quoteId, '계약서_서명본', pdf);
     return filePath;
   } catch (e) {
     console.error(`[contract] 서명본 저장 실패(상태는 반영함) contract=${contractId}:`,
@@ -531,6 +550,8 @@ export async function registerPaperContract(
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, `contract_paper_${contract.id}${ext}`);
   await writeFile(filePath, scan.buffer);
+  // 서면계약 스캔본도 서명본과 같은 자리에 쌓는다 — 종이든 전자든 계약의 정본이다
+  if (ext === '.pdf') await archiveSigned(quoteId, '계약서_서명본', scan.buffer);
 
   const saved = await p.purchaseContract.update({
     where: { id: contract.id },
