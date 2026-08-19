@@ -7,6 +7,7 @@ import { customersRouter } from './routes/customers.js';
 import { loadCalcRouter } from './routes/load-calc.js';
 import { ordersRouter } from './routes/orders.js';
 import { orderFilesRouter } from './routes/order-files.js';
+import { customerFoldersRouter } from './routes/customer-folders.js';
 import { stepsRouter } from './routes/steps.js';
 import { docsRouter } from './routes/docs.js';
 import { authRouter } from './routes/auth.js';
@@ -89,6 +90,8 @@ export function createApp() {
   app.use('/api/v1/feature-modules', featureModulesRouter);
   app.use('/api/v1/models', modelsRouter);
   app.use('/api/v1/quotes', quotesRouter);
+  // 고객 서류함 — 견적서·계약서를 고객별로 모아 본다(견적 목록·견적·주문 화면이 읽는다)
+  app.use('/api/v1/customer-folders', customerFoldersRouter);
   app.use('/api/v1/customers', customersRouter); // 고객 마스터 완전일치 조회(자동 기입)
   app.use('/api/v1/load-calc', loadCalcRouter);
   /*
