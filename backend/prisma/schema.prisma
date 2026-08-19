@@ -375,6 +375,11 @@ model Customer {
   created_at DateTime @default(now())
   /// WARP 역방향 수집의 증분 기준. 기존 행은 컬럼 추가 시점 값으로 시작한다.
   updated_at DateTime @default(now()) @updatedAt
+  /// 숨김 — **지우지 않고 화면에서만 감춘다.** null 이면 보인다.
+  /// ⚠️ `warp_customer_id` 가 있는(=WARP 에 연결된) 고객은 숨길 수 없다.
+  ///    숨기면 export 에서 빠져 WARP 쪽에서 증발한 것처럼 보인다.
+  hidden_at  DateTime?
+  hidden_by  String?  @db.VarChar(120)
 
   creator User?   @relation(fields: [created_by], references: [email])
   quotes  Quote[]
@@ -419,6 +424,11 @@ model Quote {
   org_id        String?     @db.VarChar(30)
   /// 담당 영업이 배정을 **수락한** 시각. NULL = 수락 대기(또는 배정 전). 재배정 시 NULL 로 돌린다.
   sales_accepted_at DateTime?
+  /// 숨김 — **지우지 않고 화면에서만 감춘다.** null 이면 보인다.
+  /// ⚠️ 임시저장(draft)만 숨길 수 있다. 확정 이상은 퍼널 통계가 왜곡되고
+  ///    진행 중인 거래가 화면에서 사라진다. 계약이 붙어 있으면 무조건 거부.
+  hidden_at     DateTime?
+  hidden_by     String?     @db.VarChar(120)
   created_at    DateTime    @default(now())
 
   // 참고용 메일 발송(견적서·계약서 PDF 첨부) 이력 — 전자서명(purchase_contract)과는 별개 채널.

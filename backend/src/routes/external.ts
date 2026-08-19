@@ -11,6 +11,7 @@
  * ⚠️ DTO 는 화이트리스트다. created_by(사내 계정 이메일) 등 내부 정보는 내보내지 않는다.
  */
 import { Router } from 'express';
+import { VISIBLE } from '../lib/visibility.js';
 import type { Request, Response, NextFunction } from 'express';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -72,7 +73,13 @@ externalRouter.get('/customers', async (req: Request, res): Promise<void> => {
   }
   try {
     const customers = await prisma.customer.findMany({
-      where: sinceDate ? { updated_at: { gt: sinceDate } } : undefined,
+      /*
+       * 숨긴 고객은 내보내지 않는다 — 테스트로 만든 고객이 CRM 「불러오기」 목록에
+       * 계속 뜨는 걸 막는 것이 이 기능의 목적이다.
+       * (이미 WARP 에 연결된 고객은 애초에 숨길 수 없다 — 숨기면 여기서 빠져
+       *  그쪽에서 증발한 것처럼 보인다. 숨기기 라우트가 막는다)
+       */
+      where: { ...VISIBLE, ...(sinceDate ? { updated_at: { gt: sinceDate } } : {}) },
       orderBy: { updated_at: 'asc' },
       take: EXPORT_LIMIT,
       select: EXPORT_SELECT,

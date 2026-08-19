@@ -212,7 +212,11 @@ usersRouter.delete('/:email', rbac('ADMIN'), requirePermission('account.manage')
       return;
     }
 
-    // 일반 삭제: FK 참조 있으면 409
+    /*
+     * 일반 삭제: FK 참조 있으면 409.
+     * ⚠️ **숨긴 견적·고객도 센다.** 숨김은 화면에서 감춘 것일 뿐 행은 남아 FK 를 잡고 있다.
+     *    빼고 세면 삭제가 진행되다 DB 제약에 걸린다.
+     */
     const [quoteCount, inviteeCount, customerCount] = await Promise.all([
       prisma.quote.count({ where: { sales_user_id: email } }),
       prisma.user.count({ where: { invited_by: email } }),
