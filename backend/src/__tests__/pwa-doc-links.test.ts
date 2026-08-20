@@ -60,3 +60,37 @@ describe('설치형 앱(PWA)에서도 서류가 열리는가', () => {
     expect(helper).toMatch(/a\.download/);
   });
 });
+
+/**
+ * **앱을 열면 그 계정의 화면으로 간다.**
+ *
+ * `start_url` 이 없으면 **추가할 때 보던 페이지가 시작 페이지로 굳는다** — 관리자 화면에서
+ * 추가하면 영업 계정으로 로그인해도 관리자 주소로 열리고, 그 반대도 마찬가지다.
+ * `/` 로 두면 `HomeGate` 가 **역할을 보고** 보낸다(관리자→/admin · 영업→/sales · 특장→/maker).
+ */
+describe('앱을 열었을 때 가는 곳', () => {
+  const ROOT = path.resolve(__dirname, '../../..');
+  const manifest = JSON.parse(readFileSync(path.join(ROOT, 'frontend/public/site.webmanifest'), 'utf8'));
+
+  it('시작 주소는 뿌리다 — 어디서 추가하든 같은 자리에서 시작한다', () => {
+    expect(manifest.start_url).toBe('/');
+    expect(manifest.scope).toBe('/');
+  });
+
+  it('앱처럼 뜬다 — 주소창 없이', () => {
+    expect(manifest.display).toBe('standalone');
+  });
+
+  it('뿌리에서 역할을 보고 보낸다', () => {
+    // start_url 만 고치고 이 갈림이 없으면 모두가 공개 화면에 떨어진다
+    const gate = readFileSync(path.join(ROOT, 'frontend/src/components/HomeGate.tsx'), 'utf8');
+    expect(gate).toMatch(/homeFor\(session\.user\.role\)/);
+  });
+
+  it('역할별 도착지가 정해져 있다', () => {
+    const surfaces = readFileSync(path.join(ROOT, 'frontend/src/lib/surfaces.ts'), 'utf8');
+    for (const [role, home] of [['SALES', '/sales'], ['ADMIN', '/admin'], ['MAKER', '/maker']]) {
+      expect(surfaces, `${role} → ${home}`).toMatch(new RegExp(`path: '${home}'[^}]*role: '${role}'`));
+    }
+  });
+});
