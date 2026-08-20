@@ -8,7 +8,6 @@ import {
   fetchSteps, completeStep, undoStep, uploadStepFile, deleteStepFile, stepFileUrl,
   type ApiStepsResponse,
 } from '../api/steps'
-import { sendTuning, fetchTuning, type TuningRecipient } from '../api/tuning'
 import { shrinkImage, fmtBytes, MAX_EDGE } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
 import { DocLink } from './DocLink'
@@ -48,30 +47,6 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
   const [dates, setDates] = useState<Record<string, string>>({})
   /** 완료 전에 확인해야 하는 단계에서, 확인을 마친 것들(서명본 내려받기 등) */
   const [acked, setAcked] = useState<Set<string>>(new Set())
-  /** 전자서명 요청 팝업 — 이메일/카카오 중 어디로 보낼지 고른다(계약서와 같은 선택) */
-  const [sendFor, setSendFor] = useState<number | null>(null)
-  const [sendErr, setSendErr] = useState('')
-  const [recipient, setRecipient] = useState<TuningRecipient | null>(null)
-
-  // 발송 팝업을 열 때 누구에게 가는지 먼저 읽는다 — 보내고 나서 알면 늦다
-  function openSend() {
-    setSendErr(''); setRecipient(null); setSendFor(orderId)
-    fetchTuning(orderId).then(r => setRecipient(r.recipient)).catch(() => setRecipient(null))
-  }
-
-  async function handleSendTuning(method: 'EMAIL' | 'KAKAO') {
-    setBusy('tuning_sign_sent'); setSendErr('')
-    try {
-      await sendTuning(orderId, method)
-      setSendFor(null)
-      load()   // 발송이 성공하면 서버가 단계를 넘겨 둔다 — 다시 읽어 반영
-    } catch (e) {
-      setSendErr(e instanceof Error ? e.message : '전자서명 요청 실패')
-    } finally {
-      setBusy(null)
-    }
-  }
-
   function load() {
     fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : '단계 정보를 불러오지 못했습니다'))
   }
@@ -155,48 +130,6 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
 
   return (
     <div style={s.root}>
-      {/*
-        전자서명 요청 팝업 — 계약서와 같은 선택지(이메일·카카오).
-        고객이 메일을 잘 안 보는 경우가 있어 카카오를 함께 둔다.
-      */}
-      {sendFor !== null && (
-        <div style={s.ovl} onClick={() => setSendFor(null)}>
-          <div style={s.modal} onClick={e => e.stopPropagation()}>
-            <div style={s.modalTitle}>튜닝 승인 신청서 — 전자서명 요청</div>
-            <div style={s.modalDesc}>
-              자동차등록증상 <b>소유자</b>에게 서명을 요청합니다. 신청서는 지금 시점의
-              등록증 정보로 만들어집니다.
-            </div>
-            {recipient && (
-              <div style={s.recip}>
-                <div><b>신청인</b> {recipient.owner_name || '—'}</div>
-                <div><b>이메일</b> {recipient.email || '—'}</div>
-                <div><b>휴대폰</b> {recipient.phone || '—'}</div>
-                {/*
-                  등록증 소유자와 견적 고객이 다르면 반드시 눈에 띄어야 한다.
-                  연락처는 고객의 것이라, 그대로 보내면 신청인이 아닌 사람에게 서명을 요청하게 된다.
-                */}
-                {recipient.mismatch && (
-                  <div style={s.recipWarn}>
-                    ⚠ 등록증 소유자(<b>{recipient.owner_name}</b>)와 견적 고객(<b>{recipient.customer_name}</b>)이
-                    다릅니다. 위 연락처는 <b>고객</b>의 것입니다 — 신청인 본인이 맞는지 확인하고 보내세요.
-                  </div>
-                )}
-              </div>
-            )}
-            {sendErr && <div style={s.modalErr}>{sendErr}</div>}
-            <div style={s.modalBtns}>
-              <button style={BTN.row} disabled={busy === 'tuning_sign_sent'}
-                onClick={() => handleSendTuning('EMAIL')}>이메일로 요청</button>
-              <button style={BTN.row} disabled={busy === 'tuning_sign_sent'}
-                onClick={() => handleSendTuning('KAKAO')}>카카오로 요청</button>
-              <button style={BTN.rowMuted} disabled={busy === 'tuning_sign_sent'}
-                onClick={() => setSendFor(null)}>취소</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/*
         발주·수락·납기는 **단계가 아니라 이미 끝난 기록**이다. 머리말에 적어 두고
         완료/되돌리기 대상으로 두지 않는다 — 같은 일을 두 번 관리하지 않기 위해서.
@@ -290,29 +223,14 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                     )}
 
                     {/*
-                      `auto` 단계는 다른 행위(전자서명 발송 등)가 일어나면 저절로 지나간다.
-                      **그 담당에게는 버튼을 준다** — 아직 그 기능이 붙기 전이라, 버튼이 아예
-                      없으면 이 갈래가 영구히 막힌다. 담당이 아닌 사람에게는 안내만 보인다.
+                      `auto` 단계는 다른 행위(발송 등)가 일어나면 저절로 지나간다.
+                      **그 담당에게는 버튼을 준다** — 담당이 아닌 사람에게는 안내만 보인다.
+
+                      ⚠️ 튜닝 전자서명 버튼은 걷어냈다. **튜닝은 종이로 받아 스캔해 올린다** —
+                         신청서 업로드 → 서명본 업로드 → 승인서 수령. 세 단계 모두 파일이 근거다.
+                         전자서명을 다시 켤 때는 그 단계와 함께 이 버튼도 되살릴 것.
                     */}
-                    {/*
-                      전자서명 요청은 「완료」를 누르는 단계가 아니라 **보내는 단계**다.
-                      보내면 서버가 이 단계를 넘긴다(사람이 두 번 누를 일이 아니다).
-                    */}
-                    {/*
-                      담당은 영업이지만 **관리자에게도 버튼을 준다.**
-                      주문 상세 화면이 관리자·특장사에만 있어(영업 화면에는 없다), 담당에게만 열면
-                      이 버튼을 볼 수 있는 사람이 아무도 없어 튜닝 갈래가 통째로 막힌다.
-                      서버도 ADMIN·SALES 둘 다 받는다(doc.send.sign 권한 필요).
-                    */}
-                    {phase === 'now' && canEdit && def.code === 'tuning_sign_sent'
-                      && (myRoles.includes(def.actor as never) || myRoles.includes('ADMIN' as never)) && (
-                      <button
-                        style={busy === def.code ? BTN.rowDisabled : BTN.rowPrimary}
-                        disabled={busy === def.code}
-                        onClick={openSend}
-                      >{busy === def.code ? '보내는 중' : '전자서명 요청'}</button>
-                    )}
-                    {phase === 'now' && canEdit && def.code !== 'tuning_sign_sent'
+                    {phase === 'now' && canEdit
                       && (!def.auto || myRoles.includes(def.actor as never)) && (
                       <button
                         style={gate.ok && dateOk && ackOk && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
@@ -320,12 +238,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                         onClick={() => handleComplete(def.code)}
                       >{busy === def.code ? '처리 중' : '완료 처리'}</button>
                     )}
-                    {phase === 'now' && def.auto && def.code !== 'tuning_sign_sent'
-                      && !myRoles.includes(def.actor as never) && (
-                      <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
-                    )}
-                    {phase === 'now' && def.code === 'tuning_sign_sent'
-                      && !myRoles.includes(def.actor as never) && !myRoles.includes('ADMIN' as never) && (
+                    {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
                       <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
                     )}
                   </div>

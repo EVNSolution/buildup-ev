@@ -27,13 +27,17 @@ export type EvidenceKind =
   | 'receipt'            // 인수증(서명본)
   | 'plate_return'       // 임시번호판 반납 확인서
   | 'vehicle_reg'        // 자동차등록증
+  | 'tuning_apply'       // 튜닝신청서(작성본)
+  | 'tuning_signed_doc'  // 튜닝신청서 서명본
   | 'tuning_approval'    // 구조변경 승인서
   | 'inspection_doc'     // 안전검사 관련 서류
   | 'docs_bundle';       // 그 밖의 제출 서류 일체
 
 /** 원본을 지켜야 하는 증빙 = 글자를 읽어야 하는 것. 나머지는 줄여서 저장한다. */
 export const KEEP_ORIGINAL: EvidenceKind[] = [
-  'receipt', 'plate_return', 'vehicle_reg', 'tuning_approval', 'inspection_doc', 'docs_bundle',
+  'receipt', 'plate_return', 'vehicle_reg',
+  'tuning_apply', 'tuning_signed_doc', 'tuning_approval',
+  'inspection_doc', 'docs_bundle',
 ];
 
 export const EVIDENCE_LABEL: Record<EvidenceKind, string> = {
@@ -42,6 +46,8 @@ export const EVIDENCE_LABEL: Record<EvidenceKind, string> = {
   receipt: '인수증(서명본)',
   plate_return: '임시번호판 반납 확인서',
   vehicle_reg: '자동차등록증',
+  tuning_apply: '튜닝신청서',
+  tuning_signed_doc: '튜닝신청서 서명본',
   tuning_approval: '구조변경 승인서',
   inspection_doc: '안전검사 서류',
   docs_bundle: '제출 서류 일체',
@@ -123,21 +129,21 @@ export const STEPS: StepDef[] = [
   { code: 'build_done', track: 'body', label: '특장 제작 완료', actor: 'MAKER',
     requires: [], evidence: [], dueFrom: { from: 'order', field: 'delivery_due' } },
 
-  // ── 튜닝(인허가) — 등록증이 나오면 특장과 **무관하게** 시작한다 ──────────
-  { code: 'tuning_drafted', track: 'tuning', label: '튜닝신청서 생성', actor: 'SYSTEM',
-    requires: ['plate_received'], evidence: [] },
   /*
-   * 전자서명 요청은 **영업이 보내는 순간 지나가는 단계**다. 특장사가 상세 화면에서
-   * 「완료」를 눌러 줄 일이 아니다 — 보낸 사실은 발송이 곧 증명한다.
+   * ── 튜닝(인허가) — 등록증이 나오면 특장과 **무관하게** 시작한다 ──────────
+   *
+   * **전자서명은 쓰지 않는다.** 종이로 받아 스캔해 올리는 방식이다 —
+   * 신청서를 올리고 · 서명본을 올리고 · 승인서를 받는다. 세 단계 모두 파일이 근거다.
+   *
+   * ⚠️ 옛 단계 코드를 그대로 쓴다(`tuning_drafted` · `tuning_signed` · `tuning_approved`).
+   *    진행 중인 주문에 이미 그 코드로 행이 깔려 있어, 이름을 바꾸면 그 기록이 갈 곳을 잃는다.
+   *    빠진 것은 전자서명 요청 단계(`tuning_sign_sent`) 하나뿐이다 —
+   *    카탈로그에서 빠지면 그 행은 「해당 없음」으로 남고 진행률에서도 빠진다.
    */
-  { code: 'tuning_sign_sent', track: 'tuning', label: '전자서명 요청', actor: 'SALES',
-    requires: ['tuning_drafted'], evidence: [], auto: true },
-  /*
-   * 서명이 끝나도 **서명본을 실제로 받아 보기 전에는** 완료로 넘기지 않는다.
-   * 서명본은 관청에 내는 정본이라, 열어 보지 않고 넘기면 잘못 서명된 것을 뒤늦게 안다.
-   */
-  { code: 'tuning_signed', track: 'tuning', label: '서명 완료', actor: 'MAKER',
-    requires: ['tuning_sign_sent'], evidence: [], ackLabel: '서명본 확인' },
+  { code: 'tuning_drafted', track: 'tuning', label: '튜닝신청서 업로드', actor: 'MAKER',
+    requires: ['plate_received'], evidence: ['tuning_apply'] },
+  { code: 'tuning_signed', track: 'tuning', label: '서명본 업로드', actor: 'MAKER',
+    requires: ['tuning_drafted'], evidence: ['tuning_signed_doc'] },
   { code: 'tuning_approved', track: 'tuning', label: '승인서 수령', actor: 'MAKER',
     requires: ['tuning_signed'], evidence: ['tuning_approval'] },
 

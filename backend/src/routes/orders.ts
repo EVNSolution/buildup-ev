@@ -85,7 +85,7 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
       rows.find(r => r.code === code)?.done_at?.getTime();
 
     const data = orders.map(({ steps, ...o }) => {
-      const done = new Set(steps.filter(s => s.status === 'done').map(s => s.code));
+      const doneAll = new Set(steps.filter(s => s.status === 'done').map(s => s.code));
       /*
        * **해당 없는 단계는 세지도, 할 일로 띄우지도 않는다.**
        * 특장만 주문은 차량 트랙이 「차량 도착」 하나로 줄어, 나머지 넷은 skipped 로 남는다.
@@ -95,6 +95,12 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
       const bodyOnly = steps.some(s => s.status === 'skipped' && BODY_ONLY_SKIPPED.includes(s.code));
       const defs = stepsFor(bodyOnly);
       const applicable = new Set(defs.map(d => d.code));
+      /*
+       * ⚠️ **카탈로그에서 빠진 단계는 세지 않는다.**
+       * 단계를 걷어내도(전자서명 요청처럼) 진행 중이던 주문에는 그 코드의 행이 남아 있다.
+       * 그대로 세면 완료 수가 전체 수를 넘어 「15/14」 같은 진행률이 나온다.
+       */
+      const done = new Set([...doneAll].filter(c => applicable.has(c)));
       // 지금 손댈 수 있는 것 = 선행이 다 끝났고 아직 안 끝난 것
       const openDefs = defs.filter(d => !done.has(d.code) && d.requires.every(q => done.has(q)));
       const byCode = new Map(steps.map(s => [s.code, s]));
