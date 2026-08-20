@@ -41,22 +41,28 @@ function fail(res: Response, e: unknown, where: string): void {
   res.status(500).json({ error: { code: 'INTERNAL', message: '처리 중 오류가 발생했습니다' } });
 }
 
-// ── POST /:id/tuning/send — 고객에게 서명 요청 ───────────────────────────────
-// 계약서 발송과 같은 권한(doc.send.sign) — 건당 과금되는 되돌릴 수 없는 동작이다.
-tuningRouter.post('/:id/tuning/send', rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'),
-  async (req: Request, res: Response): Promise<void> => {
-    const id = orderId(req);
-    if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 주문 id' } }); return; }
+/*
+ * ── POST /:id/tuning/send — 전자서명 요청 (**현재 꺼져 있다**) ─────────────────
+ *
+ * 튜닝은 **종이로 받아 스캔해 올리는 방식**으로 정했다 —
+ * 신청서 업로드 → 서명본 업로드 → 승인서 수령. 그래서 이 길은 쓰지 않는다.
+ *
+ * ⚠️ **코드를 지우지 않는다.** 나중에 전자서명을 붙이기로 하면 그대로 되살린다
+ *    (모두싸인 연동·서명란 좌표·수신자 판정이 여기 다 들어 있다).
+ *    다만 열어 두면 **건당 과금되는 발송**이 실수로 나갈 수 있어 입구만 막는다.
+ *    되살릴 때 함께 되돌릴 것: 단계 카탈로그의 `tuning_sign_sent`,
+ *    화면의 「전자서명 요청」 버튼, `steps.ts` 의 서명본 확인 게이트.
+ */
+const TUNING_ESIGN_OFF = {
+  error: {
+    code: 'FEATURE_OFF',
+    message: '튜닝신청서는 전자서명을 쓰지 않습니다 — 서명본 파일을 올려 주세요.',
+  },
+} as const;
 
-    const method = (req.body as { signing_method?: string }).signing_method;
-    if (method !== 'EMAIL' && method !== 'KAKAO') {
-      res.status(400).json({ error: { code: 'BAD_INPUT', message: 'signing_method 는 EMAIL 또는 KAKAO' } });
-      return;
-    }
-    try {
-      const a = await sendTuningApplication(id, method);
-      res.json({ data: { id: a.id, status: a.status, signing_method: a.signing_method, sent_at: a.sent_at } });
-    } catch (e) { fail(res, e, 'POST tuning/send'); }
+tuningRouter.post('/:id/tuning/send', rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'),
+  async (_req: Request, res: Response): Promise<void> => {
+    res.status(405).json(TUNING_ESIGN_OFF);
   });
 
 // ── GET /:id/tuning — 현재 상태 ──────────────────────────────────────────────

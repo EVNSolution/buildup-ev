@@ -56,12 +56,36 @@ describe('카탈로그 자체가 앞뒤가 맞나', () => {
     expect(STEP_BY_CODE['plate_received']!.evidence).toContain('vehicle_reg');
   });
 
-  it('전자서명 요청은 사람이 완료를 누르는 단계가 아니다', () => {
-    expect(STEP_BY_CODE['tuning_sign_sent']!.auto).toBe(true);
+  /*
+   * 튜닝은 **전자서명을 쓰지 않는다** — 종이로 받아 스캔해 올린다.
+   * 세 단계 모두 **파일이 근거**라, 증빙 없이는 넘어가지 않아야 한다.
+   * (전자서명을 다시 켜기로 하면 이 테스트도 그때 함께 되돌린다)
+   */
+  it('튜닝 갈래에 전자서명 단계가 없다', () => {
+    expect(STEP_BY_CODE['tuning_sign_sent']).toBeUndefined();
+    expect(stepsOfTrack('tuning').map(s => s.code))
+      .toEqual(['tuning_drafted', 'tuning_signed', 'tuning_approved']);
   });
 
-  it('서명 완료는 서명본을 받아 본 뒤에만 누를 수 있다', () => {
-    expect(STEP_BY_CODE['tuning_signed']!.ackLabel).toBeTruthy();
+  it('튜닝 세 단계는 모두 파일이 있어야 넘어간다', () => {
+    // 하나라도 증빙이 비면 「올렸다고 치고」 넘길 수 있게 된다 — 관청 제출물이다
+    for (const code of ['tuning_drafted', 'tuning_signed', 'tuning_approved']) {
+      expect(STEP_BY_CODE[code]!.evidence.length, code).toBeGreaterThan(0);
+    }
+  });
+
+  it('튜닝 단계에는 발송으로 지나가는 것이 없다', () => {
+    // auto·ackLabel 은 전자서명 시절의 장치다. 남아 있으면 파일을 올려도 완료가 막힌다
+    for (const s of stepsOfTrack('tuning')) {
+      expect(s.auto, s.code).toBeFalsy();
+      expect(s.ackLabel, s.code).toBeFalsy();
+    }
+  });
+
+  it('튜닝 서류는 원본으로 보관한다 — 관청에 내는 것이다', () => {
+    expect(keepsOriginal('tuning_apply')).toBe(true);
+    expect(keepsOriginal('tuning_signed_doc')).toBe(true);
+    expect(keepsOriginal('tuning_approval')).toBe(true);
   });
 });
 
@@ -75,7 +99,7 @@ describe('두 갈래가 만나는 지점', () => {
   });
 
   it('튜닝은 특장 진행을 요구하지 않는다 — 병행할 수 있어야 한다', () => {
-    for (const code of ['tuning_drafted', 'tuning_sign_sent', 'tuning_signed', 'tuning_approved']) {
+    for (const code of ['tuning_drafted', 'tuning_signed', 'tuning_approved']) {
       const reqTracks = STEP_BY_CODE[code]!.requires.map(r => STEP_BY_CODE[r]!.track);
       expect(reqTracks, code).not.toContain('body');
     }
