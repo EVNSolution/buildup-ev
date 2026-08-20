@@ -94,3 +94,45 @@ describe('앱을 열었을 때 가는 곳', () => {
     }
   });
 });
+
+/**
+ * **새로고침은 화면을 리로드하지 않는다.**
+ *
+ * 설치형 앱에는 주소창도 새로고침도 없고, 이 앱은 문서가 스크롤되지 않아 당겨서
+ * 새로고침도 발동하지 않는다. 그래서 헤더에 버튼을 하나 뒀다 — 다만 **리로드가 아니라
+ * 지금 화면의 데이터만** 다시 불러온다.
+ *
+ * 리로드로 만들면 견적 저장·고객정보 수정처럼 긴 폼을 채우던 중에 눌렸을 때 전부 날아간다.
+ * 하필 「막혔다」 싶은 순간에 눌리는 버튼이라 그 위험이 크다.
+ */
+describe('새로고침 버튼', () => {
+  const ROOT2 = path.resolve(__dirname, '../../..');
+  const readF = (rel: string) => readFileSync(path.join(ROOT2, rel), 'utf8');
+
+  it('페이지를 리로드하지 않는다', () => {
+    for (const rel of ['frontend/src/components/Header.tsx', 'frontend/src/contexts/RefreshContext.tsx']) {
+      expect(readF(rel), `${rel} 에서 리로드를 부른다`).not.toMatch(/location\.reload\(|location\.href\s*=/);
+    }
+  });
+
+  it('앱으로 돌아오면 저절로 다시 불러온다', () => {
+    const ctx = readF('frontend/src/contexts/RefreshContext.tsx');
+    expect(ctx).toMatch(/visibilitychange/);
+    expect(ctx).toMatch(/'focus'/);
+  });
+
+  it('돌아올 때마다 부르지는 않는다 — 잦은 왕복에 목록이 깜빡이면 방해가 된다', () => {
+    const ctx = readF('frontend/src/contexts/RefreshContext.tsx');
+    expect(ctx).toMatch(/STALE_MS/);
+  });
+
+  it('목록 화면들이 등록해 둔다 — 등록이 없으면 버튼이 안 뜬다', () => {
+    for (const rel of [
+      'frontend/src/pages/SalesPage.tsx',
+      'frontend/src/pages/AdminPage.tsx',
+      'frontend/src/pages/MakerPage.tsx',
+    ]) {
+      expect(readF(rel), `${rel} 이 useScreenRefresh 를 안 부른다`).toMatch(/useScreenRefresh\(load\)/);
+    }
+  });
+});

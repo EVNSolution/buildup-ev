@@ -6,6 +6,7 @@ import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useScreenRefresh } from '../contexts/RefreshContext'
 import { InboxPanel } from '../components/InboxPanel'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { isAcceptOverdue, daysSince } from '@shared/schedule/businessDays'
@@ -58,6 +59,8 @@ export function MakerPage() {
     if (!email) return
     load()
   }, [email]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 앱으로 돌아오면 저절로 다시 불러온다 + 헤더 새로고침 버튼이 이걸 부른다
+  useScreenRefresh(load)
 
   return (
     <div style={styles.root}>

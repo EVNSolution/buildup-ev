@@ -4,6 +4,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { HomeGate } from './components/HomeGate'
+import { RefreshProvider } from './contexts/RefreshContext'
 import { SalesPage } from './pages/SalesPage'
 import { AdminPage } from './pages/AdminPage'
 import { MakerPage } from './pages/MakerPage'
@@ -12,6 +13,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage'
 export function App() {
   return (
     <AuthProvider>
+      <RefreshProvider>
       <BrowserRouter>
         <Routes>
           {/*
@@ -44,6 +46,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </RefreshProvider>
     </AuthProvider>
   )
 }
