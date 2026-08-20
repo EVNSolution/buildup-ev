@@ -317,7 +317,17 @@ export interface ApiQuote {
 export interface ApiOrderStepSummary {
   done: number;
   total: number;
-  /** 지금 손댈 수 있는 단계 이름들 */
+  /**
+   * **끝낸 단계 이름들**(카탈로그 순서) — 목록에 적는 요약은 이것으로만 쓴다.
+   *
+   * ⚠️ 「지금 할 수 있는 단계」(`open`)를 요약 자리에 적으면 읽는 사람이 **끝냈다**고
+   *    읽는다. 아무것도 완료 안 된 주문에 「차량 도착 · 특장 제작 완료」가 떠서
+   *    실제로 그렇게 오해했다.
+   */
+  done_labels: string[];
+  /** 가장 나중에 끝낸 단계. 하나도 없으면 null */
+  last_done: string | null;
+  /** 지금 손댈 수 있는 단계 이름들 — **정렬·강조용**이다. 요약 문구로 쓰지 말 것 */
   open: string[];
   /** 하나라도 기준 일수를 넘게 멈춰 있나 */
   stalled: boolean;

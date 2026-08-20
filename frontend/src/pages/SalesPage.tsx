@@ -451,11 +451,20 @@ function MyListView() {
                         옛 6단계 문자열 대신 **단계 진행**을 보여준다.
                         영업이 여기서 알고 싶은 것은 「어느 칸에 있나」가 아니라
                         「얼마나 왔나 · 늦었나 · 언제 오나」다.
+
+                        ⚠️ 설명창에는 **끝낸 단계만** 적는다. 예전엔 「지금 할 수 있는 단계」를
+                        적어 두어, 아무것도 완료 안 된 주문에 「차량 도착 · 특장 제작 완료」가
+                        떠서 끝난 것으로 읽혔다(관리자 목록에서 실제 제보).
                       */}
                       <td style={lv.td}>
                         {order?.steps
                           ? (
-                            <Tooltip text={order.steps.open.length ? order.steps.open.join(' · ') : '진행 대기'} placement="below">
+                            <Tooltip
+                              text={order.steps.done_labels.length
+                                ? `완료 · ${order.steps.done_labels.join(' · ')}`
+                                : '아직 완료된 단계가 없습니다'}
+                              placement="below"
+                            >
                               <span style={order.steps.stalled ? lv.progLate : lv.prog}>
                                 {order.steps.done}/{order.steps.total}
                                 {order.steps.stalled ? ' 지연' : ''}
