@@ -35,6 +35,8 @@
 
 외부 API 계약은 현재 작업 소유 범위가 아니다. BUILDUP-EV 운영 안정화가 끝나기 전에는 새 인증 계약, MachineClient, 계정 subject, 이벤트 스키마를 이 저장소에서 임의로 설계하지 않는다.
 
+현재 WARP 직접 연동의 기계 판독 계약은 `docs/integrations/WARP_BUILDUP_DIRECT_API.json`, 읽기용 위험·이관 기록은 `docs/integrations/WARP_BUILDUP_DIRECT_API.md`다. 외부 route, caller, method, path 또는 capability를 바꿀 때는 `npm run contract:integration:verify`를 실행하고 양쪽 저장소 manifest, Owner Issue, PR을 함께 갱신한다. manifest 밖의 `/api/external` 경로를 추가하거나 shared key의 범위와 DTO를 임의로 넓히지 않는다.
+
 ## DB migration
 
 - 운영 스키마 이력의 정본은 `backend/prisma/migrations/`다. `schema.prisma`만 고치거나 `db/schema/`에 독립 SQL만 추가하지 않는다.
