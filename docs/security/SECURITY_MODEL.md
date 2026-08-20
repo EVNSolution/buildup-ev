@@ -34,6 +34,7 @@
 - migration ledger가 없는 기존 DB에는 자동 DDL을 적용하지 않는다. 검토된 baseline diff가 정확히 일치할 때만 별도 baseline 절차를 허용한다.
 - `db push`, `migrate reset`, `accept-data-loss`와 자동 seed는 운영에서 금지한다.
 - Blue/Green 배포 중 이전 active 코드가 계속 실행되므로 migration은 expand-contract를 따른다. 기존 객체 삭제와 타입 변경은 같은 배포에서 하지 않는다.
+- 개인정보 저장 구조를 제거하는 migration은 제거 대상만 세는 read-only privacy preflight를 선언하고 단일 정수 0에서만 진행한다. 별도 Prisma 연결까지의 경쟁 조건을 막기 위해 migration 자체도 같은 조건의 transaction-level abort guard를 포함한다. 승인된 정상 업무 개인정보까지 포함하는 DB 전체 PII 0건 조건을 만들지 않으며, query 결과 행과 개인정보 원문을 배포 로그에 남기지 않는다.
 
 ## 노출 제한
 

@@ -231,6 +231,7 @@ jobs:
           printf '%s\n' "$stderr" >&2
 
           release="$(printf '%s\n' "$stdout" | awk '/^release=/{value=$0} END{print value}')"
+          privacy_preflight_count="$(printf '%s\n' "$stdout" | awk -F= '$1 == "privacy_preflight_count" {value=$2} END{print value}')"
           {
             echo '## BUILDUP-EV 배포 결과'
             echo
@@ -238,6 +239,7 @@ jobs:
             echo '| --- | --- |'
             echo "| Revision | \`$SOURCE_REVISION\` |"
             [ -z "$release" ] || echo "| Release | \`$release\` |"
+            [ -z "$privacy_preflight_count" ] || echo "| Privacy preflights | \`$privacy_preflight_count passed\` |"
             echo "| SSM command | \`$COMMAND_ID\` |"
             echo "| Result | \`$status\` |"
           } >> "$GITHUB_STEP_SUMMARY"

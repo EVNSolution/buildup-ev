@@ -144,14 +144,17 @@ npm exec --workspace=backend -- prisma migrate dev \
 
 생성된 `backend/prisma/migrations/<시각>_<변경이름>/migration.sql`을 검토한다. 기존 active 슬롯이 계속 동작할 수 있도록 테이블·nullable 컬럼·인덱스를 먼저 추가하고, 삭제·이름 변경·타입 변경은 사용 중단 후 별도 배포로 미룬다.
 
+개인정보 컬럼이나 테이블을 제거하는 별도 migration은 같은 디렉터리에 `privacy-preflight.audit`와 `privacy-preflight.sql`을 추가한다. SQL은 제거 대상 위반 건수 하나만 반환해야 한다. `migration.sql`에도 `-- privacy-abort-guard: <audit-id>` 표식과 같은 조건을 transaction 안에서 다시 확인해 중단시키는 SQL을 넣는다. 외부 감사 뒤 재기록되는 경쟁 조건은 이 내부 guard가 막는다. 차단 시 실제 행을 조회하거나 로그에 복사하지 말고 승인된 집계 query와 데이터 정리 절차를 고친 뒤 다시 검증한다.
+
 PR이 병합되면 정상 배포가 다음을 자동 수행한다.
 
 1. 미적용 migration 확인
-2. `/opt/buildup-ev/shared/backups/schema-*.dump` 생성 및 `pg_restore -l` 검증
-3. `prisma migrate deploy`
-4. migration status와 전체 Prisma schema diff 확인
-5. 기존 `db:drift` 확인
-6. candidate 슬롯 기동
+2. 선언된 privacy preflight의 잔존 위반 0건 확인
+3. `/opt/buildup-ev/shared/backups/schema-*.dump` 생성 및 `pg_restore -l` 검증
+4. `prisma migrate deploy`
+5. migration status와 전체 Prisma schema diff 확인
+6. 기존 `db:drift` 확인
+7. candidate 슬롯 기동
 
 백업은 최근 10개를 유지한다. migration 실패 시 기존 active 슬롯은 유지되지만 DB 변경은 자동 역실행하지 않는다. 실패한 migration 파일을 수정하거나 `resolve --applied`로 우회하지 말고 Issue 전용 복구 runbook을 만든다.
 
