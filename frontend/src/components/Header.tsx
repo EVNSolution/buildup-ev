@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useRefreshApi } from '../contexts/RefreshContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { Segmented } from './ui/Segmented'
 import { surfacesFor } from '../lib/surfaces'
@@ -20,6 +21,8 @@ interface Props {
 
 export function Header({ customer }: Props) {
   const { session, logout } = useAuth()
+  // 지금 화면이 「다시 불러오기」를 등록해 두었을 때만 버튼을 띄운다
+  const { refresh, running, run } = useRefreshApi()
   const navigate = useNavigate()
   const location = useLocation()
   const isMobile = useIsMobile()
@@ -103,6 +106,26 @@ export function Header({ customer }: Props) {
         로그인 화면으로 되돌리면 "나가려는데 다시 들어오라"는 화면이 뜨는 셈이다.
         (세션이 만료돼 튕기는 경우는 RequireAuth 가 로그인 화면으로 보낸다 — 그건 하던 일이 있는 경우다)
       */}
+      {/*
+        새로고침 — **설치형 앱에는 주소창도 새로고침도 없다.** 게다가 이 앱은 문서가
+        스크롤되지 않아 당겨서 새로고침도 발동하지 않는다. 목록이 오래됐거나 화면이
+        막혔을 때 누를 자리가 하나는 있어야 한다.
+
+        ⚠️ 화면을 리로드하지 않고 **지금 화면의 데이터만** 다시 불러온다.
+           견적 저장·고객정보 수정 같은 긴 폼이 열려 있어도 입력이 날아가지 않는다.
+      */}
+      {refresh && (
+        <button
+          style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0, opacity: running ? 0.5 : 1 }}
+          disabled={running}
+          onClick={run}
+          title="지금 화면을 다시 불러옵니다"
+          aria-label="새로고침"
+        >
+          {running ? '불러오는 중' : '새로고침'}
+        </button>
+      )}
+
       <button
         style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0 }}
         onClick={async () => { await logout(); navigate('/', { replace: true }) }}

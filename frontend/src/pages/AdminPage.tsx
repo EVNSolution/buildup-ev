@@ -7,6 +7,7 @@ import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden } from '../api/quotes'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
+import { useScreenRefresh } from '../contexts/RefreshContext'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { registerPaperContract } from '../api/contracts'
 import { Header } from '../components/Header'
@@ -939,6 +940,8 @@ function QuotesTab() {
 
   // 보기를 바꾸면 다시 읽는다(조회 조건이 바뀐다)
   useEffect(() => { load() }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
+  useScreenRefresh(load)
 
   // 서면계약 등록 (견적확정→계약완료). 스캔본이 있어야만 호출된다(모달이 막는다).
   async function handlePaperSubmit(file: File) {
@@ -1305,6 +1308,8 @@ function KanbanTab() {
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
+  useScreenRefresh(load)
 
   if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
 

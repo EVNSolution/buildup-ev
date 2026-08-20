@@ -32,6 +32,7 @@ import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
+import { useScreenRefresh } from '../contexts/RefreshContext'
 import { CustomerFolders } from '../components/CustomerFolders'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -186,6 +187,8 @@ function MyListView() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+  // 앱으로 돌아오면 저절로 다시 불러온다 + 헤더 새로고침 버튼이 이걸 부른다
+  useScreenRefresh(load)
 
   // order_id 빠른 조회용 (quote_id → order)
   const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
