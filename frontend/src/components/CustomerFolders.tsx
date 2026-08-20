@@ -5,6 +5,7 @@ import {
 } from '../api/customerFolders'
 import { fmtBytes } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
+import { DocLink } from './DocLink'
 
 /**
  * **고객 서류함** — 한 고객에게 지금까지 만들어 준 견적서·계약서를 한자리에서 본다.
@@ -148,7 +149,7 @@ function DocRow({ d, folderKey, mine, strong }: { d: ApiFolder['data'][number]; 
         {d.quoteNo ? `${d.quoteNo} · ` : ''}{fmtWhen(d.at)} · {fmtBytes(d.size)}
       </span>
       <span style={s.spacer} />
-      <a href={folderFileUrl(folderKey, d.id, false, mine)} target="_blank" rel="noreferrer" style={s.link}>열기</a>
+      <DocLink href={folderFileUrl(folderKey, d.id, false, mine)} name={`${d.kind}${d.quoteNo ? `_${d.quoteNo}` : ''}.pdf`} style={s.link}>열기</DocLink>
       {/* 확인과 챙김은 다른 행동이라 따로 둔다 */}
       <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>받기</a>
     </div>

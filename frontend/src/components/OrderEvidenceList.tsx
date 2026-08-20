@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { EVIDENCE_LABEL, STEP_BY_CODE, TRACK_LABEL, type EvidenceKind } from '@shared/process/steps'
 import { fetchSteps, stepFileUrl, type ApiStepFile } from '../api/steps'
 import { fmtBytes } from '../lib/imageResize'
+import { DocLink } from './DocLink'
 
 /**
  * 올라온 증빙을 **한자리에 모아 본다** — 「서류」 탭.
@@ -65,9 +66,9 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
                     <span style={s.kept}>{f.kept_original ? ' · 원본' : ' · 축소본'}</span>
                   </td>
                   <td style={s.td}>
-                    <a href={stepFileUrl(orderId, f.id)} target="_blank" rel="noreferrer" style={s.link}>
+                    <DocLink href={stepFileUrl(orderId, f.id)} name={f.name ?? `파일_${f.id}`} style={s.link}>
                       {f.name || `파일 ${f.id}`}
-                    </a>
+                    </DocLink>
                   </td>
                   <td style={s.tdNum}>{f.size ? fmtBytes(f.size) : '—'}</td>
                   <td style={s.tdMuted}>{f.uploaded_by}</td>

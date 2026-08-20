@@ -361,7 +361,7 @@ function DocsTab({
           <div style={{ borderTop: canViewStructDocs ? 'var(--hairline)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
             <button
               type="button"
-              onClick={() => openPdf(pdfUrl('contract'))}
+              onClick={() => openPdf(pdfUrl('contract'), '계약서.pdf')}
               style={det.pdfBtn}
             >
               특장 매매계약서 미리보기
