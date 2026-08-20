@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 APPLY = (ROOT / "deploy/apply-schema-migrations.sh").read_text(encoding="utf-8")
+REMOTE = (ROOT / "deploy/remote-deploy.sh").read_text(encoding="utf-8")
 BACKUP = (ROOT / "deploy/backup-database.sh").read_text(encoding="utf-8")
 BASELINE_TOOL = (ROOT / "deploy/baseline-existing-database.sh").read_text(encoding="utf-8")
 MIGRATIONS = ROOT / "backend/prisma/migrations"
@@ -19,14 +20,31 @@ class SchemaMigrationContractTest(unittest.TestCase):
         self.assertTrue((MIGRATIONS / "migration_lock.toml").is_file())
 
     def test_deploy_backs_up_then_runs_only_reviewed_migrations(self):
+        preflight = APPLY.index('raw_count="$(psql_privacy_query')
         pending = APPLY.index('if [ "$pending" -gt 0 ]')
         backup = APPLY.index("deploy/backup-database.sh", pending)
         migrate = APPLY.index("run_prisma migrate deploy")
         exact_diff = APPLY.index("run_prisma migrate diff")
+        self.assertLess(preflight, backup)
         self.assertLess(backup, migrate)
         self.assertLess(migrate, exact_diff)
         self.assertNotIn("prisma db push", APPLY)
         self.assertNotIn("accept-data-loss", APPLY)
+
+    def test_privacy_preflight_is_read_only_fail_closed_and_evidenced(self):
+        for token in (
+            "default_transaction_read_only=on",
+            "BEGIN TRANSACTION READ ONLY",
+            "privacy-preflight.audit",
+            "privacy-preflight.sql",
+            "privacy_preflight_count",
+            "Privacy preflight blocked",
+            'contract "$marker" "$query" "$migration"',
+        ):
+            self.assertIn(token, APPLY)
+        self.assertIn("privacyPreflightValidation=passed", REMOTE)
+        self.assertIn("privacy-preflight.audit", REMOTE)
+        self.assertIn("privacy-preflight.sql", REMOTE)
 
     def test_backup_is_verified_and_retained(self):
         self.assertIn("pg_dump", BACKUP)

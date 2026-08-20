@@ -70,6 +70,7 @@ GitHub Actions Secret은 다음 네 개만 사용한다.
 6. **의존성·Prisma migration·프론트 빌드**
    - `npm ci`, `prisma generate` 후 미적용 migration을 확인한다.
    - migration이 있으면 PostgreSQL custom-format backup을 만들고 `pg_restore -l`로 읽을 수 있는지 검증한다.
+   - 개인정보 저장 구조를 제거하는 pending migration은 read-only privacy preflight가 단일 정수 0을 반환할 때만 backup으로 진행한다.
    - `prisma migrate deploy` 후 migration status, 전체 Prisma schema diff, 기존 `db:drift`를 모두 확인한다.
    - `db:push`, `migrate dev`, `migrate reset`, `db:seed`, `bootstrap`은 운영에서 수행하지 않는다.
 7. **신규 백엔드 기동과 readiness 확인**
@@ -87,6 +88,7 @@ GitHub Actions Secret은 다음 네 개만 사용한다.
 
 - 스키마 변경은 `backend/prisma/migrations/`의 forward-only SQL로 코드와 함께 검토한다. 배포는 candidate 기동 전에 backup과 `migrate deploy`를 실행한다.
 - migration은 이전 active 코드와 새 candidate 코드가 동시에 사용할 수 있어야 한다. 삭제·이름 변경·타입 변경은 사용 중단과 데이터 이관이 끝난 별도 revision으로 미룬다.
+- 개인정보 제거 migration은 해당 migration 디렉터리에 소문자 audit id 한 줄의 `privacy-preflight.audit`와 위반 건수만 반환하는 `privacy-preflight.sql`을 함께 둔다. `migration.sql`은 같은 id의 `-- privacy-abort-guard: <audit-id>` 표식과 실제 transaction-level abort SQL을 포함해야 한다. 외부 사전감사는 조기 차단용이며, 검사와 Prisma 실행 사이의 재기록은 migration 내부 guard가 최종 차단한다. 선언 누락이나 결과가 0이 아니면 배포를 중단한다. 관련 파일은 migration SHA-256 증거에 포함되며 query와 행 값은 로그에 출력하지 않는다.
 - `db/schema/`의 기존 SQL은 baseline 이전 이력 참고용이다. 신규 운영 변경의 적용 이력은 Prisma migration ledger만 사용한다.
 - `db:seed`는 권한 기준 테이블을 다시 생성하므로 정상 배포에서 실행하지 않는다.
 - 운영 환경 변경은 기존 파라미터를 안전한 임시 파일로 내려받아 수정하고 같은 경로에 덮어쓴 뒤 정상 배포를 재실행한다.

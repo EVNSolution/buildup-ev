@@ -44,6 +44,8 @@ class DeploymentContractTest(unittest.TestCase):
             "restore_caddy",
             "switch-rolled-back",
             "schema-migration-blocked",
+            "schema-migration-verified",
+            "privacyPreflightCount",
         ):
             self.assertIn(token, REMOTE)
         self.assertIn('test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"', REMOTE)
@@ -58,6 +60,7 @@ class DeploymentContractTest(unittest.TestCase):
         self.assertLess(drift, candidate)
         self.assertNotIn("prisma db push", REMOTE)
         self.assertIn("Prisma migration 검증", WORKFLOW)
+        self.assertIn("privacy_preflight_count", WORKFLOW)
 
 
 if __name__ == "__main__":

@@ -190,16 +190,30 @@ git checkout -B deploy-target "$SOURCE_REVISION"
 git reset --hard "$SOURCE_REVISION"
 test "$(git rev-parse HEAD)" = "$SOURCE_REVISION"
 LOCKFILE_SHA256="$(sha256sum package-lock.json | awk '{print $1}')"
-SCHEMA_MIGRATION_SHA256="$(find backend/prisma/migrations -type f \( -name migration.sql -o -name migration_lock.toml \) -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
+SCHEMA_MIGRATION_SHA256="$(find backend/prisma/migrations -type f \( -name migration.sql -o -name migration_lock.toml -o -name privacy-preflight.audit -o -name privacy-preflight.sql \) -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
 SCHEMA_MIGRATION_COUNT="$(find backend/prisma/migrations -mindepth 2 -maxdepth 2 -type f -name migration.sql | wc -l | tr -d ' ')"
 
 fetch_and_validate_env
 npm ci
 npm exec --workspace=backend -- prisma generate
-if ! APP_BASE_DIR="$APP_BASE_DIR" SOURCE_REVISION="$SOURCE_REVISION" deploy/apply-schema-migrations.sh; then
+if ! migration_output="$(APP_BASE_DIR="$APP_BASE_DIR" SOURCE_REVISION="$SOURCE_REVISION" deploy/apply-schema-migrations.sh)"; then
   append_evidence "event=schema-migration-blocked" "slot=$slot" "revision=$SOURCE_REVISION" "schemaMigrationSha256=$SCHEMA_MIGRATION_SHA256" "schemaMigrationCount=$SCHEMA_MIGRATION_COUNT"
   exit 1
 fi
+printf '%s\n' "$migration_output"
+privacy_preflight_count="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "privacy_preflight_count" {print $2}')"
+privacy_preflight_evidence="$(printf '%s\n' "$migration_output" | awk -F= '$1 == "privacy_preflight" {values = values (values ? "," : "") $2} END {print values}')"
+[ -n "$privacy_preflight_count" ]
+[ -n "$privacy_preflight_evidence" ] || privacy_preflight_evidence=none
+append_evidence \
+  "event=schema-migration-verified" \
+  "slot=$slot" \
+  "revision=$SOURCE_REVISION" \
+  "schemaMigrationSha256=$SCHEMA_MIGRATION_SHA256" \
+  "schemaMigrationCount=$SCHEMA_MIGRATION_COUNT" \
+  "privacyPreflightCount=$privacy_preflight_count" \
+  "privacyPreflights=$privacy_preflight_evidence" \
+  "privacyPreflightValidation=passed"
 npm run --workspace=backend db:drift
 npm run --workspace=frontend build
 chmod -R a+rX frontend/dist
