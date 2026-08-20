@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "contract_id": "warp-buildup-direct-api",
+  "status": "compatibility-frozen",
+  "owner": "OziinG",
+  "issues": {
+    "EVN-WARP": "https://github.com/EVNSolution/EVN-WARP/issues/38",
+    "buildup-ev": "https://github.com/EVNSolution/buildup-ev/issues/241"
+  },
+  "authentication": {
+    "current": "shared-api-key",
+    "target": "directional-machine-client-with-capability"
+  },
+  "repositories": {
+    "EVN-WARP": {
+      "route_style": "next",
+      "route_root": "app/api/external",
+      "source_roots": ["app", "lib"]
+    },
+    "buildup-ev": {
+      "route_style": "express",
+      "route_file": "backend/src/routes/external.ts",
+      "route_prefix": "/api/external",
+      "source_roots": ["backend/src"]
+    }
+  },
+  "endpoints": [
+    {
+      "id": "warp.customer.lookup",
+      "method": "GET",
+      "path": "/api/external/customer-lookup",
+      "provider": "EVN-WARP",
+      "caller": "buildup-ev",
+      "capability": "customer.lookup.exact",
+      "sources": {
+        "EVN-WARP": {
+          "file": "app/api/external/customer-lookup/route.ts",
+          "token": "export async function GET"
+        },
+        "buildup-ev": {
+          "file": "backend/src/services/warp-crm.ts",
+          "token": "/api/external/customer-lookup?${q}"
+        }
+      }
+    },
+    {
+      "id": "warp.deal-event.append",
+      "method": "POST",
+      "path": "/api/external/deal-events",
+      "provider": "EVN-WARP",
+      "caller": "buildup-ev",
+      "capability": "deal-event.append",
+      "sources": {
+        "EVN-WARP": {
+          "file": "app/api/external/deal-events/route.ts",
+          "token": "export async function POST"
+        },
+        "buildup-ev": {
+          "file": "backend/src/services/warp-crm.ts",
+          "token": "/api/external/deal-events"
+        }
+      }
+    },
+    {
+      "id": "buildup.customer.export",
+      "method": "GET",
+      "path": "/api/external/customers",
+      "provider": "buildup-ev",
+      "caller": "EVN-WARP",
+      "capability": "customer.export",
+      "sources": {
+        "EVN-WARP": {
+          "file": "lib/buildup-import/client.ts",
+          "token": "/api/external/customers${q}"
+        },
+        "buildup-ev": {
+          "file": "backend/src/routes/external.ts",
+          "token": "externalRouter.get('/customers'"
+        }
+      }
+    },
+    {
+      "id": "buildup.customer.link",
+      "method": "POST",
+      "path": "/api/external/customers/link",
+      "provider": "buildup-ev",
+      "caller": "EVN-WARP",
+      "capability": "customer.link.write",
+      "sources": {
+        "EVN-WARP": {
+          "file": "lib/buildup-import/client.ts",
+          "token": "/api/external/customers/link"
+        },
+        "buildup-ev": {
+          "file": "backend/src/routes/external.ts",
+          "token": "externalRouter.post('/customers/link'"
+        }
+      }
+    },
+    {
+      "id": "buildup.quote-document.read",
+      "method": "GET",
+      "path": "/api/external/quotes/:id/quote-pdf",
+      "provider": "buildup-ev",
+      "caller": "EVN-WARP",
+      "capability": "quote-document.read",
+      "sources": {
+        "EVN-WARP": {
+          "file": "lib/buildup-import/client.ts",
+          "token": "/api/external/quotes/${quoteId}/${kind}"
+        },
+        "buildup-ev": {
+          "file": "backend/src/routes/external.ts",
+          "token": "externalRouter.get('/quotes/:id/quote-pdf'"
+        }
+      }
+    },
+    {
+      "id": "buildup.contract-document.read",
+      "method": "GET",
+      "path": "/api/external/quotes/:id/contract-pdf",
+      "provider": "buildup-ev",
+      "caller": "EVN-WARP",
+      "capability": "contract-document.read",
+      "sources": {
+        "EVN-WARP": {
+          "file": "lib/buildup-import/client.ts",
+          "token": "/api/external/quotes/${quoteId}/${kind}"
+        },
+        "buildup-ev": {
+          "file": "backend/src/routes/external.ts",
+          "token": "externalRouter.get('/quotes/:id/contract-pdf'"
+        }
+      }
+    }
+  ]
+}
