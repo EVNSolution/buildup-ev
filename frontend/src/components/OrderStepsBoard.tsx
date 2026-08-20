@@ -5,9 +5,13 @@ import { STEPS } from '@shared/process/steps'
  * 주문 여러 건을 한눈에 — **옛 6단계 칸반을 대신한다.**
  *
  * 칸반은 진행이 한 줄일 때만 성립한다. 차량·특장·튜닝이 따로 도는 지금은 한 주문이
- * 동시에 여러 곳에 있어서 어느 칸에 둘지 정할 수 없다. 그래서 칸이 아니라 **줄**로 놓고,
- * 각 줄에 「지금 할 것」을 적는다 — 여러 건을 훑는 화면이 답해야 하는 질문은
- * 「이 건이 어느 칸에 있나」가 아니라 **「어느 건에 내 손이 필요한가」**다.
+ * 동시에 여러 곳에 있어서 어느 칸에 둘지 정할 수 없다. 그래서 칸이 아니라 **줄**로 놓는다.
+ *
+ * ⚠️ 각 줄에는 **끝낸 단계**만 적는다. 예전엔 「지금 할 수 있는 단계」를 적었는데,
+ *    아무것도 완료 안 된 주문에 「차량 도착 · 특장 제작 완료」가 떠서 읽는 사람이
+ *    그 단계를 **끝냈다**고 읽었다(실제 제보). 할 일과 끝낸 일은 반대 뜻이라
+ *    한 자리에 같은 모양으로 적으면 안 된다.
+ *    「어느 건에 손이 필요한가」는 **줄 순서와 지연 표시**가 답한다.
  *
  * 늦은 건이 맨 위로 온다. 라임(할 일)과 빨강(늦었다)의 뜻은 다른 화면과 같다.
  */
@@ -31,7 +35,6 @@ export function OrderStepsBoard({ orders, onCardClick }: {
         const st = o.steps
         const done = st?.done ?? 0
         const total = st?.total ?? STEPS.length
-        const open = st?.open ?? []
         const late = !!st?.stalled
         return (
           <button key={o.id} style={late ? s.rowLate : s.row} onClick={() => onCardClick(o.id)}>
@@ -42,10 +45,13 @@ export function OrderStepsBoard({ orders, onCardClick }: {
                 <span style={s.model}>{o.quote.model_code}</span>
                 {late && <span style={s.lateTag}>지연</span>}
               </div>
+              {/* 끝낸 것만 적는다 — 「✓」 로 완료라는 뜻을 눈에도 못박는다 */}
               <div style={s.line2}>
-                {open.length > 0
-                  ? <span style={late ? s.openLate : s.open}>{open.join(' · ')}</span>
-                  : <span style={s.muted}>{done === total ? '모든 단계 완료' : '다른 단계가 끝나야 진행됩니다'}</span>}
+                {done > 0 && done === total
+                  ? <span style={s.doneAll}>✓ 모든 단계 완료</span>
+                  : st?.last_done
+                    ? <span style={s.doneStep}>✓ {st.last_done}<span style={s.doneCount}> · {done}/{total} 완료</span></span>
+                    : <span style={s.muted}>아직 완료된 단계가 없습니다</span>}
               </div>
             </div>
             {/*
@@ -88,8 +94,9 @@ const s: Record<string, React.CSSProperties> = {
   model: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   lateTag: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700 },
   line2: { marginTop: 3 },
-  open: { fontSize: 'var(--fs-caption)', color: 'var(--dark)' },
-  openLate: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 600 },
+  doneStep: { fontSize: 'var(--fs-caption)', color: 'var(--dark)' },
+  doneAll: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 600 },
+  doneCount: { color: 'var(--muted)' },
   muted: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   // 납기 ↔ 진척도 사이는 --sp-6(32px). 붙어 있으면 한 덩어리로 읽힌다
   side: { display: 'flex', alignItems: 'center', gap: 'var(--sp-6)', flexShrink: 0 },

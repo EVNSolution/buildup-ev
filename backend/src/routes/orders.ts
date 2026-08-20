@@ -74,11 +74,16 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
         maker_org: { select: { code: true, name: true } },
         // 목록에서도 「지금 뭘 해야 하나」가 보여야 한다 — 상세를 열어야 알 수 있으면
         // 여러 건을 훑는 화면(칸반 자리)이 쓸모없어진다
-        steps: { select: { code: true, status: true, planned_at: true } },
+        // done_at 도 싣는다 — 요약에 「무엇을 마지막으로 끝냈나」를 적으려면 시각이 필요하다
+        steps: { select: { code: true, status: true, planned_at: true, done_at: true } },
       },
     });
 
     const now = new Date();
+    /** 그 단계를 끝낸 시각(밀리초). 끝나지 않았거나 시각이 없으면 undefined. */
+    const byCodeDoneAt = (rows: { code: string; done_at: Date | null }[], code: string): number | undefined =>
+      rows.find(r => r.code === code)?.done_at?.getTime();
+
     const data = orders.map(({ steps, ...o }) => {
       const done = new Set(steps.filter(s => s.status === 'done').map(s => s.code));
       /*
@@ -93,11 +98,40 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
       // 지금 손댈 수 있는 것 = 선행이 다 끝났고 아직 안 끝난 것
       const openDefs = defs.filter(d => !done.has(d.code) && d.requires.every(q => done.has(q)));
       const byCode = new Map(steps.map(s => [s.code, s]));
+
+      /*
+       * **끝낸 단계** — 요약 문구는 이것으로만 적는다.
+       *
+       * ⚠️ 예전엔 목록 줄에 「지금 할 수 있는 단계」(open)를 그냥 적어 두었다. 그러면
+       *    아무것도 완료 안 된 주문에 「차량 도착 · 특장 제작 완료」가 뜬다 — 읽는 사람은
+       *    그 단계를 **끝냈다**고 읽는다(실제 제보). 할 일과 끝낸 일은 반대 뜻이라
+       *    한 자리에 같은 모양으로 적으면 안 된다.
+       *
+       * 목록은 카탈로그 순서로 준다(진행 흐름 그대로 읽힌다).
+       * 마지막 하나는 **실제로 가장 나중에 끝낸 것**을 따로 고른다 — 순서를 건너뛰고
+       * 완료할 수 있어서(특장 제작을 차량 도착보다 먼저 끝내는 식) 카탈로그 끝 = 최신이 아니다.
+       */
+      const doneDefs = defs.filter(d => done.has(d.code));
+      /*
+       * ⚠️ **오름차순으로 세워 맨 뒤를 집는다.** 내림차순으로 첫 개를 집으면, 완료 시각이
+       *    없는 옛 기록(이관된 주문 등)에서 비교가 전부 0 이 되어 **카탈로그 첫 단계**가
+       *    「가장 나중」으로 뽑힌다 — 넷을 끝냈는데 「차량 도착」이 최근으로 떴다.
+       *    오름차순+맨 뒤면 시각이 없을 때 카탈로그 마지막(가장 앞선 단계)으로 떨어진다.
+       */
+      const lastDone = [...doneDefs]
+        .sort((a, b) => (byCodeDoneAt(steps, a.code) ?? 0) - (byCodeDoneAt(steps, b.code) ?? 0))
+        .pop();
+
       return {
         ...o,
         steps: {
           done: done.size,
           total: applicable.size,
+          /** 끝낸 단계 이름들(카탈로그 순서) — 요약에 적는 것은 이것뿐이다 */
+          done_labels: doneDefs.map(d => d.label),
+          /** 가장 나중에 끝낸 단계. 하나도 없으면 null */
+          last_done: lastDone?.label ?? null,
+          /** 지금 손댈 수 있는 단계 — **정렬·지연 판정에만** 쓴다(요약 문구로 쓰지 않는다) */
           open: openDefs.map(d => d.label),
           // 하나라도 오래 멈춰 있으면 목록에서 바로 드러나야 한다
           // 지연 = **약속한 날을 넘긴 것**. 납기는 주문에서, 검사 마감은 신청 단계에서 온다
