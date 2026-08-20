@@ -5,6 +5,7 @@ import {
 } from '../api/orderFiles'
 import { fmtBytes } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
+import { DocLink } from './DocLink'
 
 /**
  * 관리자 「파일」 — **주문 하나에 딸린 것을 전부 한자리에서 본다.**
@@ -156,9 +157,9 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                     </td>
                     <td style={s.td}>{f.label}</td>
                     <td style={s.td}>
-                      <a href={f.url} target="_blank" rel="noreferrer" style={s.link}>
+                      <DocLink href={f.url} name={f.name ?? `${f.label}.pdf`} style={s.link}>
                         {f.name || '열기'}
-                      </a>
+                      </DocLink>
                     </td>
                     <td style={s.tdNum}>{f.size ? fmtBytes(f.size) : '—'}</td>
                     <td style={s.tdMuted}>{f.by ?? '자동'}</td>

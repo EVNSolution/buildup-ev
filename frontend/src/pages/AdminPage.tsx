@@ -1105,17 +1105,17 @@ function QuotesTab() {
                 >고객정보</button>
                 <button
                   style={{ ...BTN.row, width: '100%' }}
-                  onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
+                  onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
                 >견적서</button>
                 <button
                   style={{ ...(q.status === 'draft' ? BTN.rowMuted : BTN.row), width: '100%' }}
                   disabled={q.status === 'draft'}
-                  onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
+                  onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)}
                 >계약서</button>
                 {q.contract?.status === 'COMPLETED' && (
                   <button
                     style={{ ...BTN.rowPrimary, width: '100%' }}
-                    onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
+                    onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
                   >{q.contract?.signing_method === 'PAPER' ? '계약서 스캔본' : '서명본'}</button>
                 )}
                 {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
@@ -1196,21 +1196,21 @@ function QuotesTab() {
                       >고객정보</button>
                       <button
                         style={BTN.row}
-                        onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`)}
+                        onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
                       >견적서</button>
                       {/* 계약서는 견적 확정(생성) 후에만 의미가 있다 — 발송은 영업 업무라 관리자엔 두지 않는다 */}
                       <button
                         style={q.status === 'draft' ? BTN.rowMuted : BTN.row}
                         disabled={q.status === 'draft'}
                         title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
-                        onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`)}
+                        onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)}
                       >계약서</button>
                       {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본(시스템 보관본) */}
                       {q.contract?.status === 'COMPLETED' && (
                         <button
                           style={BTN.rowPrimary}
                           title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
-                          onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
+                          onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
                         >{q.contract?.signing_method === 'PAPER' ? '스캔본' : '서명본'}</button>
                       )}
                       {q.source === 'public' && !q.sales_user_id && (

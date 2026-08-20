@@ -341,7 +341,7 @@ function MyListView() {
               })
             } else {
               // 확인한 값으로 계약서를 새로 만들어 연다
-              openPdfIn(pdfTab, `/api/v1/quotes/${q.id}/contract-pdf`)
+              openPdfIn(pdfTab, `/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)
             }
           } catch (e) {
             closeReservedTab(pdfTab)
@@ -498,7 +498,7 @@ function MyListView() {
                             title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
-                              : openPdf(`/api/v1/quotes/${q.id}/pdf`)}
+                              : openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
                           >{q.status === 'draft' ? '견적 생성' : '견적서'}</button>
                           {/*
                             계약서는 **견적서 다음 단계**다. 견적서가 나오기 전에는 만들 수 없고,
@@ -518,7 +518,7 @@ function MyListView() {
                             <button
                               style={lv.confirmBtn}
                               title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
-                              onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`)}
+                              onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
                             >서명본</button>
                           )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}

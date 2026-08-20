@@ -11,6 +11,8 @@ import {
 import { sendTuning, fetchTuning, type TuningRecipient } from '../api/tuning'
 import { shrinkImage, fmtBytes, MAX_EDGE } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
+import { DocLink } from './DocLink'
+import { openPdf } from '../lib/openPdf'
 import { rolesOf } from '@shared/types/index'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -349,7 +351,8 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                           <button
                             style={acked.has(def.code) ? s.ackDone : BTN.row}
                             onClick={() => {
-                              window.open(`/api/v1/orders/${orderId}/tuning/signed`, '_blank', 'noopener')
+                              // 앱(PWA)에는 탭이 없다 — openPdf 가 갈라서 처리한다
+                              openPdf(`/api/v1/orders/${orderId}/tuning/signed`, '튜닝신청서_서명본.pdf')
                               setAcked(p => new Set(p).add(def.code))
                             }}
                           >{acked.has(def.code) ? `✓ ${def.ackLabel}` : def.ackLabel}</button>
@@ -386,9 +389,9 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                   {phase === 'done' && st.files.length > 0 && (
                     <div style={s.doneFiles}>
                       {st.files.map(f => (
-                        <a key={f.id} href={stepFileUrl(orderId, f.id)} target="_blank" rel="noreferrer" style={s.fileName}>
+                        <DocLink key={f.id} href={stepFileUrl(orderId, f.id)} name={f.name ?? `파일_${f.id}`} style={s.fileName}>
                           {f.name || `파일 ${f.id}`}
-                        </a>
+                        </DocLink>
                       ))}
                     </div>
                   )}
@@ -447,9 +450,9 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
       </div>
       {files.map(f => (
         <div key={f.id} style={s.file}>
-          <a href={stepFileUrl(orderId, f.id)} target="_blank" rel="noreferrer" style={s.fileName}>
+          <DocLink href={stepFileUrl(orderId, f.id)} name={f.name ?? `파일_${f.id}`} style={s.fileName}>
             {f.name || `파일 ${f.id}`}
-          </a>
+          </DocLink>
           <span style={s.fileSize}>{f.size ? fmtBytes(f.size) : ''}</span>
           {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>삭제</button>}
         </div>
