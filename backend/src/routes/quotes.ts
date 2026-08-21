@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { syncOpenContracts } from '../services/contract-sync.js';
 import type { Request } from 'express';
 import { rbac, requirePermission, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
@@ -129,6 +130,23 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
   }
 
   try {
+    /*
+     * 목록을 내보내기 전에 **끝나지 않은 계약의 서명 상태를 따라잡는다.**
+     *
+     * 모두싸인 웹훅이 계정에서 잠겨 있어(`/webhooks` → 403) 「서명 완료」가 우리에게
+     * 오지 않는다. 그대로 두면 고객이 서명을 마쳐도 계약이 `SENT` 에 멈춰
+     * 제작 배정이 열리지 않는다. 화면을 열 때·새로고침을 누를 때·앱으로 돌아올 때가
+     * 전부 이 요청을 타므로, 여기 한 곳에 얹으면 셋 다 같아진다.
+     *
+     * ⚠️ 실패해도 목록은 그대로 내보낸다 — 모두싸인이 죽어도 견적 화면은 멀쩡해야 한다.
+     */
+    try {
+      const n = await syncOpenContracts(prisma);
+      if (n > 0) console.info(`[GET /quotes] 계약 상태 ${n}건 따라잡음`);
+    } catch (e) {
+      console.error('[GET /quotes] 계약 상태 동기화 실패(목록은 그대로 내보낸다)', e);
+    }
+
     const quotes = await prisma.quote.findMany({
       where,
       orderBy: { created_at: 'desc' },
