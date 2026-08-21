@@ -32,6 +32,7 @@ import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
+import { RefreshButton } from '../components/RefreshButton'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import { CustomerFolders } from '../components/CustomerFolders'
 import { PaperContractModal } from '../components/PaperContractModal'
@@ -935,6 +936,7 @@ export function SalesPage() {
           ]}
           value={salesTab}
           onChange={setSalesTab}
+          trailing={<RefreshButton />}
         />
       </div>
 

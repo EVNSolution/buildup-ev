@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchSalesStats, fetchAttention, FUNNEL,
   type SalesStat, type AttentionItem, type FunnelStage,
@@ -58,6 +59,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useScreenRefresh(load)
 
   // 여러 계정을 합친 값 — 관리자가 전체를 볼 때 맨 위에 둔다
   const total = stats?.reduce((acc, s) => {

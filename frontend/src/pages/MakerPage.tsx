@@ -7,6 +7,7 @@ import { OrderDetail } from '../components/OrderDetail'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useScreenRefresh } from '../contexts/RefreshContext'
+import { RefreshButton } from '../components/RefreshButton'
 import { InboxPanel } from '../components/InboxPanel'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { isAcceptOverdue, daysSince } from '@shared/schedule/businessDays'
@@ -77,15 +78,24 @@ export function MakerPage() {
       )}
       <Header />
 
+      {/*
+        헤더 바로 아래 한 줄 — 영업·관리 화면과 같은 구조다.
+        「특장사 작업」이라는 제목은 없앴다. 어느 화면인지는 헤더의 역할 배지가 이미 말해 주고,
+        제목 한 줄이 좁은 화면에서 내용을 그만큼 밀어냈다.
+        이 화면은 탭이 없어 왼쪽에 소속을 두고, 오른쪽 자리는 다른 화면과 똑같이 새로고침이 쓴다.
+      */}
+      <div style={styles.tabBar}>
+        <div style={styles.barLeft}>
+          <span style={styles.orgChip}>{session?.org.name ?? session?.org.code}</span>
+        </div>
+        <div style={styles.barRight}><RefreshButton /></div>
+      </div>
+
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         {selectedId !== null ? (
           <OrderDetail orderId={selectedId} onBack={() => setSelectedId(null)} makerView />
         ) : (
           <>
-            <div style={{ ...styles.titleBar, flexWrap: 'wrap' }}>
-              <h1 style={{ ...styles.h1, fontSize: isMobile ? 17 : 20 }}>특장사 작업</h1>
-              <span style={styles.orgChip}>{session?.org.name ?? session?.org.code}</span>
-            </div>
             {err && <div style={styles.errMsg}>{err}</div>}
             {loading ? (
               <div style={styles.loading}>로딩 중…</div>
@@ -135,8 +145,10 @@ export function MakerPage() {
 const styles: Record<string, React.CSSProperties> = {
   root: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   body: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
-  titleBar: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
-  h1: { margin: 0, fontSize: 20, color: 'var(--dark)' },
+  // 영업·관리 화면과 같은 자리·같은 높이의 한 줄
+  tabBar: { flexShrink: 0, display: 'flex', alignItems: 'stretch', background: '#fff' },
+  barLeft: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '0 var(--sp-4)', minHeight: 'var(--h-control)' },
+  barRight: { display: 'flex', alignItems: 'center', flexShrink: 0, paddingRight: 'var(--sp-3)' },
   orgChip: {
     fontSize: 12, padding: '3px 10px', background: 'var(--card)',
     border: '0.5px solid var(--line)', borderRadius: 20, color: 'var(--muted)',

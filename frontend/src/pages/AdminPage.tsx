@@ -7,7 +7,7 @@ import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden } from '../api/quotes'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
-import { useScreenRefresh } from '../contexts/RefreshContext'
+import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -19,6 +19,7 @@ import { CustomerViewModal } from '../components/CustomerViewModal'
 import { SalesPerformance } from '../components/SalesPerformance'
 import { BTN } from '../styles/buttons'
 import { Tabs } from '../components/ui/Tabs'
+import { RefreshButton } from '../components/RefreshButton'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
@@ -297,6 +298,7 @@ function AccountsTab() {
   }
 
   useEffect(() => { loadAll() }, [])
+  useScreenRefresh(loadAll)
 
   /*
    * 비밀번호 재설정 — **되돌릴 수 없는 동작**이다.
@@ -730,6 +732,7 @@ function CustomersTab() {
       .finally(() => setLoading(false))
   }
   useEffect(load, [view])   // eslint-disable-line react-hooks/exhaustive-deps
+  useScreenRefresh(load)
 
   async function toggle(c: AdminCustomer) {
     const hiding = !c.hidden_at
@@ -1251,12 +1254,13 @@ export function AdminPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('quotes')
   const [saving, setSaving] = useState<string | null>(null)
 
-  useEffect(() => {
-    Promise.all([fetchFeatureModules(), fetchAccessControl()]).then(([mods, ctrl]) => {
+  function loadModules() {
+    return Promise.all([fetchFeatureModules(), fetchAccessControl()]).then(([mods, ctrl]) => {
       setModules(mods)
       setAc(ctrl)
     })
-  }, [])
+  }
+  useEffect(() => { void loadModules() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleRoleToggle(role: Role, code: string, current: boolean) {
     const key = `${role}:${code}`
@@ -1303,15 +1307,17 @@ export function AdminPage() {
     <div style={styles.root}>
       <Header />
 
+      {/*
+        탭 줄은 **헤더 바로 아래 한 줄을 통째로** 쓴다 — 영업 화면과 같은 구조다.
+        예전엔 위에 「관리자 대시보드」 제목이 있었는데, 어느 화면인지는 헤더의 역할 배지가
+        이미 말해 준다. 제목 한 줄이 좁은 화면에서 내용을 그만큼 밀어냈다.
+        권한 없는 탭은 TABS 에서 이미 빠져 있다(숨김).
+      */}
+      <div style={styles.tabBar}>
+        <Tabs items={TABS} value={activeTab} onChange={setActiveTab} trailing={<RefreshButton />} />
+      </div>
+
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
-        <h1 style={styles.h1}>관리자 대시보드</h1>
-        {/*
-          탭은 제목 아래 한 줄을 통째로 쓴다 — 제목 옆에 붙이면 밑줄이 화면 중간에서
-          시작해 끊어진 선으로 보인다. 권한 없는 탭은 TABS 에서 이미 빠져 있다(숨김).
-        */}
-        <div style={styles.tabBar}>
-          <Tabs items={TABS} value={activeTab} onChange={setActiveTab} wrap={isMobile} />
-        </div>
 
         {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
@@ -1323,6 +1329,7 @@ export function AdminPage() {
 
         {activeTab === 'toggles' && (
           <div style={styles.content}>
+            <RefreshOn load={loadModules} />
             {ROLES.map(role => {
               const roleMods = getModulesForRole(modules, role)
               return (
@@ -1397,7 +1404,8 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--dark)',
   },
   // 본문 좌우 여백만큼 밖으로 빼 밑줄이 화면 끝까지 이어지게 한다
-  tabBar: { display: 'flex', margin: '0 calc(var(--sp-5) * -1) var(--sp-5)' },
+  // 영업 화면과 같은 자리·같은 모양 — 헤더 바로 아래 한 줄을 통째로 쓴다
+  tabBar: { flexShrink: 0, display: 'flex', background: '#fff' },
   tab: { padding: '6px 14px', border: '0.5px solid var(--line)', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--muted)' },
   tabOn: { padding: '6px 14px', border: '0.5px solid var(--dark)', borderRadius: 8, background: 'var(--dark)', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 },
   content: {},
