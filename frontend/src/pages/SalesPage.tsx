@@ -34,6 +34,8 @@ import { Tabs } from '../components/ui/Tabs'
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import { CustomerFolders } from '../components/CustomerFolders'
+import { PaperContractModal } from '../components/PaperContractModal'
+import { registerPaperContract } from '../api/contracts'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useIsCompact } from '../hooks/useIsCompact'
@@ -189,6 +191,29 @@ function MyListView() {
   useEffect(() => { load() }, [])
   // 앱으로 돌아오면 저절로 다시 불러온다 + 헤더 새로고침 버튼이 이걸 부른다
   useScreenRefresh(load)
+
+  /*
+   * 서명본(종이계약서) 등록 — **계약을 맺은 영업이 그 자리에서 올린다.**
+   * 예전에는 관리자 화면에만 있었다. 견적서·계약서 흐름은 전부 영업이 실행하기로 정하면서
+   * 이리로 옮겼다(관리자 화면은 조회만 한다).
+   */
+  const [paperFor, setPaperFor] = useState<ApiQuote | null>(null)
+  const [paperBusy, setPaperBusy] = useState(false)
+  const [paperErr, setPaperErr] = useState('')
+
+  async function handlePaperSubmit(file: File) {
+    if (!paperFor) return
+    setPaperBusy(true); setPaperErr('')
+    try {
+      await registerPaperContract(paperFor.id, file)
+      setPaperFor(null)
+      load()
+    } catch (e) {
+      setPaperErr(e instanceof Error ? e.message : '서명본 등록 실패')
+    } finally {
+      setPaperBusy(false)
+    }
+  }
 
   // order_id 빠른 조회용 (quote_id → order)
   const orderByQuote = new Map(orders.map(o => [o.quote_id, o]))
@@ -372,6 +397,15 @@ function MyListView() {
         // 이미 받은 건을 다시 열어 볼 때는 받기 버튼을 두지 않는다
         onAccept={acceptView.sales_accepted_at ? null : () => handleAccept(acceptView.id)}
         onClose={() => setAcceptView(null)}
+      />
+    )}
+    {paperFor && (
+      <PaperContractModal
+        label={paperFor.quote_no ?? `견적 #${paperFor.id}`}
+        loading={paperBusy}
+        error={paperErr}
+        onSubmit={handlePaperSubmit}
+        onClose={() => setPaperFor(null)}
       />
     )}
     <div style={lv.root}>
@@ -568,6 +602,17 @@ function MyListView() {
                               }
                             }}
                           >서명 요청</button>
+                          )}
+                          {/*
+                            종이로 받은 계약서를 올린다 — 전자서명을 건너뛰고 계약완료가 된다.
+                            견적서가 나온 뒤(확정 이상)에만 열린다. 이미 계약이 끝난 건에는 띄우지 않는다.
+                          */}
+                          {canSign && q.status === 'confirmed' && (
+                            <button
+                              style={lv.sendBtn}
+                              title="종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다"
+                              onClick={() => { setPaperErr(''); setPaperFor(q) }}
+                            >서명본 등록</button>
                           )}
                         </div>
                       </td>

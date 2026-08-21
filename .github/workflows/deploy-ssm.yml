@@ -78,6 +78,7 @@ jobs:
             src/__tests__/pwa-doc-links.test.ts \
             src/__tests__/progress-summary.test.ts \
             src/__tests__/tuning-no-esign.test.ts \
+            src/__tests__/sales-owns-docs.test.ts \
             src/__tests__/runtime-config.test.ts \
             src/__tests__/health.test.ts
           npm run --workspace=backend build

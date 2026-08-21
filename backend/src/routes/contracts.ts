@@ -125,19 +125,22 @@ contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES'), async (req: 
   }
 });
 
-// ── POST /:id/contract/paper — 서면계약 등록 ─────────────────────────────────
+// ── POST /:id/contract/paper — 서면계약(서명본) 등록 ────────────────────────
 /*
- * **관리자 전용, 스캔본 필수.**
+ * **스캔본 필수.** 전자서명을 건너뛰고 계약완료로 올리는 문이다.
  *
- * 전자서명을 건너뛰고 계약완료로 올리는 문이라, 영업에게는 열지 않는다.
- * 권한은 `order.confirm`(주문 전환·배정) 을 쓴다 — 이 등록이 곧 「이 건을 제작으로 넘긴다」는
- * 결정이고, 배정을 맡은 사람과 같은 판단이다. 따로 토글을 만들면 둘 중 하나만 켜진
+ * ⚠️ 예전에는 **관리자 전용**이었다. 견적서·계약서 흐름(생성·전송·서명요청·서명본 등록)을
+ *    **전부 영업 화면에서** 하기로 정하면서 영업에게 열었다 — 계약을 맺은 사람이 그 자리에서
+ *    올리는 것이 맞고, 관리자 화면은 조회만 한다.
+ *
+ * 권한은 계약서 발송(`doc.send.sign`)과 같은 것을 쓴다. 종이로 받았든 전자로 받았든
+ * **계약을 성립시키는 같은 종류의 행위**라, 둘을 다른 권한으로 가르면 한쪽만 켜진
  * 어중간한 계정이 생긴다.
  */
 const scanUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_DOC_BYTES, files: 1 } });
 
 contractsRouter.post('/:id/contract/paper',
-  rbac('ADMIN'), requirePermission('order.confirm'), scanUpload.single('file'),
+  rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'), scanUpload.single('file'),
   async (req: Request, res: Response): Promise<void> => {
     const id = quoteId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
