@@ -10,7 +10,7 @@ import multer from 'multer';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import {
   sendContract, getLatestContract, ContractError, refreshContractStatus, ensureSignedPdf,
-  registerPaperContract, PAPER_METHOD, PAPER_SCAN_MIME,
+  registerPaperContract, PAPER_METHOD, PAPER_SCAN_MIME, cancelContract,
 } from '../services/contract.js';
 import { MAX_DOC_BYTES, safeDisplayName } from '../lib/uploads.js';
 import { ModusignConfigError, ModusignApiError } from '../services/modusign.js';
@@ -49,6 +49,33 @@ contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), requirePermis
     if (e instanceof ModusignApiError) { res.status(502).json({ error: { code: 'MODUSIGN_ERROR', message: e.message } }); return; }
     console.error('[POST contract/send]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '계약 발송 실패' } });
+  }
+});
+
+// ── POST /:id/contract/cancel — 발송 취소(재발송을 열어 준다) ────────────────
+/**
+ * 재발송은 `DRAFT·REJECTED·CANCELED` 일 때만 열린다. 고객이 끝내 서명하지 않은 건은
+ * `SENT` 에 남아 다시 보낼 방법이 없었다 — 그 자물쇠를 푸는 문이다.
+ *
+ * 발송과 같은 권한을 요구한다. 취소는 고객에게 보이는 행동이고, 곧바로 재발송이
+ * 뒤따르므로 발송을 할 수 있는 사람만 할 수 있어야 한다.
+ */
+contractsRouter.post('/:id/contract/cancel', rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'), async (req: Request, res: Response): Promise<void> => {
+  const id = quoteId(req);
+  if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  const reason = (req.body as { reason?: string } | undefined)?.reason;
+  try {
+    const { contract, remote_canceled } = await cancelContract(id, reason);
+    res.json({ data: { id: contract.id, status: contract.status, remote_canceled } });
+  } catch (e) {
+    if (e instanceof ContractError) {
+      const map = { NOT_FOUND: 404, NO_CUSTOMER: 400, NO_CONTACT: 400, DB_UNAVAILABLE: 503,
+        NOT_SENDABLE: 409, ALREADY_SENT: 409, NEEDS_REVIEW: 409 } as const;
+      res.status(map[e.code]).json({ error: { code: e.code, message: e.message } });
+      return;
+    }
+    console.error('[POST contract/cancel]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '발송 취소 중 오류가 발생했습니다.' } });
   }
 });
 

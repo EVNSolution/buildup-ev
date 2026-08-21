@@ -564,3 +564,56 @@ export async function registerPaperContract(
   void pushWarpDealEvent('contract_completed', quoteId);
   return saved;
 }
+
+/** 취소 사유를 안 적었을 때 고객에게 보이는 문구. 모두싸인은 2~200자를 요구한다. */
+const DEFAULT_CANCEL_REASON = '요청자가 서명 요청을 취소했습니다.';
+
+/**
+ * **발송 취소** — 재발송할 수 있게 푼다.
+ *
+ * 재발송은 `DRAFT·REJECTED·CANCELED` 일 때만 열린다. 고객이 끝내 서명하지 않거나
+ * 잘못 보낸 건은 `SENT` 에 영원히 남아 **다시 보낼 방법이 없었다.**
+ *
+ * ⚠️ **서명이 끝난 계약은 취소할 수 없다.** 되돌릴 수 없는 일이고, 그 서명본이 정본이다.
+ *
+ * ⚠️ **행을 지우지 않는다.** 상태만 `CANCELED` 로 바꾼다 — 언제 누가 무엇을 보냈는지는 남는다.
+ *
+ * ⚠️ **모두싸인 취소가 실패해도 우리 쪽은 취소한다.** 옛 계정에서 만든 문서처럼
+ *    우리가 손댈 수 없는 것이 있는데(403), 거기서 막으면 영영 재발송을 못 한다.
+ *    대신 `remote_canceled=false` 를 돌려주어 **「고객이 받은 옛 링크는 아직 살아 있을 수
+ *    있다」**를 화면이 알릴 수 있게 한다.
+ */
+export async function cancelContract(
+  quoteId: number,
+  reason?: string,
+): Promise<{ contract: PurchaseContract; remote_canceled: boolean }> {
+  const p = db();
+  const contract = await getLatestContract(quoteId);
+  if (!contract) throw new ContractError('발송된 계약이 없습니다', 'NOT_FOUND');
+
+  if (contract.status === 'COMPLETED') {
+    throw new ContractError('서명이 끝난 계약은 취소할 수 없습니다.', 'NOT_SENDABLE');
+  }
+  // 이미 끝난 것(거절·취소)은 그냥 그대로 — 이미 재발송이 열려 있다
+  if (TERMINAL.includes(contract.status)) return { contract, remote_canceled: false };
+
+  const message = (reason ?? '').trim() || DEFAULT_CANCEL_REASON;
+
+  let remote_canceled = false;
+  // dryrun- 으로 시작하는 것은 실제로 보낸 적 없는 가짜 id 다
+  if (contract.modusign_document_id && !contract.modusign_document_id.startsWith('dryrun-')) {
+    try {
+      await modusign.cancelDocument(contract.modusign_document_id, message.slice(0, 200));
+      remote_canceled = true;
+    } catch (e) {
+      console.error('[contract] 모두싸인 취소 실패 — 우리 쪽만 취소한다', { quoteId, err: e });
+    }
+  }
+
+  const updated = await p.purchaseContract.update({
+    where: { id: contract.id },
+    data: { status: 'CANCELED' },
+  });
+  console.info(`[contract] 견적 ${quoteId} 계약 발송취소 (모두싸인 취소=${remote_canceled ? '성공' : '실패/생략'})`);
+  return { contract: updated, remote_canceled };
+}
