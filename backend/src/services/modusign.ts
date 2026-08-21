@@ -171,6 +171,22 @@ export async function sendDocument(p: SendParams): Promise<{ documentId: string 
   return { documentId };
 }
 
+/**
+ * 서명 요청 취소 — **고객이 받은 링크를 무효로 만든다.**
+ *
+ * 취소하지 않고 우리 쪽 상태만 바꾸면, 고객은 옛 링크로 그대로 서명할 수 있다.
+ * 그러면 계약이 둘로 갈린다 — 우리가 «취소»로 아는 문서에 서명이 찍힌다.
+ *
+ * `message` 는 모두싸인이 고객에게 보여 주는 사유다(2~200자 필수).
+ */
+export async function cancelDocument(documentId: string, message: string): Promise<void> {
+  if (isDryRun()) {
+    console.warn(`[modusign] DRY_RUN — 실제 취소하지 않음. documentId=${documentId}`);
+    return;
+  }
+  await req('POST', `/documents/${encodeURIComponent(documentId)}/cancel`, { message });
+}
+
 export interface ModusignDocStatus {
   documentId: string;
   status?: string; // 모두싸인 원본 상태문자열 (재조회 검증용)

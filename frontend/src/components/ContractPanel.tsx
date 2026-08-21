@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchContract, sendContract, contractSignedUrl, type ContractInfo } from '../api/contracts'
+import { fetchContract, sendContract, cancelContract, contractSignedUrl, type ContractInfo } from '../api/contracts'
+import { BTN } from '../styles/buttons'
 import { PdfModal } from './PdfModal'
 
 const LABEL: Record<ContractInfo['status'], string> = {
@@ -35,6 +36,12 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [preview, setPreview] = useState(false)
+  /** 취소 확인창을 열었는지. 한 번에 취소되지 않게 — 고객에게 보이는 행동이다 */
+  const [canceling, setCanceling] = useState(false)
+  const [cancelReason, setCancelReason] = useState('재발송을 위해 취소합니다.')
+  const [cancelBusy, setCancelBusy] = useState(false)
+  /** 모두싸인 취소까지 됐는지 — 안 됐으면 옛 링크가 살아 있을 수 있다 */
+  const [linkMaybeAlive, setLinkMaybeAlive] = useState(false)
 
   // 고른 방식으로 실제 어디에 도착하는지. 비어 있으면 발송 자체를 막는다.
   const dest = method === 'EMAIL' ? (customerEmail ?? '').trim() : (customerPhone ?? '').trim()
@@ -56,6 +63,20 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
       setErr(e instanceof Error ? e.message : '발송 실패')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleCancel() {
+    setCancelBusy(true); setErr('')
+    try {
+      const r = await cancelContract(quoteId, cancelReason)
+      setLinkMaybeAlive(!r.remote_canceled)
+      setCanceling(false)
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '발송 취소 실패')
+    } finally {
+      setCancelBusy(false)
     }
   }
 
@@ -101,7 +122,53 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
         <button style={s.primary} onClick={() => setPreview(true)}>서명본 보기 / 다운로드</button>
       )}
 
-      {inProgress && <div style={s.muted}>고객이 서명을 진행 중입니다. 완료되면 서명본이 저장됩니다.</div>}
+      {inProgress && (
+        <div style={s.pending}>
+          <div style={s.muted}>고객이 서명을 진행 중입니다. 완료되면 서명본이 저장됩니다.</div>
+          {/*
+            발송 취소 — **재발송을 여는 유일한 문이다.**
+            재발송은 거절·취소된 계약에서만 되므로, 고객이 끝내 서명하지 않은 건은
+            이걸 누르지 않으면 영원히 다시 보낼 수 없다.
+          */}
+          {!canceling ? (
+            <button style={s.ghost} onClick={() => setCanceling(true)}>발송 취소하고 다시 보내기</button>
+          ) : (
+            <div style={s.cancelBox}>
+              <div style={s.cancelTitle}>이 서명 요청을 취소합니다</div>
+              <div style={s.muted}>
+                고객이 받은 링크가 무효가 되고, <b>재발송할 수 있게</b> 됩니다.
+                이미 보낸 기록은 지워지지 않습니다.
+              </div>
+              <label style={s.cancelLabel}>취소 사유<span style={s.opt}> · 고객에게 보입니다</span></label>
+              <input
+                style={s.cancelInput}
+                value={cancelReason}
+                maxLength={200}
+                onChange={e => setCancelReason(e.target.value)}
+              />
+              <div style={s.cancelActions}>
+                <button style={s.ghost} onClick={() => setCanceling(false)} disabled={cancelBusy}>그만두기</button>
+                <button style={s.danger} onClick={handleCancel} disabled={cancelBusy || cancelReason.trim().length < 2}>
+                  {cancelBusy ? '취소 중…' : '발송 취소'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/*
+        모두싸인 쪽 취소가 실패한 경우 — 우리 상태만 풀렸다.
+        옛 계정에서 만든 문서처럼 우리가 손댈 수 없는 것이 있는데, 그걸 숨기면
+        고객이 옛 링크로 서명해 계약이 둘로 갈린 뒤에야 알게 된다.
+      */}
+      {linkMaybeAlive && (
+        <div style={s.warn}>
+          우리 쪽 계약은 취소되어 <b>재발송할 수 있습니다.</b> 다만 모두싸인에서 문서를 취소하지 못했습니다 —
+          <b>고객이 받은 이전 링크가 아직 살아 있을 수 있습니다.</b>
+          모두싸인에서 그 문서를 직접 취소해 주세요.
+        </div>
+      )}
 
       {resendable && (
         <div style={s.sendBox}>
@@ -142,6 +209,25 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
 
 const s: Record<string, React.CSSProperties> = {
   muted: { color: 'var(--muted)', fontSize: 13, padding: '6px 0' },
+  pending: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' },
+  ghost: { ...BTN.secondary, color: 'var(--muted)' },
+  danger: { ...BTN.secondary, color: 'var(--warn)', borderColor: 'var(--warn)' },
+  cancelBox: {
+    display: 'flex', flexDirection: 'column', gap: 8, width: '100%',
+    border: '0.5px solid var(--line)', borderRadius: 8, padding: '12px 14px', background: 'var(--card)',
+  },
+  cancelTitle: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
+  cancelLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
+  opt: { color: 'var(--muted)', fontWeight: 400 },
+  cancelInput: {
+    width: '100%', fontSize: 'var(--fs-label)', color: 'var(--dark)',
+    padding: '8px 10px', border: '0.5px solid var(--line)', borderRadius: 7, background: '#fff',
+  },
+  cancelActions: { display: 'flex', gap: 8, justifyContent: 'flex-end' },
+  warn: {
+    fontSize: 13, color: 'var(--dark)', background: 'var(--warnbg)',
+    border: '0.5px solid var(--warn)', borderRadius: 7, padding: '10px 12px', marginTop: 10,
+  },
   statusRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   timeline: { background: 'var(--card)', borderRadius: 9, padding: '10px 12px', marginBottom: 12 },
   tlRow: { display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '3px 0' },
