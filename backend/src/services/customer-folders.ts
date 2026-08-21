@@ -163,6 +163,37 @@ function contentHash(buf: Buffer): string {
   return createHash('sha256').update(normalized, 'latin1').digest('hex');
 }
 
+/**
+ * 견적 하나의 **옵션 요약** — 화면에 「무엇을 고른 건인지」 한 줄로 보여 준다.
+ *
+ * 파일 이름만 늘어놓으면 「26-9087 견적서」가 셋 있을 때 무엇이 다른지 알 수 없다.
+ * 고른 사양이 함께 보여야 고객과 통화하며 「그 냉동 저상 건」을 짚을 수 있다.
+ *
+ * ⚠️ 이름은 **DB(option_value.name)** 에서 온다. 화면에 표기를 또 적어 두면
+ *    옵션 이름을 고쳤을 때 두 곳이 갈린다.
+ */
+export interface OptionChip { group: string; label: string }
+
+/** 요약에 넣을 그룹과 순서 — 사양을 가르는 것부터. 나머지는 굳이 줄에 올리지 않는다. */
+const SUMMARY_GROUPS = ['TRIM', 'BODYTYPE', 'TOP', 'DOORTYPE', 'DOORADD', 'PARTITION', 'TEMP'];
+
+export function optionChips(
+  selections: Record<string, string>,
+  nameOf: (code: string) => string | undefined,
+): OptionChip[] {
+  const out: OptionChip[] = [];
+  for (const g of SUMMARY_GROUPS) {
+    const v = selections[g];
+    if (!v) continue;
+    const label = nameOf(v);
+    if (!label) continue;
+    // 「없음」·「X」는 고른 게 없다는 뜻이라 줄만 길어진다
+    if (label === '없음' || label === 'X') continue;
+    out.push({ group: g, label });
+  }
+  return out;
+}
+
 /** 고정본 한 건 — 서명 요청 때 굳힌 견적서·계약서. */
 export interface PinnedInput { quoteNo: string | null; frozenAt: Date; quotePath: string | null; contractPath: string | null }
 
@@ -234,4 +265,36 @@ export async function collectDocs(customerIds: number[], pinned: PinnedInput[]):
 
   // 고정본이 맨 위, 그 아래는 시간 역순
   return out.sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || b.at.localeCompare(a.at));
+}
+
+
+/** 견적 하나 — 옵션 요약과 그 건의 서류를 함께 담는다. */
+export interface FolderQuote {
+  id: number;
+  quoteNo: string | null;
+  status: string;
+  createdAt: string;
+  finalPrice: number | null;
+  options: OptionChip[];
+  /** 서명 요청 때 굳힌 정본이 있는 건인가 */
+  frozenAt: string | null;
+  docs: FolderDoc[];
+}
+
+/**
+ * 서류를 **견적별로 나눈다** — 화면이 견적 카드 하나에 그 건의 서류를 모아 보여 준다.
+ *
+ * 나누는 열쇠는 **견적번호**다. 보관함 파일 이름에 견적번호가 들어 있고, 고정본은 견적에 붙어 있다.
+ * ⚠️ 견적번호가 없는 건(공개 접수 직후)은 번호로 이을 수 없다 —
+ *    그런 서류는 `null` 묶음으로 따로 모은다. 버리지 않는다.
+ */
+export function groupDocsByQuote(docs: FolderDoc[]): Map<string | null, FolderDoc[]> {
+  const by = new Map<string | null, FolderDoc[]>();
+  for (const d of docs) {
+    const k = d.quoteNo ?? null;
+    const list = by.get(k) ?? [];
+    list.push(d);
+    by.set(k, list);
+  }
+  return by;
 }

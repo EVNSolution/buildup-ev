@@ -15,8 +15,8 @@ import { prisma } from '../lib/prisma.js';
 import { rbac, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { VISIBLE } from '../lib/visibility.js';
 import {
-  groupCustomers, collectDocs, resolveDocId,
-  type CustomerGroup, type FolderCustomer, type PinnedInput,
+  groupCustomers, collectDocs, resolveDocId, optionChips, groupDocsByQuote,
+  type CustomerGroup, type FolderCustomer, type PinnedInput, type FolderQuote,
 } from '../services/customer-folders.js';
 
 export const customerFoldersRouter = Router();
@@ -133,7 +133,8 @@ customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res
   const quotes = await prisma.quote.findMany({
     where: { customer_id: { in: g.ids }, ...quoteScope(req) },
     select: {
-      quote_no: true, docs_frozen_at: true,
+      id: true, quote_no: true, status: true, created_at: true, final_price: true,
+      selections: true, docs_frozen_at: true,
       docs_frozen_quote_path: true, docs_frozen_contract_path: true,
     },
     orderBy: { id: 'desc' },
@@ -147,8 +148,48 @@ customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res
       contractPath: q.docs_frozen_contract_path,
     }));
 
+  /*
+   * 옵션 이름은 **DB 에서** 읽는다. 화면에 표기를 또 적어 두면 옵션 이름을 고쳤을 때
+   * 두 곳이 갈린다(가격·이름의 정본은 언제나 기준데이터다).
+   */
+  const picked = [...new Set(quotes.flatMap(q => Object.values((q.selections ?? {}) as Record<string, string>)))]
+    .filter(Boolean);
+  const values = picked.length
+    ? await prisma.optionValue.findMany({ where: { code: { in: picked } }, select: { code: true, name: true } })
+    : [];
+  const nameOf = new Map(values.map(v => [v.code, v.name]));
+
+  const docs = await collectDocs(g.ids, pinned);
+  const byQuote = groupDocsByQuote(docs);
+
+  /*
+   * 견적 카드는 **최신이 위**다. 그중 서류가 굳은(서명 요청까지 간) 건이 있으면
+   * 화면이 그것을 맨 위에 고정한다 — 어느 것이 실제로 나간 판인지가 먼저 읽혀야 한다.
+   */
+  const cards: FolderQuote[] = quotes.map(q => ({
+    id: q.id,
+    quoteNo: q.quote_no,
+    status: q.status,
+    createdAt: q.created_at.toISOString(),
+    finalPrice: q.final_price,
+    options: optionChips((q.selections ?? {}) as Record<string, string>, c => nameOf.get(c)),
+    frozenAt: q.docs_frozen_at?.toISOString() ?? null,
+    docs: byQuote.get(q.quote_no ?? null) ?? [],
+  }));
+
+  /*
+   * 견적번호로 이을 수 없는 서류(공개 접수 직후 등)는 버리지 않는다 —
+   * 어느 건인지 모를 뿐 고객의 서류인 것은 맞다. 맨 아래 따로 모아 둔다.
+   */
+  const known = new Set(quotes.map(q => q.quote_no ?? null));
+  const orphan = [...byQuote.entries()]
+    .filter(([k]) => !known.has(k))
+    .flatMap(([, v]) => v);
+
   res.json({
-    data: await collectDocs(g.ids, pinned),
+    data: docs,   // 옛 화면 호환 — 평평한 목록도 함께 내려준다
+    quotes: cards,
+    orphanDocs: orphan,
     customer: { key: g.key, name: g.name, reg_no: g.reg_no, phone: g.phone, merged: g.ids.length },
   });
 }));
