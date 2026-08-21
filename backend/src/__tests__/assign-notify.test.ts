@@ -95,17 +95,32 @@ describe('제작 배정 버튼', () => {
     expect(ADMIN).not.toMatch(/<button style=\{\{ \.\.\.BTN\.rowPrimary, width: '100%' \}\} onClick=\{\(\) => handleOpenConfirm/);
   });
 
-  it('전용 강조 스타일로, 데스크톱과 모바일 양쪽에 있다', () => {
-    expect(ADMIN).toContain('assignBtn:');
-    // 두 곳(표 / 카드) 모두에서 쓰여야 한다
-    expect(ADMIN.match(/style=\{qt\.assignBtn\}/g)?.length).toBe(2);
-    expect(ADMIN.match(/style=\{qt\.assignBtnOff\}/g)?.length).toBe(2);
+  it('한 줄 띄우고 아래에 둔다 — 데스크톱과 모바일 양쪽에', () => {
+    // 붙여 놓으면 조회 버튼 묶음의 둘째 줄처럼 읽혀 눈에 걸리지 않는다
+    expect(ADMIN).toContain('assignRow:');
+    expect(ADMIN.match(/style=\{qt\.assignRow\}/g)?.length).toBe(2);
+    const i = ADMIN.indexOf('assignRow:');
+    expect(ADMIN.slice(i, i + 120)).toContain('marginTop');
   });
 
-  it('서명 전에는 자리를 지키되 눌리지 않는다', () => {
-    // 자리가 사라지면 「여기서 무엇을 하는 화면인지」가 안 보인다
-    expect(ADMIN).toContain('assignBtnOff');
-    const i = ADMIN.indexOf('assignBtnOff:');
-    expect(ADMIN.slice(i, i + 200)).toContain('BTN.disabled');
+  it('🔴 배정할 수 있는 건에만 나온다', () => {
+    /*
+     * 한때 서명 전인 건까지 흐린 버튼을 띄웠더니 **목록 전체가 그 버튼으로 뒤덮여**
+     * 정작 배정할 건이 묻혔다(실제 제보). 배정할 수 없는 건에는 아무것도 두지 않는다.
+     */
+    expect(ADMIN).not.toContain('assignBtnOff');
+    expect(ADMIN).not.toContain('서명 완료 후');
+    // 조건은 `contracted` 하나뿐이어야 한다 — confirmed 를 끼우면 다시 전부 뒤덮인다
+    expect(ADMIN).not.toMatch(/q\.status === 'confirmed' \|\| q\.status === 'contracted'/);
+    expect(ADMIN.match(/\{q\.status === 'contracted' && \(\s*\n\s*<div style=\{qt\.assignRow\}>/g)?.length).toBe(2);
+  });
+
+  it('조회 버튼과 같은 크기다 — 눈에 띄는 것은 자리와 색이지 크기가 아니다', () => {
+    // 크게 만들었더니 목록이 그 버튼으로 뒤덮였다
+    const i = ADMIN.indexOf('assignBtn:');
+    const decl = ADMIN.slice(i, i + 120);
+    expect(decl).toContain('BTN.rowPrimary');   // 조회 버튼과 같은 SM 크기
+    expect(decl).not.toContain('BTN.primary');  // MD 로 키우지 않는다
+    expect(decl).not.toContain('fontWeight');   // 굵기로 키우지도 않는다
   });
 });

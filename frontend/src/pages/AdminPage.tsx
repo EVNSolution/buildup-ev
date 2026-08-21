@@ -1074,17 +1074,11 @@ function QuotesTab() {
                   >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                 )}
 
-                {/* 데스크톱과 같은 자리·같은 무게 — 카드 맨 아래에 크게 */}
-                {(q.status === 'confirmed' || q.status === 'contracted') && (
-                  q.status === 'contracted' ? (
-                    <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                  ) : (
-                    <button
-                      style={qt.assignBtnOff}
-                      disabled
-                      title="전자서명 또는 서명본 등록이 끝나야 제작 배정을 할 수 있습니다"
-                    >제작 배정 <span style={qt.assignHint}>· 서명 완료 후</span></button>
-                  )
+                {/* 데스크톱과 같은 규칙 — 배정할 수 있는 건에만, 한 줄 띄우고 아래에 */}
+                {q.status === 'contracted' && (
+                  <div style={qt.assignRow}>
+                    <button style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1173,20 +1167,16 @@ function QuotesTab() {
 
                     {/*
                       제작 배정 — **이 화면에서 관리자가 하는 일**이다.
-                      예전엔 위 인라인 줄 맨 끝에 끼어 있었다. 버튼이 늘면서 화면 밖으로 밀려
-                      가장 중요한 버튼을 가로로 스크롤해야 찾을 수 있었다(실제 제보).
-                      아래에 한 줄을 따로 내주면 자리도 고정되고 눈에 먼저 들어온다.
+                      예전엔 위 인라인 줄 맨 끝에 끼어 화면 밖으로 밀렸다(실제 제보).
+                      한 줄 띄우고 아래에 따로 둔다.
+
+                      ⚠️ **배정할 수 있는 건에만 나온다.** 아직 서명 전인 건까지 흐린 버튼을
+                         띄웠더니 목록 전체가 그 버튼으로 뒤덮여, 정작 배정할 건이 묻혔다.
                     */}
-                    {(q.status === 'confirmed' || q.status === 'contracted') && (
-                      q.status === 'contracted' ? (
+                    {q.status === 'contracted' && (
+                      <div style={qt.assignRow}>
                         <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                      ) : (
-                        <button
-                          style={qt.assignBtnOff}
-                          disabled
-                          title="전자서명 또는 서명본 등록이 끝나야 제작 배정을 할 수 있습니다"
-                        >제작 배정 <span style={qt.assignHint}>· 서명 완료 후</span></button>
-                      )
+                      </div>
                     )}
                     </div>
                   </td>
@@ -1441,21 +1431,15 @@ const qt: Record<string, React.CSSProperties> = {
   /** 동작 칸 — 위는 조회용 작은 버튼들, 아래 한 줄은 제작 배정 전용 */
   actionCell: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' },
   /**
-   * 제작 배정 — 이 화면에서 관리자가 **실제로 하는 일**이라 혼자 한 줄을 쓴다.
-   * 위 조회 버튼들(작고 흐린 것)과 크기·색을 다르게 해 한눈에 갈리게 한다.
+   * 제작 배정 자리 — 위 조회 버튼들과 **한 줄 띄워** 둔다.
+   * 붙여 놓으면 조회 버튼 묶음의 둘째 줄처럼 읽혀 눈에 걸리지 않는다.
    */
-  assignBtn: {
-    ...BTN.primary,
-    width: '100%', minHeight: 'var(--h-control)',
-    fontWeight: 700, letterSpacing: '-0.01em',
-  },
-  /** 아직 못 누르는 상태 — 자리는 그대로 지켜 「여기서 하는 일」이 무엇인지 계속 보이게 한다 */
-  assignBtnOff: {
-    ...BTN.disabled,
-    width: '100%', minHeight: 'var(--h-control)',
-    fontWeight: 600,
-  },
-  assignHint: { fontWeight: 400, opacity: 0.75 },
+  assignRow: { display: 'flex', marginTop: 22 },
+  /**
+   * 제작 배정 — 조회 버튼과 **같은 크기**다. 눈에 띄는 것은 크기가 아니라
+   * 혼자 떨어져 있다는 자리와 색이다. 크게 만들었더니 목록이 그 버튼으로 뒤덮였다.
+   */
+  assignBtn: { ...BTN.rowPrimary, padding: '0 22px' },
   filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
   // 모양·높이는 globals.css — 여기서는 줄어드는 방식만 (인라인으로 덮으면 옆 버튼과 높이가 어긋난다)
   // 늘어나지는 않고(0) 좁아지면 줄어든다(1) — grow 를 주면 넓은 화면에서 「전체 상태」 하나가 1182px 를 차지한다(실측)
