@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { BTN } from '../styles/buttons'
 import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, type InstallmentRateOption } from '../api/quotes'
-import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 
 /**
- * 견적서 생성 팝업 — **캐피탈 관련 입력만** 받는다
- * (선수금 비율 · 할부 개월수 · 면세구분 · 영업용 번호판).
+ * 견적서 생성 팝업 — **캐피탈 관련 입력만** 받는다 (선수금 비율 · 할부 개월수).
+ *
+ * ⚠️ 면세구분·영업용 번호판은 **묻지 않는다**(2026-08-21). 영업이 답을 알기 어려운데
+ *    금액은 바뀌는 값이라, 아무거나 고른 답이 실구매가로 굳어졌다. 화면에서 뺐을 뿐
+ *    계산·DB 는 그대로다 — 이미 저장된 견적의 값은 건드리지 않는다(`payload()` 주석).
  *
  * 고객 정보와 계약서 정보는 **견적 저장 단계**(QuoteSaveModal)로 옮겼다.
  * 한 팝업에 성격이 다른 입력이 섞여 있어 어디서 무엇을 고쳐야 하는지 알기 어려웠다.
@@ -15,10 +17,8 @@ import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
  * 생성 이후(수정 모드)엔 '저장'만 노출.
  *
  * ⚠️ **특장만 견적에는 여기서 받을 것이 하나도 없다.**
- *    · 선수금·할부 — 캐피탈은 차량과 특장을 묶어 실행한다. 차를 안 사면 실행할 것이 없다
- *    · 면세구분   — 공채할인에만 걸리는 값인데, 공채는 차량 등록에 딸린 것이라 0이다
- *    · 영업용 번호판 — 차량 취득세율을 가르는 값인데, 그 세금 자체가 0이다
- *    넷 다 답이 금액에 아무 영향도 주지 않는 질문이다. 물으면 「뭘 골라야 하나」만 남는다.
+ *    선수금·할부 — 캐피탈은 차량과 특장을 묶어 실행한다. 차를 안 사면 실행할 것이 없다.
+ *    답이 금액에 아무 영향도 주지 않는 질문이다. 물으면 「뭘 골라야 하나」만 남는다.
  *    그래서 특장만이면 입력 없이 **생성 버튼만** 둔다.
  */
 interface Props {
@@ -32,17 +32,12 @@ interface Props {
   onDone: () => void
 }
 
-// 면세구분 — 엑셀 수식상 '일반인'+서울만 공채할인. 나머지는 placeholder(내일 수정 예정).
-const TAX_EXEMPT_OPTIONS = ['일반인', '면세사업자', '기타']
-
 export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, bodyOnly = false, onClose, onDone }: Props) {
   const init = initialInputs ?? {}
   const isConfirmed = status !== 'draft'
 
   const [downPct, setDownPct] = useState<string>(String(((init['down_payment_rate'] as number) ?? 0.3) * 100))
   const [months, setMonths] = useState<number>((init['installment_months'] as number) ?? 0)
-  const [taxExempt, setTaxExempt] = useState<string>((init['tax_exempt_type'] as string) ?? DEFAULT_TAX_EXEMPT_TYPE)
-  const [bizPlate, setBizPlate] = useState<boolean>((init['has_biz_plate'] as boolean) ?? false)
 
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
   const [busy, setBusy] = useState(false)
@@ -55,9 +50,15 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
       // 특장만이면 캐피탈이 없다 — 0으로 눌러 저장한다(shared 의 bodyOnlyParams 와 같은 값)
       down_payment_rate: bodyOnly ? 0 : (Number(downPct) || 0) / 100,
       installment_months: bodyOnly ? 0 : months,
-      // 차량에 딸린 값 — 특장만이면 쓰이지 않는다. 묻지 않았으니 남기지도 않는다
-      tax_exempt_type: bodyOnly ? DEFAULT_TAX_EXEMPT_TYPE : taxExempt,
-      has_biz_plate: bodyOnly ? false : bizPlate,
+      /*
+       * ⚠️ `tax_exempt_type`·`has_biz_plate` 는 **보내지 않는다.**
+       *
+       * 더 이상 묻지 않는 값이라 여기서 기본값을 실어 보내면, 이미 저장된 견적을 열어
+       * 「저장」만 눌러도 그 값이 기본값으로 덮어써진다. 둘 다 **금액을 바꾸는 값**이라
+       * (영업용 번호판=취득세 5%↔4%, 면세구분=서울 공채할인) 예전 견적의 실구매가가
+       * 소리 없이 달라진다. 서버는 받은 키만 덮어쓰므로(PATCH inputs 는 merge),
+       * 빼 두면 저장된 값이 그대로 남는다.
+       */
     }
   }
 
@@ -83,8 +84,8 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
         <div style={s.form}>
           {bodyOnly ? (
             <div style={s.ok}>
-              특장만 견적입니다 — 할부(캐피탈)·면세구분·영업용 번호판은 차량에 딸린 값이라
-              적용되지 않습니다. 그대로 생성하시면 됩니다.
+              특장만 견적입니다 — 할부(캐피탈)는 차량에 딸린 값이라 적용되지 않습니다.
+              그대로 생성하시면 됩니다.
             </div>
           ) : (
             <>
@@ -104,15 +105,6 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
                 }
               </select>
 
-              <label style={s.label}>면세구분</label>
-              <select style={s.input} value={taxExempt} onChange={(e) => setTaxExempt(e.target.value)}>
-                {TAX_EXEMPT_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-
-              <label style={s.check}>
-                <input type="checkbox" checked={bizPlate} onChange={(e) => setBizPlate(e.target.checked)} style={s.cbox} />
-                영업용 번호판 보유 <span style={s.unit}>(취득세 4% 적용)</span>
-              </label>
             </>
           )}
 

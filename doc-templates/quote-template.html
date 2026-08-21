@@ -192,23 +192,22 @@
         <tr><td class="lab">소상공인</td><td class="cval" colspan="2">{{ cust.isSosang }}</td></tr>
         <tr><td class="lab">화물자동차 운송사업허가증</td><td class="cval" colspan="2">{{ cust.hasTransportLicense }}</td></tr>
         <tr><td class="lab">경유차 폐차여부</td><td class="cval" colspan="2">{{ cust.dieselStatus }}</td></tr>
-        <tr><td class="lab">영업용 번호판 보유</td><td class="cval" colspan="2">{{ cust.hasCommercialPlate }}</td></tr>
         <tr><td class="lab">선수금</td><td class="cval" colspan="2">{{ cust.advanceRate }}</td></tr>
         <tr class="grp"><td class="k">할부원금</td><td class="num" colspan="2">{{ inst.total }}</td></tr>
         <tr><td class="k">이율</td><td class="num" colspan="2">{{ inst.interestRate }}</td></tr>
         <tr><td class="k">할부이자</td><td class="num" colspan="2">{{ inst.interest }}</td></tr>
         <tr><td class="k">이용기간</td><td class="num" colspan="2">{{ inst.termMonths }}</td></tr>
         <tr class="grp"><td class="k">월 납입금</td><td class="num" colspan="2">{{ inst.monthlyPayment }}</td></tr>
+        <!--
+          「부가세 환급 시 가격」은 **적지 않는다.**
+          환급은 사업자가 나중에 돌려받는 돈이라 지금 낼 금액이 아닌데, 고객정보 맨 아랫줄에
+          굵게 적혀 있으면 그것을 결제 금액으로 읽는다. 낼 금액은 옆 가격표의 「실 구매가」다.
+          (특장만 견적에서 같은 이유로 뺐던 것을, 총견적서에도 똑같이 적용한다)
+        -->
         <!-- pad:cust -->
-        <tr class="final"><td class="k" colspan="2">부가세 환급 시 가격</td><td class="num">{{ cust.vatRefundPrice }}</td></tr>
         <!-- /each:custNormal -->
 
         <!-- each:custOnly -->
-        <!--
-          특장만 견적에는 **부가세 환급 시 가격을 적지 않는다.**
-          환급은 사업자가 나중에 돌려받는 돈이라 지금 낼 금액이 아닌데, 맨 아랫줄에
-          굵게 적혀 있으면 그것을 결제 금액으로 읽는다. 낼 금액은 옆 칸의 「특장 총 금액」이다.
-        -->
         <tr><td class="lab">고객명</td><td class="cval" colspan="2">{{ cust.name }}</td></tr>
         <tr><td class="lab">구분</td><td class="cval" colspan="2">{{ cust.bizType }}</td></tr>
         <tr class="grp"><td class="k">계약금</td><td class="num" colspan="2">{{ cust.deposit }}</td></tr>

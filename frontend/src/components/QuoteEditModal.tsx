@@ -5,7 +5,6 @@ import {
   saveQuoteInputs, saveQuoteSelections, saveQuoteCustomer, fetchInstallmentRates,
   fetchQuoteHistory, type InstallmentRateOption, type QuoteChange,
 } from '../api/quotes'
-import { DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import { computeDisabledGroups, computeHidden, sanitizeSelections, groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
@@ -36,8 +35,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'inputs', label: '할부' },
   { key: 'history', label: '이력' },
 ]
-
-const TAX_EXEMPT_OPTIONS = ['일반인', '면세사업자', '기타']
 
 /** 이력에 남는 필드 코드 → 사람이 읽는 이름 */
 const FIELD_KO: Record<string, string> = {
@@ -307,8 +304,6 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
   const [downPct, setDownPct] = useState(String(((inp['down_payment_rate'] as number) ?? 0.3) * 100))
   const [months, setMonths] = useState<number>((inp['installment_months'] as number) ?? 0)
-  const [taxExempt, setTaxExempt] = useState((inp['tax_exempt_type'] as string) ?? DEFAULT_TAX_EXEMPT_TYPE)
-  const [bizPlate, setBizPlate] = useState<boolean>((inp['has_biz_plate'] as boolean) ?? false)
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
 
   useEffect(() => { fetchInstallmentRates().then(setRates).catch(() => {}) }, [])
@@ -319,8 +314,9 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
       await saveQuoteInputs(quote.id, {
         down_payment_rate: (Number(downPct) || 0) / 100,
         installment_months: months,
-        tax_exempt_type: taxExempt,
-        has_biz_plate: bizPlate,
+        // ⚠️ `tax_exempt_type`·`has_biz_plate` 는 보내지 않는다 — 더 이상 묻지 않는 값이라
+        //    기본값을 실어 보내면 저장만 눌러도 예전 견적의 실구매가가 달라진다.
+        //    서버의 PATCH inputs 는 받은 키만 덮어쓰므로, 빼 두면 저장된 값이 그대로 남는다.
       })
       onDone('할부 조건을 저장했습니다')
     } catch (e) { onFail(e) } finally { setBusy(false) }
@@ -338,17 +334,6 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
               <option value={0}>일시불</option>
               {rates.map(r => <option key={r.months} value={r.months}>{r.label ?? `${r.months}개월`}</option>)}
             </select>
-          </Field>
-          <Field label="면세구분">
-            <select style={s.field} value={taxExempt} onChange={e => setTaxExempt(e.target.value)}>
-              {TAX_EXEMPT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </Field>
-          <Field label="영업용 번호판">
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button type="button" style={bizPlate ? s.ynOn : s.ynOff} onClick={() => setBizPlate(true)}>예</button>
-              <button type="button" style={!bizPlate ? s.ynOn : s.ynOff} onClick={() => setBizPlate(false)}>아니오</button>
-            </div>
           </Field>
         </div>
       </div>
