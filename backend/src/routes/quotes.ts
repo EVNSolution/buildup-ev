@@ -18,6 +18,7 @@ import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js'
 import { setQuoteStatus } from '../services/quote-status.js';
 import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
+import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import { stepsFor } from '@buildup-ev/shared/process';
@@ -406,6 +407,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
 
     // 견적 내용이 바뀌었다 — WARP 수신함이 재확인 대기로 되돌아간다 (#200)
     void pushWarpDealEvent('quote_updated', id);
+    archiveQuoteSnapshot(id);   // 고친 판을 서류함에 남긴다
     res.json({ data: { ok: true } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/inputs]', e);
@@ -480,6 +482,7 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission(
       req.auth?.email ?? 'unknown', groups);
 
     void pushWarpDealEvent('quote_updated', id); // 옵션 변경 — WARP 재확인 알림 (#200)
+    archiveQuoteSnapshot(id);   // 고친 판을 서류함에 남긴다
     res.json({ data: { ok: true, changed, final_price: total.real_price } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/selections]', e);
@@ -527,6 +530,7 @@ quotesRouter.post('/:id/duplicate', rbac('SALES', 'ADMIN'), requirePermission('q
     try {
       const quote_no = await genQuoteNo(prisma, created.created_at.getFullYear());
       await prisma.quote.update({ where: { id: created.id }, data: { quote_no } });
+      archiveQuoteSnapshot(created.id);   // 새 견적도 만들어진 순간 한 판을 남긴다
       res.json({ data: { id: created.id, quote_no } });
     } catch (e) {
       // 번호 부여 실패는 치명적이지 않다 — 견적 자체는 만들어졌다(백필로 복구 가능)
@@ -599,6 +603,7 @@ quotesRouter.patch('/:id/customer', rbac('SALES', 'ADMIN'), requirePermission('q
       (before ?? {}) as unknown as Record<string, unknown>, data,
       req.auth?.email ?? 'unknown', Object.keys(data));
     void pushWarpDealEvent('quote_updated', id); // 고객정보 변경 — WARP 재확인 알림 (#200)
+    archiveQuoteSnapshot(id);   // 고친 판을 서류함에 남긴다
     res.json({ data: { ok: true, changed: Object.keys(data).length } });
   } catch (e) {
     console.error('[PATCH /quotes/:id/customer]', e);
@@ -738,6 +743,8 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
 
   // WARP CRM 수신함에 견적 작성 알림 (#200) — fire-and-forget, 저장을 막지 않는다
   void pushWarpDealEvent('quote_created', quote.id);
+  // 저장한 판을 서류함에 남긴다 — 견적서를 열지 않아도 그때 무엇으로 냈는지 남아야 한다
+  archiveQuoteSnapshot(quote.id);
 
   res.status(201).json({ data: { quote_id: quote.id, pricing: result } });
 });

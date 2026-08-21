@@ -9,7 +9,7 @@ import { TIP_WIDTH } from './Tooltip'
 
 export const QUOTE_STATUS_FLOW = [
   { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed',  label: '견적확정', desc: '견적서 생성 완료' },
+  { key: 'confirmed',  label: '견적완료', desc: '견적서 생성 완료' },
   { key: 'contracted', label: '계약완료', desc: '전자서명 완료' },
   { key: 'assigned',   label: '배정완료', desc: '관리자가 특장사 배정' },
   { key: 'ordered',    label: '주문진행', desc: '특장사 수락 · 제작 진행' },
