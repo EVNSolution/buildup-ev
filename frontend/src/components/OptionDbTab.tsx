@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   OPTION_DB_TABLES, fetchOptionDbTable, saveOptionDbRows, fetchOptionDbLogs,
   fetchRestorePoints, rollbackOptionDb,
@@ -154,6 +155,8 @@ export function OptionDbTab({ only, note }: Props = {}) {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load(table, '') /* 테이블 변경 시 검색 초기화 */ }, [table])
+  // 새로고침은 **보고 있던 표와 검색어 그대로** 다시 부른다 — 눌렀다고 화면이 처음으로 돌아가면 안 된다
+  useScreenRefresh(() => load(table, q))
 
   function edit(rowKey: string, field: string, value: unknown) {
     setEdits((prev) => ({ ...prev, [rowKey]: { ...(prev[rowKey] ?? {}), [field]: value } }))

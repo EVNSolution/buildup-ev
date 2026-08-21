@@ -89,3 +89,15 @@ export function useScreenRefresh(load: () => void | Promise<void>) {
     }
   }, [call])
 }
+
+/**
+ * 화면 본체가 아니라 **탭 한 칸**이 다시 불러오기를 등록할 때 쓰는 조각.
+ *
+ * 데이터가 부모에 있고 탭만 갈리는 자리에서는 훅을 부를 곳이 없다 —
+ * 훅은 조건부로 부를 수 없기 때문이다. 이 조각을 그 탭 안에 놓으면
+ * **탭이 떠 있는 동안만** 등록되고, 탭을 옮기면 저절로 풀린다.
+ */
+export function RefreshOn({ load }: { load: () => void | Promise<void> }) {
+  useScreenRefresh(load)
+  return null
+}

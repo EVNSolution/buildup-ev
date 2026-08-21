@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchFileIndex, fetchOrderFiles,
   type ApiFileIndexRow, type ApiOrderFile, type FileGroup,
@@ -30,11 +31,13 @@ export function OrderFilesTab() {
   const [picked, setPicked] = useState<ApiFileIndexRow | null>(null)
   const [q, setQ] = useState('')
 
-  useEffect(() => {
+  function load() {
     fetchFileIndex()
       .then(setRows)
       .catch(e => setErr(e instanceof Error ? e.message : '파일 목록을 불러오지 못했습니다'))
-  }, [])
+  }
+  useEffect(load, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useScreenRefresh(load)
 
   // 고객 이름·견적번호·특장사 — 사람들이 실제로 기억하고 있는 것들로 찾는다
   const shown = useMemo(() => {
