@@ -1066,19 +1066,25 @@ function QuotesTab() {
                 {q.source === 'public' && !q.sales_user_id && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                 )}
-                {/* 제작 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
-                {q.status === 'confirmed' && (
-                  <button style={{ ...BTN.rowMuted, width: '100%' }} disabled title="전자서명 또는 서명본 등록이 끝나야 제작 배정을 할 수 있습니다">제작 배정</button>
-                )}
-                {q.status === 'contracted' && (
-                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                )}
                 {(
                   <button
                     style={{ ...(hidingId === q.id ? BTN.rowDisabled : BTN.row), width: '100%' }}
                     disabled={hidingId === q.id}
                     onClick={() => handleHide(q.id, !q.hidden_at)}
                   >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
+                )}
+
+                {/* 데스크톱과 같은 자리·같은 무게 — 카드 맨 아래에 크게 */}
+                {(q.status === 'confirmed' || q.status === 'contracted') && (
+                  q.status === 'contracted' ? (
+                    <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
+                  ) : (
+                    <button
+                      style={qt.assignBtnOff}
+                      disabled
+                      title="전자서명 또는 서명본 등록이 끝나야 제작 배정을 할 수 있습니다"
+                    >제작 배정 <span style={qt.assignHint}>· 서명 완료 후</span></button>
+                  )
                 )}
               </div>
             </div>
@@ -1125,6 +1131,7 @@ function QuotesTab() {
                   <td style={qt.td}><SendStatus quote={q} /></td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
+                    <div style={qt.actionCell}>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
                       <button
                         style={BTN.row}
@@ -1153,18 +1160,6 @@ function QuotesTab() {
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                       )}
-                      {/* 제작 배정은 전자서명이 끝난 뒤에만 — 계약이 깨질 수 있는 단계에서 제작에 들어가면 안 된다 */}
-                      {q.status === 'confirmed' && (
-                        <button style={BTN.rowMuted} disabled title="전자서명 또는 서명본 등록이 끝나야 제작 배정을 할 수 있습니다">제작 배정</button>
-                      )}
-                      {/*
-                        종이로 이미 체결한 건을 제작으로 넘기는 문. 전자서명을 건너뛰므로
-                        관리자에게만 보이고(서버도 ADMIN + order.confirm 으로 막는다),
-                        스캔본 없이는 등록되지 않는다.
-                      */}
-                      {q.status === 'contracted' && (
-                        <button style={BTN.rowPrimary} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                      )}
                       {/* 계약서가 나가기 전까지는 언제든 숨길 수 있다(서버가 최종 판단) */}
                       {(
                         <button
@@ -1174,6 +1169,25 @@ function QuotesTab() {
                           onClick={() => handleHide(q.id, !q.hidden_at)}
                         >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                       )}
+                    </div>
+
+                    {/*
+                      제작 배정 — **이 화면에서 관리자가 하는 일**이다.
+                      예전엔 위 인라인 줄 맨 끝에 끼어 있었다. 버튼이 늘면서 화면 밖으로 밀려
+                      가장 중요한 버튼을 가로로 스크롤해야 찾을 수 있었다(실제 제보).
+                      아래에 한 줄을 따로 내주면 자리도 고정되고 눈에 먼저 들어온다.
+                    */}
+                    {(q.status === 'confirmed' || q.status === 'contracted') && (
+                      q.status === 'contracted' ? (
+                        <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
+                      ) : (
+                        <button
+                          style={qt.assignBtnOff}
+                          disabled
+                          title="전자서명 또는 서명본 등록이 끝나야 제작 배정을 할 수 있습니다"
+                        >제작 배정 <span style={qt.assignHint}>· 서명 완료 후</span></button>
+                      )
+                    )}
                     </div>
                   </td>
                 </tr>
@@ -1424,6 +1438,24 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
+  /** 동작 칸 — 위는 조회용 작은 버튼들, 아래 한 줄은 제작 배정 전용 */
+  actionCell: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' },
+  /**
+   * 제작 배정 — 이 화면에서 관리자가 **실제로 하는 일**이라 혼자 한 줄을 쓴다.
+   * 위 조회 버튼들(작고 흐린 것)과 크기·색을 다르게 해 한눈에 갈리게 한다.
+   */
+  assignBtn: {
+    ...BTN.primary,
+    width: '100%', minHeight: 'var(--h-control)',
+    fontWeight: 700, letterSpacing: '-0.01em',
+  },
+  /** 아직 못 누르는 상태 — 자리는 그대로 지켜 「여기서 하는 일」이 무엇인지 계속 보이게 한다 */
+  assignBtnOff: {
+    ...BTN.disabled,
+    width: '100%', minHeight: 'var(--h-control)',
+    fontWeight: 600,
+  },
+  assignHint: { fontWeight: 400, opacity: 0.75 },
   filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
   // 모양·높이는 globals.css — 여기서는 줄어드는 방식만 (인라인으로 덮으면 옆 버튼과 높이가 어긋난다)
   // 늘어나지는 않고(0) 좁아지면 줄어든다(1) — grow 를 주면 넓은 화면에서 「전체 상태」 하나가 1182px 를 차지한다(실측)
