@@ -54,6 +54,7 @@ describe('계약 상태 따라잡기', () => {
     refresh.mockResolvedValue({ status: 'SENT' } as never);
 
     await syncOpenContracts(prisma);
+    await new Promise(r => setTimeout(r, 20));
     expect(refresh.mock.calls.length).toBeLessThanOrEqual(10);
   });
 
@@ -65,11 +66,12 @@ describe('계약 상태 따라잡기', () => {
     await syncOpenContracts(prisma);   // 영업이 새로고침
     await syncOpenContracts(prisma);   // 관리자가 곧바로 새로고침
     await syncOpenContracts(prisma);   // 또 한 명
+    await new Promise(r => setTimeout(r, 20));
 
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('한 건이 실패해도 나머지는 계속하고, 실패한 건은 쿨다운을 태우지 않는다', async () => {
+  it('한 건이 실패해도 나머지는 계속한다 — 다만 실패한 건을 곧바로 다시 부르지 않는다', async () => {
     const rows = [
       { id: 1, quote_id: 601, status: 'SENT' },
       { id: 2, quote_id: 602, status: 'SENT' },
@@ -81,40 +83,51 @@ describe('계약 상태 따라잡기', () => {
     });
 
     await syncOpenContracts(prisma);
+    await new Promise(r => setTimeout(r, 20));   // 던져 둔 조회가 끝나기를 기다린다
     // 실패했어도 602 는 처리됐다
     expect(refresh.mock.calls.map(c => c[0])).toEqual(expect.arrayContaining([601, 602]));
 
-    // 실패한 601 은 다음 새로고침에 **다시** 시도된다(성공한 602 는 쿨다운에 걸린다)
+    /*
+     * 실패한 건도 **곧바로 다시 부르지 않는다.**
+     *
+     * 처음엔 실패하면 쿨다운을 지웠는데, 영영 실패하는 문서(옛 계정에서 만든 것)를
+     * 새로고침할 때마다 2.7초씩 다시 물어보게 됐다. 짧게 쉬어야 한다.
+     */
     refresh.mockReset();
     refresh.mockResolvedValue({ status: 'SENT' } as never);
     await syncOpenContracts(prisma);
-    expect(refresh.mock.calls.map(c => c[0])).toEqual([601]);
+    expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('모두싸인이 느려도 목록을 오래 잡아 두지 않는다', async () => {
+  it('모두싸인이 아무리 느려도 목록을 조금도 잡아 두지 않는다', async () => {
+    /*
+     * 실제로 겪은 일이다. 옛 계정에서 만든 문서 하나가 403 을 내는 데 **2.7초**를 썼고,
+     * 그때는 「3초까지 기다린다」로 두어서 새로고침이 눈에 띄게 느려졌다(실제 제보).
+     * 이제는 던져 두고 곧바로 돌아온다.
+     */
     const rows = [{ id: 1, quote_id: 701, status: 'SENT' }];
     const { prisma } = fakePrisma(rows);
-    // 영원히 안 끝나는 조회
-    refresh.mockImplementation(() => new Promise(() => {}) as never);
+    refresh.mockImplementation(() => new Promise(() => {}) as never); // 영원히 안 끝난다
 
     const t0 = Date.now();
     await syncOpenContracts(prisma);
-    const elapsed = Date.now() - t0;
-    // 3초 예산 + 여유. 이게 깨지면 견적 목록이 모두싸인 장애에 끌려간다.
-    expect(elapsed).toBeLessThan(5_000);
+    expect(Date.now() - t0).toBeLessThan(150);
   });
 
-  it('정말 달라진 건수만 센다', async () => {
-    const rows = [
-      { id: 1, quote_id: 801, status: 'SENT' },
-      { id: 2, quote_id: 802, status: 'SENT' },
-    ];
+  it('느린 조회가 끝나기 전에도 목록이 나간다 — 결과는 다음 조회에 실린다', async () => {
+    const rows = [{ id: 1, quote_id: 702, status: 'SENT' }];
     const { prisma } = fakePrisma(rows);
-    refresh.mockImplementation(async (qid: number) =>
-      ({ status: qid === 801 ? 'COMPLETED' : 'SENT' }) as never);
+    let done = false;
+    refresh.mockImplementation(async () => {
+      await new Promise(r => setTimeout(r, 300));
+      done = true;
+      return { status: 'COMPLETED' } as never;
+    });
 
-    // 801 만 바뀌었다 — 「불렀다」가 아니라 「달라졌다」를 세야 로그가 쓸모 있다
-    expect(await syncOpenContracts(prisma)).toBe(1);
+    await syncOpenContracts(prisma);
+    expect(done).toBe(false);            // 아직 안 끝났는데 이미 돌아왔다
+    await new Promise(r => setTimeout(r, 400));
+    expect(done).toBe(true);             // 그래도 뒤에서 끝난다 — 버려지지 않는다
   });
 });
 
