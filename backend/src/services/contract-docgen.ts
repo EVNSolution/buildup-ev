@@ -206,6 +206,20 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
   const ceoName = String(inp['ceo_name'] ?? '').trim();
   const agentName = String(inp['buyer_agent'] ?? '').trim();
 
+  /*
+   * 계약서 주소 = **주소 검색으로 받은 값 + 상세주소.** 그것뿐이다.
+   *
+   * ⚠️ 지역(`region`)을 붙이지 않는다. 그건 **보조금 산정용 시·군·구 선택값**이지 주소가 아니다.
+   *    주소 검색 결과에는 시·도가 이미 들어 있어 앞에 지역을 덧대면 겹쳐 찍혔다 —
+   *    「서울특별시 서울 금천구」처럼(실제 제보). 계약서에 나가는 주소라 그냥 두면 안 된다.
+   *
+   * 상세주소는 **고객 정보가 정본**이다(고객정보 수정이 그리로 저장한다).
+   * 옛 견적은 견적 입력에만 남아 있어 그때는 그쪽을 쓴다.
+   */
+  const addressDetail =
+    String(customer?.address_detail ?? '').trim() ||
+    String(inp['address_detail'] ?? '').trim();
+
 
   // 금액은 총견적서 엔진(calcQuote)의 **특장 축** 단일 소스를 그대로 쓴다.
   // ⚠️ quote.supply_price 는 차량 트림까지 포함하므로 특장 계약서에 쓰면 안 된다.
@@ -260,12 +274,8 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     buyer_agent: agentName,
     buyer_relation: String(inp['buyer_relation'] ?? ''),
     buyer_regno: String(inp['buyer_regno'] ?? customer?.reg_no ?? ''),
-    // 주소 = 지역(시/도·시군구) + 세부주소 — 계약서엔 전체 주소가 필요
-    // 주소 검색으로 받은 값은 시·도까지 들어 있어 region 을 붙이면 겹친다.
-    // 상세주소가 있으면 새 방식(주소 + 상세), 없으면 옛 견적 방식(지역 + 세부주소)을 쓴다.
-    buyer_address: (inp['address_detail'] as string | undefined)?.trim()
-      ? [customer?.address, inp['address_detail']].filter(Boolean).join(' ').trim()
-      : [inp['region'], customer?.address].filter(Boolean).join(' ').trim(),
+    // 주소 검색 결과 + 상세주소만. 지역(region)은 섞지 않는다 — 위 addressDetail 주석 참고.
+    buyer_address: [customer?.address, addressDetail].filter(Boolean).join(' ').trim(),
     buyer_tel: String(inp['buyer_tel'] ?? ''),
     buyer_mobile: customer?.phone ?? '',
     buyer_email: customer?.email ?? '',
