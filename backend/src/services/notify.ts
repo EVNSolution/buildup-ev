@@ -9,6 +9,7 @@
  *    상태 전이가 롤백되면 더 큰 사고다 — 여기서는 삼키고 로그만 남긴다.
  */
 import { createTransport } from 'nodemailer';
+import { mergePermissions } from '../lib/permissions.js';
 import { prisma } from '../lib/prisma.js';
 
 const BASE_URL = process.env['PUBLIC_BASE_URL'] || 'https://buildup-ev.cleversystem.ai';
@@ -31,15 +32,41 @@ function transport() {
  * `NOTIFY_ADMIN_TO` 가 있으면 그것만 쓴다(제조운영 그룹 메일 하나로 받고 싶을 때).
  * 나중에 기능모듈 `order.po.issue` 가 생기면 그 권한을 가진 계정으로 좁힌다.
  */
+/** 제작 배정 알림을 받겠다고 켜 둔 계정 — 기능모듈 `notify.assign` 로 고른다. */
+export const ASSIGN_NOTIFY_MODULE = 'notify.assign';
+
+/**
+ * 알림을 **받을 사람**을 고른다.
+ *
+ * 예전에는 **활성 관리자 전원**에게 보냈다. 관리자 권한만 있으면 배정 업무와 무관한
+ * 사람에게도 계속 갔고, 끌 방법이 없었다.
+ *
+ * 이제 다른 기능과 똑같이 **계정별 토글**로 고른다(관리자 화면 › 계정 관리).
+ * 판정은 화면·API 와 같은 `mergePermissions` 를 쓴다 — 역할 기본값을 계정별 설정이 덮는다.
+ *
+ * ⚠️ **기본은 아무도 안 받는 것이다.** 아무도 켜 두지 않으면 메일이 나가지 않는다.
+ *    조용히 사라지면 서명이 끝난 건이 방치되므로, 그때는 로그로 분명히 남긴다.
+ */
 async function adminRecipients(): Promise<string[]> {
+  // 비상 우회 — 설정이 꼬였을 때 서버 env 로 강제 지정한다
   const override = process.env['NOTIFY_ADMIN_TO'];
   if (override) return override.split(',').map(s => s.trim()).filter(Boolean);
   if (!prisma) return [];
-  const admins = await prisma.user.findMany({
-    where: { active: true, status: 'active', OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }] },
-    select: { email: true },
-  });
-  return admins.map(a => a.email);
+
+  const [users, acs] = await Promise.all([
+    prisma.user.findMany({
+      where: { active: true, status: 'active' },
+      select: { email: true, role: true, extra_roles: true },
+    }),
+    prisma.accessControl.findMany({
+      where: { module_code: ASSIGN_NOTIFY_MODULE },
+      select: { subject_type: true, subject_ref: true, module_code: true, enabled: true },
+    }),
+  ]);
+
+  return users
+    .filter(u => mergePermissions([u.role, ...u.extra_roles], u.email, acs).includes(ASSIGN_NOTIFY_MODULE))
+    .map(u => u.email);
 }
 
 const won = (n: number | null | undefined) => (n == null ? '—' : '₩' + Math.round(n).toLocaleString('ko-KR'));
@@ -65,7 +92,14 @@ export async function notifyContractSigned(quoteId: number): Promise<void> {
     if (!quote) return;
 
     const to = await adminRecipients();
-    if (to.length === 0) { console.warn('[notify] 받는 관리자 계정이 없어 배정 요청 알림 건너뜀'); return; }
+    if (to.length === 0) {
+      // 조용히 사라지면 서명이 끝난 건이 방치된다 — 왜 안 갔는지 로그에 남긴다
+      console.warn(
+        `[notify] 배정 요청 알림을 받도록 켜 둔 계정이 없다 — 견적 ${quoteId} 알림 건너뜀. ` +
+        `관리자 › 계정 관리에서 「제작 배정 알림 메일」(${ASSIGN_NOTIFY_MODULE})을 켜야 나간다.`,
+      );
+      return;
+    }
 
     const no = quote.quote_no ?? `#${quote.id}`;
     const link = `${BASE_URL}/`;

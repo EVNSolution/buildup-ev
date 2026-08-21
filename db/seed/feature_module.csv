@@ -8,3 +8,4 @@ order.control,주문 상태 변경,"관리자,특장사",6,Y
 subsidy.manage,보조금 관리,관리자,7,Y
 account.manage,계정 관리,관리자,8,Y
 doc.view,서류 조회,"관리자,특장사",9,Y
+notify.assign,제작 배정 알림 메일,관리자,10,Y
