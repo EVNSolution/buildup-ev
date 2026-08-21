@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -12,11 +13,33 @@ MIGRATIONS = ROOT / "backend/prisma/migrations"
 
 class SchemaMigrationContractTest(unittest.TestCase):
     def test_prisma_history_has_baseline_and_forward_migration(self):
+        """migration 이력의 **모양**을 못박는다 — 목록 자체를 박아 두지 않는다.
+
+        예전에는 디렉터리 목록을 통째로 하드코딩했다. 그래서 **정당한 migration 을
+        더할 때마다 배포가 막혔고**, 통과시키려면 목록을 고쳐 적는 수밖에 없었다 —
+        그 순간 이 테스트는 아무것도 지키지 않는 받아쓰기가 된다.
+
+        정말 지켜야 하는 것은 이것들이다:
+          · baseline 이 **하나만** 있고 **가장 앞**이다 (migrate resolve 가 그걸 전제한다)
+          · 이름이 `<14자리 시각>_<이름>` 이라 **정렬 순서 = 시간 순서**다 (forward-only)
+          · 같은 시각이 둘 있으면 적용 순서가 흔들린다
+          · baseline 뒤에 실제 forward migration 이 하나 이상 있다
+        """
         names = sorted(path.parent.name for path in MIGRATIONS.glob("*/migration.sql"))
-        self.assertEqual(
-            names,
-            ["20260819000000_baseline", "20260819001000_add_customer_warp_index"],
-        )
+        self.assertTrue(names, "migration 이 하나도 없다")
+
+        pattern = re.compile(r"^\d{14}_[a-z0-9_]+$")
+        for name in names:
+            self.assertRegex(name, pattern, f"migration 이름 형식이 어긋난다: {name}")
+
+        stamps = [name[:14] for name in names]
+        self.assertEqual(len(set(stamps)), len(stamps), f"같은 시각의 migration 이 있다: {names}")
+
+        baselines = [name for name in names if name.endswith("_baseline")]
+        self.assertEqual(len(baselines), 1, f"baseline 은 하나여야 한다: {baselines}")
+        self.assertEqual(names[0], baselines[0], f"baseline 이 가장 앞이어야 한다: {names}")
+
+        self.assertGreater(len(names), 1, "baseline 뒤의 forward migration 이 없다")
         self.assertTrue((MIGRATIONS / "migration_lock.toml").is_file())
 
     def test_deploy_backs_up_then_runs_only_reviewed_migrations(self):
