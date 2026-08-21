@@ -86,41 +86,41 @@ describe('권한 계산이 실제로 그렇게 동작한다', () => {
 describe('제작 배정 버튼', () => {
   const ADMIN = read('frontend/src/pages/AdminPage.tsx');
 
-  it('🔴 조회 버튼들과 같은 줄에 끼지 않는다', () => {
+  it('🔴 다른 버튼과 같은 줄·같은 크기다', () => {
     /*
-     * 예전엔 인라인 줄 맨 끝에 있었다. 버튼이 늘면서 화면 밖으로 밀려
-     * 가장 중요한 버튼을 가로로 스크롤해야 찾을 수 있었다(실제 제보).
+     * 한때 아래로 내려 폭 전체를 쓰는 큰 버튼으로 만들었더니
+     * 행 높이가 들쭉날쭉해지고 목록이 그 버튼으로 뒤덮였다(실제 제보). 되돌렸다.
      */
-    expect(ADMIN).not.toMatch(/<button style=\{BTN\.rowPrimary\} onClick=\{\(\) => handleOpenConfirm/);
-    expect(ADMIN).not.toMatch(/<button style=\{\{ \.\.\.BTN\.rowPrimary, width: '100%' \}\} onClick=\{\(\) => handleOpenConfirm/);
+    expect(ADMIN).not.toContain('assignRow');
+    expect(ADMIN).not.toContain('actionCell');
+    const i = ADMIN.indexOf('assignBtn:');
+    const decl = ADMIN.slice(i, i + 140);
+    expect(decl).toContain('BTN.rowPrimary');   // 다른 버튼과 같은 SM 크기
+    expect(decl).not.toContain('BTN.primary');  // MD 로 키우지 않는다
+    expect(decl).not.toContain('width');        // 폭 전체를 쓰지 않는다
   });
 
-  it('한 줄 띄우고 아래에 둔다 — 데스크톱과 모바일 양쪽에', () => {
-    // 붙여 놓으면 조회 버튼 묶음의 둘째 줄처럼 읽혀 눈에 걸리지 않는다
-    expect(ADMIN).toContain('assignRow:');
-    expect(ADMIN.match(/style=\{qt\.assignRow\}/g)?.length).toBe(2);
-    const i = ADMIN.indexOf('assignRow:');
-    expect(ADMIN.slice(i, i + 120)).toContain('marginTop');
+  it('검정 바탕에 라임 글자 — 같은 검정 버튼(서명본)과 갈린다', () => {
+    const i = ADMIN.indexOf('assignBtn:');
+    expect(ADMIN.slice(i, i + 140)).toContain("color: 'var(--lime)'");
   });
 
   it('🔴 배정할 수 있는 건에만 나온다', () => {
-    /*
-     * 한때 서명 전인 건까지 흐린 버튼을 띄웠더니 **목록 전체가 그 버튼으로 뒤덮여**
-     * 정작 배정할 건이 묻혔다(실제 제보). 배정할 수 없는 건에는 아무것도 두지 않는다.
-     */
+    // 서명 전인 건까지 띄웠더니 목록 전체가 뒤덮여 정작 배정할 건이 묻혔다
     expect(ADMIN).not.toContain('assignBtnOff');
     expect(ADMIN).not.toContain('서명 완료 후');
-    // 조건은 `contracted` 하나뿐이어야 한다 — confirmed 를 끼우면 다시 전부 뒤덮인다
     expect(ADMIN).not.toMatch(/q\.status === 'confirmed' \|\| q\.status === 'contracted'/);
-    expect(ADMIN.match(/\{q\.status === 'contracted' && \(\s*\n\s*<div style=\{qt\.assignRow\}>/g)?.length).toBe(2);
+    expect(ADMIN.match(/\{q\.status === 'contracted' && \(/g)?.length).toBe(2);
   });
 
-  it('조회 버튼과 같은 크기다 — 눈에 띄는 것은 자리와 색이지 크기가 아니다', () => {
-    // 크게 만들었더니 목록이 그 버튼으로 뒤덮였다
-    const i = ADMIN.indexOf('assignBtn:');
-    const decl = ADMIN.slice(i, i + 120);
-    expect(decl).toContain('BTN.rowPrimary');   // 조회 버튼과 같은 SM 크기
-    expect(decl).not.toContain('BTN.primary');  // MD 로 키우지 않는다
-    expect(decl).not.toContain('fontWeight');   // 굵기로 키우지도 않는다
+  it('🔴 서명이 끝난 건에는 「견적 숨기기」를 두지 않는다 — 그 자리를 제작 배정이 쓴다', () => {
+    /*
+     * 서명이 끝나면 숨길 일이 없다(서버도 막는다). 그 자리를 비워 두는 대신
+     * 제작 배정이 쓰면 **버튼 개수가 늘지 않아** 줄이 밀리지 않는다.
+     */
+    expect(ADMIN).toMatch(/const signed = q\.contract\?\.status === 'COMPLETED'/);
+    expect(ADMIN.match(/const signed = q\.contract\?\.status === 'COMPLETED'/g)?.length).toBe(2);
+    // 숨기기 버튼은 signed 가 아닐 때만
+    expect(ADMIN.match(/\{!signed && \(/g)?.length).toBe(2);
   });
 });

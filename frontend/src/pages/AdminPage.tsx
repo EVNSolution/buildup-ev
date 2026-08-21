@@ -1007,7 +1007,10 @@ function QuotesTab() {
       ) : isMobile ? (
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {quotes.map(q => (
+          {quotes.map(q => {
+            /* 서명이 끝난 건은 숨길 일이 없다 — 그 자리를 제작 배정이 쓴다 */
+            const signed = q.contract?.status === 'COMPLETED'
+            return (
             <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
@@ -1066,23 +1069,21 @@ function QuotesTab() {
                 {q.source === 'public' && !q.sales_user_id && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                 )}
-                {(
+                {/* 데스크톱과 같은 규칙 — 서명이 끝나면 숨기기 자리를 제작 배정이 쓴다 */}
+                {!signed && (
                   <button
                     style={{ ...(hidingId === q.id ? BTN.rowDisabled : BTN.row), width: '100%' }}
                     disabled={hidingId === q.id}
                     onClick={() => handleHide(q.id, !q.hidden_at)}
                   >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                 )}
-
-                {/* 데스크톱과 같은 규칙 — 배정할 수 있는 건에만, 한 줄 띄우고 아래에 */}
                 {q.status === 'contracted' && (
-                  <div style={qt.assignRow}>
-                    <button style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                  </div>
+                  <button style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                 )}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       ) : (
         // ── 데스크톱: 표 ──
@@ -1102,7 +1103,10 @@ function QuotesTab() {
               </tr>
             </thead>
             <tbody>
-              {quotes.map(q => (
+              {quotes.map(q => {
+                /* 서명이 끝난 건은 숨길 일이 없다 — 그 자리를 제작 배정이 쓴다 */
+                const signed = q.contract?.status === 'COMPLETED'
+                return (
                 <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
                   <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}</td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
@@ -1125,7 +1129,6 @@ function QuotesTab() {
                   <td style={qt.td}><SendStatus quote={q} /></td>
                   <td style={qt.tdMuted}>{fmtDate(q.created_at)}</td>
                   <td style={qt.td}>
-                    <div style={qt.actionCell}>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
                       <button
                         style={BTN.row}
@@ -1154,8 +1157,11 @@ function QuotesTab() {
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                       )}
-                      {/* 계약서가 나가기 전까지는 언제든 숨길 수 있다(서버가 최종 판단) */}
-                      {(
+                      {/*
+                        서명이 끝난 건은 **숨길 일이 없다**(서버도 막는다). 그 자리를 비워 두는 대신
+                        **제작 배정**이 쓴다 — 버튼 개수가 늘지 않아 줄이 밀리지 않는다.
+                      */}
+                      {!signed && (
                         <button
                           style={hidingId === q.id ? BTN.rowDisabled : BTN.row}
                           disabled={hidingId === q.id}
@@ -1163,25 +1169,14 @@ function QuotesTab() {
                           onClick={() => handleHide(q.id, !q.hidden_at)}
                         >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                       )}
-                    </div>
-
-                    {/*
-                      제작 배정 — **이 화면에서 관리자가 하는 일**이다.
-                      예전엔 위 인라인 줄 맨 끝에 끼어 화면 밖으로 밀렸다(실제 제보).
-                      한 줄 띄우고 아래에 따로 둔다.
-
-                      ⚠️ **배정할 수 있는 건에만 나온다.** 아직 서명 전인 건까지 흐린 버튼을
-                         띄웠더니 목록 전체가 그 버튼으로 뒤덮여, 정작 배정할 건이 묻혔다.
-                    */}
-                    {q.status === 'contracted' && (
-                      <div style={qt.assignRow}>
+                      {q.status === 'contracted' && (
                         <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                      </div>
-                    )}
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -1428,18 +1423,14 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
-  /** 동작 칸 — 위는 조회용 작은 버튼들, 아래 한 줄은 제작 배정 전용 */
-  actionCell: { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' },
   /**
-   * 제작 배정 자리 — 위 조회 버튼들과 **한 줄 띄워** 둔다.
-   * 붙여 놓으면 조회 버튼 묶음의 둘째 줄처럼 읽혀 눈에 걸리지 않는다.
+   * 제작 배정 — 다른 버튼과 **같은 크기·같은 줄**이다. 크게 만들거나 아래로 내렸더니
+   * 목록이 그 버튼으로 뒤덮이고 행 높이가 들쭉날쭉해졌다(둘 다 되돌렸다).
+   *
+   * 대신 **글자를 브랜드 라임으로** 두어 검정 버튼(서명본·스캔본)과도 한눈에 갈린다.
+   * 라임은 흰 바탕에서 흐리지만 검은 바탕에서는 또렷하다.
    */
-  assignRow: { display: 'flex', marginTop: 22 },
-  /**
-   * 제작 배정 — 조회 버튼과 **같은 크기**다. 눈에 띄는 것은 크기가 아니라
-   * 혼자 떨어져 있다는 자리와 색이다. 크게 만들었더니 목록이 그 버튼으로 뒤덮였다.
-   */
-  assignBtn: { ...BTN.rowPrimary, padding: '0 22px' },
+  assignBtn: { ...BTN.rowPrimary, color: 'var(--lime)', fontWeight: 700 },
   filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
   // 모양·높이는 globals.css — 여기서는 줄어드는 방식만 (인라인으로 덮으면 옆 버튼과 높이가 어긋난다)
   // 늘어나지는 않고(0) 좁아지면 줄어든다(1) — grow 를 주면 넓은 화면에서 「전체 상태」 하나가 1182px 를 차지한다(실측)
