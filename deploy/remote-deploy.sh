@@ -264,7 +264,21 @@ ${SERVER_NAME} {
 		reverse_proxy 127.0.0.1:${port}
 	}
 
+	# 해시가 붙은 자산(index-D2mweHC2.js)은 내용이 바뀌면 **이름이 바뀐다**.
+	# 같은 이름이 다른 내용을 가리킬 일이 없으니 길게 캐시해도 안전하다.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# index.html 은 **매번 서버에 물어본다**(no-cache = 재검증 필수, 바뀐 게 없으면 304).
+	#
+	# ⚠️ Cache-Control 을 아예 안 주면 브라우저가 **추정 캐시**를 쓴다
+	#    (RFC 9111 — 보통 Last-Modified 로부터 흐른 시간의 10%). 그래서 배포를 해도
+	#    홈 화면에 추가한 앱이 몇 시간씩 옛 index.html 을 물고 있었다(실제 제보).
+	#    index.html 이 새 번들 이름을 가리키는 유일한 문서라, 이것만 신선하면 전부 최신이 된다.
 	handle {
+		header Cache-Control "no-cache"
 		try_files {path} /index.html
 		file_server
 	}
