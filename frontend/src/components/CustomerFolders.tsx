@@ -17,7 +17,7 @@ import { DocLink } from './DocLink'
  *    어디를 보고 있었는지 잃는다.
  */
 const STATUS_KO: Record<string, string> = {
-  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
   assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
@@ -144,7 +144,9 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
           {/* 견적번호로 이을 수 없는 서류 — 버리지 않고 여기 모은다 */}
           <div style={s.histTitle}>견적에 묶이지 않은 서류</div>
           <div style={s.docs}>
-            {res.orphanDocs.map((d, i) => <DocRow key={`${d.id}-${i}`} d={d} folderKey={folderKey} mine={mine} />)}
+            {withVersions(res.orphanDocs).map(({ d, ver, total }, i) => (
+              <DocRow key={`${d.id}-${i}`} d={d} ver={ver} total={total} folderKey={folderKey} mine={mine} />
+            ))}
           </div>
         </section>
       )}
@@ -171,16 +173,44 @@ function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: numbe
       )}
 
       {q.docs.length > 0
-        ? <div style={s.docs}>{q.docs.map((d, i) => <DocRow key={`${d.id}-${i}`} d={d} folderKey={folderKey} mine={mine} />)}</div>
+        ? <div style={s.docs}>
+            {withVersions(q.docs).map(({ d, ver, total }, i) => (
+              <DocRow key={`${d.id}-${i}`} d={d} ver={ver} total={total} folderKey={folderKey} mine={mine} />
+            ))}
+          </div>
         : <div style={s.noDocs}>아직 만들어진 서류가 없습니다.</div>}
     </div>
   )
 }
 
-function DocRow({ d, folderKey, mine }: { d: ApiFolderDoc; folderKey: number; mine?: boolean }) {
+
+/**
+ * 한 견적 안에서 **같은 종류가 여러 판**일 때 번호를 붙인다.
+ *
+ * 저장할 때마다 그 시점 견적서가 쌓이므로 「견적서」가 여러 줄이 된다.
+ * 날짜만으로는 몇 번째 판인지 세어야 알 수 있어서, 오래된 것부터 1판으로 센다.
+ * 한 판뿐이면 번호를 붙이지 않는다 — 없는 구분을 만들 필요가 없다.
+ */
+function withVersions(docs: ApiFolderDoc[]): { d: ApiFolderDoc; ver: number; total: number }[] {
+  const total = new Map<string, number>()
+  for (const d of docs) total.set(d.kind, (total.get(d.kind) ?? 0) + 1)
+  // 목록은 최신이 위 — 번호는 오래된 쪽이 1이라 뒤에서부터 센다
+  const seen = new Map<string, number>()
+  return [...docs].reverse().map(d => {
+    const n = (seen.get(d.kind) ?? 0) + 1
+    seen.set(d.kind, n)
+    return { d, ver: n, total: total.get(d.kind) ?? 1 }
+  }).reverse()
+}
+
+function DocRow({ d, ver, total, folderKey, mine }: { d: ApiFolderDoc; ver: number; total: number; folderKey: number; mine?: boolean }) {
   return (
     <div style={s.doc}>
-      <span style={d.pinned ? s.docKindOn : s.docKind}>{d.kind}</span>
+      <span style={d.pinned ? s.docKindOn : s.docKind}>
+        {d.kind}
+        {/* 판이 하나뿐이면 번호를 붙이지 않는다 — 없는 구분을 만들 필요가 없다 */}
+        {total > 1 && <span style={s.ver}> · {ver}판</span>}
+      </span>
       <span style={s.docMeta}>{fmtWhen(d.at)}</span>
       <span style={s.spacer} />
       <DocLink
@@ -268,6 +298,7 @@ const s: Record<string, React.CSSProperties> = {
   docKind: { fontSize: 'var(--fs-caption)', color: 'var(--dark)' },
   docKindOn: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700 },
   docMeta: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
+  ver: { color: 'var(--muted)', fontWeight: 400 },
   spacer: { flex: 1 },
   link: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', textDecoration: 'underline', whiteSpace: 'nowrap' },
 

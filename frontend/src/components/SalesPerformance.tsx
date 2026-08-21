@@ -16,7 +16,7 @@ import { useIsMobile } from '../hooks/useIsMobile'
  * 성과 숫자를 보러 왔더라도 **오늘 할 일**이 먼저 눈에 들어와야 쓸모가 있다.
  */
 const STAGE_KO: Record<FunnelStage, string> = {
-  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
   assigned: '배정완료', ordered: '주문진행', completed: '완료',
 }
 
@@ -162,7 +162,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <Funnel reached={total.reached} />
               <div style={s.groups}>
                 <MetricGroup title="금액">
-                  <Metric label="견적확정" value={won(total.amount.confirmed)} />
+                  <Metric label="견적완료" value={won(total.amount.confirmed)} />
                   <Metric label="계약완료" value={won(total.amount.contracted)} />
                   <Metric label="인도완료" value={won(total.amount.completed)} strong />
                 </MetricGroup>
@@ -179,7 +179,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
 
               <div style={s.groups}>
                 <MetricGroup title="금액">
-                  <Metric label="견적확정" value={won(st.amount.confirmed)} />
+                  <Metric label="견적완료" value={won(st.amount.confirmed)} />
                   <Metric label="계약완료" value={won(st.amount.contracted)} />
                   <Metric label="인도완료" value={won(st.amount.completed)} strong />
                 </MetricGroup>
@@ -199,7 +199,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
                 </MetricGroup>
 
                 <MetricGroup title="소요">
-                  <Lead label="견적확정" v={st.lead.to_confirmed} />
+                  <Lead label="견적완료" v={st.lead.to_confirmed} />
                   <Lead label="계약완료" v={st.lead.to_contracted} />
                   <Lead label="인도완료" v={st.lead.to_completed} />
                 </MetricGroup>
@@ -316,7 +316,7 @@ const s: Record<string, React.CSSProperties> = {
    * 단계 칸 — **배경을 채우지 않는다.** 회색 상자 여섯 개가 늘어서면 흐름이 아니라
    * 덩어리로 읽힌다. 숫자와 이름만 두고, 사이의 화살표가 흐름을 만든다.
    */
-  // 좌우 여백 없음 — 320px 에서는 4px 씩만 있어도 「견적확정」이 잘린다(실측). 사이는 gap 이 만든다
+  // 좌우 여백 없음 — 320px 에서는 4px 씩만 있어도 「견적완료」가 잘린다(실측). 사이는 gap 이 만든다
   step: { padding: 'var(--sp-2) 0', textAlign: 'center', flex: '1 1 0', minWidth: 0 },
   // 6칸이라 한 칸이 대략 컨테이너의 1/8~1/6 — 그 폭 안에서 네 글자가 접히지 않는 크기로 묶는다
   stepName: { fontSize: 'clamp(9px, 1.9cqi, 13px)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },

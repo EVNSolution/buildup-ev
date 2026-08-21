@@ -48,7 +48,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 // ── 내 견적·주문 뷰 ────────────────────────────────────────────────────────
 const QUOTE_STATUS_KO: Record<string, string> = {
-  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
   assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 

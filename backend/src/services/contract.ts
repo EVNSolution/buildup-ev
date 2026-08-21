@@ -510,7 +510,7 @@ export async function registerPaperContract(
   // 확정 전 견적은 계약이 성립할 수 없다. 확정 이후 단계(배정·주문)는 이미 지나간 뒤라 손대지 않는다.
   if (q.status !== 'confirmed') {
     throw new ContractError(
-      `견적확정 상태에서만 서면계약을 등록할 수 있습니다 (현재 ${q.status})`,
+      `견적완료 상태에서만 서명본을 등록할 수 있습니다 (현재 ${q.status})`,
       'NOT_SENDABLE',
     );
   }

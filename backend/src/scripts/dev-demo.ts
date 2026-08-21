@@ -109,7 +109,7 @@ async function main() {
       where: { delivery_due: { not: null } },
       data: { delivery_due: null, accepted_at: null },
     });
-    console.log(`↩︎  되돌림 — 견적 ${back.count}건 → 견적확정 · 공개문의 수락 ${pub.count}건 해제 · 납기 ${ord.count}건 비움`);
+    console.log(`↩︎  되돌림 — 견적 ${back.count}건 → 견적완료 · 공개문의 수락 ${pub.count}건 해제 · 납기 ${ord.count}건 비움`);
     return;
   }
 

@@ -45,7 +45,7 @@ function getModulesForRoles(modules: FeatureModule[], roles: Role[]): FeatureMod
   return [...seen.values()].sort((a, b) => a.sort_order - b.sort_order)
 }
 const QUOTE_STATUS_LABELS: Record<string, string> = {
-  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
   assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
@@ -974,7 +974,7 @@ function QuotesTab() {
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1 } : {}) }}>
           <option value="">전체 상태</option>
           <option value="draft">임시저장</option>
-          <option value="confirmed">견적확정</option>
+          <option value="confirmed">견적완료</option>
           <option value="contracted">계약완료</option>
           <option value="assigned">배정완료</option>
           <option value="ordered">주문진행</option>
