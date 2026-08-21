@@ -26,8 +26,29 @@ export interface ApiFolderDoc {
   pinned: boolean
 }
 
+/** 옵션 요약 한 칸 — 「무엇을 고른 건인지」를 한눈에 */
+export interface ApiOptionChip { group: string; label: string }
+
+/** 견적 하나 — 옵션 요약과 그 건의 서류를 함께 담는다 */
+export interface ApiFolderQuote {
+  id: number
+  quoteNo: string | null
+  status: string
+  createdAt: string
+  finalPrice: number | null
+  options: ApiOptionChip[]
+  /** 서명 요청 때 굳힌 정본이 있는 건인가 — 실제로 고객에게 나간 판이다 */
+  frozenAt: string | null
+  docs: ApiFolderDoc[]
+}
+
 export interface ApiFolder {
+  /** 평평한 전체 목록(옛 화면 호환) */
   data: ApiFolderDoc[]
+  /** 견적별로 묶은 것 — 화면은 이쪽을 쓴다. 최신이 앞 */
+  quotes: ApiFolderQuote[]
+  /** 견적번호로 이을 수 없는 서류 — 버리지 않고 따로 모은다 */
+  orphanDocs: ApiFolderDoc[]
   customer: { key: number; name: string; reg_no: string | null; phone: string | null; merged: number }
 }
 

@@ -56,3 +56,51 @@ describe('견적서·계약서 실행은 영업 화면에만', () => {
     expect(admin).toMatch(/contract\/signed/);
   });
 });
+
+/**
+ * **고객 서류함은 견적별로 묶어 보여 준다.**
+ *
+ * 파일 이름만 늘어놓으면 「26-9087 견적서」가 셋 있을 때 무엇이 다른지 알 수 없다.
+ * 그래서 견적 단위로 묶고, 각 건에 **고른 사양(옵션 요약)** 을 함께 적는다.
+ *
+ * 그리고 **팝업도 화면 전환도 없다** — 고객을 누르면 그 자리에서 아래로 펼쳐진다.
+ * 서류 확인은 목록을 훑는 일과 이어져 있어, 화면이 바뀌면 어디를 보고 있었는지 잃는다.
+ */
+describe('고객 서류함', () => {
+  const ROOT2 = path.resolve(__dirname, '../../..');
+  const readF = (rel: string) => readFileSync(path.join(ROOT2, rel), 'utf8');
+
+  it('서버가 견적별로 묶어 내려준다', () => {
+    const route = readF('backend/src/routes/customer-folders.ts');
+    expect(route).toMatch(/groupDocsByQuote/);
+    expect(route).toMatch(/optionChips/);
+    expect(route).toMatch(/orphanDocs/);
+  });
+
+  it('옵션 이름은 DB 에서 읽는다', () => {
+    // 화면에 표기를 또 적어 두면 옵션 이름을 고쳤을 때 두 곳이 갈린다
+    const route = readF('backend/src/routes/customer-folders.ts');
+    expect(route).toMatch(/optionValue\.findMany/);
+  });
+
+  it('견적번호로 못 잇는 서류를 버리지 않는다', () => {
+    const svc = readF('backend/src/services/customer-folders.ts');
+    expect(svc).toMatch(/groupDocsByQuote/);
+    const route = readF('backend/src/routes/customer-folders.ts');
+    expect(route).toMatch(/known\.has/);
+  });
+
+  it('화면은 펼치는 방식이다 — 팝업도 화면 전환도 없다', () => {
+    const ui = readF('frontend/src/components/CustomerFolders.tsx');
+    expect(ui).toMatch(/aria-expanded/);
+    // 별도 화면으로 갈아타던 옛 방식(뒤로 가기 버튼)이 남아 있으면 안 된다
+    expect(ui).not.toMatch(/← 서류함/);
+    expect(ui).not.toMatch(/position: 'fixed'/);
+  });
+
+  it('최종본을 맨 위에 고정한다', () => {
+    const ui = readF('frontend/src/components/CustomerFolders.tsx');
+    expect(ui).toMatch(/frozenAt/);
+    expect(ui).toMatch(/최종본/);
+  });
+});

@@ -1,35 +1,36 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchFolders, fetchFolder, folderFileUrl,
-  type ApiFolderRow, type ApiFolder,
+  type ApiFolderRow, type ApiFolder, type ApiFolderQuote, type ApiFolderDoc,
 } from '../api/customerFolders'
-import { fmtBytes } from '../lib/imageResize'
-import { BTN } from '../styles/buttons'
 import { DocLink } from './DocLink'
 
 /**
- * **고객 서류함** — 한 고객에게 지금까지 만들어 준 견적서·계약서를 한자리에서 본다.
+ * **고객 서류함** — 한 고객에게 만들어 준 견적서·계약서를 견적별로 모아 본다.
  *
- * 견적 목록은 **건별·날짜순**이라, 같은 고객이 견적을 세 번 고치면 세 줄로 흩어진다.
- * 「이 사람한테 뭘 보냈더라」를 보려면 줄마다 열어 봐야 했다. 여기서는 고객 하나에
- * 폴더 하나고, **최근에 손댄 고객이 위**에 온다 — 그게 가장 잦은 질문이다.
+ * 파일 이름만 늘어놓으면 「26-9087 견적서」가 셋 있을 때 무엇이 다른지 알 수 없다.
+ * 그래서 **견적 단위로 묶고, 각 건에 고른 사양을 함께 적는다** — 고객과 통화하며
+ * 「그 냉동 저상 건」을 짚을 수 있어야 한다.
  *
- * 폴더를 열면:
- *   · **서명 요청본이 맨 위에 고정된다** — 고객이 실제로 받아 서명한 정본이라,
- *     아래 이력에 섞이면 어느 것이 진짜인지 알 수 없다
- *   · 그 아래로 시간 역순. **내용이 같은 판은 한 줄만** 보인다(견적서는 열 때마다
- *     다시 만들어지므로, 그대로 늘어놓으면 무엇이 달라졌는지 읽을 수 없다)
+ * ⚠️ **팝업도 화면 전환도 없다.** 고객을 누르면 그 자리에서 아래로 펼쳐진다.
+ *    서류를 확인하는 일은 목록을 훑는 일과 이어져 있어, 화면이 바뀌면 돌아올 때
+ *    어디를 보고 있었는지 잃는다.
  */
+const STATUS_KO: Record<string, string> = {
+  draft: '임시저장', confirmed: '견적확정', contracted: '계약완료',
+  assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
+}
+
 export function CustomerFolders({ mine }: {
   /**
-   * 영업 화면에서 참으로 준다 — **겸직(영업+관리자) 계정이라도 남의 고객은 안 본다.**
-   * 관리자 화면에서 전체를 보는 것과, 영업으로 일하는 화면에 남의 담당이 섞이는 것은 다른 일이다.
+   * 영업 화면에서 참으로 준다 — 겸직(영업+관리자) 계정이라도 남의 고객은 안 본다.
    */
   mine?: boolean
 } = {}) {
   const [rows, setRows] = useState<ApiFolderRow[] | null>(null)
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')
+  /** 펼쳐 둔 고객 — 하나만 연다. 여럿 열면 화면이 길어져 훑는 뜻이 사라진다 */
   const [openKey, setOpenKey] = useState<number | null>(null)
 
   useEffect(() => {
@@ -49,10 +50,6 @@ export function CustomerFolders({ mine }: {
   if (err) return <div style={s.err}>{err}</div>
   if (!rows) return <div style={s.muted}>불러오는 중입니다.</div>
 
-  if (openKey !== null) {
-    return <FolderView folderKey={openKey} mine={mine} onBack={() => setOpenKey(null)} />
-  }
-
   return (
     <div>
       <div style={s.searchRow}>
@@ -69,87 +66,128 @@ export function CustomerFolders({ mine }: {
       {shown.length === 0 && <div style={s.muted}>해당하는 고객이 없습니다.</div>}
 
       <div style={s.list}>
-        {shown.map(r => (
-          <button key={r.key} style={s.card} onClick={() => setOpenKey(r.key)}>
-            <span style={s.cardMain}>
-              <span style={s.cardName}>
-                {r.name}
-                {/* 같은 사람인데 고객 행이 여럿이면 알려 준다 — 합쳐서 보여 주고 있다는 뜻 */}
-                {r.merged > 1 && <span style={s.mergedTag}> · {r.merged}건 합침</span>}
-              </span>
-              <span style={s.cardSub}>
-                {r.reg_no ?? r.phone ?? '연락처 없음'} · 견적 {r.quotes}건
-              </span>
-            </span>
-            <span style={s.cardAt}>{fmtWhen(r.last_activity)}</span>
-          </button>
-        ))}
+        {shown.map(r => {
+          const open = openKey === r.key
+          return (
+            <div key={r.key} style={open ? s.itemOpen : s.item}>
+              <button
+                style={s.card}
+                aria-expanded={open}
+                onClick={() => setOpenKey(open ? null : r.key)}
+              >
+                <span style={open ? s.caretOpen : s.caret}>▸</span>
+                <span style={s.cardMain}>
+                  <span style={s.cardName}>
+                    {r.name}
+                    {r.merged > 1 && <span style={s.mergedTag}> · {r.merged}건 합침</span>}
+                  </span>
+                  <span style={s.cardSub}>
+                    {r.reg_no ?? r.phone ?? '연락처 없음'} · 견적 {r.quotes}건
+                  </span>
+                </span>
+                <span style={s.cardAt}>{fmtWhen(r.last_activity)}</span>
+              </button>
+              {open && <FolderBody folderKey={r.key} mine={mine} />}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function FolderView({ folderKey, mine, onBack }: { folderKey: number; mine?: boolean; onBack: () => void }) {
+function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) {
   const [res, setRes] = useState<ApiFolder | null>(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
-    setRes(null)
+    setRes(null); setErr('')
     fetchFolder(folderKey, mine)
       .then(setRes)
       .catch(e => setErr(e instanceof Error ? e.message : '서류를 불러오지 못했습니다'))
   }, [folderKey, mine])
 
-  if (err) return <><button style={s.back} onClick={onBack}>← 서류함</button><div style={s.err}>{err}</div></>
-  if (!res) return <><button style={s.back} onClick={onBack}>← 서류함</button><div style={s.muted}>불러오는 중입니다.</div></>
+  if (err) return <div style={s.body}><div style={s.err}>{err}</div></div>
+  if (!res) return <div style={s.body}><div style={s.muted}>불러오는 중입니다.</div></div>
 
-  const pinned = res.data.filter(d => d.pinned)
-  const rest = res.data.filter(d => !d.pinned)
+  /*
+   * **최종본**을 맨 위에 고정한다 — 서류가 굳은(서명 요청까지 간) 건 중 가장 최근.
+   * 그런 건이 없으면 가장 최근 견적을 올린다. 「실제로 고객에게 나간 판이 무엇인가」가
+   * 먼저 읽혀야, 아래 이력을 훑을 때 기준이 생긴다.
+   */
+  const frozen = res.quotes.filter(x => x.frozenAt)
+  const top = frozen[0] ?? res.quotes[0] ?? null
+  const rest = res.quotes.filter(x => x !== top)
 
   return (
-    <div>
-      <button style={s.back} onClick={onBack}>← 서류함</button>
+    <div style={s.body}>
+      {res.quotes.length === 0 && <div style={s.muted}>아직 만들어진 견적이 없습니다.</div>}
 
-      <div style={s.head}>
-        <span style={s.headName}>{res.customer.name}</span>
-        <span style={s.headSub}>
-          {res.customer.reg_no ?? res.customer.phone ?? '연락처 없음'}
-          {res.customer.merged > 1 ? ` · 고객 ${res.customer.merged}건 합쳐 봄` : ''}
-        </span>
-      </div>
-
-      {res.data.length === 0 && <div style={s.muted}>아직 만들어진 서류가 없습니다.</div>}
-
-      {/*
-        서명 요청본 — 고객이 실제로 받아 본 정본이다. 아래 이력에 섞이면 어느 것이
-        진짜인지 알 수 없어, 따로 떼어 맨 위에 둔다.
-      */}
-      {pinned.length > 0 && (
-        <section style={s.pinBox}>
-          <div style={s.pinTitle}>서명 요청 시점 정본</div>
-          {pinned.map(d => <DocRow key={d.id} d={d} folderKey={folderKey} mine={mine} strong />)}
+      {top && (
+        <section style={s.topBox}>
+          <div style={s.topTag}>{top.frozenAt ? '최종본 · 서명 요청 시점' : '최근 견적'}</div>
+          <QuoteCard q={top} folderKey={folderKey} mine={mine} />
         </section>
       )}
 
       {rest.length > 0 && (
-        <section>
-          <div style={s.histTitle}>이전 내역 <span style={s.histHint}>· 내용이 바뀐 판만</span></div>
-          {rest.map(d => <DocRow key={d.id} d={d} folderKey={folderKey} mine={mine} />)}
+        <section style={s.histBox}>
+          <div style={s.histTitle}>이전 견적 {rest.length}건</div>
+          <div style={s.histList}>
+            {rest.map(x => <QuoteCard key={x.id} q={x} folderKey={folderKey} mine={mine} />)}
+          </div>
+        </section>
+      )}
+
+      {res.orphanDocs.length > 0 && (
+        <section style={s.histBox}>
+          {/* 견적번호로 이을 수 없는 서류 — 버리지 않고 여기 모은다 */}
+          <div style={s.histTitle}>견적에 묶이지 않은 서류</div>
+          <div style={s.docs}>
+            {res.orphanDocs.map((d, i) => <DocRow key={`${d.id}-${i}`} d={d} folderKey={folderKey} mine={mine} />)}
+          </div>
         </section>
       )}
     </div>
   )
 }
 
-function DocRow({ d, folderKey, mine, strong }: { d: ApiFolder['data'][number]; folderKey: number; mine?: boolean; strong?: boolean }) {
+function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: number; mine?: boolean }) {
+  return (
+    <div style={s.quote}>
+      <div style={s.qHead}>
+        <span style={s.qNo}>{q.quoteNo ?? `#${q.id}`}</span>
+        <span style={s.qStatus}>{STATUS_KO[q.status] ?? q.status}</span>
+        <span style={s.spacer} />
+        {q.finalPrice != null && <span style={s.qPrice}>{fmtPrice(q.finalPrice)}</span>}
+        <span style={s.qDate}>{q.createdAt.slice(0, 10)}</span>
+      </div>
+
+      {/* 고른 사양 — 이게 있어야 「어느 건인지」 알아본다 */}
+      {q.options.length > 0 && (
+        <div style={s.chips}>
+          {q.options.map(o => <span key={o.group} style={s.chip}>{o.label}</span>)}
+        </div>
+      )}
+
+      {q.docs.length > 0
+        ? <div style={s.docs}>{q.docs.map((d, i) => <DocRow key={`${d.id}-${i}`} d={d} folderKey={folderKey} mine={mine} />)}</div>
+        : <div style={s.noDocs}>아직 만들어진 서류가 없습니다.</div>}
+    </div>
+  )
+}
+
+function DocRow({ d, folderKey, mine }: { d: ApiFolderDoc; folderKey: number; mine?: boolean }) {
   return (
     <div style={s.doc}>
-      <span style={strong ? s.docKindOn : s.docKind}>{d.kind}</span>
-      <span style={s.docMeta}>
-        {d.quoteNo ? `${d.quoteNo} · ` : ''}{fmtWhen(d.at)} · {fmtBytes(d.size)}
-      </span>
+      <span style={d.pinned ? s.docKindOn : s.docKind}>{d.kind}</span>
+      <span style={s.docMeta}>{fmtWhen(d.at)}</span>
       <span style={s.spacer} />
-      <DocLink href={folderFileUrl(folderKey, d.id, false, mine)} name={`${d.kind}${d.quoteNo ? `_${d.quoteNo}` : ''}.pdf`} style={s.link}>열기</DocLink>
+      <DocLink
+        href={folderFileUrl(folderKey, d.id, false, mine)}
+        name={`${d.kind}${d.quoteNo ? `_${d.quoteNo}` : ''}.pdf`}
+        style={s.link}
+      >열기</DocLink>
       {/* 확인과 챙김은 다른 행동이라 따로 둔다 */}
       <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>받기</a>
     </div>
@@ -165,6 +203,8 @@ function fmtWhen(iso: string): string {
   return sameDay ? `오늘 ${hhmm}` : `${iso.slice(0, 10)} ${hhmm}`
 }
 
+const fmtPrice = (n: number) => `₩${n.toLocaleString('ko-KR')}`
+
 const s: Record<string, React.CSSProperties> = {
   searchRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
   search: {
@@ -174,36 +214,59 @@ const s: Record<string, React.CSSProperties> = {
   count: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 6 },
+  item: { border: 'var(--hairline)', borderRadius: 10, background: 'var(--bg)' },
+  // 펼친 고객은 테두리를 진하게 — 어디를 열어 두었는지 스크롤 중에도 잃지 않는다
+  itemOpen: { border: '1px solid var(--dark)', borderRadius: 10, background: 'var(--bg)' },
   card: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-3)',
-    width: '100%', padding: '11px 14px', border: 'var(--hairline)', borderRadius: 10,
-    background: 'var(--bg)', cursor: 'pointer', textAlign: 'left', minHeight: 44, flexWrap: 'wrap',
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-3)',
+    width: '100%', padding: '11px 14px', border: 'none', borderRadius: 10,
+    background: 'transparent', cursor: 'pointer', textAlign: 'left', minHeight: 44, flexWrap: 'wrap',
   },
-  cardMain: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
+  caret: { color: 'var(--muted)', fontSize: 11, flexShrink: 0, transition: 'transform 120ms ease' },
+  caretOpen: { color: 'var(--dark)', fontSize: 11, flexShrink: 0, transform: 'rotate(90deg)' },
+  cardMain: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 },
   cardName: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)' },
   cardSub: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   cardAt: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 },
   mergedTag: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--muted)' },
 
-  back: { ...BTN.row, marginBottom: 'var(--sp-3)' },
-  head: { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 'var(--sp-3)', borderBottom: 'var(--hairline)' },
-  headName: { fontSize: 'var(--fs-title)', fontWeight: 700, color: 'var(--dark)' },
-  headSub: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-
-  pinBox: {
-    border: 'var(--hairline)', borderRadius: 10, background: 'var(--card)',
-    padding: 'var(--sp-3)', margin: 'var(--sp-3) 0',
+  body: {
+    padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)',
   },
-  pinTitle: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--dark)', marginBottom: 4 },
-  histTitle: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)', margin: 'var(--sp-4) 0 4px' },
-  histHint: { fontWeight: 400 },
+  topBox: {
+    border: 'var(--hairline)', borderLeft: '3px solid var(--lime)', borderRadius: 8,
+    background: 'var(--card)', padding: 'var(--sp-3)',
+    display: 'flex', flexDirection: 'column', gap: 6,
+  },
+  topTag: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--dark)' },
+  histBox: { display: 'flex', flexDirection: 'column', gap: 6 },
+  histTitle: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)' },
+  histList: { display: 'flex', flexDirection: 'column', gap: 6 },
 
+  quote: {
+    display: 'flex', flexDirection: 'column', gap: 6,
+    padding: 'var(--sp-2) 0', borderTop: 'var(--hairline)',
+  },
+  qHead: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)', flexWrap: 'wrap' },
+  qNo: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
+  qStatus: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
+  qPrice: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
+  qDate: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
+
+  chips: { display: 'flex', flexWrap: 'wrap', gap: 4 },
+  chip: {
+    fontSize: 'var(--fs-caption)', color: 'var(--dark)', background: 'var(--lime-bg)',
+    borderRadius: 999, padding: '1px 9px',
+  },
+
+  docs: { display: 'flex', flexDirection: 'column' },
+  noDocs: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   doc: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap',
-    padding: '8px 0', borderBottom: 'var(--hairline)',
+    padding: '5px 0',
   },
-  docKind: { fontSize: 'var(--fs-label)', color: 'var(--dark)' },
-  docKindOn: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700 },
+  docKind: { fontSize: 'var(--fs-caption)', color: 'var(--dark)' },
+  docKindOn: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700 },
   docMeta: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   spacer: { flex: 1 },
   link: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', textDecoration: 'underline', whiteSpace: 'nowrap' },
