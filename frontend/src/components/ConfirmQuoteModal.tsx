@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { DownPaymentFields } from './DownPaymentFields'
 import { BTN } from '../styles/buttons'
-import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, type InstallmentRateOption } from '../api/quotes'
+import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, fetchTotalQuote, type InstallmentRateOption } from '../api/quotes'
 
 /**
  * 견적서 생성 팝업 — **캐피탈 관련 입력만** 받는다 (선수금 비율 · 할부 개월수).
@@ -36,7 +37,12 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
   const init = initialInputs ?? {}
   const isConfirmed = status !== 'draft'
 
-  const [downPct, setDownPct] = useState<string>(String(((init['down_payment_rate'] as number) ?? 0.3) * 100))
+  const [down, setDown] = useState<{ rate: number; amount?: number }>({
+    rate: (init['down_payment_rate'] as number) ?? 0.3,
+    ...(init['down_payment_amount'] !== undefined ? { amount: init['down_payment_amount'] as number } : {}),
+  })
+  /** 비율↔금액을 서로 바꿔 보여 줄 기준 금액 — 서버 계산이 준 값을 쓴다 */
+  const [base, setBase] = useState(0)
   const [months, setMonths] = useState<number>((init['installment_months'] as number) ?? 0)
 
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
@@ -44,11 +50,18 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
   const [err, setErr] = useState('')
 
   useEffect(() => { fetchInstallmentRates().then(setRates).catch(() => {}) }, [])
+  // 특장만이면 캐피탈이 없어 선수금 자체를 묻지 않는다 — 부를 이유도 없다
+  useEffect(() => {
+    if (bodyOnly) return
+    fetchTotalQuote(quoteId).then(t => setBase(t.total.down_payment_base ?? 0)).catch(() => {})
+  }, [quoteId, bodyOnly])
 
   function payload() {
     return {
       // 특장만이면 캐피탈이 없다 — 0으로 눌러 저장한다(shared 의 bodyOnlyParams 와 같은 값)
-      down_payment_rate: bodyOnly ? 0 : (Number(downPct) || 0) / 100,
+      down_payment_rate: bodyOnly ? 0 : down.rate,
+      // 금액으로 정했을 때만 실어 보낸다 — 비율로 바꾸면 지워야 기준이 되돌아온다
+      down_payment_amount: bodyOnly ? null : (down.amount ?? null),
       installment_months: bodyOnly ? 0 : months,
       /*
        * ⚠️ `tax_exempt_type`·`has_biz_plate` 는 **보내지 않는다.**
@@ -89,9 +102,17 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
             </div>
           ) : (
             <>
-              <label style={s.label}>선수금 비율 <span style={s.unit}>(%)</span></label>
-              <input style={s.input} type="number" min={0} max={100} step={1} value={downPct}
-                onChange={(e) => setDownPct(e.target.value)} />
+              <DownPaymentFields
+                base={base} rate={down.rate} amount={down.amount}
+                onChange={setDown}
+                Field={({ label, children }) => (
+                  <>
+                    <label style={s.label}>{label}</label>
+                    {children}
+                  </>
+                )}
+                inputStyle={s.input}
+              />
 
               <label style={s.label}>할부 개월수 <span style={s.unit}>(개월 · 이율)</span></label>
               <select style={s.input} value={months} onChange={(e) => setMonths(Number(e.target.value))}>

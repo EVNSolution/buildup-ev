@@ -115,6 +115,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   };
   const params = await buildQuoteParams(quote.model_code, selections, customer, {
     down_payment_rate: inp['down_payment_rate'] as number | undefined,
+    down_payment_amount: inp['down_payment_amount'] as number | undefined,
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
     promotion_discount: inp['promotion_discount'] as number | undefined,
@@ -178,7 +179,17 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
 
   const trimName = valueName.get(selections['TRIM'] ?? '') ?? '';
   const bizType = (inp['biz_type'] as string | undefined) ?? 'individual';
-  const downRate = (inp['down_payment_rate'] as number | undefined) ?? 0;
+  /*
+   * 견적서에 적는 선수금 비율 — **계산이 실제로 적용한 비율**을 쓴다.
+   *
+   * 금액으로 정한 견적은 저장된 비율이 그 금액과 다르다(비율은 안 건드리고 금액만 넣으므로).
+   * 저장값을 그대로 적으면 「선수금 30% / 1,200만원」처럼 서로 안 맞는 두 줄이 나간다.
+   * 계산이 돌려주는 `down_payment_ratio` 는 절삭한 선수금에서 되돌려 구한 값이라 항상 맞는다.
+   *
+   * ⚠️ **버림으로 적는다.** 반올림하면 29.6%가 30%로 적혀, 옆 금액과 맞춰 보는 사람이
+   *    「30%인데 왜 이 금액이냐」고 묻게 된다.
+   */
+  const downRate = r.down_payment_ratio;
 
   const optionSummary = [
     `탑 종류 = ${bodyDisp}`, `탑 높이 = ${topDisp}`, `스포일러 = ${ox(spoilerOn)}`,
@@ -232,7 +243,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       isSosang: ox(!!inp['is_sosang']), hasTransportLicense: ox(!!inp['has_transport_license']),
       // 엑셀 '입력 시트' C5 선택지 문구 그대로(경유차없음 / 유지 / 폐차). 옛 견적은 boolean 으로 복원.
       dieselStatus: DIESEL_STATUS_LABEL[toDieselStatus(inp['diesel_status'], inp['diesel_conversion'])],
-      hasCommercialPlate: ox(!!inp['has_biz_plate']), advanceRate: `${Math.round(downRate * 100)}%`,
+      hasCommercialPlate: ox(!!inp['has_biz_plate']), advanceRate: `${Math.floor(downRate * 100)}%`,
+      advanceAmount: won(r.down_payment),
       // 특장 계약금 — 기준데이터(body_deposit)에서 온다. 양식에 숫자를 박지 않는다
       deposit: won(r.body_deposit),
       vatRefundPrice: won(r.vat_refund_price),
