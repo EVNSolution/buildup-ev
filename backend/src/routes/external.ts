@@ -11,6 +11,7 @@
  * ⚠️ DTO 는 화이트리스트다. created_by(사내 계정 이메일) 등 내부 정보는 내보내지 않는다.
  */
 import { Router } from 'express';
+import { noStore } from '../lib/doc-headers.js';
 import { VISIBLE } from '../lib/visibility.js';
 import type { Request, Response, NextFunction } from 'express';
 import { createHash, timingSafeEqual } from 'node:crypto';
@@ -107,9 +108,9 @@ externalRouter.get('/quotes/:id/quote-pdf', async (req: Request, res): Promise<v
   try {
     const frozen = await readFrozenDoc(id, 'quote');
     const pdf = frozen ?? (await generateQuotePdf(id)).pdf;
+    noStore(res);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="quote_${id}${frozen ? '_frozen' : ''}.pdf"`);
-    res.setHeader('Cache-Control', 'no-store');
     res.send(pdf);
   } catch (e) {
     console.error(`[GET /external/quotes/${id}/quote-pdf]`, e instanceof Error ? e.message : e);
@@ -144,9 +145,9 @@ externalRouter.get('/quotes/:id/contract-pdf', async (req: Request, res): Promis
   try {
     const buf = await readFile(contract.signed_pdf_path);
     const ext = path.extname(contract.signed_pdf_path).toLowerCase();
+    noStore(res);
     res.setHeader('Content-Type', CONTRACT_MIME[ext] ?? 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="contract_${id}${ext || '.pdf'}"`);
-    res.setHeader('Cache-Control', 'no-store');
     res.send(buf);
   } catch (e) {
     console.error(`[GET /external/quotes/${id}/contract-pdf]`, e instanceof Error ? e.message : e);

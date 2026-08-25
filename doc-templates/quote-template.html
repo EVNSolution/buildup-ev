@@ -60,6 +60,12 @@
   .memo { margin-top:8px; border-top:2px solid #000; padding-top:5px; font-size:8pt; min-height:24mm;
           display:flex; gap:20px; }
   .memo .mcol { flex:1; }
+  /*
+    메모는 사람이 줄을 나눠 적는다. 그 줄바꿈을 살리지 않으면 항목이 전부 한 줄로 이어붙어
+    무엇이 몇 개인지 읽을 수 없다(실제 제보). `pre-line` 은 줄바꿈만 살리고
+    들여쓰기용 공백은 접어 준다 — 사람이 적은 그대로 보이면서 칸이 어긋나지 않는다.
+  */
+  .memo .mcol .memo-body { white-space:pre-line; }
   .memo .mcol.left { border-right:1px solid #000; padding-right:20px; }
   .memo .mt { font-weight:800; margin:0 0 4px; }
   .memo ul { margin:0; padding-left:16px; }
@@ -235,7 +241,7 @@
     </div>
     <div class="mcol">
       <div class="mt">메모 / 안내문</div>
-      {{ memoText }}
+      <div class="memo-body">{{ memoText }}</div>
     </div>
   </div>
 

@@ -9,6 +9,7 @@
  * **계약서만 예외** — 계약은 영업 업무이므로 rbac('ADMIN','SALES').
  */
 import { Router } from 'express';
+import { noStore } from '../lib/doc-headers.js';
 import type { Request, Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { rbac, ownOrgOnly } from '../middleware/rbac.js';
@@ -90,6 +91,7 @@ docsRouter.get('/:id/docs/load-calc', rbac('ADMIN', 'MAKER'), async (req: Reques
 
   try {
     const result = await generateLoadCalcDoc(order.id);
+    noStore(res);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -110,6 +112,7 @@ docsRouter.get('/:id/docs/spec-table', rbac('ADMIN', 'MAKER'), async (req: Reque
 
   try {
     const result = await generateSpecTableDoc(order.id);
+    noStore(res);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -131,6 +134,7 @@ const contractHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await generateContractDoc(order.id);
     if (result.warnings.length) console.warn('[POST docs/contract]', result.warnings.join(' / '));
+    noStore(res);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('X-Doc-Version', String(result.version));
     if (result.warnings.length) res.setHeader('X-Doc-Warning', encodeURIComponent(result.warnings.join(' / ')));
@@ -197,7 +201,8 @@ docsRouter.get('/:id/docs/:docId/download', rbac('ADMIN', 'MAKER'), async (req: 
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '서류를 찾을 수 없습니다' } });
     return;
   }
-  res.setHeader('Content-Type', 'application/pdf');
+  noStore(res);
+    res.setHeader('Content-Type', 'application/pdf');
   res.setHeader(
     'Content-Disposition',
     `attachment; filename*=UTF-8''${encodeURIComponent(`${doc.type}_주문${order.id}_v${doc.version}.pdf`)}`

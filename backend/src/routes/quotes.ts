@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { noStore } from '../lib/doc-headers.js';
 import { syncOpenContracts } from '../services/contract-sync.js';
 import type { Request } from 'express';
 import { rbac, requirePermission, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
@@ -1046,6 +1047,7 @@ quotesRouter.get('/:id/pdf', rbac('SALES', 'ADMIN'), async (req: Request, res): 
       ? { pdf: frozen, filename: `견적서_${id}.pdf` }
       : await generateQuotePdf(id);
     const isDownload = req.query['download'] === '1';
+    noStore(res);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -1096,6 +1098,7 @@ quotesRouter.get('/:id/contract-pdf', rbac('SALES', 'ADMIN'), async (req: Reques
       : await renderContractPdfForQuote(id);
     if (warnings.length) console.warn(`[GET /quotes/${id}/contract-pdf]`, warnings.join(' / '));
     const isDownload = req.query['download'] === '1';
+    noStore(res);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',

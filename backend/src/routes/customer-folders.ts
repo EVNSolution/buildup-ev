@@ -9,6 +9,7 @@
  *    같은 범위를 다시 확인한다. 열쇠(고객번호)는 주소창에서 바꿀 수 있다.
  */
 import { Router, type Request, type Response } from 'express';
+import { noStore } from '../lib/doc-headers.js';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { prisma } from '../lib/prisma.js';
@@ -227,6 +228,7 @@ customerFoldersRouter.get('/:key/file/:docId', rbac('ADMIN', 'SALES'), guard(asy
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '파일을 찾을 수 없습니다' } }); return;
   }
 
+  noStore(res);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   const dl = req.query['dl'] === '1';

@@ -11,7 +11,8 @@
     "./bom": "./bom/core.ts",
     "./bom/weight-constants": "./bom/weight-constants.ts",
     "./schedule": "./schedule/businessDays.ts",
-    "./process": "./process/steps.ts"
+    "./process": "./process/steps.ts",
+    "./docs/memo": "./docs/memo.ts"
   },
   "scripts": {
     "test": "vitest run",
