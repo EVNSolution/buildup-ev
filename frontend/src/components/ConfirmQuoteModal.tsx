@@ -39,7 +39,8 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 
   const [down, setDown] = useState<{ rate: number; amount?: number }>({
     rate: (init['down_payment_rate'] as number) ?? 0.3,
-    ...(init['down_payment_amount'] !== undefined ? { amount: init['down_payment_amount'] as number } : {}),
+    // `null` 은 「금액 기준을 푼 것」 — 금액 기준으로 되살리면 안 된다
+    ...(init['down_payment_amount'] != null ? { amount: init['down_payment_amount'] as number } : {}),
   })
   /** 비율↔금액을 서로 바꿔 보여 줄 기준 금액 — 서버 계산이 준 값을 쓴다 */
   const [base, setBase] = useState(0)

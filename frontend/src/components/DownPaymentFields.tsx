@@ -15,8 +15,13 @@ export function DownPaymentFields({ base, rate, amount, disabled, onChange, Fiel
   base: number
   /** 저장된 비율(0~1) */
   rate: number
-  /** 저장된 금액(원). 있으면 금액이 기준이다 */
-  amount?: number
+  /**
+   * 저장된 금액(원). 있으면 금액이 기준이다.
+   *
+   * ⚠️ `null` 은 **「금액 기준을 푼 것」**이지 「0원」이 아니다. 저장할 때 기준을 풀면
+   *    `null` 을 보내 지우기 때문에, 다시 열면 이 값이 `null` 로 들어온다.
+   */
+  amount?: number | null
   disabled?: boolean
   onChange: (next: { rate: number; amount?: number }) => void
   /** 라벨 감싸개 — 팝업마다 모양이 달라 밖에서 받는다 */
@@ -24,9 +29,16 @@ export function DownPaymentFields({ base, rate, amount, disabled, onChange, Fiel
   inputStyle: React.CSSProperties
 }) {
   /** 무엇을 기준으로 잡았나. 금액이 저장돼 있으면 금액, 아니면 비율. */
-  const [mode, setMode] = useState<'rate' | 'amount' | null>(amount !== undefined ? 'amount' : (rate > 0 ? 'rate' : null))
+  /*
+   * ⚠️ `!= null` 이다(`!== undefined` 가 아니다).
+   *
+   * 기준을 풀고 저장하면 `down_payment_amount` 에 `null` 이 남는다. `!== undefined` 로 보면
+   * 그 `null` 이 「금액으로 정했다」로 읽혀, 칸에 **`String(null)` = 「null」이라는 글자가
+   * 그대로 찍히고** 비율 칸이 잠긴다(실제 제보).
+   */
+  const [mode, setMode] = useState<'rate' | 'amount' | null>(amount != null ? 'amount' : (rate > 0 ? 'rate' : null))
   const [pct, setPct] = useState(rate > 0 ? String(Math.round(rate * 1000) / 10) : '')
-  const [won, setWon] = useState(amount !== undefined ? String(amount) : '')
+  const [won, setWon] = useState(amount != null ? String(amount) : '')
 
   // 기준이 되는 쪽이 바뀌면 잠긴 쪽을 다시 채운다
   useEffect(() => {

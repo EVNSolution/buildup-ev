@@ -305,7 +305,8 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
   const [down, setDown] = useState<{ rate: number; amount?: number }>({
     rate: (inp['down_payment_rate'] as number) ?? 0.3,
-    ...(inp['down_payment_amount'] !== undefined ? { amount: inp['down_payment_amount'] as number } : {}),
+    // `null` 은 「금액 기준을 푼 것」 — 금액 기준으로 되살리면 안 된다
+    ...(inp['down_payment_amount'] != null ? { amount: inp['down_payment_amount'] as number } : {}),
   })
   const [months, setMonths] = useState<number>((inp['installment_months'] as number) ?? 0)
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
