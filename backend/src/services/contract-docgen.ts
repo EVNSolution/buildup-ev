@@ -238,6 +238,7 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
   }, {
     down_payment_rate: inp['down_payment_rate'] as number | undefined,
+    down_payment_amount: inp['down_payment_amount'] as number | undefined,
     installment_months: inp['installment_months'] as number | undefined,
     promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
     promotion_discount: inp['promotion_discount'] as number | undefined,

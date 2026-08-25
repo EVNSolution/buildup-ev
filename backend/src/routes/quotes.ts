@@ -328,6 +328,7 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
       quote.model_code, (quote.selections ?? {}) as Record<string, string>, customer,
       {
         down_payment_rate: inp['down_payment_rate'] as number | undefined,
+        down_payment_amount: inp['down_payment_amount'] as number | undefined,
         installment_months: inp['installment_months'] as number | undefined,
         promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
         promotion_discount: inp['promotion_discount'] as number | undefined,
@@ -377,7 +378,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
     }
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
-    const ALLOWED = ['down_payment_rate', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
+    const ALLOWED = ['down_payment_rate', 'down_payment_amount', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
       'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'promotion_discount', 'memo', 'local_subsidy_off', 'body_only', 'vehicle_owned',
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
       'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
@@ -411,6 +412,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
           },
           {
             down_payment_rate: merged['down_payment_rate'] as number | undefined,
+            down_payment_amount: merged['down_payment_amount'] as number | undefined,
             installment_months: merged['installment_months'] as number | undefined,
             promotion_zeroed: merged['promotion_zeroed'] as string[] | undefined,
             promotion_discount: merged['promotion_discount'] as number | undefined,
@@ -475,6 +477,7 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission(
       },
       {
         down_payment_rate: inp['down_payment_rate'] as number | undefined,
+        down_payment_amount: inp['down_payment_amount'] as number | undefined,
         installment_months: inp['installment_months'] as number | undefined,
         promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
         local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,

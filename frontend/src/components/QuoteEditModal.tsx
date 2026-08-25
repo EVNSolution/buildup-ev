@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { DownPaymentFields } from './DownPaymentFields'
 import type { ApiPricingBundle, ApiQuote } from '@shared/types/index'
 import { fetchPricingBundle } from '../api/models'
 import {
-  saveQuoteInputs, saveQuoteSelections, saveQuoteCustomer, fetchInstallmentRates,
+  saveQuoteInputs, saveQuoteSelections, saveQuoteCustomer, fetchInstallmentRates, fetchTotalQuote,
   fetchQuoteHistory, type InstallmentRateOption, type QuoteChange,
 } from '../api/quotes'
 import { computeDisabledGroups, computeHidden, sanitizeSelections, groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
@@ -302,17 +303,27 @@ function CustomerTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps)
 // ── 할부 탭 ────────────────────────────────────────────────────────────────
 function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
-  const [downPct, setDownPct] = useState(String(((inp['down_payment_rate'] as number) ?? 0.3) * 100))
+  const [down, setDown] = useState<{ rate: number; amount?: number }>({
+    rate: (inp['down_payment_rate'] as number) ?? 0.3,
+    ...(inp['down_payment_amount'] !== undefined ? { amount: inp['down_payment_amount'] as number } : {}),
+  })
   const [months, setMonths] = useState<number>((inp['installment_months'] as number) ?? 0)
   const [rates, setRates] = useState<InstallmentRateOption[]>([])
+  /** 비율↔금액을 서로 바꿔 보여 줄 기준 금액 — 서버 계산이 준 값을 쓴다 */
+  const [base, setBase] = useState(0)
 
   useEffect(() => { fetchInstallmentRates().then(setRates).catch(() => {}) }, [])
+  useEffect(() => {
+    fetchTotalQuote(quote.id).then(t => setBase(t.total.down_payment_base ?? 0)).catch(() => {})
+  }, [quote.id])
 
   async function save() {
     setBusy(true)
     try {
       await saveQuoteInputs(quote.id, {
-        down_payment_rate: (Number(downPct) || 0) / 100,
+        down_payment_rate: down.rate,
+        // 금액으로 정했을 때만 실어 보낸다 — 비율로 바꾸면 지워야 기준이 되돌아온다
+        down_payment_amount: down.amount ?? null,
         installment_months: months,
         // ⚠️ `tax_exempt_type`·`has_biz_plate` 는 보내지 않는다 — 더 이상 묻지 않는 값이라
         //    기본값을 실어 보내면 저장만 눌러도 예전 견적의 실구매가가 달라진다.
@@ -326,9 +337,10 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
     <>
       <div style={s.scroll}>
         <div style={s.grid}>
-          <Field label="선수금 비율 (%)">
-            <input style={s.field} inputMode="numeric" value={downPct} onChange={e => setDownPct(e.target.value)} />
-          </Field>
+          <DownPaymentFields
+            base={base} rate={down.rate} amount={down.amount} disabled={frozen}
+            onChange={setDown} Field={Field} inputStyle={s.field}
+          />
           <Field label="할부 개월수">
             <select style={s.field} value={months} onChange={e => setMonths(Number(e.target.value))}>
               <option value={0}>일시불</option>

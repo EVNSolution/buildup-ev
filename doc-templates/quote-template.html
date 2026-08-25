@@ -198,7 +198,13 @@
         <tr><td class="lab">소상공인</td><td class="cval" colspan="2">{{ cust.isSosang }}</td></tr>
         <tr><td class="lab">화물자동차 운송사업허가증</td><td class="cval" colspan="2">{{ cust.hasTransportLicense }}</td></tr>
         <tr><td class="lab">경유차 폐차여부</td><td class="cval" colspan="2">{{ cust.dieselStatus }}</td></tr>
-        <tr><td class="lab">선수금</td><td class="cval" colspan="2">{{ cust.advanceRate }}</td></tr>
+        <!--
+          선수금은 **비율과 금액을 함께** 적는다. 영업은 「30%」로 말하고 고객은
+          「얼마 내면 되냐」를 묻는다. 한쪽만 적으면 나머지는 사람이 계산기를 두드린다.
+          비율은 절삭한 선수금에서 되돌려 구한 값이라 아래 금액과 서로 맞는다.
+        -->
+        <tr><td class="lab">선수금 (비율)</td><td class="cval" colspan="2">{{ cust.advanceRate }}</td></tr>
+        <tr><td class="lab">선수금 (금액)</td><td class="cval" colspan="2">{{ cust.advanceAmount }}</td></tr>
         <tr class="grp"><td class="k">할부원금</td><td class="num" colspan="2">{{ inst.total }}</td></tr>
         <tr><td class="k">이율</td><td class="num" colspan="2">{{ inst.interestRate }}</td></tr>
         <tr><td class="k">할부이자</td><td class="num" colspan="2">{{ inst.interest }}</td></tr>

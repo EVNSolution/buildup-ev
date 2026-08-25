@@ -104,6 +104,14 @@ export interface QuoteParams {
   car_deposit: number;          // D21 차량 계약금
   body_deposit: number;         // I21 특장 계약금
   down_payment_rate: number;    // G5 선수금 비율
+  /**
+   * 선수금을 **금액으로** 정한 경우(원). 넣으면 비율 대신 이 값이 기준이 된다.
+   *
+   * 영업이 「30%」로 말할 때도 있고 「1,500만원」으로 말할 때도 있다. 둘 중 하나만
+   * 받으면 나머지는 사람이 계산기를 두드려 넣어야 하고, 그러면 어긋난다.
+   */
+  /** `null` 은 「금액 기준을 푼 것」 — 비율로 되돌아간다 */
+  down_payment_amount?: number | null;
   installment_months: number;   // G6 할부개월수
   installment_rate: number;     // M21 연이율 (일시불=0)
 
@@ -166,6 +174,15 @@ export interface QuoteResult {
   car_installment: number;      // L18
   body_installment: number;     // M18
   total_installment: number;    // L19 총할부금(원금)
+  /** 실제로 적용된 선수금 비율(0~1) — 금액으로 정했을 때도 채워진다 */
+  down_payment_ratio: number;
+  /**
+   * 선수금과 할부원금이 **나눠 갖는 몫**(원).
+   *
+   * 화면이 「비율 ↔ 금액」을 서로 바꿔 보여 줄 때 쓰는 기준이다. 이 값을 안 주면
+   * 화면이 같은 공식을 한 벌 더 갖게 되고, 언젠가 서버와 갈린다.
+   */
+  down_payment_base: number;
   installment_rate: number;     // M21
   installment_months: number;   // M23
   monthly_payment: number;      // M24 월 납입금
@@ -205,7 +222,33 @@ export function calcQuote(p: QuoteParams): QuoteResult {
   const body_payment = p.body_price - p.promotion;                                          // I20
 
   // ── 계약금·선수금·인도금 ──
-  const down_payment = (car_payment + body_payment - p.car_deposit - p.body_deposit) * p.down_payment_rate; // D22
+  /*
+   * 선수금과 할부원금이 나눠 갖는 몫 — 결제금액에서 계약금을 뺀 나머지.
+   * 아래 `car_installment`·`body_installment` 가 이 몫에서 선수금을 **빼서** 구해지므로,
+   * **선수금 + 할부원금 = 이 몫**이 언제나 성립한다.
+   */
+  const splittable = car_payment + body_payment - p.car_deposit - p.body_deposit;
+  /*
+   * ⚠️ **원 단위로 내린다(절삭).**
+   *
+   * 예전에는 소수점째로 두고 표시할 때만 반올림했다. 그러면 화면에 찍힌
+   * 「선수금 + 할부원금」이 합계와 **1원 어긋나는** 일이 생겼다(실제 지적).
+   * 여기서 정수로 만들어 두면 할부원금은 뺄셈으로 나오므로 반드시 맞는다.
+   *
+   * 금액으로 정했으면 그 값을 그대로 쓴다 — 다만 나눠 가질 몫을 넘길 수는 없다.
+   */
+  /*
+   * ⚠️ `!= null` 이다(`!== undefined` 가 아니다).
+   *
+   * 금액 기준을 풀 때 화면이 `down_payment_amount: null` 을 보내 저장값을 지운다.
+   * `!== undefined` 로 보면 그 `null` 이 **「금액으로 정했다」로 읽혀 선수금이 0원**이 된다 —
+   * 비율을 30% 로 되돌렸는데 견적서에는 0원이 찍히는 셈이다.
+   */
+  const down_payment = Math.floor(
+    p.down_payment_amount != null
+      ? Math.min(Math.max(p.down_payment_amount, 0), splittable)
+      : splittable * p.down_payment_rate,
+  ); // D22
   /*
    * 선수금은 차량측에 붙는다(D23). 다만 **특장만 견적에는 차량이 없다** —
    * 그대로 두면 존재하지 않는 차량 인도금에 금액이 잡힌다. 그때는 특장측으로 보낸다.
@@ -262,6 +305,12 @@ export function calcQuote(p: QuoteParams): QuoteResult {
     body_price: p.body_price, promotion: p.promotion, body_payment, body_deposit: p.body_deposit, body_delivery,
     body_acq_tax, etc_fee: p.etc_fee, structure_change_fee: p.structure_change_fee, body_reg_cost, body_initial,
     car_installment, body_installment, total_installment,
+    /*
+     * 실제로 적용된 선수금 비율. 금액으로 정했으면 여기서 되돌려 구한다.
+     * **절삭한 선수금 기준**이라 화면에 적힌 비율과 금액이 서로 맞는다.
+     */
+    down_payment_ratio: splittable > 0 ? down_payment / splittable : 0,
+    down_payment_base: splittable,
     installment_rate: p.installment_rate, installment_months: p.installment_months,
     monthly_payment, installment_interest, vat_refund_price, real_price,
   };

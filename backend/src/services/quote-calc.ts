@@ -41,6 +41,7 @@ export type CustomerInput = {
 /** 총견적서 견적단위 입력(선수금 비율·할부개월수·재량할인). */
 export type QuoteExtraInput = {
   down_payment_rate?: number;    // 선수금 비율 (0~1)
+  down_payment_amount?: number | null;  // 선수금 금액(원). null = 금액 기준을 풀고 비율로 되돌림
   installment_months?: number;   // 할부개월수 (0=일시불)
   /**
    * ⚠️ **옛 방식**: 0원 처리할 특장옵션 그룹코드. 새 견적에서는 쓰지 않는다.
@@ -125,6 +126,8 @@ export async function buildQuoteParams(
     car_deposit: taxMap['car_deposit'] ?? 100_000,
     body_deposit: taxMap['body_deposit'] ?? 400_000,
     down_payment_rate: extra?.down_payment_rate ?? 0,
+    // 비율/금액 중 **하나만** 기준이 된다. 금액이 있으면 계산이 그쪽을 쓴다.
+    ...(extra?.down_payment_amount != null ? { down_payment_amount: extra.down_payment_amount } : {}),
     installment_months: months,
     installment_rate: instRate ? Number(instRate.rate) : 0,
     has_biz_plate: customer?.has_biz_plate ?? false,
