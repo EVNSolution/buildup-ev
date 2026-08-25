@@ -3,6 +3,7 @@
  * 계약은 견적(확정 시점)에 연결. 발송·조회 = ADMIN/SALES. API KEY 는 서버 env 에만.
  */
 import { Router } from 'express';
+import { noStore } from '../lib/doc-headers.js';
 import type { Request, Response } from 'express';
 import { existsSync, createReadStream } from 'node:fs';
 import path from 'node:path';
@@ -143,6 +144,7 @@ contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES'), async (req: 
     const c = await getLatestContract(id);
     const isPaper = c?.signing_method === PAPER_METHOD;
     const name = `${isPaper ? '특장매매계약서_서면' : '특장매매계약서_서명본'}_견적${id}${ext}`;
+    noStore(res);
     res.setHeader('Content-Type', TYPE[ext] ?? 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
     createReadStream(filePath).pipe(res);

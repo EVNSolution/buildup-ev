@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
 import type { ApiPricingBundle } from '@shared/types/index'
 import { optionBreakdown } from '@shared/pricing/core'
 
@@ -81,10 +82,17 @@ export function QuoteExtras({
 
   return (
     <>
-      <label style={s.label}>메모 / 안내문</label>
+      <label style={s.label}>
+        메모 / 안내문 <span style={s.limit}>{MEMO_LIMIT_HINT}</span>
+      </label>
+      {/*
+        줄바꿈은 견적서·계약서에 **그대로 찍힌다.** 그래서 넘치는 것을 잘라 내면
+        무엇이 사라졌는지 모른 채 고객에게 나간다 — 애초에 **입력이 안 되게** 막는다.
+        `clampMemo` 는 화면과 서버가 함께 쓰는 한 벌이라 규칙이 갈릴 일이 없다.
+      */}
       <textarea
-        style={s.memo} rows={3} value={memo} disabled={disabled}
-        onChange={e => onMemoChange(e.target.value)}
+        style={s.memo} rows={MEMO_MAX_LINES} value={memo} disabled={disabled}
+        onChange={e => onMemoChange(clampMemo(e.target.value))}
       />
 
       <label style={s.toggle}>
@@ -158,6 +166,8 @@ export function QuoteExtras({
 }
 
 const s: Record<string, React.CSSProperties> = {
+  /** 제한 안내 — 라벨 옆에 작게. 넘겨 보고 나서 알면 늦다 */
+  limit: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, marginLeft: 6 },
   label: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
   memo: {
     width: '100%', boxSizing: 'border-box', fontSize: 'var(--fs-body)',

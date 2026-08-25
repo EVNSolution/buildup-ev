@@ -12,6 +12,7 @@
  *   - 출력 PDF가 남아있으면 변환이 조용히 실패하고 옛 파일이 남음 → 변환 전 삭제 + 변환 후 존재/크기/mtime 확인
  */
 import { spawn } from 'node:child_process';
+import { clampMemo } from '@buildup-ev/shared/docs/memo';
 import { mkdtemp, rm, mkdir, writeFile, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -289,7 +290,12 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     price_total: won(priceTotal),
     price_down: won(priceDown),
     price_balance: won(priceBalance),
-    special_terms: String(inp['memo'] ?? '').replace(/\s*\n+\s*/g, ' ').trim(),
+    /*
+     * 줄바꿈을 **살린다.** 예전엔 공백으로 눌러 한 문단으로 만들었다 — 페이지가 밀릴까 봐서다.
+     * 그런데 그러면 사람이 나눠 적은 항목이 전부 한 줄로 이어붙어 읽을 수 없다(실제 제보).
+     * 이제는 **입력 단계에서 줄 수·줄 길이를 막으므로**(shared/docs/memo) 밀릴 일이 없다.
+     */
+    special_terms: clampMemo(String(inp['memo'] ?? '')).trim(),
     receipt_year: String(d.getFullYear()),
     receipt_month: String(d.getMonth() + 1),
     receipt_day: String(d.getDate()),
@@ -378,7 +384,7 @@ export function fillContractDocx(template: Buffer, tokens: ContractTokens): Buff
 
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
-    linebreaks: false,           // 줄바꿈은 페이지 밀림 원인 — special_terms 는 한 문단으로
+    linebreaks: true,            // 사람이 나눈 줄을 그대로 — 길이는 clampMemo 가 막는다
     delimiters: { start: '{{', end: '}}' },
     nullGetter: () => '',
   });

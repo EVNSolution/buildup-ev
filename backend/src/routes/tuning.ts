@@ -5,6 +5,7 @@
  * 자동차등록증이 나온 뒤에야 만들 수 있어 견적 시점에는 존재할 수 없다.
  */
 import { Router } from 'express';
+import { noStore } from '../lib/doc-headers.js';
 import type { Request, Response } from 'express';
 import { existsSync, createReadStream } from 'node:fs';
 import { rbac, requirePermission } from '../middleware/rbac.js';
@@ -99,7 +100,8 @@ tuningRouter.get('/:id/tuning/signed', rbac('ADMIN', 'SALES', 'MAKER'),
         return;
       }
       await markTuningDownloaded(id, req.auth?.email ?? 'unknown');
-      res.setHeader('Content-Type', 'application/pdf');
+      noStore(res);
+    res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition',
         `inline; filename*=UTF-8''${encodeURIComponent(`튜닝신청서_서명본_주문${id}.pdf`)}`);
       createReadStream(filePath).pipe(res);
