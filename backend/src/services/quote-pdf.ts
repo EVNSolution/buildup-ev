@@ -207,6 +207,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   const bodyOnly = inp['body_only'] === true;
   /** 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다. */
   const vehicleOnly = !bodyOnly && inp['vehicle_only'] === true;
+  /** 일반구매자(비사업자) — 부가세 환급 대상이 아니다 */
+  const noVatRefund = params.no_vat_refund === true;
 
   const data = {
     vehicleModel: modelName,
@@ -249,7 +251,12 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
       advanceAmount: won(r.down_payment),
       // 특장 계약금 — 기준데이터(body_deposit)에서 온다. 양식에 숫자를 박지 않는다
       deposit: won(r.body_deposit),
-      vatRefundPrice: won(r.vat_refund_price),
+      /*
+       * 일반구매자(비사업자)는 **부가세를 환급받을 수 없다.** 계산은 0 으로 맞지만
+       * 「0 원」이라고 찍으면 **「가격이 0원」으로 읽힌다**(실제 제보).
+       * 금액이 아니라 «해당 없음»이라고 적어야 뜻이 통한다.
+       */
+      vatRefundPrice: noVatRefund ? '해당 없음' : won(r.vat_refund_price),
     },
     inst: {
       // 할부원금 = 총할부금. 차량·특장으로 나누지 않는다(양식에서 한 줄로 통합).
