@@ -3,7 +3,7 @@ import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
 import { buildLiveTotal } from '../lib/liveQuote'
-import { mapBizType, customerEditValues, isBodyOnly } from '../lib/quoteCustomer'
+import { mapBizType, customerEditValues, isBodyOnly, isVehicleOnly } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
 import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
@@ -136,7 +136,7 @@ function MyListView() {
   // 확인 팝업 안에서 지역을 고칠 수 있어야 한다(보조금이 걸린 값)
   const [regions, setRegions] = useState<string[]>([])
   useEffect(() => { fetchRegions().then(setRegions).catch(() => setRegions([])) }, [])
-  const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string } | null>(null)
+  const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string; noContract?: boolean } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
     { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
   >(null)
@@ -302,6 +302,7 @@ function MyListView() {
       <EmailSendModal
         quoteId={emailQuote.id}
         customerName={emailQuote.customerName}
+        noContract={emailQuote.noContract}
         onClose={() => setEmailQuote(null)}
       />
     )}
@@ -473,6 +474,13 @@ function MyListView() {
                 </tr>
                 {isOpen && rows.map(q => {
                   const order = orderByQuote.get(q.id)
+                  /*
+                   * 차량만 견적에는 **계약서가 없다.** 지금 계약서는
+                   * 「특장 매매 및 구조변경 계약서」라 특장이 없는 거래에 맞지 않는다.
+                   * 버튼은 자리를 지키되 누르지 못하게 둔다 — 사라지면 「계약서가 어디 갔지」가 된다.
+                   */
+                  const noContract = isVehicleOnly(q)
+                  const noContractWhy = '차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다'
                   return (
                     <tr key={q.id}>
                       <td style={lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
@@ -554,9 +562,9 @@ function MyListView() {
                             다 채워져 있어도 한 번은 보여 준다 — 계약서에 그대로 박히는 값이라서.
                           */}
                           <button
-                            style={q.status === 'draft' ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
-                            disabled={q.status === 'draft'}
-                            title={q.status === 'draft'
+                            style={(q.status === 'draft' || noContract) ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
+                            disabled={q.status === 'draft' || noContract}
+                            title={noContract ? noContractWhy : q.status === 'draft'
                               ? '견적서를 먼저 만들어야 계약서를 만들 수 있습니다'
                               : '계약 정보를 확인하고 특장 매매계약서를 만듭니다'}
                             onClick={() => { setPrepErr(''); setContractPrep({ quote: q, next: 'pdf' }) }}
@@ -579,16 +587,18 @@ function MyListView() {
                               style={q.customer?.email ? lv.pdfBtn : BTN.rowMuted}
                               disabled={!q.customer?.email}
                               title={q.customer?.email
-                                ? '참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)'
+                                ? (noContract
+                                    ? '참고용 — 견적서 PDF 를 고객 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)'
+                                    : '참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)')
                                 : '고객 이메일이 없어 메일을 보낼 수 없습니다. 「고객정보」에서 이메일을 입력하세요.'}
-                              onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined })}
+                              onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined, noContract })}
                             >메일 전달</button>
                           )}
                           {canSign && (
                           <button
-                            style={q.status === 'draft' ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
-                            disabled={q.status === 'draft'}
-                            title={q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
+                            style={(q.status === 'draft' || noContract) ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
+                            disabled={q.status === 'draft' || noContract}
+                            title={noContract ? noContractWhy : q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
                             onClick={() => {
                               setPrepErr('')
                               // 계약서에 필요한 값이 비어 있으면 확인 팝업부터 — 서명은 그 계약서를 보내는 일이다
@@ -611,8 +621,9 @@ function MyListView() {
                           */}
                           {canSign && q.status === 'confirmed' && (
                             <button
-                              style={lv.sendBtn}
-                              title="종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다"
+                              style={noContract ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
+                              disabled={noContract}
+                              title={noContract ? noContractWhy : '종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다'}
                               onClick={() => { setPaperErr(''); setPaperFor(q) }}
                             >서명본 등록</button>
                           )}

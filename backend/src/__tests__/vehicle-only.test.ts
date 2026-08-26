@@ -129,3 +129,46 @@ describe('용어', () => {
     expect(bad, `「얹다」가 남은 곳: ${bad.join(', ')}`).toEqual([]);
   });
 });
+
+describe('차량만 견적에는 계약서가 없다', () => {
+  const SALES = read('frontend/src/pages/SalesPage.tsx');
+  const DOCGEN = read('backend/src/services/contract-docgen.ts');
+  const CONTRACT = read('backend/src/services/contract.ts');
+
+  it('🔴 서버가 막는다 — 화면만 막으면 API 로 그대로 만들어진다', () => {
+    // 계약서는 고객에게 나가는 문서다. 두 겹으로 막는다.
+    expect(DOCGEN).toContain('export async function assertContractable');
+    for (const [name, src] of [['계약서 렌더', DOCGEN], ['전자서명 발송', CONTRACT], ['서면계약 등록', CONTRACT]] as const) {
+      expect(src, name).toContain('assertContractable(quoteId)');
+    }
+    // 세 길이 모두 같은 문을 지나야 한다
+    expect((CONTRACT.match(/assertContractable\(quoteId\)/g) ?? []).length).toBe(2);
+  });
+
+  it('🔴 계약 버튼 넷이 잠긴다 — 자리는 지킨다', () => {
+    /*
+     * 버튼을 없애면 「계약서가 어디 갔지」가 된다. 회색으로 남겨
+     * 눌러 보면 왜 안 되는지 알 수 있게 한다.
+     */
+    expect(SALES).toMatch(/const noContract = isVehicleOnly\(q\)/);
+    expect(SALES).toMatch(/noContractWhy/);
+    // 계약서 생성 · 서명 요청 · 서명본 등록
+    expect((SALES.match(/disabled=\{[^}]*noContract[^}]*\}/g) ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('메일 전달은 **막지 않는다** — 견적서는 보낼 수 있어야 한다', () => {
+    // 계약서만 없는 것이지 견적서가 없는 것이 아니다
+    const i = SALES.indexOf('메일 전달');
+    const around = SALES.slice(Math.max(0, i - 900), i);
+    expect(around).toMatch(/disabled=\{!q\.customer\?\.email\}/);
+  });
+
+  it('메일 팝업에서 계약서 첨부칸을 아예 띄우지 않는다', () => {
+    // 체크할 수 없는 칸을 회색으로 남기면 「왜 안 되지」를 묻게 된다 — 원래 없는 서류다
+    const M = read('frontend/src/components/EmailSendModal.tsx');
+    expect(M).toMatch(/const canAttachContract = !noContract/);
+    expect(M).toMatch(/\{canAttachContract && \(/);
+    // 보낼 때도 그 값을 쓴다 — 화면만 감추고 실제로는 첨부되면 안 된다
+    expect(M).toContain('include_contract: attachContract');
+  });
+});

@@ -471,7 +471,25 @@ async function renderFromTokens(tokens: ContractTokens): Promise<{ pdf: Buffer; 
 }
 
 /** 견적 → 계약서 PDF (즉석 렌더, 저장 없음). 영업페이지 미리보기·이메일 첨부용. */
+/**
+ * **차량만 견적에는 계약서가 없다.**
+ *
+ * 이 문서는 「특장 매매 및 구조변경 계약서」다. 특장을 장착하지 않는 거래에 쓰면
+ * 특장 조항과 금액칸이 공란인 계약서가 고객에게 나간다.
+ *
+ * 화면에서도 버튼을 잠그지만, **서버가 막지 않으면 API 로 그대로 만들어진다.**
+ * 계약서는 고객에게 나가는 문서라 두 겹으로 막는다.
+ */
+export async function assertContractable(quoteId: number): Promise<void> {
+  const q = await prisma?.quote.findUnique({ where: { id: quoteId }, select: { inputs: true } });
+  const inp = (q?.inputs ?? {}) as Record<string, unknown>;
+  if (inp['body_only'] !== true && inp['vehicle_only'] === true) {
+    throw new ContractDocError('차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다.');
+  }
+}
+
 export async function renderContractPdfForQuote(quoteId: number): Promise<{ pdf: Buffer; filename: string; pages: number; warnings: string[] }> {
+  await assertContractable(quoteId);
   const tokens = await buildContractTokensFromQuote(quoteId);
   const { pdf, pages, warnings } = await renderFromTokens(tokens);
   const who = tokens.buyer_name ? `_${tokens.buyer_name}` : '';

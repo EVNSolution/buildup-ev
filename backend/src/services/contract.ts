@@ -12,7 +12,7 @@ import { prisma } from '../lib/prisma.js';
 import { archiveCustomerDoc } from './doc-archive.js';
 import { docStorageDir } from '../lib/soffice.js';
 import { type ContractInput } from './contract-pdf.js';
-import { renderContractPdfForQuote, isCorporateContract } from './contract-docgen.js';
+import { renderContractPdfForQuote, isCorporateContract, assertContractable } from './contract-docgen.js';
 import { freezeQuoteDocs } from './doc-freeze.js';
 import { findSignPositions } from './sign-positions.js';
 import { generateQuotePdf } from './quote-pdf.js';
@@ -106,6 +106,8 @@ export async function buildContractInput(quoteId: number): Promise<{ input: Cont
  * 전자서명용 계약서(placeholder) + 견적서 동봉(영업 프로세스)을 함께 보낸다.
  */
 export async function sendContract(quoteId: number, signingMethod: SigningMethod): Promise<PurchaseContract> {
+  // 차량만 견적에는 계약서가 없다 — 서명을 요청할 문서 자체가 없다
+  await assertContractable(quoteId);
   const p = db();
 
   // ── 비용 안전장치 ── 서명요청 1건마다 과금된다.
@@ -504,6 +506,9 @@ export async function registerPaperContract(
   by: string,
 ): Promise<PurchaseContract> {
   const p = db();
+
+  // 차량만 견적에는 계약서가 없다 — 종이로도 성립하지 않는다
+  await assertContractable(quoteId);
 
   const q = await p.quote.findUnique({ where: { id: quoteId }, select: { status: true } });
   if (!q) throw new ContractError('견적을 찾을 수 없습니다', 'NOT_FOUND');
