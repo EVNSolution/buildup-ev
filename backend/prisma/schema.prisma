@@ -270,6 +270,31 @@ model TaxConfig {
 /// 견적서·계약서가 오간 뒤에 "왜 금액이 다르냐"는 이야기가 나온다. 그때 되짚을 수
 /// 있어야 하므로 옵션·고객정보·할부조건 변경을 전부 같은 표에 필드 단위로 남긴다.
 /// (기준데이터 변경이력 option_db_change_log 와 같은 구조 — 익숙한 모양을 유지)
+/// 메일로 무엇을 보냈는지 남긴다 — 견적서만인지, 계약서까지인지.
+///
+/// 「그 고객에게 계약서까지 보냈던가?」를 사람 기억에 맡기면 두 번 보내거나 안 보낸다.
+/// 어느 견적을 언제 어디로 보냈는지가 함께 있어야 골라볼 수 있다.
+///
+/// ⚠️ 지우지 않는다 — 보낸 것은 되돌릴 수 없는 사실이라 기록도 되돌리지 않는다.
+model QuoteEmailLog {
+  id       Int      @id @default(autoincrement())
+  quote_id Int
+  /// 보낸 시점의 견적번호 — 나중에 번호가 붙거나 바뀌어도 그때 무엇을 보냈는지가 남는다
+  quote_no String?  @db.VarChar(30)
+  to_email String   @db.VarChar(200)
+  /// 계약서를 함께 보냈는가. false = 견적서만
+  with_contract Boolean @default(false)
+  /// 실제로 붙인 파일 이름들 — 「보냈다」와 「무엇이 갔다」가 어긋나지 않게
+  attachments   String  @db.VarChar(500)
+  sent_by  String   @db.VarChar(120)
+  sent_at  DateTime @default(now())
+
+  quote Quote @relation(fields: [quote_id], references: [id])
+
+  @@index([quote_id])
+  @@map("quote_email_log")
+}
+
 model QuoteChangeLog {
   id         Int      @id @default(autoincrement())
   quote_id   Int
@@ -450,6 +475,7 @@ model Quote {
   org        Org?         @relation("QuoteOrg", fields: [org_id], references: [code])
   order      Order?
   contracts  PurchaseContract[]
+  email_logs   QuoteEmailLog[]
 
   @@map("quote")
 }
