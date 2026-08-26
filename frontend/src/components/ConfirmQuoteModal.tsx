@@ -33,6 +33,22 @@ interface Props {
   onDone: () => void
 }
 
+/**
+ * 라벨 + 입력칸 한 벌.
+ *
+ * ⚠️ **컴포넌트 바깥에 둔다.** 렌더 함수 안에서 만들면 렌더마다 «다른 타입»이 되어,
+ *    React 가 그 자리를 통째로 헐고 다시 짓는다. 안에 있던 `<input>` 이 사라졌다
+ *    새로 생기므로 **한 글자 칠 때마다 커서가 풀린다**(실제 제보).
+ */
+function PlainField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <label style={s.label}>{label}</label>
+      {children}
+    </>
+  )
+}
+
 export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, bodyOnly = false, onClose, onDone }: Props) {
   const init = initialInputs ?? {}
   const isConfirmed = status !== 'draft'
@@ -106,12 +122,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
               <DownPaymentFields
                 base={base} rate={down.rate} amount={down.amount}
                 onChange={setDown}
-                Field={({ label, children }) => (
-                  <>
-                    <label style={s.label}>{label}</label>
-                    {children}
-                  </>
-                )}
+                Field={PlainField}
                 inputStyle={s.input}
               />
 
