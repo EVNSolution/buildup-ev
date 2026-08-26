@@ -9,7 +9,7 @@ import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden } from '../a
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
-import { fetchOrders, fetchMakerOrgs } from '../api/orders'
+import { fetchOrders, fetchMakerOrgs, cancelOrder } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderFilesTab } from '../components/OrderFilesTab'
@@ -1216,6 +1216,8 @@ function QuotesTab() {
 function KanbanTab() {
   const { session } = useAuth()
   const canControl = session?.user.is_master ?? false
+  /** 주문을 치울 수 있는가 — 기능모듈로 **계정별**로 켠다. 관리자라고 다 되지 않는다. */
+  const canRemove = usePermission('order.remove')
 
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -1234,7 +1236,24 @@ function KanbanTab() {
   if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
 
   if (selectedOrderId !== null) {
-    return <OrderDetail orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} backLabel="← 주문 진행" />
+    const picked = orders.find(o => o.id === selectedOrderId)
+    /*
+     * 치울 수 있는 것은 **수락 대기·진행중**까지다. 인도가 끝난 건은 이미 일어난 거래다.
+     * 보드 카드마다 버튼을 흩뿌리지 않고 **열어 본 자리**에 둔다 — 되돌리기 어려운 조작은
+     * 한 건을 들여다보는 자리에 있어야 잘못 누르지 않는다.
+     */
+    const removable = !!picked && (picked.quote.status === 'assigned' || picked.quote.status === 'ordered')
+    return (
+      <div>
+        <OrderDetail orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} backLabel="← 주문 진행" />
+        {canRemove && removable && (
+          <OrderRemoveBox
+            orderId={selectedOrderId}
+            onDone={() => { setSelectedOrderId(null); load() }}
+          />
+        )}
+      </div>
+    )
   }
 
   return (
@@ -1244,6 +1263,77 @@ function KanbanTab() {
       <OrderStepsBoard orders={orders} onCardClick={setSelectedOrderId} />
     </div>
   )
+}
+
+/**
+ * 주문 치우기 — 목록에서 뺀다. **행은 지워지지 않는다.**
+ *
+ * 「삭제」라고 부르지만 상태로 남긴다. 누가 언제 왜 치웠는지가 사라지면
+ * 나중에 아무도 설명하지 못한다(견적 삭제가 서명된 계약까지 연쇄로 지운 사고가 있었다).
+ *
+ * 한 번에 치워지지 않는다 — 사유를 적어야 눌린다.
+ */
+function OrderRemoveBox({ orderId, onDone }: { orderId: number; onDone: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function go() {
+    setBusy(true); setErr('')
+    try { await cancelOrder(orderId, reason.trim()); onDone() }
+    catch (e) { setErr(e instanceof Error ? e.message : '주문 치우기 실패') }
+    finally { setBusy(false) }
+  }
+
+  if (!open) {
+    return (
+      <div style={rm.bar}>
+        <button style={rm.openBtn} onClick={() => setOpen(true)}>주문 치우기</button>
+        <span style={rm.hint}>목록에서만 빠집니다 — 기록은 남습니다.</span>
+      </div>
+    )
+  }
+  return (
+    <div style={rm.box}>
+      <div style={rm.title}>이 주문을 목록에서 치웁니다</div>
+      <div style={rm.desc}>
+        견적은 <b>계약완료</b>로 돌아가 다시 배정할 수 있습니다.
+        주문 기록과 그동안의 서류는 <b>지워지지 않습니다.</b>
+      </div>
+      <label style={rm.label}>치우는 사유<span style={rm.req}> · 필수</span></label>
+      <textarea
+        style={rm.input} rows={2} value={reason} maxLength={500}
+        placeholder="예) 중복 배정 / 고객 요청으로 제작 보류"
+        onChange={e => setReason(e.target.value)}
+      />
+      {err && <div style={rm.err}>{err}</div>}
+      <div style={rm.actions}>
+        <button style={BTN.secondary} onClick={() => setOpen(false)} disabled={busy}>그만두기</button>
+        <button style={reason.trim() && !busy ? rm.goBtn : BTN.disabled} disabled={!reason.trim() || busy} onClick={go}>
+          {busy ? '처리 중…' : '치우기'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const rm: Record<string, React.CSSProperties> = {
+  bar: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, paddingTop: 12, borderTop: '0.5px solid var(--line)' },
+  openBtn: { ...BTN.secondary, color: 'var(--warn)', borderColor: 'var(--warn)' },
+  hint: { fontSize: 11, color: 'var(--muted)' },
+  box: {
+    marginTop: 16, border: '0.5px solid var(--warn)', background: 'var(--warnbg)',
+    borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
+  },
+  title: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
+  desc: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 },
+  label: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
+  req: { color: 'var(--req)', fontWeight: 700 },
+  input: { width: '100%', fontSize: 13, padding: '8px 10px', borderRadius: 7, border: '0.5px solid var(--line)', background: '#fff', resize: 'vertical', fontFamily: 'inherit' },
+  err: { fontSize: 12, color: 'var(--warn)' },
+  actions: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 },
+  goBtn: { ...BTN.primary, background: 'var(--warn)', borderColor: 'var(--warn)' },
 }
 
 // ── AdminPage ────────────────────────────────────────────────────────────

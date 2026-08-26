@@ -72,3 +72,37 @@ export async function saveVehicleInfo(orderId: number, info: OrderVehicleInfo): 
     throw new Error(body.error?.message ?? `차량정보 저장 실패: ${res.status}`)
   }
 }
+
+/**
+ * 주문 거부 — 못 받겠다고 알린다. **사유가 필수다.**
+ * 거부하면 배정이 풀려 다른 특장사에 다시 맡길 수 있다.
+ */
+export async function rejectOrder(orderId: number, reason: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/reject`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `주문 거부 실패: ${res.status}`)
+  }
+}
+
+/**
+ * 주문 치우기(관리자) — 목록에서 뺀다. **행은 남는다.**
+ * 권한은 기능모듈 `order.remove` 로 계정별로 켠다.
+ */
+export async function cancelOrder(orderId: number, reason: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/cancel`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `주문 치우기 실패: ${res.status}`)
+  }
+}
