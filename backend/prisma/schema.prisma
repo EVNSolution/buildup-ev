@@ -495,6 +495,18 @@ model Order {
   // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
   vehicle_info Json?
 
+  /// 특장사가 거부한 시각. 거부하면 배정이 풀려 다른 특장사에 다시 맡길 수 있다.
+  rejected_at   DateTime?
+  rejected_by   String?   @db.VarChar(120)
+  /// 거부 사유 — 필수. 「왜 안 받았는지」가 없으면 다시 배정할 수도, 고칠 수도 없다.
+  reject_reason String?   @db.VarChar(500)
+
+  /// 관리자가 치운 시각. 목록에서 빠지지만 행은 그대로 남는다.
+  /// ⚠️ 지우지 않는다 — 잘못 들어간 것도 상태로 관리한다(CLAUDE.md).
+  canceled_at   DateTime?
+  canceled_by   String?   @db.VarChar(120)
+  cancel_reason String?   @db.VarChar(500)
+
   quote     Quote        @relation(fields: [quote_id], references: [id])
   maker_org Org?         @relation("OrderMakerOrg", fields: [maker_org_id], references: [code])
   options   OrderOption[]

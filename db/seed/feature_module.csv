@@ -9,3 +9,4 @@ subsidy.manage,보조금 관리,관리자,7,Y
 account.manage,계정 관리,관리자,8,Y
 doc.view,서류 조회,"관리자,특장사",9,Y
 notify.assign,제작 배정 알림 메일,관리자,10,Y
+order.remove,주문 치우기(관리자),관리자,11,Y

@@ -15,7 +15,7 @@ import { BTN } from '../styles/buttons'
  *
  * 특장사가 보는 서류는 발주서뿐이다(계약서·견적서는 서버에서 막았다).
  */
-export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error, onAccept, onClose }: {
+export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error, onAccept, onClose , onReject}: {
   orderId: number
   makerOrgName: string
   /** 납기 한도의 기산점 = 배정일(발주일) */
@@ -24,12 +24,18 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
   error: string
   onAccept: (deliveryDue: string) => void
   onClose: () => void
+  /** 거부 — 사유를 받아 넘긴다. 없으면 거부 버튼이 뜨지 않는다. */
+  onReject?: (reason: string) => void
 }) {
   const base = useMemo(() => {
     const d = new Date(orderedAt)
     return new Date(d.getFullYear(), d.getMonth(), d.getDate())
   }, [orderedAt])
   const limit = useMemo(() => deliveryDueLimit(base), [base])
+
+  const [rejecting, setRejecting] = useState(false)
+
+  const [reason, setReason] = useState('')
 
   const [due, setDue] = useState('')
   const [modelCode, setModelCode] = useState('')
@@ -100,17 +106,52 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
           </div>
         </div>
 
+        {/*
+          거부 — **못 받겠다고 알리는 문.**
+          예전에는 수락밖에 없어서, 못 받는 주문을 붙들고 있거나 전화로 알려야 했다.
+          그 사이 그 주문은 배정된 것처럼 보인다.
+
+          사유를 적어야 눌린다 — 「왜 안 받았는지」가 없으면 다시 배정할 수도, 고칠 수도 없다.
+        */}
+        {rejecting && (
+          <div style={m.rejectBox}>
+            <div style={m.rejectTitle}>이 주문을 거부합니다</div>
+            <div style={m.rejectDesc}>
+              배정이 풀려 <b>다른 특장사에 다시 맡길 수 있게</b> 됩니다. 계약은 그대로입니다.
+            </div>
+            <label style={m.rejectLabel}>거부 사유<span style={m.req}> · 필수</span></label>
+            <textarea
+              style={m.rejectInput} rows={3} value={reason} maxLength={500}
+              placeholder="예) 요청 납기 내 제작이 어렵습니다 / 해당 사양은 제작 불가합니다"
+              onChange={e => setReason(e.target.value)}
+            />
+          </div>
+        )}
+
         {error && <div style={m.err}>{error}</div>}
 
         <div style={m.actions}>
           <button style={BTN.secondary} onClick={onClose} disabled={busy}>취소</button>
-          <button
-            style={canAccept ? BTN.primary : BTN.disabled}
-            disabled={!canAccept}
-            onClick={() => parsed && onAccept(due)}
-          >
-            {busy ? '처리 중' : '수락'}
-          </button>
+          {!rejecting ? (
+            <>
+              <button style={m.rejectBtn} onClick={() => setRejecting(true)} disabled={busy}>거부</button>
+              <button
+                style={canAccept ? BTN.primary : BTN.disabled}
+                disabled={!canAccept}
+                onClick={() => parsed && onAccept(due)}
+              >
+                {busy ? '처리 중' : '수락'}
+              </button>
+            </>
+          ) : (
+            <button
+              style={reason.trim() && !busy ? m.rejectBtnOn : BTN.disabled}
+              disabled={!reason.trim() || busy}
+              onClick={() => onReject?.(reason.trim())}
+            >
+              {busy ? '처리 중' : '거부하기'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -118,6 +159,19 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
 }
 
 const m: Record<string, React.CSSProperties> = {
+  rejectBtn: { ...BTN.secondary, color: 'var(--warn)', borderColor: 'var(--warn)' },
+  rejectBtnOn: { ...BTN.primary, background: 'var(--warn)', borderColor: 'var(--warn)' },
+  rejectBox: {
+    border: '0.5px solid var(--warn)', background: 'var(--warnbg)', borderRadius: 8,
+    padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
+  },
+  rejectTitle: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
+  rejectDesc: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 },
+  rejectLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
+  rejectInput: {
+    width: '100%', fontSize: 13, padding: '8px 10px', borderRadius: 7,
+    border: '0.5px solid var(--line)', background: '#fff', resize: 'vertical', fontFamily: 'inherit',
+  },
   overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 'var(--sp-4)' },
   box: {
     background: '#fff', borderRadius: 14, padding: 'var(--sp-5)', width: 520, maxWidth: '100%',

@@ -19,7 +19,11 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
   const auth = req.auth!;
   const { status, from, to, scope } = req.query as Record<string, string | undefined>;
 
-  const where: Prisma.OrderWhereInput = {};
+  /*
+   * 치운 주문은 목록에서 뺀다 — **행은 남아 있지만 일감이 아니다.**
+   * 여기서 거르지 않으면 「삭제」를 눌러도 그대로 보여, 치운 뜻이 없어진다.
+   */
+  const where: Prisma.OrderWhereInput = { canceled_at: null };
   /*
    * 범위는 **가진 역할 전부**로 정한다. 관리자면 전체, 아니면 겸직한 역할만큼 넓힌다
    * (영업+특장 겸직이면 자기 견적의 주문 ∪ 자기 조직에 배정된 주문).
@@ -298,6 +302,121 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
  * `PATCH /orders/:id/steps/:code` 하나뿐이다(선행 단계·필수 증빙을 서버가 지킨다).
  * 두 길을 열어 두면 증빙 없이 상태만 올리는 우회로가 남는다.
  */
+
+/** 사유를 읽어 다듬는다 — 없으면 null. 너무 긴 것은 자른다(칼럼 폭). */
+function readReason(body: unknown): string | null {
+  const raw = (body as { reason?: unknown } | undefined)?.reason;
+  const t = typeof raw === 'string' ? raw.trim() : '';
+  return t ? t.slice(0, 500) : null;
+}
+
+// ── PATCH /orders/:id/reject — 특장사 주문 거부 (배정 해제, 재배정 가능) ──────
+/**
+ * 특장사가 **못 받겠다**고 하는 문.
+ *
+ * 예전에는 수락밖에 없어서, 못 받는 주문을 붙들고 있거나 전화로 알리고 관리자가
+ * 손으로 되돌려야 했다. 그 사이 그 주문은 **배정된 것처럼 보인다.**
+ *
+ * 거부하면 배정이 풀려 **다른 특장사에 다시 맡길 수 있다.** 견적은 계약완료로 돌아간다 —
+ * 계약이 깨진 것이 아니라 만들 곳을 다시 찾는 것이다.
+ *
+ * ⚠️ **사유가 필수다.** 「왜 안 받았는지」가 없으면 다시 배정할 수도, 고칠 수도 없다
+ *    (납기가 안 되는 것인지, 사양을 못 만드는 것인지에 따라 다음 수가 다르다).
+ */
+ordersRouter.patch('/:id/reject', rbac('ADMIN', 'MAKER'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
+
+  const reason = readReason(req.body);
+  if (!reason) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '거부 사유를 적어야 합니다' } });
+    return;
+  }
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id }, include: { quote: { select: { id: true, status: true } } } });
+    if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    if (ownOrgOnly(req.auth!) && order.maker_org_id !== req.auth!.org_code) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 거부할 수 있습니다' } });
+      return;
+    }
+    /*
+     * **수락 전에만** 거부할 수 있다. 이미 수락해 제작이 도는 건은 거부가 아니라
+     * 별도의 사정(중단·재배정)이고, 그때는 관리자가 판단할 일이다.
+     */
+    if (order.quote.status !== 'assigned') {
+      res.status(409).json({ error: { code: 'CONFLICT', message: `배정 상태에서만 거부할 수 있습니다 (현재 ${order.quote.status})` } });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id },
+      data: {
+        rejected_at: new Date(), rejected_by: req.auth?.email ?? 'unknown', reject_reason: reason,
+        // 배정을 푼다 — 다른 특장사에 다시 맡길 수 있어야 한다
+        maker_org_id: null, assigned_at: null, delivery_due: null,
+      },
+    });
+    // 계약이 깨진 것이 아니라 만들 곳을 다시 찾는 것이다
+    await setQuoteStatus(order.quote.id, 'contracted', req.auth?.email ?? 'unknown');
+    const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
+    res.json({ data: { quote: updated, reason } });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/reject]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '주문 거부 중 오류가 발생했습니다.' } });
+  }
+});
+
+// ── PATCH /orders/:id/cancel — 관리자가 주문을 치운다 (행은 남는다) ──────────
+/**
+ * 잘못 만든 주문을 **목록에서 치운다.**
+ *
+ * ⚠️ **행을 지우지 않는다.** 「삭제」라고 부르지만 상태로 남긴다 —
+ *    누가 언제 왜 치웠는지가 사라지면 나중에 아무도 설명하지 못한다.
+ *    (견적 삭제가 서명된 계약까지 연쇄로 지운 사고 이후의 규칙 — CLAUDE.md)
+ *
+ * ⚠️ **수락 대기·진행중까지만.** 인도가 끝난 건은 치우지 않는다 — 이미 일어난 거래다.
+ *
+ * 권한은 `order.remove` 로 **계정별로** 켠다. 관리자라고 다 되면 안 되는 일이다.
+ */
+ordersRouter.patch('/:id/cancel', rbac('ADMIN'), requirePermission('order.remove'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
+
+  const reason = readReason(req.body);
+  if (!reason) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '치우는 사유를 적어야 합니다' } });
+    return;
+  }
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id }, include: { quote: { select: { id: true, status: true } } } });
+    if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    if (order.canceled_at) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 치운 주문입니다' } }); return; }
+
+    // 수락 대기(assigned) · 진행중(ordered) 까지만
+    if (order.quote.status !== 'assigned' && order.quote.status !== 'ordered') {
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: `수락 대기·진행중 주문만 치울 수 있습니다 (현재 ${order.quote.status})` },
+      });
+      return;
+    }
+
+    await prisma.order.update({
+      where: { id },
+      data: { canceled_at: new Date(), canceled_by: req.auth?.email ?? 'unknown', cancel_reason: reason },
+    });
+    // 견적은 계약완료로 되돌린다 — 계약은 그대로고 만들 곳만 없어진 것이다
+    await setQuoteStatus(order.quote.id, 'contracted', req.auth?.email ?? 'unknown');
+    const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
+    res.json({ data: { quote: updated, reason } });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/cancel]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '주문을 치우는 중 오류가 발생했습니다.' } });
+  }
+});
 
 // ── PATCH /orders/:id/accept — 특장사 주문 수락 (배정→주문, 제작 착수) ──────
 // 배정된 특장사가 주문을 수락하면 견적 상태 assigned→ordered. 이후 진행은 단계 표가 갖는다.

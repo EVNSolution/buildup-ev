@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ApiOrder } from '@shared/types/index'
-import { fetchOrders, acceptOrder } from '../api/orders'
+import { fetchOrders, acceptOrder, rejectOrder } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -52,6 +52,23 @@ export function MakerPage() {
     }
   }
 
+  /**
+   * 거부 — **못 받겠다고 알린다.**
+   * 배정이 풀려 다른 특장사에 다시 맡길 수 있게 된다. 계약은 그대로다.
+   */
+  async function handleReject(orderId: number, reason: string) {
+    setAcceptingId(orderId); setAcceptErr('')
+    try {
+      await rejectOrder(orderId, reason)
+      setAcceptTarget(null)
+      load()
+    } catch (e: unknown) {
+      setAcceptErr(e instanceof Error ? e.message : '주문 거부 실패')
+    } finally {
+      setAcceptingId(null)
+    }
+  }
+
   // 배정(수락 대기) vs 주문(제작 진행)
   const pending = orders.filter(o => o.quote.status === 'assigned')
   const active  = orders.filter(o => o.quote.status !== 'assigned')
@@ -73,6 +90,7 @@ export function MakerPage() {
           busy={acceptingId === acceptTarget.id}
           error={acceptErr}
           onAccept={due => handleAccept(acceptTarget.id, due)}
+          onReject={reason => handleReject(acceptTarget.id, reason)}
           onClose={() => setAcceptTarget(null)}
         />
       )}
