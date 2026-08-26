@@ -5,7 +5,7 @@ import { bodyOnlyParams } from './body-only.js';
 import { QUOTE_PARAMS } from './fixtures.js';
 
 /**
- * **차량만 견적** — 특장을 얹지 않고 차량만 판다. `bodyOnlyParams` 의 거울상이다.
+ * **차량만 견적** — 특장을 장착하지 않고 차량만 판다. `bodyOnlyParams` 의 거울상이다.
  *
  * 여기서 지키는 것은 「특장 금액이 0」만이 아니다. **차량 쪽은 하나도 안 깎여야** 한다 —
  * 보조금·할부가 빠지면 차량만 견적이 성립하지 않는다.
@@ -29,7 +29,7 @@ describe('차량만 — 특장 쪽이 전부 빠진다', () => {
   });
 
   it('🔴 구조변경 비용이 빠진다 — 구조변경 자체를 하지 않는다', () => {
-    // 특장을 안 얹으면 구조를 바꿀 일이 없다. 남겨 두면 없는 작업에 돈을 받는 셈이다
+    // 특장을 장착하지 않으면 구조를 바꿀 일이 없다. 남겨 두면 없는 작업에 돈을 받는 셈이다
     const r = v({ structure_change_fee: 400_000, etc_fee: 50_000 });
     expect(r.body_reg_cost).toBe(0);
   });

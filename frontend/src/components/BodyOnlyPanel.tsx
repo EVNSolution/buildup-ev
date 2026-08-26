@@ -1,7 +1,7 @@
 import { BTN } from '../styles/buttons'
 
 /**
- * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 얹는다.
+ * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 장착한다.
  *
  * 차량을 우리가 팔지 않으므로 차량가·탁송료·구매혜택·EV보조금·차량 등록비가 전부 빠진다.
  * 보유 차량의 **차종**은 계약서 생성 단계에서 받는다 — 견적 단계에서는 금액만 보면 되고,
@@ -28,7 +28,7 @@ export const OWNED_MODELS = [
  * 냉동기는 주행 중에도 **차량 전원**으로 돌아간다 — V2L 포트가 없으면 설치 자체가 불가능하다.
  *
  * 우리가 파는 차(기본·플러스)는 모두 V2L 이 있어 확인할 것이 없다.
- * **고객 차에 얹을 때만** 물어야 한다.
+ * **고객 차에 장착할 때만** 물어야 한다.
  */
 export const V2L_NOTICE = '냉동 사양은 차량에서 전원을 받습니다 — 고객 차량에 사용 가능한 V2L 포트가 있어야 설치할 수 있습니다.'
 export const V2L_CONFIRM = 'V2L 모듈이 있어야 냉동기 설치가 가능합니다. 고객 차량에 사용 가능한 V2L 포트가 있음을 확인했습니다.'
@@ -55,7 +55,7 @@ export function BodyOnlyToggle({ on, onToggle, disabled }: {
 }
 
 /**
- * **차량만 견적** — 특장을 얹지 않고 차량만 판다. [[BodyOnlyToggle]] 의 거울상이다.
+ * **차량만 견적** — 특장을 장착하지 않고 차량만 판다. [[BodyOnlyToggle]] 의 거울상이다.
  *
  * 특장만과 **동시에 고를 수 없다.** 둘 다 켜면 팔 것이 아무것도 남지 않는다 —
  * 한쪽을 켜면 다른 쪽 버튼이 눌리지 않게 막는다.
@@ -76,46 +76,13 @@ export function VehicleOnlyToggle({ on, onToggle, disabled }: {
 }
 
 /**
- * 차량만을 골랐을 때만 뜨는 안내 — 무엇이 빠지는지 그 자리에서 알린다.
- * 견적서를 뽑고 나서 「특장이 왜 없냐」를 묻게 두면 안 된다.
- */
-export function VehicleOnlyNotice() {
-  return (
-    <div style={vo.box}>
-      <div style={vo.title}>차량만 판매하는 견적입니다</div>
-      <div style={vo.body}>
-        특장을 얹지 않아 <b>특장·옵션 탭과 프로모션이 잠깁니다.</b>
-        구조변경이 없어 특장 취득세·등록부가수수료·구조변경 비용도 빠집니다.
-      </div>
-      <div style={vo.body}>
-        보조금과 할부(캐피탈)는 <b>그대로 적용됩니다</b> — 차를 사는 거래이기 때문입니다.
-      </div>
-      <div style={vo.warn}>
-        이 견적은 <b>견적서까지</b>입니다. 계약서·주문 전환은 특장 매매 계약이라 해당하지 않습니다.
-      </div>
-    </div>
-  )
-}
-
-const vo: Record<string, React.CSSProperties> = {
-  box: {
-    marginTop: 'var(--sp-4)', padding: '12px 14px',
-    border: '0.5px solid var(--line)', borderRadius: 8, background: 'var(--card)',
-    display: 'flex', flexDirection: 'column', gap: 6,
-  },
-  title: { fontSize: 13, fontWeight: 700, color: 'var(--dark)' },
-  body: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 },
-  warn: { fontSize: 12, color: 'var(--dark)', lineHeight: 1.6, marginTop: 2 },
-}
-
-/**
  * 특장만을 **골랐을 때만** 뜨는 안내. 평소에는 보이지 않는다 —
  * 차량을 사는 대부분의 견적에는 해당 없는 이야기라, 늘 띄워 두면 읽지 않게 된다.
  *
  * 여기서는 **알리기만** 한다. 실제 확인(체크)은 특장 탭에서 냉동을 고르는 그 자리에서 받는다.
  */
 export function BodyOnlyNotice({ model, onModelChange }: {
-  /** 보유 차종 — **임시저장 단계**에서 받는다. 어떤 차에 얹는지는 견적의 전제다. */
+  /** 보유 차종 — **임시저장 단계**에서 받는다. 어떤 차에 장착하는지는 견적의 전제다. */
   model: string
   /**
    * 없으면 **안내만** 하고 보유 차종은 묻지 않는다 — 공개 창구가 그렇다.

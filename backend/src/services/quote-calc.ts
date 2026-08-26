@@ -57,11 +57,11 @@ export type QuoteExtraInput = {
   promotion_discount?: number;
   local_subsidy_off?: boolean;   // 견적별 지방보조금 미적용(영업 토글)
   /**
-   * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 얹는다.
+   * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 장착한다.
    * 차량에 딸린 입력을 통째로 0으로 만든다(shared 의 `bodyOnlyParams` 한 곳에서).
    */
   body_only?: boolean;
-  /** 차량만 견적 — 특장을 얹지 않는다. body_only 와 동시에 참일 수 없다. */
+  /** 차량만 견적 — 특장을 장착하지 않는다. body_only 와 동시에 참일 수 없다. */
   vehicle_only?: boolean;
 };
 

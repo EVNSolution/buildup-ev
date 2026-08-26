@@ -67,7 +67,7 @@ export function toDieselStatus(status: unknown, legacyConversion?: unknown): Die
 export interface QuoteParams {
   // ── 차량 (VAT 포함) ──
   /**
-   * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 얹는 경우.
+   * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 장착하는 경우.
    *
    * 차량에 딸린 금액(차량가·탁송료·구매혜택·EV보조금·차량 취득세·공채·번호판·증지대·
    * 의무보험·등록대행)은 **호출부가 0으로 넘긴다**. 여기서는 그 0들로 계산이 자연히 맞고,
@@ -78,7 +78,7 @@ export interface QuoteParams {
    */
   body_only?: boolean;
   /**
-   * 차량만 견적 — 특장을 얹지 않는다. [[body_only]] 의 거울상이다.
+   * 차량만 견적 — 특장을 장착하지 않는다. [[body_only]] 의 거울상이다.
    * 둘은 **동시에 참일 수 없다**(그러면 팔 것이 아무것도 없다).
    */
   vehicle_only?: boolean;

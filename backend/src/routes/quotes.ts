@@ -685,7 +685,7 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
      * 보유 차량 정보는 고객이 적어 준 값 그대로(우리가 아는 제원이 아니다).
      */
     body_only: body_only === true,
-    // 차량만 견적 — 특장을 얹지 않는다. 특장만과 동시에 참일 수 없다.
+    // 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다.
     vehicle_only: body_only !== true && vehicle_only === true,
     vehicle_owned: body_only === true ? (vehicle_owned ?? {}) : {},
     promotion_zeroed: promotion_zeroed ?? [],  // 프로모션: 0원 처리한 특장옵션 그룹
