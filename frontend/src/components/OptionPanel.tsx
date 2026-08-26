@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
-import { BodyOnlyToggle, BodyOnlyNotice } from './BodyOnlyPanel'
+import { BodyOnlyToggle, BodyOnlyNotice, VehicleOnlyToggle, VehicleOnlyNotice } from './BodyOnlyPanel'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { QuoteExtras } from './QuoteExtras'
@@ -36,6 +36,9 @@ interface Props {
    * 공개 화면에는 주지 않는다(영업이 판단할 성격의 견적이다).
    */
   bodyOnly?: boolean
+  /** 차량만 견적 — 특장을 얹지 않는다. 특장·옵션 탭이 잠긴다. */
+  vehicleOnly?: boolean
+  onToggleVehicleOnly?: (v: boolean) => void
   onToggleBodyOnly?: (v: boolean) => void
   /** 보유 차종 — 특장만 견적의 전제라 여기서 받는다 */
   ownedModel?: string
@@ -82,6 +85,8 @@ export function OptionPanel({
   publicMode = false,
   saveLabel,
   bodyOnly,
+  vehicleOnly,
+  onToggleVehicleOnly,
   onToggleBodyOnly,
   ownedModel,
   onOwnedModelChange,
@@ -101,6 +106,14 @@ export function OptionPanel({
   onToggleLocalSubsidy,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
+
+  /*
+   * 차량만으로 바꿨는데 특장·옵션 탭에 머물러 있으면 **빈 화면**이 된다.
+   * 잠긴 탭에 있으면 차량 탭으로 되돌린다.
+   */
+  useEffect(() => {
+    if (vehicleOnly && activeTab !== 'vehicle') setActiveTab('vehicle')
+  }, [vehicleOnly, activeTab])
   // 견적 저장 전에 모든 단계를 확인하게 강제한다. 기본 화면인 트림(vehicle)은 이미 본 것으로 친다.
   const [visited, setVisited] = useState<Set<TabKey>>(new Set<TabKey>(['vehicle']))
   const unseen = TABS.filter((t) => !visited.has(t.key))
@@ -122,11 +135,22 @@ export function OptionPanel({
   return (
     <aside style={{ ...styles.panel, ...(compact ? styles.panelCompact : null) }}>
       <div style={styles.tabs}>
+        {/*
+          차량만 견적이면 **특장·옵션 탭을 잠근다.** 특장을 얹지 않는데 고를 수 있게 두면
+          고른 것이 금액에 안 잡혀 「왜 반영이 안 되냐」가 된다. 아예 못 누르게 막는다.
+        */}
         {TABS.map(tab => (
           <div
             key={tab.key}
-            style={tab.key === activeTab ? styles.tabOn : styles.tab}
-            onClick={() => { setActiveTab(tab.key); setVisited((v) => new Set(v).add(tab.key)) }}
+            // 탭은 <div> 라 disabled 가 없다 — 눌러도 아무 일이 없게 만들고 모양으로 알린다
+            style={tab.key === activeTab ? styles.tabOn
+              : (vehicleOnly && tab.key !== 'vehicle') ? styles.tabOff : styles.tab}
+            aria-disabled={vehicleOnly && tab.key !== 'vehicle'}
+            title={(vehicleOnly && tab.key !== 'vehicle') ? '차량만 견적이라 특장 옵션을 고르지 않습니다' : undefined}
+            onClick={() => {
+              if (vehicleOnly && tab.key !== 'vehicle') return
+              setActiveTab(tab.key); setVisited((v) => new Set(v).add(tab.key))
+            }}
           >
             {tab.label}
           </div>
@@ -147,8 +171,12 @@ export function OptionPanel({
               />
             )}
             {onToggleBodyOnly && (
-              <div style={{ marginTop: bodyOnly ? 0 : 'var(--sp-4)' }}>
-                <BodyOnlyToggle on={!!bodyOnly} onToggle={onToggleBodyOnly} />
+              <div style={{ marginTop: bodyOnly ? 0 : 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                <BodyOnlyToggle on={!!bodyOnly} onToggle={onToggleBodyOnly} disabled={!!vehicleOnly} />
+                {/* 거울상 — 둘은 동시에 고를 수 없다 */}
+                {onToggleVehicleOnly && (
+                  <VehicleOnlyToggle on={!!vehicleOnly} onToggle={onToggleVehicleOnly} disabled={!!bodyOnly} />
+                )}
               </div>
             )}
             {/*
@@ -158,6 +186,7 @@ export function OptionPanel({
             {bodyOnly && (
               <BodyOnlyNotice model={ownedModel ?? ''} onModelChange={onOwnedModelChange} />
             )}
+            {vehicleOnly && <VehicleOnlyNotice />}
           </>
         )}
         {activeTab === 'body' && (
@@ -190,6 +219,7 @@ export function OptionPanel({
       {!publicMode && (
       <div style={styles.extra}>
         <QuoteExtras
+          vehicleOnly={vehicleOnly}
           bundle={bundle}
           selections={selections}
           optionPrices={optionPrices}
@@ -239,6 +269,8 @@ const btnBase = {
 }
 
 const styles = {
+  /** 잠긴 탭 — 자리는 지키되 누를 수 없다. 사라지면 무엇이 잠겼는지 알 수 없다 */
+  tabOff: { opacity: 0.4, cursor: 'not-allowed' } as React.CSSProperties,
   savedNote: {
     background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', color: 'var(--dark)',
     fontSize: 13, padding: '9px 11px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,

@@ -154,11 +154,16 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
   )
 }
 
+/** 종류 표시 — 일반 견적(차량+특장)은 대부분이라 붙이지 않는다 */
+const KIND_LABEL: Record<string, string | null> = { full: null, body: '특장만', vehicle: '차량만' }
+
 function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: number; mine?: boolean }) {
   return (
     <div style={s.quote}>
       <div style={s.qHead}>
         <span style={s.qNo}>{q.quoteNo ?? `#${q.id}`}</span>
+        {/* 특장만·차량만은 여기서 바로 갈린다 — 견적서를 열어 볼 필요가 없다 */}
+        {KIND_LABEL[q.kind] && <span style={q.kind === 'body' ? s.kindBody : s.kindVehicle}>{KIND_LABEL[q.kind]}</span>}
         <span style={s.qStatus}>{STATUS_KO[q.status] ?? q.status}</span>
         <span style={s.spacer} />
         {q.finalPrice != null && <span style={s.qPrice}>{fmtPrice(q.finalPrice)}</span>}
@@ -284,6 +289,15 @@ const s: Record<string, React.CSSProperties> = {
   qDate: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
 
   chips: { display: 'flex', flexWrap: 'wrap', gap: 4 },
+  /* 일반 견적에는 안 붙인다 — 대부분이 그것이라 다 붙이면 다른 건이 묻힌다 */
+  kindBody: {
+    fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '0 6px', borderRadius: 3,
+    color: 'var(--dark)', background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', whiteSpace: 'nowrap',
+  },
+  kindVehicle: {
+    fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '0 6px', borderRadius: 3,
+    color: 'var(--dark)', background: 'var(--card)', border: '0.5px solid var(--line-firm)', whiteSpace: 'nowrap',
+  },
   chip: {
     fontSize: 'var(--fs-caption)', color: 'var(--dark)', background: 'var(--lime-bg)',
     borderRadius: 999, padding: '1px 9px',

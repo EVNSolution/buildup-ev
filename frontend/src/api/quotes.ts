@@ -9,6 +9,8 @@ export interface SaveQuoteRequest extends Partial<QuotePriceExtras> {
   memo?: string                     // 메모/안내문
   /** 특장만 견적 — 고객이 차를 이미 갖고 있다(차량 금액·보조금이 전부 빠진다) */
   body_only?: boolean
+  /** 차량만 견적 — 특장을 얹지 않는다 */
+  vehicle_only?: boolean
   /** 특장만일 때 고객이 적어 주는 보유 차량 정보 */
   vehicle_owned?: Record<string, string>
   // 금액을 바꾸는 입력(프로모션·지방보조금 토글)은 shared 가 이름의 단일 소스다.

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf } from '../lib/openPdf'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { rolesOf } from '@shared/types/index'
@@ -1013,7 +1014,7 @@ function QuotesTab() {
             return (
             <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
-                <span style={qtMob.name}>{q.customer?.name ?? '—'}</span>
+                <span style={qtMob.name}>{q.customer?.name ?? '—'}<QuoteKindTag quote={q} /></span>
                 <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                   <Badge tone={statusTone(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</Badge>
                 </Tooltip>
@@ -1108,7 +1109,7 @@ function QuotesTab() {
                 const signed = q.contract?.status === 'COMPLETED'
                 return (
                 <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
-                  <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}</td>
+                  <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
                   <td style={qt.td}>{q.customer?.name ?? '—'}</td>
                   <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>
                     {q.sales_user_id ?? '—'}

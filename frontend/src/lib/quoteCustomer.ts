@@ -35,6 +35,33 @@ export function isBodyOnly(q: ApiQuote): boolean {
   return ((q.inputs ?? {}) as Record<string, unknown>)['body_only'] === true
 }
 
+/** 차량만 견적 — 특장을 얹지 않고 차량만 판다. 특장만과 동시에 참일 수 없다. */
+export function isVehicleOnly(q: ApiQuote): boolean {
+  const inp = (q.inputs ?? {}) as Record<string, unknown>
+  return inp['body_only'] !== true && inp['vehicle_only'] === true
+}
+
+/** 견적의 종류 — 목록·서류함에서 **열어 보지 않고** 가릴 수 있게 한다. */
+export type QuoteKind = 'full' | 'body' | 'vehicle'
+
+export function quoteKind(q: ApiQuote): QuoteKind {
+  if (isBodyOnly(q)) return 'body'
+  if (isVehicleOnly(q)) return 'vehicle'
+  return 'full'
+}
+
+/**
+ * 목록에 붙일 짧은 이름.
+ *
+ * 일반 견적(차량+특장)은 **아무것도 붙이지 않는다** — 대부분이 그것이라
+ * 다 붙이면 표가 배지로 뒤덮여 정작 다른 건이 안 보인다.
+ */
+export const QUOTE_KIND_LABEL: Record<QuoteKind, string | null> = {
+  full: null,
+  body: '특장만',
+  vehicle: '차량만',
+}
+
 /**
  * 저장된 견적 → 고객정보 수정 폼 초기값.
  * 고객 행(customer)과 견적 입력 스냅샷(inputs) 두 곳에 나뉘어 있어 여기서 합친다.

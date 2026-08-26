@@ -8,6 +8,7 @@ import {
   assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE,
   dieselDeducts, toDieselStatus, type QuoteParams,
   bodyOnlyParams,
+  vehicleOnlyParams,
 } from '@buildup-ev/shared/pricing';
 
 export type CustomerInput = {
@@ -60,6 +61,8 @@ export type QuoteExtraInput = {
    * 차량에 딸린 입력을 통째로 0으로 만든다(shared 의 `bodyOnlyParams` 한 곳에서).
    */
   body_only?: boolean;
+  /** 차량만 견적 — 특장을 얹지 않는다. body_only 와 동시에 참일 수 없다. */
+  vehicle_only?: boolean;
 };
 
 export async function buildQuoteParams(
@@ -151,5 +154,11 @@ export async function buildQuoteParams(
    * 여기서 하나씩 0을 채우지 않고 shared 한 곳에 맡긴다 — 화면도 같은 함수를 쓰므로
    * 견적서와 화면이 다른 값을 말할 수 없다.
    */
-  return extra?.body_only ? bodyOnlyParams(params) : params;
+  /*
+   * 둘은 **동시에 참일 수 없다** — 그러면 팔 것이 아무것도 남지 않는다.
+   * 어쩌다 둘 다 들어오면 특장만을 우선한다(먼저 있던 기능이라 기존 견적을 지킨다).
+   */
+  if (extra?.body_only) return bodyOnlyParams(params);
+  if (extra?.vehicle_only) return vehicleOnlyParams(params);
+  return params;
 }

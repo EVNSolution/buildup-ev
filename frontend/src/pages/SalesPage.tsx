@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
 import { buildLiveTotal } from '../lib/liveQuote'
@@ -474,7 +475,7 @@ function MyListView() {
                   const order = orderByQuote.get(q.id)
                   return (
                     <tr key={q.id}>
-                      <td style={lv.td}>{q.quote_no ?? `#${q.id}`}</td>
+                      <td style={lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
                       <td style={lv.td}>{q.customer?.name ?? '—'}</td>
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
@@ -686,6 +687,11 @@ export function SalesPage() {
    * 냉동을 고르려면 V2L 확인이 필요하다(차량 전원으로 냉동기를 돌린다).
    */
   const [bodyOnly, setBodyOnly] = useState(false)
+  /**
+   * 차량만 견적 — 특장을 얹지 않고 차량만 판다. 특장만의 거울상이다.
+   * 둘은 동시에 참일 수 없다(그러면 팔 것이 없다).
+   */
+  const [vehicleOnly, setVehicleOnly] = useState(false)
   const [v2lConfirmed, setV2lConfirmed] = useState(false)
   /** 보유 차종 — 특장만 견적의 전제라 임시저장 단계에서 받는다 */
   const [ownedModel, setOwnedModel] = useState('')
@@ -785,9 +791,9 @@ export function SalesPage() {
   const liveTotal = useMemo<QuoteResult | null>(
     () => buildLiveTotal({
       bundle, selections, subsidyInputs, subsidyLocal, subsidyReady,
-      promotionZeroed, promotionDiscount, localSubsidyOff, customer, bodyOnly,
+      promotionZeroed, promotionDiscount, localSubsidyOff, customer, bodyOnly, vehicleOnly,
     }),
-    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly],
+    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly, vehicleOnly],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -853,6 +859,7 @@ export function SalesPage() {
         ...quotePriceExtras({ promotionZeroed, promotionDiscount, localSubsidyOff }),
         // 특장만 견적 — 차량 금액·보조금이 빠진다. 보유 차종은 계약서 단계에서 받는다.
         body_only: bodyOnly || undefined,
+        vehicle_only: vehicleOnly || undefined,
         vehicle_owned: bodyOnly ? { model: ownedModel.trim() } : undefined,
         customer: {
           name: v.name.trim(),
@@ -1015,6 +1022,15 @@ export function SalesPage() {
           promotionZeroed={promotionZeroed}
           onTogglePromotion={togglePromotion}
           bodyOnly={bodyOnly}
+          vehicleOnly={vehicleOnly}
+          onToggleVehicleOnly={v => {
+            setVehicleOnly(v)
+            /*
+             * 차량만으로 바꾸면 특장에 딸린 선택을 **지운다.** 남겨 두면 화면에서
+             * 안 보이는 옵션이 저장에 실려, 나중에 특장 견적으로 되돌릴 때 되살아난다.
+             */
+            if (v) { setPromotionZeroed(new Set()); setPromotionDiscount(0) }
+          }}
           onToggleBodyOnly={v => {
             setBodyOnly(v)
             // 차량 구매로 되돌리면 확인은 무효다 — 그 확인은 고객 차량에 대한 것이었다

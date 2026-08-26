@@ -278,7 +278,20 @@ export interface FolderQuote {
   options: OptionChip[];
   /** 서명 요청 때 굳힌 정본이 있는 건인가 */
   frozenAt: string | null;
+  /**
+   * 견적 종류 — 서류함에서 **열어 보지 않고** 특장만·차량만을 가리게 한다.
+   * 금액만으로는 구분되지 않는다(특장만 2천만원과 차량만 3천만원이 나란히 있으면 알 길이 없다).
+   */
+  kind: 'full' | 'body' | 'vehicle';
   docs: FolderDoc[];
+}
+
+/** 저장된 입력에서 견적 종류를 읽는다. 둘은 동시에 참일 수 없다. */
+export function folderQuoteKind(inputs: unknown): FolderQuote['kind'] {
+  const inp = (inputs ?? {}) as Record<string, unknown>;
+  if (inp['body_only'] === true) return 'body';
+  if (inp['vehicle_only'] === true) return 'vehicle';
+  return 'full';
 }
 
 /**
