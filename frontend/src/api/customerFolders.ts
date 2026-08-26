@@ -39,6 +39,8 @@ export interface ApiFolderQuote {
   options: ApiOptionChip[]
   /** 서명 요청 때 굳힌 정본이 있는 건인가 — 실제로 고객에게 나간 판이다 */
   frozenAt: string | null
+  /** 견적 종류 — 열어 보지 않고 특장만·차량만을 가린다 */
+  kind: 'full' | 'body' | 'vehicle'
   docs: ApiFolderDoc[]
 }
 

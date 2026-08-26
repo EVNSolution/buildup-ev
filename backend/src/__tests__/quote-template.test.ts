@@ -41,19 +41,30 @@ describe('견적서 양식 — 반복 블록과 렌더 코드가 짝이 맞는�
     expect(missing, `코드에만 있는 블록: ${missing.join(', ')}`).toEqual([]);
   });
 
-  it('열마다 갈래가 짝을 이룬다 — 차량·특장·고객 셋 다', () => {
-    // 한 열만 갈라 두면 특장만 견적서에서 그 열만 옛 모양으로 남는다
-    for (const [a, b] of [['carSection', 'ownedSection'], ['topNormal', 'topOnly'], ['custNormal', 'custOnly']]) {
-      expect(inTemplate.has(a!), a).toBe(true);
-      expect(inTemplate.has(b!), b).toBe(true);
+  /** 열마다 어떤 갈래들이 있는지 — 견적 종류가 늘면 여기에 더한다. */
+  const COLUMNS = {
+    car:  ['carSection', 'ownedSection'],          // 차량 열: 파는 경우 / 고객 보유
+    top:  ['topNormal', 'topOnly', 'topNone'],     // 특장 열: 함께 / 특장만 / 특장 없음
+    cust: ['custNormal', 'custOnly'],              // 고객 열: 할부 있음 / 없음
+  } as const;
+
+  it('열마다 갈래가 다 있다 — 하나라도 빠지면 그 열만 옛 모양으로 남는다', () => {
+    for (const [col, branches] of Object.entries(COLUMNS)) {
+      for (const b of branches) expect(inTemplate.has(b), `${col} 의 ${b}`).toBe(true);
     }
   });
 
-  it('갈래마다 정렬용 pad 가 하나씩 들어 있다', () => {
-    // pad 는 세 열의 마지막 줄을 같은 가로선에 맞춘다. 갈래에 없으면 그 열만 어긋난다.
-    for (const col of ['car', 'top', 'cust']) {
+  it('갈래마다 정렬용 pad 가 **하나씩** 들어 있다', () => {
+    /*
+     * pad 는 세 열의 마지막 줄을 같은 가로선에 맞춘다. 갈래에 없으면 그 열만 어긋난다.
+     *
+     * 개수를 숫자로 박아 두지 않는다 — 견적 종류가 늘 때마다 정당한 변경이 막히고,
+     * 통과시키려면 숫자를 고쳐 적게 되어 검사가 받아쓰기가 된다.
+     * **갈래 수와 같은지**를 본다.
+     */
+    for (const [col, branches] of Object.entries(COLUMNS)) {
       const n = (BODY.match(new RegExp(`<!-- pad:${col} -->`, 'g')) ?? []).length;
-      expect(n, `pad:${col}`).toBe(2);   // 일반 갈래 1 + 특장만 갈래 1
+      expect(n, `pad:${col} (갈래 ${branches.length}개)`).toBe(branches.length);
     }
   });
 });

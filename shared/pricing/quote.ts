@@ -77,6 +77,11 @@ export interface QuoteParams {
    * 비용이라 차를 어디서 샀는지와 무관하다.
    */
   body_only?: boolean;
+  /**
+   * 차량만 견적 — 특장을 얹지 않는다. [[body_only]] 의 거울상이다.
+   * 둘은 **동시에 참일 수 없다**(그러면 팔 것이 아무것도 없다).
+   */
+  vehicle_only?: boolean;
   car_price: number;            // D10 차량가격(트림, VAT포함)
   delivery_fee: number;         // D11 탁송료
   commercial_discount: number;  // D12 현대커머셜 할인

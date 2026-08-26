@@ -39,13 +39,73 @@ export const V2L_CONFIRM = 'V2L 모듈이 있어야 냉동기 설치가 가능�
  * 트림 옵션값으로 만들지 않았다. 그러면 옵션DB·단가표에 「차를 안 산다」는 항목이 생겨
  * 가격 조립이 그걸 알아야 한다. 차량 구매 여부는 **가격 항목이 아니라 견적의 성격**이다.
  */
-export function BodyOnlyToggle({ on, onToggle }: { on: boolean; onToggle: (v: boolean) => void }) {
+export function BodyOnlyToggle({ on, onToggle, disabled }: {
+  on: boolean; onToggle: (v: boolean) => void
+  /** 차량만 견적을 고른 상태 — 둘은 동시에 될 수 없다 */
+  disabled?: boolean
+}) {
   return (
     <button
-      style={on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
+      style={disabled ? { ...BTN.rowDisabled, width: '100%' }
+        : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
+      disabled={disabled}
       onClick={() => onToggle(!on)}
     >{on ? '✓ 특장만 견적 (차량 구매 안 함)' : '특장만 견적 (차량 구매 안 함)'}</button>
   )
+}
+
+/**
+ * **차량만 견적** — 특장을 얹지 않고 차량만 판다. [[BodyOnlyToggle]] 의 거울상이다.
+ *
+ * 특장만과 **동시에 고를 수 없다.** 둘 다 켜면 팔 것이 아무것도 남지 않는다 —
+ * 한쪽을 켜면 다른 쪽 버튼이 눌리지 않게 막는다.
+ */
+export function VehicleOnlyToggle({ on, onToggle, disabled }: {
+  on: boolean; onToggle: (v: boolean) => void
+  /** 특장만 견적을 고른 상태 */
+  disabled?: boolean
+}) {
+  return (
+    <button
+      style={disabled ? { ...BTN.rowDisabled, width: '100%' }
+        : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
+      disabled={disabled}
+      onClick={() => onToggle(!on)}
+    >{on ? '✓ 차량만 견적 (특장 안 얹음)' : '차량만 견적 (특장 안 얹음)'}</button>
+  )
+}
+
+/**
+ * 차량만을 골랐을 때만 뜨는 안내 — 무엇이 빠지는지 그 자리에서 알린다.
+ * 견적서를 뽑고 나서 「특장이 왜 없냐」를 묻게 두면 안 된다.
+ */
+export function VehicleOnlyNotice() {
+  return (
+    <div style={vo.box}>
+      <div style={vo.title}>차량만 판매하는 견적입니다</div>
+      <div style={vo.body}>
+        특장을 얹지 않아 <b>특장·옵션 탭과 프로모션이 잠깁니다.</b>
+        구조변경이 없어 특장 취득세·등록부가수수료·구조변경 비용도 빠집니다.
+      </div>
+      <div style={vo.body}>
+        보조금과 할부(캐피탈)는 <b>그대로 적용됩니다</b> — 차를 사는 거래이기 때문입니다.
+      </div>
+      <div style={vo.warn}>
+        이 견적은 <b>견적서까지</b>입니다. 계약서·주문 전환은 특장 매매 계약이라 해당하지 않습니다.
+      </div>
+    </div>
+  )
+}
+
+const vo: Record<string, React.CSSProperties> = {
+  box: {
+    marginTop: 'var(--sp-4)', padding: '12px 14px',
+    border: '0.5px solid var(--line)', borderRadius: 8, background: 'var(--card)',
+    display: 'flex', flexDirection: 'column', gap: 6,
+  },
+  title: { fontSize: 13, fontWeight: 700, color: 'var(--dark)' },
+  body: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 },
+  warn: { fontSize: 12, color: 'var(--dark)', lineHeight: 1.6, marginTop: 2 },
 }
 
 /**

@@ -55,6 +55,12 @@ interface Props {
   memo: string
   onMemoChange: (v: string) => void
   localSubsidyOff: boolean
+  /**
+   * 차량만 견적 — **프로모션이 잠긴다.**
+   * 프로모션은 특장 옵션에 붙는 할인이라, 특장을 안 얹으면 깎을 것이 없다.
+   * (지방보조금 소진은 차량 보조금이라 그대로 쓴다)
+   */
+  vehicleOnly?: boolean
   onToggleLocalSubsidy: (v: boolean) => void
   promotionZeroed: Set<string>
   onTogglePromotion: (groupCode: string) => void
@@ -72,7 +78,7 @@ interface Props {
 export function QuoteExtras({
   bundle, selections, optionPrices,
   memo, onMemoChange, localSubsidyOff, onToggleLocalSubsidy,
-  promotionZeroed, onTogglePromotion,
+  promotionZeroed, onTogglePromotion, vehicleOnly,
   promotionDiscount, onPromotionDiscountChange, disabled = false,
 }: Props) {
   // 프로모션 목록은 접어 둔다 — 대부분의 견적에서 쓰지 않는다.
@@ -103,9 +109,15 @@ export function QuoteExtras({
         지방보조금 소진
       </label>
 
-      <label style={s.toggle}>
+      {/*
+        차량만 견적이면 프로모션을 잠근다 — 특장 옵션에 붙는 할인이라 깎을 것이 없다.
+        칸을 없애지 않고 회색으로 남긴다: 사라지면 「프로모션이 어디 갔지」가 된다.
+      */}
+      <label style={vehicleOnly ? { ...s.toggle, ...s.toggleOff } : s.toggle}
+        title={vehicleOnly ? '차량만 견적에는 특장 프로모션이 적용되지 않습니다' : undefined}>
         <input
-          type="checkbox" checked={showPromo} style={s.cbox}
+          type="checkbox" checked={vehicleOnly ? false : showPromo} style={s.cbox}
+          disabled={vehicleOnly}
           onChange={e => {
             setShowPromo(e.target.checked)
             // 체크를 풀면 값도 지운다 — 접어 두기만 하면 화면에 안 보이는 할인이
@@ -116,9 +128,9 @@ export function QuoteExtras({
             }
           }}
         />
-        프로모션
+        프로모션{vehicleOnly && <span style={s.offNote}> · 특장 견적에만</span>}
       </label>
-      {showPromo && (
+      {showPromo && !vehicleOnly && (
         <div style={s.list}>
           {/*
             **금액 할인이 먼저.** 두 가지는 성격이 다르다 —
@@ -166,6 +178,9 @@ export function QuoteExtras({
 }
 
 const s: Record<string, React.CSSProperties> = {
+  /** 잠긴 항목 — 자리는 지키되 못 누른다. 사라지면 무엇이 잠겼는지 알 수 없다 */
+  toggleOff: { opacity: 0.45, cursor: 'not-allowed' },
+  offNote: { color: 'var(--muted)', fontSize: 'var(--fs-caption)' },
   /** 제한 안내 — 라벨 옆에 작게. 넘겨 보고 나서 알면 늦다 */
   limit: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, marginLeft: 6 },
   label: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },

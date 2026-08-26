@@ -1,6 +1,6 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, bodyOnlyParams, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import { mapBizType } from './quoteCustomer'
 import type { SubsidyInputs } from '../components/SubsidyInputs'
 
@@ -28,6 +28,8 @@ export interface LiveTotalArgs {
   localSubsidyOff?: boolean
   /** 특장만 견적 — 고객이 차를 이미 갖고 있어 차량 금액·보조금이 전부 빠진다 */
   bodyOnly?: boolean
+  /** 차량만 견적 — 특장을 얹지 않는다. 특장만과 동시에 참일 수 없다. */
+  vehicleOnly?: boolean
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null
 }
@@ -90,5 +92,8 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
    * 특장만이면 차량에 딸린 입력을 통째로 0으로 만든다 — **백엔드와 같은 함수**를 쓴다.
    * 각자 0을 채우면 한쪽만 빠뜨렸을 때 화면과 견적서가 다른 금액을 말한다.
    */
-  return calcQuote(args.bodyOnly ? bodyOnlyParams(params) : params)
+  // 화면과 서버가 **같은 변환**을 쓴다 — 갈리면 미리보기와 견적서 금액이 달라진다
+  if (args.bodyOnly) return calcQuote(bodyOnlyParams(params))
+  if (args.vehicleOnly) return calcQuote(vehicleOnlyParams(params))
+  return calcQuote(params)
 }

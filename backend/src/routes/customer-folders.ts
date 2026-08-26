@@ -16,7 +16,7 @@ import { prisma } from '../lib/prisma.js';
 import { rbac, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { VISIBLE } from '../lib/visibility.js';
 import {
-  groupCustomers, collectDocs, resolveDocId, optionChips, groupDocsByQuote,
+  groupCustomers, collectDocs, resolveDocId, optionChips, groupDocsByQuote, folderQuoteKind,
   type CustomerGroup, type FolderCustomer, type PinnedInput, type FolderQuote,
 } from '../services/customer-folders.js';
 
@@ -137,6 +137,8 @@ customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res
       id: true, quote_no: true, status: true, created_at: true, final_price: true,
       selections: true, docs_frozen_at: true,
       docs_frozen_quote_path: true, docs_frozen_contract_path: true,
+      // 견적 종류(특장만/차량만)를 카드에 표시하려면 필요하다
+      inputs: true,
     },
     orderBy: { id: 'desc' },
   });
@@ -175,6 +177,7 @@ customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res
     finalPrice: q.final_price,
     options: optionChips((q.selections ?? {}) as Record<string, string>, c => nameOf.get(c)),
     frozenAt: q.docs_frozen_at?.toISOString() ?? null,
+    kind: folderQuoteKind(q.inputs),
     docs: byQuote.get(q.quote_no ?? null) ?? [],
   }));
 

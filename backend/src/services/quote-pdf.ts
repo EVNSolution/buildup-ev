@@ -205,6 +205,8 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
 
 
   const bodyOnly = inp['body_only'] === true;
+  /** 차량만 견적 — 특장을 얹지 않는다. 특장만과 동시에 참일 수 없다. */
+  const vehicleOnly = !bodyOnly && inp['vehicle_only'] === true;
 
   const data = {
     vehicleModel: modelName,
@@ -268,15 +270,18 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   let html = TEMPLATE.replace(/<!--\s*\n\s*STEGO-K1 견적서 양식[\s\S]*?\n-->/, '');
   html = renderEach(html, 'benefitRows', benefitRows);
   html = renderEach(html, 'subsidyRows', subsidyRows);
-  html = renderEach(html, 'topOptions', topOptions);
+  // 차량만 견적에는 특장 옵션 행 자체가 없다 — 0원 줄이 늘어서면 「샀는데 공짜」로 읽힌다
+  html = renderEach(html, 'topOptions', vehicleOnly ? [] : topOptions);
   /*
    * 특장·고객 칸도 두 갈래다 — 차를 파는 견적이면 인도금·할부까지, 특장만이면 총액만.
    * ⚠️ topOptions 를 **먼저** 편 뒤에 갈래를 가른다. 옵션 행이 두 갈래 바깥에 있어
    *    순서가 뒤바뀌면 갈래 안의 `{{ item.* }}` 을 옵션 item 으로 먹어 버린다.
    *    renderPad 보다도 앞이어야 한다 — 갈래마다 pad 가 하나씩 들어 있다.
    */
-  html = renderEach(html, 'topNormal', bodyOnly ? [] : [{}]);
+  html = renderEach(html, 'topNormal', (bodyOnly || vehicleOnly) ? [] : [{}]);
   html = renderEach(html, 'topOnly', bodyOnly ? [{}] : []);
+  // 차량만 — 특장 칸을 비우고 왜 비었는지만 적는다
+  html = renderEach(html, 'topNone', vehicleOnly ? [{}] : []);
   html = renderEach(html, 'custNormal', bodyOnly ? [] : [{}]);
   html = renderEach(html, 'custOnly', bodyOnly ? [{}] : []);
   // 탁송료·보조금 안내는 차를 살 때만 해당한다
