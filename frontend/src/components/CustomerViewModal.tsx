@@ -1,4 +1,5 @@
 import type { ApiQuote } from '@shared/types/index'
+import { EmailLogFor } from './EmailLog'
 
 // ── 고객정보 조회 (읽기 전용) ─────────────────────────────────────────────
 //
@@ -90,6 +91,12 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
             </table>
           </div>
         ))}
+        {/*
+          메일로 무엇을 보냈는지 — 관리자는 **조회만** 한다(발송은 영업 업무).
+          목록에 열을 더하지 않고 여기서 본다.
+        */}
+        <EmailLogFor quoteId={quote.id} />
+
         <div style={modal.actions}>
           <button style={modal.confirmBtn} onClick={onClose}>닫기</button>
         </div>

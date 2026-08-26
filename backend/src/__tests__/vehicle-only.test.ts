@@ -157,10 +157,13 @@ describe('차량만 견적에는 계약서가 없다', () => {
   });
 
   it('메일 전달은 **막지 않는다** — 견적서는 보낼 수 있어야 한다', () => {
-    // 계약서만 없는 것이지 견적서가 없는 것이 아니다
+    /*
+     * 계약서만 없는 것이지 견적서가 없는 것이 아니다.
+     * 고객 메일이 없어도 막지 않는다 — 팝업에서 적어 보낸다(email-log.test 가 따로 지킨다).
+     */
     const i = SALES.indexOf('메일 전달');
     const around = SALES.slice(Math.max(0, i - 900), i);
-    expect(around).toMatch(/disabled=\{!q\.customer\?\.email\}/);
+    expect(around).not.toMatch(/disabled=\{[^}]*noContract[^}]*\}/);
   });
 
   it('메일 팝업에서 계약서 첨부칸을 아예 띄우지 않는다', () => {

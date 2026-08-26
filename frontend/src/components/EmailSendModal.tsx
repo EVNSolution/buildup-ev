@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BTN } from '../styles/buttons'
-import { sendQuoteEmail } from '../api/email'
+import { sendQuoteEmail, fetchEmailLog, type EmailLogRow } from '../api/email'
+import { EmailLog } from './EmailLog'
 
 /** 견적서(+계약서) 이메일 발송 모달. to 비우면 등록된 고객 이메일로 발송. */
 export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noContract}: {
@@ -26,6 +27,15 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  /*
+   * 지금까지 무엇을 보냈나 — **여기서만 보여 준다.**
+   * 목록 화면에는 두지 않는다. 「보냈나 안 보냈나」는 보낼 때 궁금한 것이지
+   * 목록을 훑을 때 궁금한 것이 아니다 — 열마다 배지를 더하면 표만 복잡해진다.
+   */
+  const [log, setLog] = useState<EmailLogRow[] | null>(null)
+
+  function loadLog() { fetchEmailLog(quoteId).then(setLog).catch(() => setLog([])) }
+  useEffect(loadLog, [quoteId])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSend() {
     setSending(true); setErr('')
@@ -36,6 +46,7 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
         include_contract: attachContract,
       })
       setDone(`${r.to} 로 발송됨 (${r.attachments.join(', ')})`)
+      loadLog()   // 방금 보낸 것이 이력에 바로 보이게
     } catch (e) {
       setErr(e instanceof Error ? e.message : '발송 실패')
     } finally {
@@ -55,12 +66,23 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
         {done ? (
           <div>
             <div style={s.ok}>✓ {done}</div>
+            <EmailLog rows={log} />
             <button style={s.primary} onClick={onClose}>닫기</button>
           </div>
         ) : (
           <div style={s.form}>
+            {/*
+              고객정보에 메일이 있으면 채워서 연다 — 그대로 보내도 되고 고쳐도 된다.
+              없으면 빈칸으로 열려 **여기서 바로 적어** 보낼 수 있다.
+              견적서는 메일 없이도 만들어지므로, 메일이 없다고 발송 자체를 막지 않는다.
+            */}
             <label style={s.label}>받는 사람</label>
-            <input style={s.input} value={to} placeholder="비우면 등록된 고객 이메일로 발송" onChange={(e) => setTo(e.target.value)} />
+            <input
+              style={s.input} value={to} type="email"
+              placeholder="고객 이메일을 입력하세요"
+              onChange={(e) => setTo(e.target.value)}
+            />
+            {!defaultTo && <div style={s.hint}>고객정보에 등록된 이메일이 없습니다 — 여기에 적으면 그대로 발송됩니다.</div>}
 
             {canAttachContract && (
             <label style={s.check}>
@@ -74,7 +96,9 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
 
             <div style={s.note}>※ 견적서{attachContract ? '·계약서' : ''} PDF 가 첨부됩니다.{canAttachContract ? ' 전자서명은 별도(계약발송).' : ' 차량만 견적이라 계약서는 없습니다.'}</div>
             {err && <div style={s.err}>{err}</div>}
-            <button style={s.primary} onClick={handleSend} disabled={sending}>{sending ? '발송 중…' : '발송'}</button>
+            <button style={s.primary} onClick={handleSend} disabled={sending || !to.trim()}>{sending ? '발송 중…' : '발송'}</button>
+
+            <EmailLog rows={log} />
           </div>
         )}
       </div>
@@ -96,5 +120,7 @@ const s: Record<string, React.CSSProperties> = {
   note: { fontSize: 11, color: 'var(--muted)', marginTop: 4 },
   primary: { marginTop: 10, padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--dark)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' },
   ok: { background: 'var(--lime-bg)', color: 'var(--dark)', fontSize: 13, padding: '10px 12px', borderRadius: 8, marginBottom: 12 },
+  hint: { fontSize: 11, color: 'var(--muted)' },
+  /* 무엇을 보냈는지가 한눈에 갈려야 한다 — 계약서까지 보낸 건은 더 무겁게 */
   err: { background: 'var(--warnbg)', border: '0.5px solid var(--warn)', color: 'var(--warn)', fontSize: 12.5, padding: '8px 12px', borderRadius: 8, marginTop: 4 },
 }

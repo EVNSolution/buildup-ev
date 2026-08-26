@@ -136,7 +136,7 @@ function MyListView() {
   // 확인 팝업 안에서 지역을 고칠 수 있어야 한다(보조금이 걸린 값)
   const [regions, setRegions] = useState<string[]>([])
   useEffect(() => { fetchRegions().then(setRegions).catch(() => setRegions([])) }, [])
-  const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string; noContract?: boolean } | null>(null)
+  const [emailQuote, setEmailQuote] = useState<{ id: number; customerName?: string; defaultTo?: string; noContract?: boolean } | null>(null)
   const [confirmQuoteModal, setConfirmQuoteModal] = useState<
     { id: number; customerName?: string; status: string; inputs?: Record<string, unknown>; customer?: ApiQuote['customer'] } | null
   >(null)
@@ -302,6 +302,7 @@ function MyListView() {
       <EmailSendModal
         quoteId={emailQuote.id}
         customerName={emailQuote.customerName}
+        defaultTo={emailQuote.defaultTo}
         noContract={emailQuote.noContract}
         onClose={() => setEmailQuote(null)}
       />
@@ -584,14 +585,17 @@ function MyListView() {
                           */}
                           {canEmail && (
                             <button
-                              style={q.customer?.email ? lv.pdfBtn : BTN.rowMuted}
-                              disabled={!q.customer?.email}
-                              title={q.customer?.email
-                                ? (noContract
-                                    ? '참고용 — 견적서 PDF 를 고객 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)'
-                                    : '참고용 — 견적서·계약서 PDF 를 고객 메일로 전달합니다 (서명 요청 아님)')
-                                : '고객 이메일이 없어 메일을 보낼 수 없습니다. 「고객정보」에서 이메일을 입력하세요.'}
-                              onClick={() => setEmailQuote({ id: q.id, customerName: q.customer?.name ?? undefined, noContract })}
+                              style={lv.pdfBtn}
+                              title={noContract
+                                ? '참고용 — 견적서 PDF 를 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)'
+                                : '참고용 — 견적서·계약서 PDF 를 메일로 전달합니다 (서명 요청 아님)'}
+                              onClick={() => setEmailQuote({
+                                id: q.id,
+                                customerName: q.customer?.name ?? undefined,
+                                // 등록된 메일이 있으면 채워서 연다 — 없으면 팝업에서 바로 적는다
+                                defaultTo: q.customer?.email ?? undefined,
+                                noContract,
+                              })}
                             >메일 전달</button>
                           )}
                           {canSign && (
