@@ -50,7 +50,7 @@ export function BodyOnlyToggle({ on, onToggle, disabled }: {
         : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
       disabled={disabled}
       onClick={() => onToggle(!on)}
-    >{on ? '✓ 특장만 견적 (차량 구매 안 함)' : '특장만 견적 (차량 구매 안 함)'}</button>
+    >{on ? '✓ 특장만 견적' : '특장만 견적'}</button>
   )
 }
 
@@ -71,7 +71,7 @@ export function VehicleOnlyToggle({ on, onToggle, disabled }: {
         : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
       disabled={disabled}
       onClick={() => onToggle(!on)}
-    >{on ? '✓ 차량만 견적 (특장 안 얹음)' : '차량만 견적 (특장 안 얹음)'}</button>
+    >{on ? '✓ 차량만 견적' : '차량만 견적'}</button>
   )
 }
 
