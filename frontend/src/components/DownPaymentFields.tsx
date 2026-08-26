@@ -52,10 +52,17 @@ export function DownPaymentFields({ base, rate, amount, disabled, onChange, Fiel
   }, [mode, pct, won, base])
 
   function editRate(v: string) {
-    setPct(v)
-    if (v.trim() === '') { setMode(null); setWon(''); onChange({ rate: 0 }); return }
+    if (v.trim() === '') { setPct(''); setMode(null); setWon(''); onChange({ rate: 0 }); return }
+    /*
+     * 0~100% 로 눌러 준다 — 금액 칸과 같은 규칙이다.
+     *
+     * 넘겨 두면 선수금이 나눠 가질 몫을 넘어 **할부원금이 음수**가 된다.
+     * (예전 팝업에는 `max={100}` 이 있었는데 이 조각으로 옮기면서 빠졌다)
+     */
+    const n = Math.min(Math.max(Number(v) || 0, 0), 100)
+    setPct(String(n))
     setMode('rate')
-    onChange({ rate: (Number(v) || 0) / 100 })   // 금액은 보내지 않는다 — 비율이 기준
+    onChange({ rate: n / 100 })   // 금액은 보내지 않는다 — 비율이 기준
   }
 
   function editAmount(v: string) {
