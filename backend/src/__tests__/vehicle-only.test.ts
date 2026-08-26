@@ -4,7 +4,7 @@ import path from 'node:path';
 import { folderQuoteKind } from '../services/customer-folders.js';
 
 /**
- * **차량만 견적** — 특장을 얹지 않고 차량만 판다. 특장만 견적의 거울상이다.
+ * **차량만 견적** — 특장을 장착하지 않고 차량만 판다. 특장만 견적의 거울상이다.
  *
  * 이 견적은 **견적서까지**다. 계약서(「특장 매매 및 구조변경 계약서」)는 특장이 없는
  * 거래에 맞지 않고, 주문 전환도 하지 않는다 — 특장 제작이 없어 특장사·구조변경·튜닝
@@ -53,7 +53,8 @@ describe('화면', () => {
 
   it('🔴 차량만이면 특장·옵션 탭을 누를 수 없다', () => {
     // 고를 수 있게 두면 고른 것이 금액에 안 잡혀 「왜 반영이 안 되냐」가 된다
-    expect(PANEL).toMatch(/if \(vehicleOnly && tab\.key !== 'vehicle'\) return/);
+    // 잠금 판정은 lockedTab 한 곳에 있다 — 탭 표시와 저장 판정이 갈리지 않게
+    expect(PANEL).toMatch(/if \(lockedTab\(tab\.key\)\) return/);
     expect(PANEL).toContain('styles.tabOff');
   });
 
@@ -89,5 +90,42 @@ describe('목록에서 열어 보지 않고 가린다', () => {
     // 대부분이 일반이라 다 붙이면 표가 배지로 뒤덮여 정작 다른 건이 묻힌다
     expect(read('frontend/src/lib/quoteCustomer.ts')).toMatch(/full:\s*null/);
     expect(read('frontend/src/components/CustomerFolders.tsx')).toMatch(/full:\s*null/);
+  });
+});
+
+describe('차량만 견적도 저장할 수 있어야 한다', () => {
+  const PANEL = read('frontend/src/components/OptionPanel.tsx');
+
+  it('🔴 잠긴 탭을 「확인 필요」로 세지 않는다', () => {
+    /*
+     * 「방문하지 않은 탭」을 그대로 세면, 차량만 견적에서는 특장·옵션 탭에 **갈 수가 없어서**
+     * 확인이 영영 끝나지 않는다 — 저장 버튼이 「특장·옵션 확인 필요」로 잠긴 채 남는다(실제 제보).
+     */
+    expect(PANEL).toMatch(/const unseen = TABS\.filter\(\(t\) => !visited\.has\(t\.key\) && !lockedTab\(t\.key\)\)/);
+  });
+
+  it('잠금 판정을 한 곳에서 한다 — 탭 표시와 저장 판정이 갈리면 안 된다', () => {
+    expect(PANEL).toMatch(/const lockedTab = /);
+    // 조건을 손으로 다시 쓴 곳이 없어야 한다
+    expect(PANEL).not.toMatch(/vehicleOnly && tab\.key !== 'vehicle'/);
+  });
+
+  it('차량 트림 탭에 안내 박스를 끼워 넣지 않는다 — 레이아웃이 밀린다', () => {
+    // 잠그기만 하면 될 일에 칸을 더하면 탭 높이가 달라져 화면이 흔들린다
+    expect(PANEL).not.toContain('VehicleOnlyNotice');
+    expect(read('frontend/src/components/BodyOnlyPanel.tsx')).not.toContain('VehicleOnlyNotice');
+  });
+});
+
+describe('용어', () => {
+  it('🔴 특장은 「얹는다」가 아니라 「장착한다」', () => {
+    // 「얹다」는 전문적이지 않다(실제 지적). 특장 문맥에서는 쓰지 않는다.
+    const FILES = [
+      'shared/pricing/vehicle-only.ts', 'shared/pricing/body-only.ts', 'shared/pricing/quote.ts',
+      'frontend/src/components/BodyOnlyPanel.tsx', 'frontend/src/components/OptionPanel.tsx',
+      'doc-templates/quote-template.html',
+    ];
+    const bad = FILES.filter(f => /특장[^\n]{0,40}얹|얹[^\n]{0,20}특장/.test(read(f)));
+    expect(bad, `「얹다」가 남은 곳: ${bad.join(', ')}`).toEqual([]);
   });
 });

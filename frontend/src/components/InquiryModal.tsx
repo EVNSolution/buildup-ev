@@ -103,7 +103,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
     [filled(name), '성명'],
     [phone.replace(/\D/g, '').length >= 10, '휴대폰'],
     [/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()), '이메일'],
-    // 특장만이면 어떤 차에 얹는지가 견적의 전제다 — 「차량 트림」 화면에서 고른다
+    // 특장만이면 어떤 차에 장착하는지가 견적의 전제다 — 「차량 트림」 화면에서 고른다
     [!bodyOnly || !!ownedModel, '보유 차종'],
     /*
      * 보조금 조건은 **전부** 필수 — 하나라도 비면 화면에 보인 실구매가가 달라진다.

@@ -205,7 +205,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
 
 
   const bodyOnly = inp['body_only'] === true;
-  /** 차량만 견적 — 특장을 얹지 않는다. 특장만과 동시에 참일 수 없다. */
+  /** 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다. */
   const vehicleOnly = !bodyOnly && inp['vehicle_only'] === true;
 
   const data = {

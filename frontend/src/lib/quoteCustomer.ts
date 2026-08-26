@@ -35,7 +35,7 @@ export function isBodyOnly(q: ApiQuote): boolean {
   return ((q.inputs ?? {}) as Record<string, unknown>)['body_only'] === true
 }
 
-/** 차량만 견적 — 특장을 얹지 않고 차량만 판다. 특장만과 동시에 참일 수 없다. */
+/** 차량만 견적 — 특장을 장착하지 않고 차량만 판다. 특장만과 동시에 참일 수 없다. */
 export function isVehicleOnly(q: ApiQuote): boolean {
   const inp = (q.inputs ?? {}) as Record<string, unknown>
   return inp['body_only'] !== true && inp['vehicle_only'] === true

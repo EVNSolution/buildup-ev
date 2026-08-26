@@ -28,7 +28,7 @@ export interface LiveTotalArgs {
   localSubsidyOff?: boolean
   /** 특장만 견적 — 고객이 차를 이미 갖고 있어 차량 금액·보조금이 전부 빠진다 */
   bodyOnly?: boolean
-  /** 차량만 견적 — 특장을 얹지 않는다. 특장만과 동시에 참일 수 없다. */
+  /** 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다. */
   vehicleOnly?: boolean
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null

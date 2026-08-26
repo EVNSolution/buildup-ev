@@ -688,7 +688,7 @@ export function SalesPage() {
    */
   const [bodyOnly, setBodyOnly] = useState(false)
   /**
-   * 차량만 견적 — 특장을 얹지 않고 차량만 판다. 특장만의 거울상이다.
+   * 차량만 견적 — 특장을 장착하지 않고 차량만 판다. 특장만의 거울상이다.
    * 둘은 동시에 참일 수 없다(그러면 팔 것이 없다).
    */
   const [vehicleOnly, setVehicleOnly] = useState(false)
@@ -838,7 +838,7 @@ export function SalesPage() {
     if (!bundle) return
     if (liveCalc?.status === 'unsupported') return
     /*
-     * 냉동은 차량 전원으로 냉동기를 돌린다. 고객 차에 얹는 경우 V2L 이 없으면
+     * 냉동은 차량 전원으로 냉동기를 돌린다. 고객 차에 장착하는 경우 V2L 이 없으면
      * **설치 자체가 불가능하다** — 확인 없이 견적이 나가면 되돌릴 수 없다.
      */
     if (bodyOnly && selections['BODYTYPE'] === 'BODY_REEFER' && !v2lConfirmed) {

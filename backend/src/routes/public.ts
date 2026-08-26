@@ -225,7 +225,7 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
           // 특장만 견적 — 영업이 이어받을 때 같은 금액이 나와야 한다
           body_only: body.body_only === true,
           /*
-           * 어떤 차에 얹는지 — 고객이 고른 값 그대로 남긴다.
+           * 어떤 차에 장착하는지 — 고객이 고른 값 그대로 남긴다.
            * 영업이 이어받아 견적을 열었을 때 여기서 되읽는다(다시 물어보지 않게).
            */
           vehicle_owned: body.body_only === true

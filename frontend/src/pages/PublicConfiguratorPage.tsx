@@ -45,7 +45,7 @@ export function PublicConfiguratorPage() {
   const [bodyOnly, setBodyOnly] = useState(false)
   /*
    * 보유 차종 — **공개 창구에서도 고르게 한다.**
-   * 어떤 차에 얹는지는 견적의 전제라, 영업이 나중에 물어보려면 통화를 한 번 더 해야 한다.
+   * 어떤 차에 장착하는지는 견적의 전제라, 영업이 나중에 물어보려면 통화를 한 번 더 해야 한다.
    * 4택 드롭다운이라 묻는 값이 늘어도 신청이 길어지지 않는다.
    */
   const [ownedModel, setOwnedModel] = useState('')
