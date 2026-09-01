@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import {
   assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE,
   dieselDeducts, toDieselStatus, type QuoteParams,
+  noVatRefund,
   bodyOnlyParams,
   vehicleOnlyParams,
 } from '@buildup-ev/shared/pricing';
@@ -112,7 +113,7 @@ export async function buildQuoteParams(
     subsidy_local: subsidyLoc?.amount ?? 0,
     is_corporation: bizType === 'corporation',
     local_subsidy_off: localOff,
-    no_vat_refund: bizType === 'consumer',
+    no_vat_refund: noVatRefund(bizType),
     is_sosang: customer?.is_sosang ?? false,
     sosang_rate: subsidyNat?.sosang_rate ? Number(subsidyNat.sosang_rate) : 0.3,
     is_individual: bizType === 'individual',
