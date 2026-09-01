@@ -1,6 +1,6 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, noVatRefund, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import { mapBizType } from './quoteCustomer'
 import type { SubsidyInputs } from '../components/SubsidyInputs'
 
@@ -58,7 +58,7 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
     subsidy_local: subsidyReady ? subsidyLocal : 0,
     is_corporation: biz === 'corporation',
     local_subsidy_off: localSubsidyOff,
-    no_vat_refund: biz === 'consumer',
+    no_vat_refund: noVatRefund(biz),
     is_sosang: subsidyInputs.is_small_business ?? false,
     sosang_rate: bundle.subsidy_national?.sosang_rate ?? 0.3,
     is_individual: biz === 'individual',

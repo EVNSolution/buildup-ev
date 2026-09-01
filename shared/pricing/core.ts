@@ -10,6 +10,7 @@ export type {
 } from './types.js';
 
 import type { PricingParams, PricingResult } from './types.js';
+import { noVatRefund } from './vat-refund.js';
 
 export {
   assembleOptionSum, optionBreakdown, valueUnitPrice, doorAddUnitPrice,
@@ -26,6 +27,8 @@ export { bodyOnlyParams } from './body-only.js';
 export { vehicleOnlyParams } from './vehicle-only.js';
 
 // 가격바가 보여줄 파생값(계산은 여기 한 곳에만 — 화면·앱이 공유한다)
+export { noVatRefund, NO_VAT_REFUND_BIZ_TYPES } from './vat-refund.js';
+
 export { priceBarView } from './pricebar.js';
 export type { PriceBarView } from './pricebar.js';
 
@@ -69,8 +72,12 @@ export function calcPrice(p: PricingParams): PricingResult {
     subsidy_national + subsidy_local + subsidy_sosang + subsidy_diesel + subsidy_takbae;
 
   const applied_price = vehicle_price - subsidy_total;
-  // 일반구매자(비사업자)는 부가세 환급 불가 → 환급액 0 (차감하지 않음)
-  const vat_refunded_price = c.biz_type === 'consumer' ? applied_price : applied_price - vat;
+  /*
+   * 환급 대상이 아니면 차감하지 않는다 — 판정은 noVatRefund 한 곳에서만 한다.
+   * (간이과세자는 위에서 vat 를 0 으로 잡으므로 결과는 이전과 동일하다.
+   *  그래도 여기서 명시해 둔다 — vat 계산이 바뀌어도 규칙이 따라오도록.)
+   */
+  const vat_refunded_price = noVatRefund(c.biz_type) ? applied_price : applied_price - vat;
 
   // 등록비 ③ (의무보험료는 현재 합산 제외)
   const reg_acq_tax =
