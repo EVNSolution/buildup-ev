@@ -1,6 +1,6 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, noVatRefund, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, noVatRefund, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
 import { mapBizType } from './quoteCustomer'
 import type { SubsidyInputs } from '../components/SubsidyInputs'
 
@@ -30,6 +30,11 @@ export interface LiveTotalArgs {
   bodyOnly?: boolean
   /** 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다. */
   vehicleOnly?: boolean
+  /**
+   * 영업이 적어 넣은 차량 가격(VAT 포함). 비었으면 `null` — 트림 단가를 쓴다.
+   * ⚠️ `undefined` 가 아니라 `null` 로 비운다는 점이 중요하다(resolveCarPrice 주석 참고).
+   */
+  carPriceOverride?: number | null
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null
 }
@@ -40,6 +45,8 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
   const promotionDiscount = Math.max(0, Math.round(args.promotionDiscount ?? 0))
   const localSubsidyOff = args.localSubsidyOff ?? false
   const customer = args.customer ?? null
+  // 특장만 견적에는 차량이 없다 — 직접 입력값이 남아 있어도 무시한다
+  const carPriceOverride = args.bodyOnly ? null : (args.carPriceOverride ?? null)
 
 
   if (!bundle || Object.keys(selections).length === 0) return null
@@ -48,7 +55,7 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
   const t = bundle.tax_all ?? {}
   const biz = mapBizType(subsidyInputs.business_type)
   const params = {
-    car_price: Math.round(trim_price * 1.1),
+    car_price: resolveCarPrice(trim_price, carPriceOverride),
     delivery_fee: t['delivery_fee'] ?? bundle.tax.delivery_fee,
     commercial_discount: t['commercial_discount'] ?? 0,
     partnership_rate: t['partnership_rate'] ?? 0.01,

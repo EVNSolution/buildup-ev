@@ -244,6 +244,8 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     promotion_discount: inp['promotion_discount'] as number | undefined,
     // 특장만 견적 — 저장 시점의 선택을 그대로 따라야 금액이 재현된다
     body_only: inp['body_only'] === true,
+    // ⚠️ 직접 입력한 차량 가격 — 빠뜨리면 화면 금액과 서류 금액이 갈린다(`null` 은 「안 씀」)
+    car_price_override: inp['car_price_override'] != null ? (inp['car_price_override'] as number) : null,
     local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
   }, quote.created_at.getFullYear());
   const q = calcQuote(params);

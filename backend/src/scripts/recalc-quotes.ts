@@ -52,6 +52,9 @@ for (const q of quotes) {
     // 특장만 견적 — 저장 시점의 선택을 그대로 따라야 금액이 재현된다
     body_only: inp['body_only'] === true,
         local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
+        // 직접 입력한 차량 가격 — 빠지면 재계산이 트림 단가로 되돌린다
+        car_price_override: inp['car_price_override'] != null
+          ? (inp['car_price_override'] as number) : null,
       },
       q.created_at.getFullYear(),
     );

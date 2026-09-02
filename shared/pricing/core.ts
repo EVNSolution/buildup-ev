@@ -28,6 +28,7 @@ export { vehicleOnlyParams } from './vehicle-only.js';
 
 // 가격바가 보여줄 파생값(계산은 여기 한 곳에만 — 화면·앱이 공유한다)
 export { noVatRefund, NO_VAT_REFUND_BIZ_TYPES } from './vat-refund.js';
+export { resolveCarPrice, trimPriceVatIncluded } from './car-price.js';
 
 export { priceBarView } from './pricebar.js';
 export type { PriceBarView } from './pricebar.js';
