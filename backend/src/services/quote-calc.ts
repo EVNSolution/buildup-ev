@@ -72,6 +72,36 @@ export type QuoteExtraInput = {
   car_price_override?: number | null;
 };
 
+/**
+ * `quote.inputs` → calcQuote 입력(extra) 조립. **저장된 견적을 다시 계산하는 모든 곳이 이걸 쓴다.**
+ *
+ * 예전에는 호출부마다 손으로 골라 담았고, 그래서 자리마다 담는 항목이 달랐다.
+ * 결과가 어땠냐면 — 메모만 고쳐도(`PATCH /:id/inputs`) 특장만 견적의 `final_price` 가
+ * **차량+특장 금액으로 되돌아갔다**(10,019,640 → 43,619,640, 실측). 선택을 바꿔도 같았고,
+ * 차량만 견적은 견적서 PDF 의 부가세 환급액이 특장을 포함해 나왔다(32,725,910 → 41,809,550).
+ *
+ * 항목을 하나 더 넣는 식으로는 또 빠뜨린다. **조립을 한 곳으로 모은다.**
+ */
+export function quoteExtraFromInputs(inp: Record<string, unknown>): QuoteExtraInput {
+  return {
+    down_payment_rate: inp['down_payment_rate'] as number | undefined,
+    down_payment_amount: inp['down_payment_amount'] as number | undefined,
+    installment_months: inp['installment_months'] as number | undefined,
+    promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
+    promotion_discount: inp['promotion_discount'] as number | undefined,
+    local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
+    /*
+     * 견적의 성격 — 빠지면 금액이 통째로 달라진다.
+     * 특장만이 이긴다(둘 다 참일 수 없다 — 저장할 때 쓰는 규칙과 같게 둔다).
+     */
+    body_only: inp['body_only'] === true,
+    vehicle_only: inp['body_only'] !== true && inp['vehicle_only'] === true,
+    // ⚠️ `!= null` — 직접 입력을 끈 견적은 null 이고, 그건 「0원」이 아니다
+    car_price_override: inp['car_price_override'] != null
+      ? (inp['car_price_override'] as number) : null,
+  };
+}
+
 export async function buildQuoteParams(
   model_code: string,
   selections: Record<string, string>,

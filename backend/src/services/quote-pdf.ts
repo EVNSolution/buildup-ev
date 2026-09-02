@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
 import { calcQuote, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL } from '@buildup-ev/shared/pricing';
-import { buildQuoteParams, type CustomerInput } from './quote-calc.js';
+import { buildQuoteParams, quoteExtraFromInputs, type CustomerInput } from './quote-calc.js';
 import { archiveCustomerDoc } from './doc-archive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -113,18 +113,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
     tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
   };
-  const params = await buildQuoteParams(quote.model_code, selections, customer, {
-    down_payment_rate: inp['down_payment_rate'] as number | undefined,
-    down_payment_amount: inp['down_payment_amount'] as number | undefined,
-    installment_months: inp['installment_months'] as number | undefined,
-    promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
-    promotion_discount: inp['promotion_discount'] as number | undefined,
-    // 특장만 견적 — 저장 시점의 선택을 그대로 따라야 금액이 재현된다
-    body_only: inp['body_only'] === true,
-    // ⚠️ 직접 입력한 차량 가격 — 빠뜨리면 화면 금액과 서류 금액이 갈린다(`null` 은 「안 씀」)
-    car_price_override: inp['car_price_override'] != null ? (inp['car_price_override'] as number) : null,
-    local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
-  }, quote.created_at.getFullYear());
+  const params = await buildQuoteParams(quote.model_code, selections, customer, quoteExtraFromInputs(inp), quote.created_at.getFullYear());
   const r = calcQuote(params);
 
   // 특장옵션 행(라벨=표기매핑, 금액=옵션별 VAT포함)

@@ -13,7 +13,7 @@ import {
   dieselDeducts, toDieselStatus,
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
-import { buildQuoteParams, type CustomerInput } from '../services/quote-calc.js';
+import { buildQuoteParams, quoteExtraFromInputs, type CustomerInput } from '../services/quote-calc.js';
 import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
@@ -326,20 +326,7 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
     };
     const params = await buildQuoteParams(
       quote.model_code, (quote.selections ?? {}) as Record<string, string>, customer,
-      {
-        down_payment_rate: inp['down_payment_rate'] as number | undefined,
-        down_payment_amount: inp['down_payment_amount'] as number | undefined,
-        installment_months: inp['installment_months'] as number | undefined,
-        promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
-        promotion_discount: inp['promotion_discount'] as number | undefined,
-        local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
-        // 특장만 견적 — 빠뜨리면 다시 열 때 차량 금액이 되살아난다
-        body_only: inp['body_only'] === true,
-        vehicle_only: inp['vehicle_only'] === true,
-        // ⚠️ `!= null` — 직접 입력을 끈 견적은 null 로 저장돼 있고, 그건 「0원」이 아니다
-        car_price_override: inp['car_price_override'] != null
-          ? (inp['car_price_override'] as number) : null,
-      },
+      quoteExtraFromInputs(inp),
       quote.created_at.getFullYear(),
     );
     res.json({ data: {
@@ -414,17 +401,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
             has_biz_plate: merged['has_biz_plate'] as boolean | undefined,
             tax_exempt_type: merged['tax_exempt_type'] as string | undefined,
           },
-          {
-            down_payment_rate: merged['down_payment_rate'] as number | undefined,
-            down_payment_amount: merged['down_payment_amount'] as number | undefined,
-            installment_months: merged['installment_months'] as number | undefined,
-            promotion_zeroed: merged['promotion_zeroed'] as string[] | undefined,
-            promotion_discount: merged['promotion_discount'] as number | undefined,
-            local_subsidy_off: merged['local_subsidy_off'] as boolean | undefined,
-            // 직접 입력한 차량 가격 — 빠지면 final_price 가 트림 단가로 되돌아간다
-            car_price_override: merged['car_price_override'] != null
-              ? (merged['car_price_override'] as number) : null,
-          },
+          quoteExtraFromInputs(merged),
           full.created_at.getFullYear(),
         );
         await prisma.quote.update({ where: { id }, data: { final_price: calcQuote(params).real_price } });
@@ -482,16 +459,7 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission(
         has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
         tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
       },
-      {
-        down_payment_rate: inp['down_payment_rate'] as number | undefined,
-        down_payment_amount: inp['down_payment_amount'] as number | undefined,
-        installment_months: inp['installment_months'] as number | undefined,
-        promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
-        local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
-        // 직접 입력한 차량 가격 — 빠지면 final_price 가 트림 단가로 되돌아간다
-        car_price_override: inp['car_price_override'] != null
-          ? (inp['car_price_override'] as number) : null,
-      },
+      quoteExtraFromInputs(inp),
       quote.created_at.getFullYear(),
     );
     const total = calcQuote(params);
