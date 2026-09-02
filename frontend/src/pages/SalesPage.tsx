@@ -6,7 +6,7 @@ import { buildLiveTotal } from '../lib/liveQuote'
 import { mapBizType, customerEditValues, isBodyOnly, isVehicleOnly } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
+import { calcPrice, assembleOptionSum, trimPriceVatIncluded, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { quotePriceExtras } from '@shared/pricing/quote-request'
 import { fetchPricingBundle } from '../api/models'
@@ -707,6 +707,11 @@ export function SalesPage() {
    * 둘은 동시에 참일 수 없다(그러면 팔 것이 없다).
    */
   const [vehicleOnly, setVehicleOnly] = useState(false)
+  /**
+   * 영업이 상담 자리에서 적어 넣은 차량 가격(VAT 포함). 안 쓰면 `null`.
+   * ⚠️ 끌 때 `0` 이 아니라 `null` 로 비운다 — 0 은 「0원에 판다」로 읽힌다.
+   */
+  const [carPriceOverride, setCarPriceOverride] = useState<number | null>(null)
   const [v2lConfirmed, setV2lConfirmed] = useState(false)
   /** 보유 차종 — 특장만 견적의 전제라 임시저장 단계에서 받는다 */
   const [ownedModel, setOwnedModel] = useState('')
@@ -807,8 +812,9 @@ export function SalesPage() {
     () => buildLiveTotal({
       bundle, selections, subsidyInputs, subsidyLocal, subsidyReady,
       promotionZeroed, promotionDiscount, localSubsidyOff, customer, bodyOnly, vehicleOnly,
+      carPriceOverride,
     }),
-    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly, vehicleOnly],
+    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly, vehicleOnly, carPriceOverride],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -875,6 +881,8 @@ export function SalesPage() {
         // 특장만 견적 — 차량 금액·보조금이 빠진다. 보유 차종은 계약서 단계에서 받는다.
         body_only: bodyOnly || undefined,
         vehicle_only: vehicleOnly || undefined,
+        // 직접 입력한 차량 가격. 안 쓰면 null 을 보내 저장값을 지운다(undefined 면 옛 값이 남는다)
+        car_price_override: bodyOnly ? null : carPriceOverride,
         vehicle_owned: bodyOnly ? { model: ownedModel.trim() } : undefined,
         customer: {
           name: v.name.trim(),
@@ -1038,6 +1046,11 @@ export function SalesPage() {
           onTogglePromotion={togglePromotion}
           bodyOnly={bodyOnly}
           vehicleOnly={vehicleOnly}
+          carPriceOverride={carPriceOverride}
+          onCarPriceOverrideChange={setCarPriceOverride}
+          trimPrice={trimPriceVatIncluded(
+            bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]).trim_price : 0,
+          )}
           onToggleVehicleOnly={v => {
             setVehicleOnly(v)
             /*

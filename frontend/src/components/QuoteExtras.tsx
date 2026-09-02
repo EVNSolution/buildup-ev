@@ -186,7 +186,18 @@ const s: Record<string, React.CSSProperties> = {
   label: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
   memo: {
     width: '100%', boxSizing: 'border-box', fontSize: 'var(--fs-body)',
-    resize: 'vertical', fontFamily: 'inherit',
+    fontFamily: 'inherit',
+    /*
+     * **크기 고정.** 이 textarea 는 flex 컬럼(OptionPanel 의 `extra`)의 자식이라,
+     * 프로모션을 켜서 목록이 펼쳐지면 컨테이너가 maxHeight 에 닿고 **메모칸부터 눌려**
+     * 한 줄짜리로 쪼그라들었다(실제 제보). 줄일 수 없게 못 박는다.
+     * 메모는 어차피 4줄까지만 적을 수 있으니(MEMO_MAX_LINES) 늘릴 이유도 없다.
+     */
+    flexShrink: 0,
+    resize: 'none',
+    height: 'calc(var(--fs-body) * 1.5 * 4 + 16px)',
+    minHeight: 'calc(var(--fs-body) * 1.5 * 4 + 16px)',
+    lineHeight: 1.5,
   },
   toggle: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, cursor: 'pointer', fontWeight: 600, color: 'var(--dark)' },
   cbox: { width: 15, height: 15, accentColor: 'var(--lime)' },

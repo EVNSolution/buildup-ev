@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import {
   assembleOptionSum, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE,
   dieselDeducts, toDieselStatus, type QuoteParams,
+  resolveCarPrice,
   noVatRefund,
   bodyOnlyParams,
   vehicleOnlyParams,
@@ -64,6 +65,11 @@ export type QuoteExtraInput = {
   body_only?: boolean;
   /** 차량만 견적 — 특장을 장착하지 않는다. body_only 와 동시에 참일 수 없다. */
   vehicle_only?: boolean;
+  /**
+   * 영업이 상담 자리에서 적어 넣은 **차량 가격(VAT 포함)**. 비면 트림 단가를 쓴다.
+   * ⚠️ `null` 은 「0원」이 아니라 「직접 입력을 껐다」 — resolveCarPrice 가 그 구분을 한다.
+   */
+  car_price_override?: number | null;
 };
 
 export async function buildQuoteParams(
@@ -102,7 +108,7 @@ export async function buildQuoteParams(
   const localOff = extra?.local_subsidy_off === true || subsidyLoc?.active === false;
 
   const params: QuoteParams = {
-    car_price: Math.round(trim_price * 1.1),   // D10 VAT포함
+    car_price: resolveCarPrice(trim_price, extra?.car_price_override),   // D10 VAT포함
     delivery_fee: taxMap['delivery_fee'] ?? 188_000,
     commercial_discount: taxMap['commercial_discount'] ?? 0,
     partnership_rate: taxMap['partnership_rate'] ?? 0.01,

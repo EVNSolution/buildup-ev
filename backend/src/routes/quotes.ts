@@ -41,7 +41,7 @@ async function buildParams(
   selections: Record<string, string>,
   customer: CustomerInput | undefined,
   calcYear: number,
-  extra?: { promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean },
+  extra?: { promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean; car_price_override?: number | null },
 ): Promise<PricingParams> {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
 
@@ -245,17 +245,17 @@ quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promis
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only } = req.body as {
+  const { model_code, year, selections, customer, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
-    promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean;
+    promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean; car_price_override?: number | null;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
   try {
-    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear(), { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only });
+    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear(), { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override });
     const result = calcPrice(params);
     if (result.status === 'unsupported') {
       res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
@@ -275,10 +275,10 @@ quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Reques
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
-    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean;
+    down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean; car_price_override?: number | null;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
@@ -287,7 +287,7 @@ quotesRouter.post('/calculate-total', rbac('SALES', 'ADMIN'), async (req: Reques
   try {
     const params = await buildQuoteParams(
       model_code, selections, customer,
-      { down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only },
+      { down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override },
       year ?? new Date().getFullYear(),
     );
     res.json({ data: calcQuote(params) });
@@ -336,6 +336,9 @@ quotesRouter.get('/:id/total', rbac('SALES', 'ADMIN'), async (req: Request, res)
         // 특장만 견적 — 빠뜨리면 다시 열 때 차량 금액이 되살아난다
         body_only: inp['body_only'] === true,
         vehicle_only: inp['vehicle_only'] === true,
+        // ⚠️ `!= null` — 직접 입력을 끈 견적은 null 로 저장돼 있고, 그건 「0원」이 아니다
+        car_price_override: inp['car_price_override'] != null
+          ? (inp['car_price_override'] as number) : null,
       },
       quote.created_at.getFullYear(),
     );
@@ -380,7 +383,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'down_payment_amount', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
-      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'promotion_discount', 'memo', 'local_subsidy_off', 'body_only', 'vehicle_only', 'vehicle_owned',
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'promotion_discount', 'memo', 'local_subsidy_off', 'body_only', 'vehicle_only', 'vehicle_owned', 'car_price_override',
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
       'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
       // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
@@ -418,6 +421,9 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
             promotion_zeroed: merged['promotion_zeroed'] as string[] | undefined,
             promotion_discount: merged['promotion_discount'] as number | undefined,
             local_subsidy_off: merged['local_subsidy_off'] as boolean | undefined,
+            // 직접 입력한 차량 가격 — 빠지면 final_price 가 트림 단가로 되돌아간다
+            car_price_override: merged['car_price_override'] != null
+              ? (merged['car_price_override'] as number) : null,
           },
           full.created_at.getFullYear(),
         );
@@ -482,6 +488,9 @@ quotesRouter.patch('/:id/selections', rbac('SALES', 'ADMIN'), requirePermission(
         installment_months: inp['installment_months'] as number | undefined,
         promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
         local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
+        // 직접 입력한 차량 가격 — 빠지면 final_price 가 트림 단가로 되돌아간다
+        car_price_override: inp['car_price_override'] != null
+          ? (inp['car_price_override'] as number) : null,
       },
       quote.created_at.getFullYear(),
     );
@@ -641,13 +650,15 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, memo, local_subsidy_off, body_only, vehicle_only, vehicle_owned } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, memo, local_subsidy_off, body_only, vehicle_only, car_price_override, vehicle_owned } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
     down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; promotion_discount?: number; memo?: string; local_subsidy_off?: boolean;
     /** 특장만 견적 — 고객이 차를 이미 갖고 있다 */
     body_only?: boolean;
     vehicle_only?: boolean;
+    /** 영업이 적어 넣은 차량 가격(VAT 포함). 안 쓰면 null — 트림 단가를 쓴다 */
+    car_price_override?: number | null;
     /** 특장만일 때 고객이 적어 주는 보유 차량 정보(견적서에 그대로 실린다) */
     vehicle_owned?: Record<string, string>;
   };
@@ -657,13 +668,13 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
   }
 
   const calcYear = year ?? new Date().getFullYear();
-  const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only });
+  const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override });
   const result = calcPrice(params);
 
   // 저장되는 실구매가는 **총견적서 기준**(견적서 PDF·화면과 동일 규칙).
   // calcPrice(Ver1.21)는 공급가액 산출과 하위호환 응답용으로만 유지한다.
   const totalParams = await buildQuoteParams(model_code, selections, customer,
-    { down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only }, calcYear);
+    { down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override }, calcYear);
   const total = calcQuote(totalParams);
 
   // 총견적서 입력시트 스냅샷(견적별 입력값 — 나중에 총견적서 재출력·재계산용)
@@ -688,6 +699,12 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     // 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다.
     vehicle_only: body_only !== true && vehicle_only === true,
     vehicle_owned: body_only === true ? (vehicle_owned ?? {}) : {},
+    /*
+     * 직접 입력한 차량 가격(VAT 포함). 특장만 견적에는 차량이 없으니 남기지 않는다.
+     * ⚠️ 안 쓰면 **null** 이다 — 0 으로 저장하면 다시 열 때 차량가가 0원이 된다.
+     */
+    car_price_override: body_only === true || car_price_override == null
+      ? null : Math.max(0, Math.round(car_price_override)),
     promotion_zeroed: promotion_zeroed ?? [],  // 프로모션: 0원 처리한 특장옵션 그룹
     promotion_discount: Math.max(0, Math.round(promotion_discount ?? 0)),  // 프로모션 할인액(VAT 포함)
     local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)

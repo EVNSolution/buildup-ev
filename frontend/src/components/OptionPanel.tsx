@@ -3,7 +3,7 @@ import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
-import { BodyOnlyToggle, BodyOnlyNotice, VehicleOnlyToggle } from './BodyOnlyPanel'
+import { BodyOnlyToggle, BodyOnlyNotice, VehicleOnlyToggle, CarPriceOverrideBlock } from './BodyOnlyPanel'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { QuoteExtras } from './QuoteExtras'
@@ -39,6 +39,11 @@ interface Props {
   /** 차량만 견적 — 특장을 장착하지 않는다. 특장·옵션 탭이 잠긴다. */
   vehicleOnly?: boolean
   onToggleVehicleOnly?: (v: boolean) => void
+  /** 영업이 적어 넣은 차량 가격(VAT 포함). 안 쓰면 `null` — 없으면 칸 자체를 띄우지 않는다(공개 화면) */
+  carPriceOverride?: number | null
+  onCarPriceOverrideChange?: (v: number | null) => void
+  /** 지금 고른 트림의 가격(VAT 포함) — 직접 입력을 켤 때 채워 넣는 초기값 */
+  trimPrice?: number
   onToggleBodyOnly?: (v: boolean) => void
   /** 보유 차종 — 특장만 견적의 전제라 여기서 받는다 */
   ownedModel?: string
@@ -87,6 +92,9 @@ export function OptionPanel({
   bodyOnly,
   vehicleOnly,
   onToggleVehicleOnly,
+  carPriceOverride,
+  onCarPriceOverrideChange,
+  trimPrice,
   onToggleBodyOnly,
   ownedModel,
   onOwnedModelChange,
@@ -183,6 +191,15 @@ export function OptionPanel({
                 {/* 거울상 — 둘은 동시에 고를 수 없다 */}
                 {onToggleVehicleOnly && (
                   <VehicleOnlyToggle on={!!vehicleOnly} onToggle={onToggleVehicleOnly} disabled={!!bodyOnly} />
+                )}
+                {/* 트림 단가와 다른 금액으로 파는 상담 — 특장만 견적에는 차량이 없어 잠근다 */}
+                {onCarPriceOverrideChange && (
+                  <CarPriceOverrideBlock
+                    value={carPriceOverride ?? null}
+                    onChange={onCarPriceOverrideChange}
+                    disabled={!!bodyOnly}
+                    trimPrice={trimPrice}
+                  />
                 )}
               </div>
             )}

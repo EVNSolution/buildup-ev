@@ -137,6 +137,64 @@ export function V2lConfirm({ confirmed, onChange }: {
   )
 }
 
+/**
+ * **차량 가격 직접 입력** — 트림 단가와 다른 금액으로 파는 상담 자리를 위한 칸.
+ *
+ * 특판·재고차처럼 단가표와 다른 값으로 이야기가 오갈 때, 영업이 그 자리에서 적어 넣는다.
+ * 적어 넣은 금액은 **차량 가격을 통째로 대체**하므로 취득세·부가세 환급·실구매가가
+ * 전부 그 금액을 따라 움직인다 — 상담에서 부른 값 그대로 견적서가 나와야 한다.
+ *
+ * ⚠️ 껐을 때는 `null` 을 올린다(0 이 아니다). 0 을 올리면 차량가가 0원이 된다.
+ */
+export function CarPriceOverrideBlock({ value, onChange, disabled, trimPrice }: {
+  /** 적어 넣은 차량 가격(VAT 포함). 안 쓰면 `null` */
+  value: number | null
+  onChange: (v: number | null) => void
+  /** 특장만 견적 — 차량을 팔지 않으니 적을 것이 없다 */
+  disabled?: boolean
+  /** 지금 고른 트림의 가격(VAT 포함) — 끄면 이 값으로 돌아간다는 안내 */
+  trimPrice?: number
+}) {
+  const on = value != null
+  return (
+    <>
+      <button
+        style={disabled ? { ...BTN.rowDisabled, width: '100%' }
+          : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
+        disabled={disabled}
+        title={disabled ? '특장만 견적에는 차량 가격이 없습니다' : undefined}
+        onClick={() => onChange(on ? null : (trimPrice ?? 0))}
+      >{on ? '✓ 차량 가격 직접 입력' : '차량 가격 직접 입력'}</button>
+
+      {on && !disabled && (
+        <div style={s.box}>
+          <label style={s.field}>
+            <span style={s.fieldLabel}>차량 가격 <b>(VAT 포함)</b></span>
+            <input
+              style={s.input}
+              type="text"
+              inputMode="numeric"
+              value={value.toLocaleString('ko-KR')}
+              onChange={e => {
+                /*
+                 * 숫자만 남겨 다시 만든다 — 한 글자 칠 때마다 재구성해도
+                 * 이 컴포넌트는 모듈 최상단에 있어 커서가 풀리지 않는다(#301 과 같은 실수 방지).
+                 */
+                const digits = e.target.value.replace(/[^0-9]/g, '')
+                onChange(digits === '' ? 0 : Math.min(Number(digits), 999_999_999))
+              }}
+            />
+          </label>
+          <div style={s.hint}>
+            보조금 · 취득세 · 부가세 환급이 모두 이 금액 기준으로 계산됩니다.
+            {trimPrice != null && ` 끄면 트림 가격(₩${trimPrice.toLocaleString('ko-KR')})으로 돌아갑니다.`}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 const s: Record<string, React.CSSProperties> = {
   box: {
     border: 'var(--hairline)', borderRadius: 10, padding: 'var(--sp-4)', marginTop: 'var(--sp-3)',
