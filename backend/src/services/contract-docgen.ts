@@ -23,7 +23,7 @@ import Docxtemplater from 'docxtemplater';
 import { prisma } from '../lib/prisma.js';
 import { archiveCustomerDoc } from './doc-archive.js';
 import { calcQuote } from '@buildup-ev/shared/pricing';
-import { buildQuoteParams } from './quote-calc.js';
+import { buildQuoteParams, quoteExtraFromInputs } from './quote-calc.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
@@ -236,18 +236,7 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     diesel_conversion: inp['diesel_conversion'] as boolean | undefined,
     has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
     tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
-  }, {
-    down_payment_rate: inp['down_payment_rate'] as number | undefined,
-    down_payment_amount: inp['down_payment_amount'] as number | undefined,
-    installment_months: inp['installment_months'] as number | undefined,
-    promotion_zeroed: inp['promotion_zeroed'] as string[] | undefined,
-    promotion_discount: inp['promotion_discount'] as number | undefined,
-    // 특장만 견적 — 저장 시점의 선택을 그대로 따라야 금액이 재현된다
-    body_only: inp['body_only'] === true,
-    // ⚠️ 직접 입력한 차량 가격 — 빠뜨리면 화면 금액과 서류 금액이 갈린다(`null` 은 「안 씀」)
-    car_price_override: inp['car_price_override'] != null ? (inp['car_price_override'] as number) : null,
-    local_subsidy_off: inp['local_subsidy_off'] as boolean | undefined,
-  }, quote.created_at.getFullYear());
+  }, quoteExtraFromInputs(inp), quote.created_at.getFullYear());
   const q = calcQuote(params);
 
   const priceTotal = q.body_payment;      // ⑦-⑧ 특장 결제 금액(VAT 포함)
