@@ -57,7 +57,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
         <div style={m.scroll}>
           {/* 금액을 맨 위에 — 받을지 말지를 가장 먼저 가르는 값이다 */}
           <div style={m.moneyRow}>
-            <span style={m.moneyLabel}>실구매가</span>
+            <span style={m.moneyLabel}>실구매가(기타 포함)</span>
             <span style={m.moneyValue}>{won(quote.final_price)}</span>
           </div>
 

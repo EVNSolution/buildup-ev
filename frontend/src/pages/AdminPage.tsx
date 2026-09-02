@@ -1034,7 +1034,7 @@ function QuotesTab() {
                   </span>
                 </div>
                 <div style={qtMob.row}>
-                  <span style={qtMob.label}>실구매가</span>
+                  <span style={qtMob.label}>실구매가(기타 포함)</span>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtPrice(q.final_price)}</span>
                 </div>
                 <div style={qtMob.row}>
@@ -1095,7 +1095,7 @@ function QuotesTab() {
                 <th style={qt.th}>#</th>
                 <th style={qt.th}>고객</th>
                 <th style={qt.th}>영업</th>
-                <th style={qt.th}>실구매가</th>
+                <th style={qt.th}>실구매가(기타 포함)</th>
                 <th style={qt.th}>상태</th>
                 <th style={qt.th}>특장사</th>
                 <th style={qt.th}>발송현황</th>

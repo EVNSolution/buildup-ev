@@ -131,7 +131,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
                 <thead>
                   <tr>
                     <th style={s.th}>사유</th><th style={s.th}>경과일</th><th style={s.th}>견적번호</th>
-                    <th style={s.th}>고객</th><th style={s.th}>실구매가</th>
+                    <th style={s.th}>고객</th><th style={s.th}>실구매가(기타 포함)</th>
                     {showUserFilter && <th style={s.th}>담당</th>}
                   </tr>
                 </thead>

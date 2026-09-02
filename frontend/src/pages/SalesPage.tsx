@@ -442,7 +442,7 @@ function MyListView() {
                 <tr>
                   <th style={lv.th}>#</th>
                   <th style={lv.th}>고객</th>
-                  <th style={lv.th}>실구매가</th>
+                  <th style={lv.th}>실구매가(기타 포함)</th>
                   <th style={lv.th}>상태</th>
                   <th style={lv.th}>전자서명</th>
                   <th style={lv.th}>주문 현황</th>
