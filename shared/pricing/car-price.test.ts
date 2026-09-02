@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCarPrice, trimPriceVatIncluded } from './car-price.js';
+import { resolveCarPrice, trimPriceVatIncluded, resolveTrimLabel, CAR_TRIM_LABEL_MAX } from './car-price.js';
 import { calcQuote } from './quote.js';
 import { QUOTE_PARAMS } from './fixtures.js';
 
@@ -55,5 +55,38 @@ describe('직접 입력이 총견적서 전체에 반영된다', () => {
   it('특장 금액은 건드리지 않는다', () => {
     expect(cheaper.body_payment).toBe(base.body_payment);
     expect(cheaper.body_acq_tax).toBe(base.body_acq_tax);
+  });
+});
+
+/**
+ * 트림명 — 단가표와 다른 값으로 파는 상담은 트림도 다른 경우가 많다.
+ * 「플러스(Plus)」가 그대로 나가면 서류가 실제와 다른 차를 가리킨다.
+ */
+describe('견적서에 적을 트림명', () => {
+  it('직접 입력을 안 켰으면 고른 트림명을 쓴다', () => {
+    expect(resolveTrimLabel('플러스(Plus)', '특판 롱레인지', false)).toBe('플러스(Plus)');
+  });
+
+  it('🔴 켰으면 적어 넣은 텍스트를 쓴다', () => {
+    expect(resolveTrimLabel('플러스(Plus)', '특판 롱레인지', true)).toBe('특판 롱레인지');
+  });
+
+  it('켰지만 비워 뒀으면 고른 트림명으로 돌아간다', () => {
+    expect(resolveTrimLabel('플러스(Plus)', '', true)).toBe('플러스(Plus)');
+    expect(resolveTrimLabel('플러스(Plus)', '   ', true)).toBe('플러스(Plus)');
+    expect(resolveTrimLabel('플러스(Plus)', null, true)).toBe('플러스(Plus)');
+  });
+
+  it('🔴 직접 입력을 끄면 남아 있던 텍스트를 쓰지 않는다', () => {
+    expect(resolveTrimLabel('기본(Basic)', '지난번 특판', false)).toBe('기본(Basic)');
+  });
+
+  it('견적서 한 줄을 넘기지 않게 자른다', () => {
+    const long = '가'.repeat(CAR_TRIM_LABEL_MAX + 20);
+    expect(resolveTrimLabel('플러스(Plus)', long, true)).toHaveLength(CAR_TRIM_LABEL_MAX);
+  });
+
+  it('앞뒤 공백은 떼고 쓴다', () => {
+    expect(resolveTrimLabel('플러스(Plus)', '  특판  ', true)).toBe('특판');
   });
 });

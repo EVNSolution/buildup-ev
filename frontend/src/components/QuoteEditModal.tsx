@@ -12,6 +12,8 @@ import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { QuoteCustomerForm, missingRequired, type QuoteSaveValues } from './QuoteSaveModal'
 import { QuoteExtras } from './QuoteExtras'
+import { CarPriceOverrideBlock } from './BodyOnlyPanel'
+import { assembleOptionSum, trimPriceVatIncluded } from '@shared/pricing/core'
 import { customerEditValues, mapBizType, isBodyOnly } from '../lib/quoteCustomer'
 import { fetchRegions } from '../api/quotes'
 import { BTN } from '../styles/buttons'
@@ -139,6 +141,15 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   )
   // 프로모션 할인액(원, VAT 포함) — 옛 0원처리와 별개다
   const [promoDiscount, setPromoDiscount] = useState<number>(Number(inp['promotion_discount'] ?? 0))
+  /*
+   * 차량 가격 직접 입력 — 컨피규레이터에만 칸이 있으면 저장 후 고칠 방법이 없다.
+   * 메모·프로모션이 그래서 여기로 옮겨 왔고, 이 값도 같은 이유로 여기 있어야 한다.
+   * ⚠️ `!= null` — 저장된 `null` 은 「0원」이 아니라 「직접 입력을 안 씀」이다.
+   */
+  const [carPrice, setCarPrice] = useState<number | null>(
+    inp['car_price_override'] != null ? Number(inp['car_price_override']) : null,
+  )
+  const [carTrimLabel, setCarTrimLabel] = useState<string>((inp['car_trim_label'] as string) ?? '')
 
   useEffect(() => {
     fetchPricingBundle(quote.model_code)
@@ -177,11 +188,16 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         || localOff !== ((inp['local_subsidy_off'] as boolean) ?? false)
         || promoDiscount !== Number(inp['promotion_discount'] ?? 0)
         || [...promoZeroed].sort().join(',') !== [...((inp['promotion_zeroed'] as string[]) ?? [])].sort().join(',')
+        || carPrice !== (inp['car_price_override'] != null ? Number(inp['car_price_override']) : null)
+        || carTrimLabel.trim() !== (((inp['car_trim_label'] as string) ?? '').trim())
       await saveQuoteInputs(quote.id, {
         memo: memo.trim(),
         local_subsidy_off: localOff,
         promotion_discount: promoDiscount,
         promotion_zeroed: [...promoZeroed],
+        // 끄면 `null` 을 보내 저장값을 지운다 — 0 을 보내면 차량가가 0원이 된다
+        car_price_override: isBodyOnly(quote) ? null : carPrice,
+        car_trim_label: isBodyOnly(quote) || carPrice == null ? '' : carTrimLabel.trim(),
       })
       // 할인·보조금을 함께 바꿨으면 여기 금액은 이미 지난 값이다(서버가 뒤에 다시 계산한다).
       // 그럴 땐 금액을 말하지 않는다 — 틀린 숫자를 보여 주느니 목록에서 확인하는 편이 낫다.
@@ -218,6 +234,21 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         />
 
         {/* 컨피규레이터와 **같은 조각** — 한쪽에만 칸을 두면 다른 쪽에서 못 고치는 값이 생긴다 */}
+        <div style={s.section}>차량 가격</div>
+        <div style={s.extras}>
+          <CarPriceOverrideBlock
+            value={carPrice}
+            onChange={setCarPrice}
+            trimLabel={carTrimLabel}
+            onTrimLabelChange={setCarTrimLabel}
+            disabled={frozen || isBodyOnly(quote)}
+            trimPrice={trimPriceVatIncluded(
+              assembleOptionSum(sel, c => bundle.option_prices[c] ?? 0, [...promoZeroed]).trim_price,
+            )}
+            trimName={bundle.groups.find(g => g.code === 'TRIM')?.values.find(v => v.code === sel['TRIM'])?.name}
+          />
+        </div>
+
         <div style={s.section}>메모 · 할인</div>
         <div style={s.extras}>
           <QuoteExtras

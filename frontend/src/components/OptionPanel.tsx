@@ -42,8 +42,13 @@ interface Props {
   /** 영업이 적어 넣은 차량 가격(VAT 포함). 안 쓰면 `null` — 없으면 칸 자체를 띄우지 않는다(공개 화면) */
   carPriceOverride?: number | null
   onCarPriceOverrideChange?: (v: number | null) => void
+  /** 영업이 적어 넣은 트림명. 비면 고른 트림명이 서류에 나간다 */
+  carTrimLabel?: string
+  onCarTrimLabelChange?: (v: string) => void
   /** 지금 고른 트림의 가격(VAT 포함) — 직접 입력을 켤 때 채워 넣는 초기값 */
   trimPrice?: number
+  /** 지금 고른 트림명 — 트림명을 안 적으면 이것이 나간다 */
+  trimName?: string
   onToggleBodyOnly?: (v: boolean) => void
   /** 보유 차종 — 특장만 견적의 전제라 여기서 받는다 */
   ownedModel?: string
@@ -94,7 +99,10 @@ export function OptionPanel({
   onToggleVehicleOnly,
   carPriceOverride,
   onCarPriceOverrideChange,
+  carTrimLabel,
+  onCarTrimLabelChange,
   trimPrice,
+  trimName,
   onToggleBodyOnly,
   ownedModel,
   onOwnedModelChange,
@@ -193,12 +201,15 @@ export function OptionPanel({
                   <VehicleOnlyToggle on={!!vehicleOnly} onToggle={onToggleVehicleOnly} disabled={!!bodyOnly} />
                 )}
                 {/* 트림 단가와 다른 금액으로 파는 상담 — 특장만 견적에는 차량이 없어 잠근다 */}
-                {onCarPriceOverrideChange && (
+                {onCarPriceOverrideChange && onCarTrimLabelChange && (
                   <CarPriceOverrideBlock
                     value={carPriceOverride ?? null}
                     onChange={onCarPriceOverrideChange}
+                    trimLabel={carTrimLabel ?? ''}
+                    onTrimLabelChange={onCarTrimLabelChange}
                     disabled={!!bodyOnly}
                     trimPrice={trimPrice}
+                    trimName={trimName}
                   />
                 )}
               </div>

@@ -13,6 +13,8 @@ export interface SaveQuoteRequest extends Partial<QuotePriceExtras> {
   vehicle_only?: boolean
   /** 영업이 적어 넣은 차량 가격(VAT 포함). 안 쓰면 null 을 보내 저장값을 지운다 */
   car_price_override?: number | null
+  /** 영업이 적어 넣은 트림명. 비면 고른 트림명이 서류에 나간다 */
+  car_trim_label?: string
   /** 특장만일 때 고객이 적어 주는 보유 차량 정보 */
   vehicle_owned?: Record<string, string>
   // 금액을 바꾸는 입력(프로모션·지방보조금 토글)은 shared 가 이름의 단일 소스다.

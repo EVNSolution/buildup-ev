@@ -442,7 +442,7 @@ function MyListView() {
                 <tr>
                   <th style={lv.th}>#</th>
                   <th style={lv.th}>고객</th>
-                  <th style={lv.th}>실구매가</th>
+                  <th style={lv.th}>실구매가(기타 포함)</th>
                   <th style={lv.th}>상태</th>
                   <th style={lv.th}>전자서명</th>
                   <th style={lv.th}>주문 현황</th>
@@ -712,6 +712,8 @@ export function SalesPage() {
    * ⚠️ 끌 때 `0` 이 아니라 `null` 로 비운다 — 0 은 「0원에 판다」로 읽힌다.
    */
   const [carPriceOverride, setCarPriceOverride] = useState<number | null>(null)
+  /** 직접 입력한 트림명. 비면 고른 트림명이 서류에 나간다 */
+  const [carTrimLabel, setCarTrimLabel] = useState('')
   const [v2lConfirmed, setV2lConfirmed] = useState(false)
   /** 보유 차종 — 특장만 견적의 전제라 임시저장 단계에서 받는다 */
   const [ownedModel, setOwnedModel] = useState('')
@@ -883,6 +885,7 @@ export function SalesPage() {
         vehicle_only: vehicleOnly || undefined,
         // 직접 입력한 차량 가격. 안 쓰면 null 을 보내 저장값을 지운다(undefined 면 옛 값이 남는다)
         car_price_override: bodyOnly ? null : carPriceOverride,
+        car_trim_label: bodyOnly || carPriceOverride == null ? '' : carTrimLabel.trim(),
         vehicle_owned: bodyOnly ? { model: ownedModel.trim() } : undefined,
         customer: {
           name: v.name.trim(),
@@ -1048,6 +1051,9 @@ export function SalesPage() {
           vehicleOnly={vehicleOnly}
           carPriceOverride={carPriceOverride}
           onCarPriceOverrideChange={setCarPriceOverride}
+          carTrimLabel={carTrimLabel}
+          onCarTrimLabelChange={setCarTrimLabel}
+          trimName={bundle?.groups.find(g => g.code === 'TRIM')?.values.find(v => v.code === selections['TRIM'])?.name}
           trimPrice={trimPriceVatIncluded(
             bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]).trim_price : 0,
           )}

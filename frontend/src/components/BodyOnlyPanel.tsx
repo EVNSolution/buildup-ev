@@ -1,4 +1,5 @@
 import { BTN } from '../styles/buttons'
+import { CAR_TRIM_LABEL_MAX } from '@shared/pricing/core'
 
 /**
  * **특장만 견적** — 고객이 차를 이미 갖고 있어 특장만 장착한다.
@@ -146,14 +147,19 @@ export function V2lConfirm({ confirmed, onChange }: {
  *
  * ⚠️ 껐을 때는 `null` 을 올린다(0 이 아니다). 0 을 올리면 차량가가 0원이 된다.
  */
-export function CarPriceOverrideBlock({ value, onChange, disabled, trimPrice }: {
+export function CarPriceOverrideBlock({ value, onChange, trimLabel, onTrimLabelChange, disabled, trimPrice, trimName }: {
   /** 적어 넣은 차량 가격(VAT 포함). 안 쓰면 `null` */
   value: number | null
   onChange: (v: number | null) => void
+  /** 적어 넣은 트림명. 비면 고른 트림명이 서류에 나간다 */
+  trimLabel: string
+  onTrimLabelChange: (v: string) => void
   /** 특장만 견적 — 차량을 팔지 않으니 적을 것이 없다 */
   disabled?: boolean
-  /** 지금 고른 트림의 가격(VAT 포함) — 끄면 이 값으로 돌아간다는 안내 */
+  /** 지금 고른 트림의 가격(VAT 포함) — 켤 때 초기값, 끌 때 돌아갈 값 */
   trimPrice?: number
+  /** 지금 고른 트림명 — 안 적으면 이것이 서류에 나간다 */
+  trimName?: string
 }) {
   const on = value != null
   return (
@@ -163,7 +169,7 @@ export function CarPriceOverrideBlock({ value, onChange, disabled, trimPrice }: 
           : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
         disabled={disabled}
         title={disabled ? '특장만 견적에는 차량 가격이 없습니다' : undefined}
-        onClick={() => onChange(on ? null : (trimPrice ?? 0))}
+        onClick={() => { onChange(on ? null : (trimPrice ?? 0)); if (on) onTrimLabelChange('') }}
       >{on ? '✓ 차량 가격 직접 입력' : '차량 가격 직접 입력'}</button>
 
       {on && !disabled && (
@@ -178,13 +184,30 @@ export function CarPriceOverrideBlock({ value, onChange, disabled, trimPrice }: 
               onChange={e => {
                 /*
                  * 숫자만 남겨 다시 만든다 — 한 글자 칠 때마다 재구성해도
-                 * 이 컴포넌트는 모듈 최상단에 있어 커서가 풀리지 않는다(#301 과 같은 실수 방지).
+                 * 이 컴포넌트는 모듈 최상단에 있어 커서가 풀리지 않는다.
                  */
                 const digits = e.target.value.replace(/[^0-9]/g, '')
                 onChange(digits === '' ? 0 : Math.min(Number(digits), 999_999_999))
               }}
             />
           </label>
+
+          {/*
+            트림명도 함께 받는다 — 단가표와 다른 값으로 파는 상담은 트림도 다른 경우가 많다.
+            「플러스(Plus)」가 그대로 나가면 서류가 실제와 다른 차를 가리킨다.
+          */}
+          <label style={s.field}>
+            <span style={s.fieldLabel}>트림명 <span style={s.optional}>· 견적서에 그대로 나갑니다</span></span>
+            <input
+              style={s.input}
+              type="text"
+              maxLength={CAR_TRIM_LABEL_MAX}
+              placeholder={trimName ? `비우면 「${trimName}」` : '예) 플러스 롱레인지 특판'}
+              value={trimLabel}
+              onChange={e => onTrimLabelChange(e.target.value)}
+            />
+          </label>
+
           <div style={s.hint}>
             보조금 · 취득세 · 부가세 환급이 모두 이 금액 기준으로 계산됩니다.
             {trimPrice != null && ` 끄면 트림 가격(₩${trimPrice.toLocaleString('ko-KR')})으로 돌아갑니다.`}
@@ -210,6 +233,7 @@ const s: Record<string, React.CSSProperties> = {
   field: { display: 'block', marginTop: 'var(--sp-4)' },
   fieldLabel: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginBottom: 4 },
   req: { color: 'var(--req)', fontWeight: 700 },
+  optional: { color: 'var(--muted)', fontWeight: 400 },
   input: {
     width: '100%', padding: 'var(--sp-2) var(--sp-3)', borderRadius: 6,
     border: 'var(--hairline)', fontSize: 'var(--fs-label)', fontFamily: 'inherit',

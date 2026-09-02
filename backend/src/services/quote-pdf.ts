@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
-import { calcQuote, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL } from '@buildup-ev/shared/pricing';
+import { calcQuote, resolveTrimLabel, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, quoteExtraFromInputs, type CustomerInput } from './quote-calc.js';
 import { archiveCustomerDoc } from './doc-archive.js';
 
@@ -168,7 +168,15 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   if (r.subsidy_sosang) subsidyRows.push({ label: '소상공인 할인', amount: won(r.subsidy_sosang) });
   if (r.subsidy_takbae) subsidyRows.push({ label: '택배업 보조금 (화물운송자격)', amount: won(r.subsidy_takbae) });
 
-  const trimName = valueName.get(selections['TRIM'] ?? '') ?? '';
+  /*
+   * 트림명 — 차량 가격을 직접 적어 넣은 견적은 트림도 단가표와 다를 수 있다.
+   * 영업이 적어 넣은 텍스트가 있으면 그것을 쓴다(resolveTrimLabel 한 곳에서 판정).
+   */
+  const trimName = resolveTrimLabel(
+    valueName.get(selections['TRIM'] ?? '') ?? '',
+    inp['car_trim_label'] as string | undefined,
+    inp['car_price_override'] != null,
+  );
   const bizType = (inp['biz_type'] as string | undefined) ?? 'individual';
   /*
    * 견적서에 적는 선수금 비율 — **계산이 실제로 적용한 비율**을 쓴다.
