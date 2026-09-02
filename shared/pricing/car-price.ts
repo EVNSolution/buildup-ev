@@ -26,3 +26,27 @@ export function resolveCarPrice(trimSupplyPrice: number, override?: number | nul
   if (override != null && Number.isFinite(override)) return Math.max(0, Math.round(override));
   return trimPriceVatIncluded(trimSupplyPrice);
 }
+
+/** 직접 입력한 트림명의 최대 길이 — 견적서 한 줄에 들어가야 한다 */
+export const CAR_TRIM_LABEL_MAX = 40;
+
+/**
+ * 견적서에 적을 트림명.
+ *
+ * 차량 가격을 직접 적어 넣는 상담은 **트림도 단가표와 다른 경우가 많다**(특판·재고차).
+ * 그때 「플러스(Plus)」처럼 고른 값이 그대로 나가면 서류가 실제와 다른 차를 가리킨다.
+ * 그래서 직접 입력한 텍스트가 있으면 그것을 쓴다.
+ *
+ * ⚠️ **직접 입력을 켰을 때만** 쓴다. 끄면 고른 트림명으로 돌아가야 한다 —
+ *    남아 있던 텍스트가 계속 서류에 찍히면 무엇이 진짜인지 알 수 없다.
+ */
+export function resolveTrimLabel(
+  selectedTrimName: string,
+  override: string | null | undefined,
+  /** 차량 가격 직접 입력을 켰는가 */
+  overrideOn: boolean,
+): string {
+  if (!overrideOn) return selectedTrimName;
+  const t = (override ?? '').trim();
+  return t === '' ? selectedTrimName : t.slice(0, CAR_TRIM_LABEL_MAX);
+}

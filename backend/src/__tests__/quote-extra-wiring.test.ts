@@ -98,6 +98,17 @@ describe('저장된 견적의 재계산 입력', () => {
     expect(quoteExtraFromInputs({ car_price_override: 0 }).car_price_override).toBe(0);
   });
 
+  it('🔴 컨피규레이터에 있는 칸은 수정 팝업에도 있다 — 저장 후 못 고치는 값이 생기면 안 된다', () => {
+    const edit = read('frontend/src/components/QuoteEditModal.tsx');
+    // 차량 가격 직접 입력 · 트림명 — 컨피규레이터와 **같은 조각**을 쓴다
+    expect(edit).toMatch(/CarPriceOverrideBlock/);
+    // 저장할 때 두 값을 실어 보낸다(안 보내면 서버 merge 로 옛 값이 남는다)
+    expect(edit).toMatch(/car_price_override:/);
+    expect(edit).toMatch(/car_trim_label:/);
+    // 메모·프로모션도 같은 조각이어야 한다
+    expect(edit).toMatch(/QuoteExtras/);
+  });
+
   it('🔴 화면도 같은 규칙(resolveCarPrice)을 쓴다 — 직접 곱하지 않는다', () => {
     const live = read('frontend/src/lib/liveQuote.ts');
     expect(live).toMatch(/car_price:\s*resolveCarPrice\(/);

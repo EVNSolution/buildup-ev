@@ -9,7 +9,7 @@ import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import { renderContractPdfForQuote, ContractDocError } from '../services/contract-docgen.js';
 import { readFrozenDoc, isFrozen, FROZEN_MESSAGE, collectContractFilePaths, deleteContractFiles } from '../services/doc-freeze.js';
 import {
-  calcPrice, calcQuote, assembleOptionSum, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
+  calcPrice, calcQuote, assembleOptionSum, CAR_TRIM_LABEL_MAX, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   dieselDeducts, toDieselStatus,
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
@@ -370,7 +370,7 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
     if (await isFrozen(id)) { res.status(409).json({ error: { code: 'DOCS_FROZEN', message: FROZEN_MESSAGE } }); return; }
     // 허용 필드만 병합(입력시트 값). 임의 키 오염 방지.
     const ALLOWED = ['down_payment_rate', 'down_payment_amount', 'installment_months', 'tax_exempt_type', 'has_biz_plate',
-      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'promotion_discount', 'memo', 'local_subsidy_off', 'body_only', 'vehicle_only', 'vehicle_owned', 'car_price_override',
+      'biz_type', 'is_sosang', 'region', 'has_transport_license', 'diesel_conversion', 'diesel_status', 'promotion_zeroed', 'promotion_discount', 'memo', 'local_subsidy_off', 'body_only', 'vehicle_only', 'vehicle_owned', 'car_price_override', 'car_trim_label',
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
       'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
       // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
@@ -618,7 +618,7 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, memo, local_subsidy_off, body_only, vehicle_only, car_price_override, vehicle_owned } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, memo, local_subsidy_off, body_only, vehicle_only, car_price_override, car_trim_label, vehicle_owned } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
     down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; promotion_discount?: number; memo?: string; local_subsidy_off?: boolean;
@@ -627,6 +627,8 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     vehicle_only?: boolean;
     /** 영업이 적어 넣은 차량 가격(VAT 포함). 안 쓰면 null — 트림 단가를 쓴다 */
     car_price_override?: number | null;
+    /** 영업이 적어 넣은 트림명. 비면 고른 트림명을 쓴다 */
+    car_trim_label?: string;
     /** 특장만일 때 고객이 적어 주는 보유 차량 정보(견적서에 그대로 실린다) */
     vehicle_owned?: Record<string, string>;
   };
@@ -673,6 +675,12 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
      */
     car_price_override: body_only === true || car_price_override == null
       ? null : Math.max(0, Math.round(car_price_override)),
+    /*
+     * 직접 입력한 트림명 — 차량 가격을 직접 적은 견적에서만 의미가 있다.
+     * 끄면 비운다: 남아 있던 텍스트가 계속 서류에 찍히면 무엇이 진짜인지 알 수 없다.
+     */
+    car_trim_label: body_only === true || car_price_override == null
+      ? '' : String(car_trim_label ?? '').trim().slice(0, CAR_TRIM_LABEL_MAX),
     promotion_zeroed: promotion_zeroed ?? [],  // 프로모션: 0원 처리한 특장옵션 그룹
     promotion_discount: Math.max(0, Math.round(promotion_discount ?? 0)),  // 프로모션 할인액(VAT 포함)
     local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)
