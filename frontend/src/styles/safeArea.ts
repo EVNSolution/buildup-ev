@@ -11,9 +11,23 @@
  *    아무 일도 일어나지 않는다.
  */
 
-/** 아래쪽(홈 인디케이터) — 하단 고정 바·입력칸에 */
+/**
+ * 아래쪽(홈 인디케이터) — **하단에 고정된 바·입력칸**에 쓴다.
+ *
+ * ⚠️ `base + inset` 이 아니라 **`max(base, inset)`** 이다. 더하면 원래 여백(16px)에
+ *    인디케이터(34px)가 얹혀 50px 이 되어 「여백이 과하다」는 말이 나온다(실제 제보).
+ *    인디케이터를 피하는 데는 34px 이면 충분하고, 안전영역이 없는 기기에서는
+ *    원래 여백이 그대로 남는다.
+ */
 export const safeBottom = (base: string): string =>
-  `calc(${base} + env(safe-area-inset-bottom, 0px))`
+  `max(${base}, env(safe-area-inset-bottom, 0px))`
+
+/**
+ * **스크롤해서 끝나는 화면**의 바닥 — 내용은 꽉 채우고 마지막 줄만 곡률을 피한다.
+ * 고정 바가 없는 화면(주문 진행 등)에 쓴다.
+ */
+export const safeScrollBottom = (base = '8px'): string =>
+  `max(${base}, env(safe-area-inset-bottom, 0px))`
 
 /** 위쪽(노치·다이내믹 아일랜드) — 헤더에 */
 export const safeTop = (base: string): string =>

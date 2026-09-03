@@ -41,16 +41,15 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
   const [image, setImage] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
   /*
    * **채팅은 한 화면에 다 들어와야 한다.** 바깥이 같이 스크롤되면 글을 쓰다 말고
    * 입력칸을 찾아 내려야 한다(모바일에서 특히 그렇다).
    *
-   * 그래서 남은 높이를 재서 그만큼만 차지한다 — 위(주문 머리말·탭)가 쓰고 남은 만큼.
-   * `100vh` 를 쓰지 않는 이유: 모바일 브라우저는 주소창이 접혔다 펴지며 실제 높이가
-   * 달라지는데 `vh` 는 그걸 안 따라간다. `innerHeight` 는 따라간다.
+   * 높이는 **부모(OrderDetail 의 탭 본문)를 채워서** 얻는다 — 화면을 여기서 다시 재지
+   * 않는다. 예전엔 `innerHeight` 를 직접 쟀는데, 모바일의 `#root { zoom: .88 }` 때문에
+   * 화면 픽셀과 CSS 픽셀이 어긋나 **바닥에 빈 띠가 남았다**(실측 89px).
+   * 부모는 이미 바닥까지 채워져 있으므로 그냥 따라 늘어나면 된다.
    */
-  const [boxH, setBoxH] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -73,21 +72,8 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
   useEffect(() => {
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
-    // 높이(boxH)는 화면을 재서 **나중에** 정해진다 — 그 전에 내리면 아직 짧아서 덜 내려간다
-  }, [rows?.length, boxH])
+  }, [rows?.length])
 
-  useEffect(() => {
-    const fit = () => {
-      const top = rootRef.current?.getBoundingClientRect().top ?? 0
-      // 아래 여백 12px — 화면 끝에 딱 붙으면 잘린 것처럼 보인다
-      setBoxH(Math.max(280, Math.round(window.innerHeight - top - 12)))
-    }
-    fit()
-    // 글꼴·레이아웃이 자리 잡은 뒤 한 번 더 — 첫 계산이 어긋나는 경우가 있다
-    const t = setTimeout(fit, 120)
-    window.addEventListener('resize', fit)
-    return () => { window.removeEventListener('resize', fit); clearTimeout(t) }
-  }, [rows === null])
 
   /*
    * **페이지가 조금이라도 스크롤되면 안 된다.**
@@ -97,12 +83,6 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
    *   ① 넘친 만큼 실제로 재서 줄인다 — 내용이 잘리지 않게
    *   ② 그래도 남으면 body 스크롤 자체를 잠근다 — 원천봉쇄
    */
-  useEffect(() => {
-    if (boxH == null) return
-    const de = document.documentElement
-    const over = de.scrollHeight - de.clientHeight
-    if (over > 0) setBoxH(b => (b == null ? b : Math.max(280, b - over)))
-  }, [boxH])
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -134,7 +114,7 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
 
   let lastDay = ''
   return (
-    <div ref={rootRef} style={boxH ? { ...s.root, height: boxH } : s.root}>
+    <div style={s.root}>
       <div ref={listRef} style={s.list}>
         {rows.length === 0 && (
           <div style={s.empty}>
@@ -239,7 +219,8 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
 
 const s: Record<string, React.CSSProperties> = {
   /** 높이는 화면을 재서 정한다(위 useEffect) — 여기 값은 계산 전 잠깐 쓰는 것 */
-  root: { display: 'flex', flexDirection: 'column', minHeight: 0, height: 'min(60vh, 640px)', overflow: 'hidden' },
+  /** 부모가 정한 높이를 그대로 채운다 — 여기서 화면을 재지 않는다(zoom 함정) */
+  root: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' },
   list: {
     flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--sp-4)',
     display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)',

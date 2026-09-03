@@ -79,10 +79,21 @@ describe('채팅은 한 화면에 다 들어온다', () => {
   });
 
   it('🔴 대화 탭은 남은 화면 높이에 맞춘다 — vh 가 아니라 innerHeight 로', () => {
-    const tab = read('frontend/src/components/OrderChatTab.tsx');
+    /*
+     * 높이를 재는 곳은 **부모(OrderDetail)** 다. 탭 본문이 이미 바닥까지 채워져 있으므로
+     * 대화 탭은 그걸 채우기만 한다 — 두 곳에서 따로 재던 시절엔 zoom 보정이 한쪽에만
+     * 들어가 바닥에 89px 빈 띠가 남았다(실측).
+     */
+    const detail = read('frontend/src/components/OrderDetail.tsx');
     // 모바일 주소창이 접혔다 펴지면 실제 높이가 달라진다 — vh 는 그걸 안 따라간다
-    expect(tab).toMatch(/window\.innerHeight/);
-    expect(tab).toMatch(/addEventListener\('resize'/);
+    expect(detail).toMatch(/window\.innerHeight/);
+    expect(detail).toMatch(/addEventListener\('resize'/);
+
+    const tab = codeOnly(read('frontend/src/components/OrderChatTab.tsx'));
+    // 탭은 부모를 채운다 — 화면을 다시 재지도, vh 로 어림잡지도 않는다
+    expect(tab, '대화 탭이 화면을 또 재면 부모와 어긋난다').not.toMatch(/window\.innerHeight/);
+    expect(tab, 'vh 는 주소창 변화를 못 따라간다').not.toMatch(/\d+vh/);
+    expect(tab).toMatch(/flex: 1/);
   });
 
   it('🔴 서랍이 열려 있는 동안 뒤 화면이 스크롤되지 않는다', () => {
