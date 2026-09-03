@@ -21,6 +21,9 @@ import {
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
 import multer from 'multer';
+import {
+  listComments, listAllComments, addComment, unreadByStep, markRead, COMMENT_MAX,
+} from '../services/step-comments.js';
 import { writeFile, unlink, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import {
@@ -499,3 +502,109 @@ stepsRouter.delete('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), canCha
   if (abs) await unlink(abs).catch(() => { /* 파일이 이미 없어도 기록은 지운다 */ });
   res.json({ data: { ok: true } });
 }));
+
+// ── 단계별 대화 ──────────────────────────────────────────────────────────
+/*
+ * 특장사와 관리자가 그 단계 자리에서 주고받는다. **이력이 목적이라 고치거나 지우지 않는다.**
+ *
+ * 읽기는 단계 조회와 **같은 범위**로 연다(loadOrder). 나중에 영업에게 조회 탭을 열어 줄 때
+ * 서버를 다시 손대지 않아도 되도록 — 지금은 화면이 없을 뿐이다.
+ * 쓰기는 **관리자·특장사만**. 영업이 끼는 문제는 별도 화면 설계가 먼저다.
+ */
+
+/** 단계 코드가 이 주문에 실제로 있는가 — 없는 코드로 스레드를 만들지 않는다 */
+async function stepExists(orderId: number, code: string): Promise<boolean> {
+  if (!prisma) return false;
+  const row = await prisma.orderStep.findFirst({
+    where: { order_id: orderId, code }, select: { id: true },
+  });
+  return row != null;
+}
+
+/** 주문 전체의 안 읽은 개수 — 화면이 단계 버튼마다 빨간 점을 찍는 데 쓴다 */
+stepsRouter.get('/:id/step-comments/unread', rbac('ADMIN', 'SALES', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params['id']);
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+    res.json({ data: await unreadByStep(id, req.auth!.email) });
+  }));
+
+/**
+ * 주문의 대화 **전체**(시간순) — 「대화」 탭. 어느 단계 이야기인지 라벨을 함께 준다.
+ * 여기서는 읽음 처리를 하지 않는다 — 단계별 빨간 점은 그 단계를 열어야 꺼진다.
+ */
+stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params['id']);
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+    const defs = stepsFor(r.order.body_only);
+    res.json({ data: {
+      comments: await listAllComments(id),
+      me: req.auth!.email,
+      // 화면이 코드 대신 이름을 보여 주고, 쓸 때 고를 수 있게 목록도 함께 준다
+      steps: defs.map(d => ({ code: d.code, label: d.label })),
+    } });
+  }));
+
+/** 한 단계의 대화 전체. 여는 순간 읽은 것으로 표시한다 */
+stepsRouter.get('/:id/steps/:code/comments', rbac('ADMIN', 'SALES', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params['id']);
+    const code = String(req.params['code']);
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+    const rows = await listComments(id, code);
+    await markRead(id, code, req.auth!.email).catch(() => { /* 표시 실패로 조회를 막지 않는다 */ });
+    res.json({ data: { comments: rows, me: req.auth!.email } });
+  }));
+
+/** 글 남기기 — 관리자·특장사만 */
+stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params['id']);
+    const code = String(req.params['code']);
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+
+    const body = String((req.body as { body?: unknown })?.body ?? '').trim();
+    if (body === '') {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '내용을 입력하세요' } });
+      return;
+    }
+    if (body.length > COMMENT_MAX) {
+      res.status(400).json({
+        error: { code: 'TOO_LONG', message: `${COMMENT_MAX}자까지 쓸 수 있습니다` },
+      });
+      return;
+    }
+    if (!(await stepExists(id, code))) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '없는 단계입니다' } });
+      return;
+    }
+
+    const auth = req.auth!;
+    const me = prisma ? await prisma.user.findUnique({
+      where: { email: auth.email }, select: { name: true },
+    }) : null;
+    const row = await addComment({
+      orderId: id, stepCode: code,
+      stepLabel: STEP_BY_CODE[code]?.label ?? code,
+      author: auth.email,
+      authorRole: auth.roles.includes('MAKER') && !isAdmin(auth) ? 'MAKER' : (isAdmin(auth) ? 'ADMIN' : 'SALES'),
+      authorName: me?.name ?? null,
+      body,
+    });
+    res.status(201).json({ data: row });
+  }));
+
+/** 읽음 표시만 — 패널을 닫지 않고도 점을 끄고 싶을 때 */
+stepsRouter.post('/:id/steps/:code/comments/read', rbac('ADMIN', 'SALES', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params['id']);
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+    await markRead(id, String(req.params['code']), req.auth!.email);
+    res.json({ data: { ok: true } });
+  }));

@@ -27,8 +27,8 @@ model Org {
   biz_no String? @db.VarChar(20)
   active Boolean @default(true)
 
-  users       User[]
-  quote_orgs  Quote[]  @relation("QuoteOrg")
+  users        User[]
+  quote_orgs   Quote[] @relation("QuoteOrg")
   maker_orders Order[] @relation("OrderMakerOrg")
 
   @@map("org")
@@ -66,11 +66,11 @@ model User {
   // DEV: master surface switcher — true인 계정만 surface 전환 토글 표시 (테스트용)
   is_master      Boolean    @default(false)
 
-  org              Org        @relation(fields: [org_code], references: [code])
-  inviter          User?      @relation("Invites", fields: [invited_by], references: [email])
-  invitees         User[]     @relation("Invites")
-  customers        Customer[]
-  sales_quotes     Quote[]    @relation("QuoteSales")
+  org          Org        @relation(fields: [org_code], references: [code])
+  inviter      User?      @relation("Invites", fields: [invited_by], references: [email])
+  invitees     User[]     @relation("Invites")
+  customers    Customer[]
+  sales_quotes Quote[]    @relation("QuoteSales")
 
   @@map("user")
 }
@@ -195,8 +195,8 @@ model OptionRule {
 // ─── B: 가격·보조금·세율 ──────────────────────────────────────────────────
 
 model OptionPrice {
-  model_code   String @db.VarChar(30)
-  value_code   String @db.VarChar(40)
+  model_code   String  @db.VarChar(30)
+  value_code   String  @db.VarChar(40)
   supply_price Int
   memo         String?
 
@@ -277,17 +277,17 @@ model TaxConfig {
 ///
 /// ⚠️ 지우지 않는다 — 보낸 것은 되돌릴 수 없는 사실이라 기록도 되돌리지 않는다.
 model QuoteEmailLog {
-  id       Int      @id @default(autoincrement())
-  quote_id Int
+  id            Int      @id @default(autoincrement())
+  quote_id      Int
   /// 보낸 시점의 견적번호 — 나중에 번호가 붙거나 바뀌어도 그때 무엇을 보냈는지가 남는다
-  quote_no String?  @db.VarChar(30)
-  to_email String   @db.VarChar(200)
+  quote_no      String?  @db.VarChar(30)
+  to_email      String   @db.VarChar(200)
   /// 계약서를 함께 보냈는가. false = 견적서만
-  with_contract Boolean @default(false)
+  with_contract Boolean  @default(false)
   /// 실제로 붙인 파일 이름들 — 「보냈다」와 「무엇이 갔다」가 어긋나지 않게
-  attachments   String  @db.VarChar(500)
-  sent_by  String   @db.VarChar(120)
-  sent_at  DateTime @default(now())
+  attachments   String   @db.VarChar(500)
+  sent_by       String   @db.VarChar(120)
+  sent_at       DateTime @default(now())
 
   quote Quote @relation(fields: [quote_id], references: [id])
 
@@ -355,10 +355,10 @@ model InstallmentRate {
 // 무게계산 상수 (차종기준·항목무게/위치·타이어·탑무게 수식계수). 관리자 CRUD, 숫자만 바꾸면 재계산.
 // 단일소스 = shared/bom/weight-constants.ts WEIGHT_CONSTANT_SEED. 계산은 순수함수에 주입(값 없으면 throw).
 model WeightConstant {
-  key         String  @id @db.VarChar(60)
-  category    String  @db.VarChar(20)
-  value       Decimal @db.Decimal(14, 6)
-  unit        String? @db.VarChar(20)
+  key         String   @id @db.VarChar(60)
+  category    String   @db.VarChar(20)
+  value       Decimal  @db.Decimal(14, 6)
+  unit        String?  @db.VarChar(20)
   description String?
   updated_at  DateTime @default(now()) @updatedAt
 
@@ -379,32 +379,32 @@ model Tire {
 /// 고객 마스터. 견적을 반복해서 넣는 고객이 많아 (성명/상호 + 생년월일/사업자번호)로
 /// 같은 고객을 알아보고 갱신한다 — 예전엔 견적마다 새 행이 쌓였다.
 model Customer {
-  id         Int      @id @default(autoincrement())
-  name       String   @db.VarChar(60)
+  id               Int       @id @default(autoincrement())
+  name             String    @db.VarChar(60)
   /// 대표이사 — 법인사업자일 때만 채운다. 계약서 매수인 법인 줄에 인쇄된다.
-  ceo_name   String?  @db.VarChar(60)
-  email      String?  @db.VarChar(120)
+  ceo_name         String?   @db.VarChar(60)
+  email            String?   @db.VarChar(120)
   /// 휴대폰
-  phone      String?  @db.VarChar(20)
+  phone            String?   @db.VarChar(20)
   /// 유선 전화번호(계약서 «전화번호» 칸). 입력했을 때만 저장된다.
-  tel        String?  @db.VarChar(20)
-  address    String?  @db.VarChar(120)
+  tel              String?   @db.VarChar(20)
+  address          String?   @db.VarChar(120)
   /// 동·호수 등 상세주소. 주소 검색으로 채운 도로명주소(address)의 뒷부분.
-  address_detail String? @db.VarChar(120)
+  address_detail   String?   @db.VarChar(120)
   /// 생년월일 또는 사업자번호. name 과 함께 고객을 식별하는 키다.
-  reg_no     String?  @db.VarChar(20)
+  reg_no           String?   @db.VarChar(20)
   /// WARP CRM 정본 고객 ID(cuid) — 역방향 수집(#191)으로 WARP에 등록·연결되면 채워진다.
   /// ⚠️ UNIQUE 아님 — buildup 쪽 중복 행 여러 개가 같은 WARP 고객에 연결될 수 있다.
-  warp_customer_id String? @db.VarChar(40)
-  created_by String?  @db.VarChar(120)
-  created_at DateTime @default(now())
+  warp_customer_id String?   @db.VarChar(40)
+  created_by       String?   @db.VarChar(120)
+  created_at       DateTime  @default(now())
   /// WARP 역방향 수집의 증분 기준. 기존 행은 컬럼 추가 시점 값으로 시작한다.
-  updated_at DateTime @default(now()) @updatedAt
+  updated_at       DateTime  @default(now()) @updatedAt
   /// 숨김 — **지우지 않고 화면에서만 감춘다.** null 이면 보인다.
   /// ⚠️ `warp_customer_id` 가 있는(=WARP 에 연결된) 고객은 숨길 수 없다.
   ///    숨기면 export 에서 빠져 WARP 쪽에서 증발한 것처럼 보인다.
-  hidden_at  DateTime?
-  hidden_by  String?  @db.VarChar(120)
+  hidden_at        DateTime?
+  hidden_by        String?   @db.VarChar(120)
 
   creator User?   @relation(fields: [created_by], references: [email])
   quotes  Quote[]
@@ -434,27 +434,27 @@ enum QuoteStatus {
 }
 
 model Quote {
-  id            Int         @id @default(autoincrement())
-  quote_no      String?     @unique @db.VarChar(10)
-  customer_id   Int?
-  model_code    String      @db.VarChar(30)
-  selections    Json        @default("{}")
-  inputs        Json        @default("{}") // 총견적서 입력시트 스냅샷(구분·소상공인·지역·면세·선수금비율·할부개월수·영업용번호판 등)
-  supply_price  Int?
-  final_price   Int?
-  status        QuoteStatus @default(draft)
+  id                Int         @id @default(autoincrement())
+  quote_no          String?     @unique @db.VarChar(10)
+  customer_id       Int?
+  model_code        String      @db.VarChar(30)
+  selections        Json        @default("{}")
+  inputs            Json        @default("{}") // 총견적서 입력시트 스냅샷(구분·소상공인·지역·면세·선수금비율·할부개월수·영업용번호판 등)
+  supply_price      Int?
+  final_price       Int?
+  status            QuoteStatus @default(draft)
   /// sales = 영업 작성 상담 견적 / public = 고객이 공개 화면에서 직접 접수한 문의
-  source        String      @default("sales") @db.VarChar(10)
-  sales_user_id String?     @db.VarChar(120)
-  org_id        String?     @db.VarChar(30)
+  source            String      @default("sales") @db.VarChar(10)
+  sales_user_id     String?     @db.VarChar(120)
+  org_id            String?     @db.VarChar(30)
   /// 담당 영업이 배정을 **수락한** 시각. NULL = 수락 대기(또는 배정 전). 재배정 시 NULL 로 돌린다.
   sales_accepted_at DateTime?
   /// 숨김 — **지우지 않고 화면에서만 감춘다.** null 이면 보인다.
   /// ⚠️ 임시저장(draft)만 숨길 수 있다. 확정 이상은 퍼널 통계가 왜곡되고
   ///    진행 중인 거래가 화면에서 사라진다. 계약이 붙어 있으면 무조건 거부.
-  hidden_at     DateTime?
-  hidden_by     String?     @db.VarChar(120)
-  created_at    DateTime    @default(now())
+  hidden_at         DateTime?
+  hidden_by         String?     @db.VarChar(120)
+  created_at        DateTime    @default(now())
 
   // 참고용 메일 발송(견적서·계약서 PDF 첨부) 이력 — 전자서명(purchase_contract)과는 별개 채널.
   // 관리자 견적 목록에서 '보냈는지/언제/누구에게' 를 확인하는 용도. 마지막 발송 기준.
@@ -464,18 +464,18 @@ model Quote {
   // 서류 고정 — 전자서명 '요청 발송' 시점에 견적서·계약서 PDF 를 파일로 굳힌다.
   // 고정 후에는 옵션 단가·세율이 바뀌어도 저장본을 그대로 내려주고, 입력 수정도 막는다.
   // (고객이 서명한 문서와 시스템이 어긋나면 안 되므로 값 재계산이 아니라 바이트 보존)
-  docs_frozen_at   DateTime?
-  docs_frozen_quote_path    String? @db.VarChar(300)
-  docs_frozen_contract_path String? @db.VarChar(300)
+  docs_frozen_at            DateTime?
+  docs_frozen_quote_path    String?   @db.VarChar(300)
+  docs_frozen_contract_path String?   @db.VarChar(300)
 
-  customer   Customer?    @relation(fields: [customer_id], references: [id])
-  model      VehicleModel @relation(fields: [model_code], references: [code])
+  customer    Customer?          @relation(fields: [customer_id], references: [id])
+  model       VehicleModel       @relation(fields: [model_code], references: [code])
   change_logs QuoteChangeLog[]
-  sales_user User?        @relation("QuoteSales", fields: [sales_user_id], references: [email])
-  org        Org?         @relation("QuoteOrg", fields: [org_id], references: [code])
-  order      Order?
-  contracts  PurchaseContract[]
-  email_logs   QuoteEmailLog[]
+  sales_user  User?              @relation("QuoteSales", fields: [sales_user_id], references: [email])
+  org         Org?               @relation("QuoteOrg", fields: [org_id], references: [code])
+  order       Order?
+  contracts   PurchaseContract[]
+  email_logs  QuoteEmailLog[]
 
   @@map("quote")
 }
@@ -507,14 +507,16 @@ model Order {
   canceled_by   String?   @db.VarChar(120)
   cancel_reason String?   @db.VarChar(500)
 
-  quote     Quote        @relation(fields: [quote_id], references: [id])
-  maker_org Org?         @relation("OrderMakerOrg", fields: [maker_org_id], references: [code])
-  options   OrderOption[]
-  documents Document[]
+  quote               Quote               @relation(fields: [quote_id], references: [id])
+  maker_org           Org?                @relation("OrderMakerOrg", fields: [maker_org_id], references: [code])
+  options             OrderOption[]
+  documents           Document[]
   generated_documents GeneratedDocument[]
-  steps     OrderStep[]
-  files     OrderFile[]
+  steps               OrderStep[]
+  files               OrderFile[]
   tuning_applications TuningApplication[]
+  step_comments       OrderStepComment[]
+  step_reads          OrderStepRead[]
 
   @@map("order")
 }
@@ -632,11 +634,11 @@ enum ContractStatus {
 
 model PurchaseContract {
   id                   Int            @id @default(autoincrement())
-  quote_id             Int            // 계약은 견적(확정 시점)에 연결. 주문 생성 전에도 발송 가능.
+  quote_id             Int // 계약은 견적(확정 시점)에 연결. 주문 생성 전에도 발송 가능.
   modusign_document_id String?        @unique @db.VarChar(80)
   signing_method       String         @db.VarChar(10) // EMAIL | KAKAO | PAPER(서면계약)
   status               ContractStatus @default(DRAFT)
-  customer_snapshot    Json           // 발송시점 고객 스냅샷(이름/연락처)
+  customer_snapshot    Json // 발송시점 고객 스냅샷(이름/연락처)
   signed_pdf_path      String?        @db.VarChar(500)
   sent_at              DateTime?
   completed_at         DateTime?
@@ -694,3 +696,63 @@ model ModusignWebhookEvent {
 // ─── C, D2 보류 — TODO 2단계 ───────────────────────────────────────────────
 // material · part · bom_line · drawing
 // ERD 안정 후 추가
+
+/// 단계별 대화 — 특장사와 관리자가 그 단계 자리에서 주고받는다.
+///
+/// **이력이 핵심이다.** 고치거나 지우지 않는다 — 「그때 무슨 이야기가 오갔나」가
+/// 나중에 책임 소재를 가르는 근거가 된다. 잘못 쓴 글은 다음 글로 바로잡는다.
+model OrderStepComment {
+  id          Int      @id @default(autoincrement())
+  order_id    Int
+  /// 어느 단계에 붙은 이야기인가 (order_step.code 와 같은 값)
+  step_code   String   @db.VarChar(40)
+  author      String   @db.VarChar(120)
+  /// 쓴 사람의 역할 — 나중에 계정이 지워져도 「누가」가 남는다
+  author_role String   @db.VarChar(10)
+  /// 화면에 보이는 이름. 계정 이름이 바뀌어도 그때 이름 그대로 남는다
+  author_name String?  @db.VarChar(80)
+  body        String   @db.VarChar(2000)
+  created_at  DateTime @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([order_id, step_code, id], map: "order_step_comment_thread_idx")
+  @@map("order_step_comment")
+}
+
+/// 어디까지 읽었나 — 단계 버튼의 빨간 점을 켜고 끄는 근거.
+/// 사람마다 다르므로 (사용자 × 주문 × 단계)로 잡는다.
+model OrderStepRead {
+  id           Int      @id @default(autoincrement())
+  user_email   String   @db.VarChar(120)
+  order_id     Int
+  step_code    String   @db.VarChar(40)
+  /// 이 시각까지 읽었다 — 이보다 뒤에 달린 글이 있으면 빨간 점
+  last_read_at DateTime
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_email, order_id, step_code], map: "order_step_read_unique")
+  @@index([user_email, order_id], map: "order_step_read_user_idx")
+  @@map("order_step_read")
+}
+
+/// 웹 푸시 구독 — 기기 하나가 하나의 구독이다(같은 사람이 폰·PC 둘 다 등록할 수 있다).
+///
+/// endpoint 는 구글·애플이 발급하는 주소다. 알림을 보낼 곳이라 **비밀은 아니지만**
+/// 남의 것을 알면 그 기기로 알림을 보낼 수 있으므로 밖으로 내보내지 않는다.
+model PushSubscription {
+  id         Int       @id @default(autoincrement())
+  user_email String    @db.VarChar(120)
+  endpoint   String    @unique @db.VarChar(500)
+  p256dh     String    @db.VarChar(200)
+  auth       String    @db.VarChar(100)
+  /// 어느 기기인지 사람이 알아볼 수 있게 — 「해지」 화면에서 쓴다
+  user_agent String?   @db.VarChar(300)
+  created_at DateTime  @default(now())
+  /// 마지막으로 보내기 성공한 시각. 실패가 쌓이면 지운다(구글이 410 을 준다)
+  last_ok_at DateTime?
+
+  @@index([user_email], map: "push_subscription_user_idx")
+  @@map("push_subscription")
+}

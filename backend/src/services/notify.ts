@@ -47,7 +47,7 @@ export const ASSIGN_NOTIFY_MODULE = 'notify.assign';
  * ⚠️ **기본은 아무도 안 받는 것이다.** 아무도 켜 두지 않으면 메일이 나가지 않는다.
  *    조용히 사라지면 서명이 끝난 건이 방치되므로, 그때는 로그로 분명히 남긴다.
  */
-async function adminRecipients(): Promise<string[]> {
+export async function adminRecipients(): Promise<string[]> {
   // 비상 우회 — 설정이 꼬였을 때 서버 env 로 강제 지정한다
   const override = process.env['NOTIFY_ADMIN_TO'];
   if (override) return override.split(',').map(s => s.trim()).filter(Boolean);

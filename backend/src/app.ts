@@ -10,6 +10,7 @@ import { orderFilesRouter } from './routes/order-files.js';
 import { customerFoldersRouter } from './routes/customer-folders.js';
 import { stepsRouter } from './routes/steps.js';
 import { docsRouter } from './routes/docs.js';
+import { pushRouter } from './routes/push.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
@@ -102,6 +103,7 @@ export function createApp() {
   app.use('/api/v1/orders', ordersRouter);
   app.use('/api/v1/orders', docsRouter);
   app.use('/api/v1/orders', stepsRouter);
+  app.use('/api/v1/push', pushRouter);   // 웹 푸시 구독(기기 단위)
   app.use('/api/v1/quotes', contractsRouter); // 계약은 견적 기준
   app.use('/api/v1/orders', tuningRouter);   // 튜닝신청서는 주문 기준(등록증이 나온 뒤에 만든다)
   app.use('/api/v1/quotes', emailRouter);     // 견적서·계약서 이메일 발송

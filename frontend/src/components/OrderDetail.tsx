@@ -7,9 +7,11 @@ import { fetchOrderDetail } from '../api/orders'
 import { fetchModelSpec, type ModelSpec } from '../api/models'
 import { saveVehicleInfo } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
+import { rolesOf } from '@shared/types/index'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
 import { OrderStepsPanel } from './OrderStepsPanel'
+import { OrderChatTab } from './OrderChatTab'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 
@@ -404,7 +406,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
-  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load'>('steps')
+  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load' | 'chat'>('steps')
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
@@ -473,7 +475,21 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             )}
           </>
         )}
+        {/*
+          대화 — **목록 제일 끝.** 단계별 창이 그 단계에 집중하는 자리라면,
+          여기는 오간 이야기를 시간순으로 한 줄로 읽는 자리다.
+        */}
+        <button style={tab === 'chat' ? det.tabActive : det.tabBtn} onClick={() => setTab('chat')}>
+          대화
+        </button>
       </div>
+
+      {tab === 'chat' && (
+        <OrderChatTab
+          orderId={detail.id}
+          canWrite={rolesOf(session!.user).some(r => r === 'ADMIN' || r === 'MAKER')}
+        />
+      )}
 
       {tab === 'steps' && (
         <div style={det.section}>
