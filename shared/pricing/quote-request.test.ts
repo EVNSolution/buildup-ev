@@ -81,9 +81,9 @@ describe('저장 요청 — 완전성', () => {
 });
 
 describe('저장 요청 — 근거: 이 값들은 실제로 금액을 바꾼다', () => {
-  const base = assembleOptionSum(SEL, price);
+  const base = assembleOptionSum(SEL, price, [], []);
   const quote = (opts: { zeroed?: string[]; promotion?: number }) => {
-    const a = assembleOptionSum(SEL, price, opts.zeroed);
+    const a = assembleOptionSum(SEL, price, opts.zeroed, []);
     return calcQuote({
       ...QUOTE_PARAMS,
       body_price: Math.round(a.option_sum * 1.1),
@@ -93,7 +93,7 @@ describe('저장 요청 — 근거: 이 값들은 실제로 금액을 바꾼다'
 
   it('무상제공(0원 처리)이 실구매가를 바꾼다', () => {
     expect(quote({ zeroed: ['TEMP'] }).real_price).toBeLessThan(quote({}).real_price);
-    expect(assembleOptionSum(SEL, price, ['TEMP']).option_sum).toBe(base.option_sum - 450_000);
+    expect(assembleOptionSum(SEL, price, ['TEMP'], []).option_sum).toBe(base.option_sum - 450_000);
   });
 
   it('금액 할인이 실구매가를 바꾼다', () => {

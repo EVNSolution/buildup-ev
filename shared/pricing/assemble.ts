@@ -4,6 +4,8 @@
  * (쿠팡→EV미닫이, 스포일러 저상 등은 시드(option_price) 단계에서 반영됨)
  */
 
+import { customOptionsSupplySum, type CustomOption } from './custom-options.js';
+
 /** 택배업 보조금율 (국고 대비) — 견적서 D31 */
 export const TAKBAE_RATE = 0.1;
 /** 경유차 유지 후 전기차 전환 보조금 (음수) — 견적서 D30 */
@@ -79,15 +81,20 @@ export function optionBreakdown(
 /**
  * selections + 가격조회함수 → { trim_price, option_sum } (견적서 D13, D15:D20)
  * zeroed = 재량할인으로 0원 처리할 옵션그룹코드(TOP/DOORTYPE/…).
+ *
+ * ⚠️ `custom` 은 **필수 인자**다. 단가표에 없는 사양을 영업이 직접 적어 넣는 줄인데,
+ *    빠뜨리면 화면에는 금액이 보이는데 저장·서류에서만 조용히 빠진다. 없으면 `[]` 를
+ *    넘겨 「없다」를 분명히 적는다 — 타입이 모든 호출부에서 한 번씩 묻게 한다.
  */
 export function assembleOptionSum(
   sel: Record<string, string>,
   price: (code: string) => number,
-  zeroed?: readonly string[],
+  zeroed: readonly string[] | undefined,
+  custom: readonly CustomOption[],
 ): { trim_price: number; option_sum: number } {
   const bd = optionBreakdown(sel, price, zeroed);
   return {
     trim_price: price(sel['TRIM'] ?? ''),
-    option_sum: Object.values(bd).reduce((a, b) => a + b, 0),
+    option_sum: Object.values(bd).reduce((a, b) => a + b, 0) + customOptionsSupplySum(custom),
   };
 }

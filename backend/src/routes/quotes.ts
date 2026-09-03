@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { noStore } from '../lib/doc-headers.js';
 import { syncOpenContracts } from '../services/contract-sync.js';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { rbac, requirePermission, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
@@ -11,6 +11,7 @@ import { readFrozenDoc, isFrozen, FROZEN_MESSAGE, collectContractFilePaths, dele
 import {
   calcPrice, calcQuote, assembleOptionSum, CAR_TRIM_LABEL_MAX, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   dieselDeducts, toDieselStatus,
+  checkCustomOptions, readCustomOptions, type CustomOption,
   type PricingParams,
 } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, quoteExtraFromInputs, type CustomerInput } from '../services/quote-calc.js';
@@ -38,12 +39,45 @@ export const quotesRouter = Router();
 const genQuoteNo = (prismaClient: NonNullable<typeof prisma>, year: number): Promise<string> =>
   nextQuoteNo(prismaClient, year);
 
+/**
+ * **커스텀 특장 옵션 검사** — 저장하는 모든 길목이 이 함수를 쓴다.
+ *
+ * 반쪽만 적힌 줄(옵션명만 · 금액만)은 **임시저장조차 막는다.** 옵션명만 있으면 얼마를
+ * 받을지 모르고, 금액만 있으면 무엇인지 모른 채 청구된다. 어느 쪽도 서류로 나가면 안 된다.
+ * 판정은 화면과 **같은 함수**(`checkCustomOptions`)로 한다 — 화면에서만 막으면
+ * 옛 화면·직접 호출로 반쪽짜리가 그대로 들어온다.
+ *
+ * 통과하면 저장할 줄만 돌려준다(+ 만 누르고 안 적은 줄은 버린다).
+ * 막으면 `res` 에 400 을 써서 보내고 `null` 을 돌려준다.
+ */
+function takeCustomOptions(raw: unknown, res: Response): CustomOption[] | null {
+  // 아예 안 보낸 요청(옛 화면·다른 경로)은 「건드리지 않음」이다
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '추가 옵션 형식이 올바르지 않습니다.' } });
+    return null;
+  }
+  const drafts = raw.map((r) => {
+    const o = (r ?? {}) as { name?: unknown; price?: unknown };
+    return {
+      name: typeof o.name === 'string' ? o.name : '',
+      price: typeof o.price === 'number' && Number.isFinite(o.price) ? o.price : null,
+    };
+  });
+  const check = checkCustomOptions(drafts);
+  if (!check.ok) {
+    res.status(400).json({ error: { code: 'CUSTOM_OPTION_INCOMPLETE', message: check.message } });
+    return null;
+  }
+  return check.options;
+}
+
 async function buildParams(
   model_code: string,
   selections: Record<string, string>,
   customer: CustomerInput | undefined,
   calcYear: number,
-  extra?: { promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean; car_price_override?: number | null },
+  extra?: { promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean; car_price_override?: number | null; custom_options?: CustomOption[] },
 ): Promise<PricingParams> {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
 
@@ -65,7 +99,11 @@ async function buildParams(
 
   // 특장 옵션 합계 = 옵션DB 복합키(탑 높이 종속) 단가 합 (견적서 D13, D15:D20). 조립은 shared 공용.
   // 재량할인(프로모션)은 조립 단계에서 0원 처리 → 공급가·부가세·취득세·실구매가에 모두 반영된다.
-  const { trim_price: rawTrim, option_sum } = assembleOptionSum(selections, price, extra?.promotion_zeroed ?? []);
+  const { trim_price: rawTrim, option_sum } = assembleOptionSum(
+    selections, price, extra?.promotion_zeroed ?? [],
+    // 단가표에 없는 사양(영업 직접 입력) — 공급가로 되돌려 합계에 들어간다
+    extra?.custom_options ?? [],
+  );
   // 특장만 견적이면 차량가와 보조금이 없다 — 트림을 0으로 두면 나머지는 자연히 따라간다
   const bodyOnly = extra?.body_only === true;
   const trim_price = bodyOnly ? 0 : rawTrim;
@@ -247,17 +285,25 @@ quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promis
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override } = req.body as {
+  const { model_code, year, selections, customer, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override, custom_options } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
     promotion_zeroed?: string[]; promotion_discount?: number; local_subsidy_off?: boolean; body_only?: boolean; vehicle_only?: boolean; car_price_override?: number | null;
+    custom_options?: unknown;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
+  /*
+   * 계산만 하는 길이라 반쪽짜리를 막을 필요는 없어 보이지만, **여기서도 막는다.**
+   * 화면이 보여 주는 금액과 저장되는 금액이 달라지면 그게 더 나쁘다 —
+   * 반쪽 줄을 계산에서 조용히 빼면 「화면엔 보이는데 저장하면 사라지는」 금액이 된다.
+   */
+  const customCalc = takeCustomOptions(custom_options, res);
+  if (customCalc === null) return;
   try {
-    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear(), { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override });
+    const params = await buildParams(model_code, selections, customer, year ?? new Date().getFullYear(), { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override, custom_options: customCalc });
     const result = calcPrice(params);
     if (result.status === 'unsupported') {
       res.status(422).json({ error: { code: 'UNSUPPORTED', message: result.reason } });
@@ -376,8 +422,19 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
       // 매매계약서 전용 입력(견적서 생성 팝업에서 함께 받음). 전부 선택 — 비워두면 계약서에 공란으로 나간다.
       'contract_party', 'buyer_agent', 'buyer_relation', 'buyer_regno', 'buyer_tel',
       // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
-      'ceo_name'];
+      'ceo_name',
+      // 커스텀 특장 옵션 — 저장 뒤 「수정」에서도 고칠 수 있어야 한다(컨피규레이터와 같게)
+      'custom_options'];
     const body = (req.body ?? {}) as Record<string, unknown>;
+    /*
+     * 반쪽만 적힌 줄은 **임시저장도 막는다.** 이 길이 「부분저장」이라고 예외를 두면
+     * 컨피규레이터에서 막아 둔 것이 수정 팝업으로 그대로 새어 들어온다.
+     */
+    if ('custom_options' in body) {
+      const checked = takeCustomOptions(body['custom_options'], res);
+      if (checked === null) return;
+      body['custom_options'] = checked;
+    }
     const patch: Record<string, unknown> = {};
     for (const k of ALLOWED) if (k in body) patch[k] = body[k];
     const prev = (quote.inputs ?? {}) as Record<string, unknown>;
@@ -620,7 +677,7 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return;
   }
-  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, memo, local_subsidy_off, body_only, vehicle_only, car_price_override, car_trim_label, vehicle_owned } = req.body as {
+  const { model_code, year, selections, customer, down_payment_rate, installment_months, promotion_zeroed, promotion_discount, memo, local_subsidy_off, body_only, vehicle_only, car_price_override, car_trim_label, vehicle_owned, custom_options } = req.body as {
     model_code?: string; year?: number;
     selections?: Record<string, string>; customer?: CustomerInput;
     down_payment_rate?: number; installment_months?: number; promotion_zeroed?: string[]; promotion_discount?: number; memo?: string; local_subsidy_off?: boolean;
@@ -633,20 +690,25 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
     car_trim_label?: string;
     /** 특장만일 때 고객이 적어 주는 보유 차량 정보(견적서에 그대로 실린다) */
     vehicle_owned?: Record<string, string>;
+    /** 단가표에 없는 사양 — 영업이 옵션명과 금액을 직접 적은 줄 */
+    custom_options?: unknown;
   };
   if (!model_code || !selections) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'model_code, selections 필수' } });
     return;
   }
+  // 반쪽만 적힌 줄이 있으면 **임시저장도 막는다** — 여기서 끝, 아래 계산으로 가지 않는다
+  const customSave = takeCustomOptions(custom_options, res);
+  if (customSave === null) return;
 
   const calcYear = year ?? new Date().getFullYear();
-  const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override });
+  const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override, custom_options: customSave });
   const result = calcPrice(params);
 
   // 저장되는 실구매가는 **총견적서 기준**(견적서 PDF·화면과 동일 규칙).
   // calcPrice(Ver1.21)는 공급가액 산출과 하위호환 응답용으로만 유지한다.
   const totalParams = await buildQuoteParams(model_code, selections, customer,
-    { down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override }, calcYear);
+    { down_payment_rate, installment_months, promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override, custom_options: customSave }, calcYear);
   const total = calcQuote(totalParams);
 
   // 총견적서 입력시트 스냅샷(견적별 입력값 — 나중에 총견적서 재출력·재계산용)
@@ -683,6 +745,11 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
      */
     car_trim_label: body_only === true || car_price_override == null
       ? '' : String(car_trim_label ?? '').trim().slice(0, CAR_TRIM_LABEL_MAX),
+    /*
+     * 커스텀 특장 옵션 — 검사를 통과한 줄만 남는다(반쪽 줄은 위에서 이미 400).
+     * 「+ 만 누르고 안 적은 줄」은 여기 도달하기 전에 걸러졌다 — 없는 것과 같다.
+     */
+    custom_options: customSave,
     promotion_zeroed: promotion_zeroed ?? [],  // 프로모션: 0원 처리한 특장옵션 그룹
     promotion_discount: Math.max(0, Math.round(promotion_discount ?? 0)),  // 프로모션 할인액(VAT 포함)
     local_subsidy_off: local_subsidy_off ?? false, // 견적별 지방보조금 미적용(영업 토글)
@@ -960,7 +1027,14 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     return;
   }
 
-  const { maker_org_id, remark } = req.body as { maker_org_id?: string; remark?: string };
+  const { maker_org_id, remark, custom_badge } = req.body as {
+    maker_org_id?: string; remark?: string;
+    /**
+     * 「커스텀」 배지 — 특장사 목록에 붙는다. **관리자가 여기서 정한다.**
+     * 예전엔 비고에 뭐라도 적히면 자동으로 붙어, 납기 안내 같은 메모에도 배지가 달렸다.
+     */
+    custom_badge?: boolean;
+  };
   if (!maker_org_id) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '배정 특장사(maker_org_id) 필수' } });
     return;
@@ -997,7 +1071,11 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
          * 화면과 **같은 규칙**(clampMemo)으로 자른다. 서버에서 안 자르면 API 를 직접
          * 부르는 경로로 긴 글이 들어와 발주서 양식이 깨진다.
          */
-        data: { quote_id: id, maker_org_id, assigned_at: now, remark: clampMemo(remark ?? '') || null },
+        data: {
+          quote_id: id, maker_org_id, assigned_at: now,
+          remark: clampMemo(remark ?? '') || null,
+          custom_badge: custom_badge === true,
+        },
       }),
     ]);
 

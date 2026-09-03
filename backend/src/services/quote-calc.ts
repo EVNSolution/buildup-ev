@@ -9,6 +9,7 @@ import {
   dieselDeducts, toDieselStatus, type QuoteParams,
   resolveCarPrice,
   noVatRefund,
+  readCustomOptions, type CustomOption,
   bodyOnlyParams,
   vehicleOnlyParams,
 } from '@buildup-ev/shared/pricing';
@@ -70,6 +71,11 @@ export type QuoteExtraInput = {
    * ⚠️ `null` 은 「0원」이 아니라 「직접 입력을 껐다」 — resolveCarPrice 가 그 구분을 한다.
    */
   car_price_override?: number | null;
+  /**
+   * **커스텀 특장 옵션** — 단가표에 없는 사양을 영업이 직접 적어 넣은 줄.
+   * 금액은 **VAT 포함**(화면 기준)이고, 공급가로 되돌려 `option_sum` 에 더한다.
+   */
+  custom_options?: CustomOption[];
 };
 
 /**
@@ -99,6 +105,8 @@ export function quoteExtraFromInputs(inp: Record<string, unknown>): QuoteExtraIn
     // ⚠️ `!= null` — 직접 입력을 끈 견적은 null 이고, 그건 「0원」이 아니다
     car_price_override: inp['car_price_override'] != null
       ? (inp['car_price_override'] as number) : null,
+    // 형태가 깨진 것은 버린다 — 옛 견적에는 아예 없고, 손댄 JSON 이 들어올 수도 있다
+    custom_options: readCustomOptions(inp['custom_options']),
   };
 }
 
@@ -130,7 +138,7 @@ export async function buildQuoteParams(
 
   // 재량할인(프로모션)은 단가 조립 단계에서 0원 처리 — 특장가격·취득세·총액이 모두 자동 반영된다.
   const zeroed = extra?.promotion_zeroed ?? [];
-  const { trim_price, option_sum } = assembleOptionSum(selections, price, zeroed);
+  const { trim_price, option_sum } = assembleOptionSum(selections, price, zeroed, extra?.custom_options ?? []);
   const bizType = (customer?.biz_type ?? 'individual') as
     'individual' | 'corporation' | 'simplified' | 'consumer';
 

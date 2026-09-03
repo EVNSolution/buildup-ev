@@ -1,6 +1,18 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, noVatRefund, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, noVatRefund, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, rowState } from '@shared/pricing/core'
+import type { CustomOption, CustomOptionDraft } from '@shared/pricing/core'
+
+/**
+ * 화면 계산에 넣을 커스텀 옵션 — **다 적은 줄만** 센다.
+ * 적는 도중(이름만 적힌 상태)에 금액이 움직이면 숫자가 널뛰어 보인다.
+ * 저장 판정은 서버·저장 버튼이 `checkCustomOptions` 로 따로 한다.
+ */
+export function liveCustomOptions(rows: readonly CustomOptionDraft[] | undefined): CustomOption[] {
+  return (rows ?? [])
+    .filter(r => rowState(r) === 'ok')
+    .map(r => ({ name: r.name.trim(), price: r.price as number }))
+}
 import { mapBizType } from './quoteCustomer'
 import type { SubsidyInputs } from '../components/SubsidyInputs'
 
@@ -35,6 +47,12 @@ export interface LiveTotalArgs {
    * ⚠️ `undefined` 가 아니라 `null` 로 비운다는 점이 중요하다(resolveCarPrice 주석 참고).
    */
   carPriceOverride?: number | null
+  /**
+   * 커스텀 특장 옵션 — 단가표에 없는 사양을 영업이 직접 적은 줄.
+   * **반쪽만 적힌 줄은 계산에서 뺀다** — 저장은 어차피 막히고, 그 사이에 금액이
+   * 오르내리면 다 적기도 전에 숫자가 널뛴다. 다 적는 순간 반영된다.
+   */
+  customOptions?: readonly CustomOptionDraft[]
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null
 }
@@ -51,7 +69,9 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
 
   if (!bundle || Object.keys(selections).length === 0) return null
   const price = (code: string) => bundle.option_prices[code] ?? 0
-  const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
+  const { trim_price, option_sum } = assembleOptionSum(
+    selections, price, [...promotionZeroed], liveCustomOptions(args.customOptions),
+  )
   const t = bundle.tax_all ?? {}
   const biz = mapBizType(subsidyInputs.business_type)
   const params = {

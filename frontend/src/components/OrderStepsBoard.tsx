@@ -57,7 +57,8 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                   비고가 적힌 주문 = **이 건만의 요청이 있다.** 목록에서 바로 보여야
                   「열어 봐야 아는」 일이 안 생긴다.
                 */}
-                {o.remark?.trim() && <span style={s.custom}>커스텀</span>}
+                {/* 배지는 **관리자가 배정할 때 정한 값**만 따른다 — 비고 유무로 추측하지 않는다 */}
+                {o.custom_badge && <span style={s.custom}>커스텀</span>}
                 {late && mode !== 'pending' && <span style={s.lateTag}>지연</span>}
               </div>
               {/* 끝낸 것만 적는다 — 「✓」 로 완료라는 뜻을 눈에도 못박는다 */}
@@ -70,12 +71,19 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                     ? <span style={s.doneStep}>✓ {st.last_done}<span style={s.doneCount}> · {done}/{total} 완료</span></span>
                     : <span style={s.muted}>아직 완료된 단계가 없습니다</span>}
               </div>
+              {/*
+                납기는 **왼쪽 줄로** 둔다.
+                예전엔 오른쪽 진척도 칸 안에 있어 줄 한가운데에 떠 있었다 — 카드 왼쪽에
+                주문번호·고객·완료단계가 세로로 줄맞춤돼 있는데 날짜만 가운데 있으니
+                어디에 걸린 정보인지 읽히지 않았다(사진 제보).
+              */}
+              {mode !== 'pending' && o.delivery_due && (
+                <div style={s.line2}>
+                  <span style={s.due}>납기 {o.delivery_due.slice(0, 10)}</span>
+                </div>
+              )}
             </div>
-            {/*
-              납기를 진척도 **왼쪽**에 둔다 — 「언제까지인가」를 먼저 읽고 「얼마나 왔나」를 본다.
-              둘 사이는 넉넉히 띄운다. 붙여 두면 「0/15」와 날짜가 한 덩어리로 읽혀
-              무엇이 진척이고 무엇이 기한인지 구분되지 않는다.
-            */}
+            {/* 오른쪽 칸은 **진척도만** 갖는다 — 납기는 왼쪽 본문 줄로 옮겼다 */}
             <div style={s.side}>
               {mode === 'pending' ? (
                 /*
@@ -85,7 +93,6 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                 <span style={late ? s.sinceLate : s.since}>발주 후 {info?.days ?? 0}일째</span>
               ) : (
                 <>
-                  <span style={s.due}>{o.delivery_due ? `납기 ${o.delivery_due.slice(0, 10)}` : ''}</span>
                   <span style={s.progress}>
                     <span style={s.count}>{done}/{total}</span>
                     <span style={s.bar}>
@@ -139,9 +146,10 @@ const s: Record<string, React.CSSProperties> = {
    * 자리는 지키되 **왼쪽 정렬** — 오른쪽으로 붙이면 납기가 있는 줄과 없는 줄에서
    * 날짜 시작점이 달라져 세로로 훑을 수 없다.
    */
+  /** 납기 — 카드 **왼쪽 줄**. 오른쪽 진척도 칸에 있던 시절의 minWidth 는 뺐다(가운데로 밀던 값) */
   due: {
     fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700,
-    fontVariantNumeric: 'tabular-nums', minWidth: 104, textAlign: 'left',
+    fontVariantNumeric: 'tabular-nums',
   },
   /** 수락 전 — 발주일은 진행 중의 「끝낸 단계」와 같은 자리(둘째 줄 왼쪽) */
   orderedAt: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },

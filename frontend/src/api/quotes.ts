@@ -1,4 +1,4 @@
-import type { PricingOk, QuoteResult } from '@shared/pricing/core'
+import type { PricingOk, QuoteResult, CustomOption } from '@shared/pricing/core'
 import type { QuotePriceExtras } from '@shared/pricing/quote-request'
 import type { ApiQuote } from '@shared/types/index'
 
@@ -17,6 +17,11 @@ export interface SaveQuoteRequest extends Partial<QuotePriceExtras> {
   car_trim_label?: string
   /** 특장만일 때 고객이 적어 주는 보유 차량 정보 */
   vehicle_owned?: Record<string, string>
+  /**
+   * 커스텀 특장 옵션 — 단가표에 없는 사양(영업 직접 입력). 금액은 **VAT 포함**.
+   * 반쪽만 적힌 줄은 서버가 400 으로 막는다(화면도 같은 함수로 먼저 막는다).
+   */
+  custom_options?: CustomOption[]
   // 금액을 바꾸는 입력(프로모션·지방보조금 토글)은 shared 가 이름의 단일 소스다.
   // 여기서 직접 나열하면 shared 에 항목이 늘어도 눈치채지 못한다 — 그러다 #182 가 났다.
   customer?: {
@@ -112,12 +117,16 @@ export async function fetchOrderPreview(quoteId: number): Promise<{
   return b.data
 }
 
-export async function assignQuote(quoteId: number, makerOrgId: string, remark?: string): Promise<void> {
+export async function assignQuote(
+  quoteId: number, makerOrgId: string, remark?: string,
+  /** 「커스텀」 배지 — 특장사 목록에 붙는다. 관리자가 배정하며 정한다 */
+  customBadge?: boolean,
+): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/assign`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '' }),
+    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '', custom_badge: customBadge === true }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }

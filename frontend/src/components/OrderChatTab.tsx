@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
+import { useChatPoll, sameComments } from '../lib/chatPoll'
 import { BTN } from '../styles/buttons'
 import { shrinkImage } from '../lib/imageResize'
 import { PushToggle } from './PushToggle'
@@ -70,6 +71,22 @@ export function OrderChatTab(
       })
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
     return () => { alive = false }
+  }, [orderId])
+
+  /*
+   * **상대가 남긴 글이 저절로 뜨게** 한다 — 열 때 한 번만 받아 오면 알림이 와도
+   * 화면은 그대로여서 새로고침을 눌러야 보인다(실제 제보).
+   *
+   * 고른 단계(`step`)는 **건드리지 않는다.** 답을 쓰려고 골라 둔 것이 5초마다
+   * 되돌아가면 글을 쓸 수 없다.
+   */
+  useChatPoll(() => {
+    fetchAllComments(orderId)
+      .then(d => {
+        setRows(prev => (sameComments(prev, d.comments) ? prev : d.comments))
+        setSteps(prev => (prev.length === d.steps.length ? prev : d.steps))
+      })
+      .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
   }, [orderId])
 
   /*

@@ -241,6 +241,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           vehicle_info: (order as unknown as { vehicle_info?: unknown }).vehicle_info ?? null,
           // 발주서를 상세에서도 다시 그릴 수 있게 — 수락한 뒤에 확인할 방법이 없었다
           remark: order.remark,
+          custom_badge: order.custom_badge,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,
         },

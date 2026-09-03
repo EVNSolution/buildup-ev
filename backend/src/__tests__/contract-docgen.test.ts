@@ -17,6 +17,7 @@ const TOKENS: ContractTokens = {
   buyer_mobile: '010-1234-5678', buyer_email: 'test@example.com',
   spec_body: '냉장/냉동', spec_height: '저상', spec_spoiler: 'X', spec_temp: 'O',
   spec_door: '슬라이딩', spec_door_add: 'O', spec_partition: '냉장/냉동 이동식',
+  spec_custom_label: '기타/커스텀 옵션 추가', spec_custom: '작업등, 사이드스텝',
   price_total: '21,619,000', price_down: '400,000', price_balance: '21,219,000',
   special_terms: '서비스: 블랙박스, 썬팅',
   receipt_year: '2026', receipt_month: '8', receipt_day: '6',

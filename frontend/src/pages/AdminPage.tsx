@@ -98,11 +98,17 @@ function isEnabled(ac: AccessControl[], type: 'role' | 'user', ref: string, code
  */
 interface ConfirmModalProps {
   quoteId: number; makerOrgs: Org[]; loading: boolean; error: string
-  onConfirm: (makerOrgId: string, remark: string) => void; onClose: () => void
+  onConfirm: (makerOrgId: string, remark: string, customBadge: boolean) => void; onClose: () => void
 }
 function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }: ConfirmModalProps) {
   const [selected, setSelected] = useState('')
   const [remark, setRemark] = useState('')
+  /**
+   * 「커스텀」 배지 — 특장사 주문 목록에 붙는다. **여기서 정한다.**
+   * 예전엔 비고에 뭐라도 적히면 자동으로 붙었다. 납기 안내처럼 커스텀과 무관한 메모에도
+   * 배지가 달려, 특장사가 「무엇이 다른 주문인지」를 배지로 판단할 수 없었다.
+   */
+  const [customBadge, setCustomBadge] = useState(false)
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof fetchOrderPreview>> | null>(null)
   const [loadErr, setLoadErr] = useState('')
 
@@ -139,6 +145,12 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
             </>
           )}
 
+          <label style={modal.checkRow}>
+            <input type="checkbox" checked={customBadge} onChange={e => setCustomBadge(e.target.checked)} />
+            <span>「커스텀」 표시</span>
+            <span style={modal.readonly}>· 특장사 주문 목록에 배지로 뜹니다</span>
+          </label>
+
           {loadErr && <div style={modal.error}>{loadErr}</div>}
 
           {preview && (
@@ -172,7 +184,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
           <button
             style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn}
             disabled={!selected || loading}
-            onClick={() => onConfirm(selected, remark)}
+            onClick={() => onConfirm(selected, remark, customBadge)}
           >{loading ? '처리 중…' : '제작 배정'}</button>
         </div>
       </div>
@@ -980,11 +992,11 @@ function QuotesTab() {
    */
 
   // 제작 배정 (계약완료→배정) — 특장사 선택 모달
-  async function handleAssign(makerOrgId: string, remark: string) {
+  async function handleAssign(makerOrgId: string, remark: string, customBadge: boolean) {
     if (!confirmingId) return
     setConfirmLoading(true); setConfirmError('')
     try {
-      await assignQuote(confirmingId, makerOrgId, remark)
+      await assignQuote(confirmingId, makerOrgId, remark, customBadge)
       setConfirmingId(null); load()
     } catch (e: unknown) {
       setConfirmError(e instanceof Error ? e.message : '배정 실패')
@@ -1603,6 +1615,11 @@ const modal: Record<string, React.CSSProperties> = {
   desc: { fontSize: 13, color: 'var(--muted)' },
   // 「필수」는 목록 안 안내문이 아니라 **라벨 옆 빨간 글씨** — 앱 전체가 같은 규칙이다
   label: { fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 'calc(var(--sp-2) * -1)' },
+  /** 체크 한 줄 — 라벨과 설명을 한 줄에. 줄 전체가 누름 영역이다(label 로 감싼다) */
+  checkRow: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
+    marginTop: 'var(--sp-3)', fontSize: 'var(--fs-label)', cursor: 'pointer',
+  },
   req: { color: 'var(--req)', fontWeight: 700 },
   select: { fontSize: 14, padding: '10px 12px', border: '0.5px solid var(--line)', borderRadius: 9, width: '100%' },
   error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '0.5px solid var(--warn)', padding: '7px 10px', borderRadius: 7 },
