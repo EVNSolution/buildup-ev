@@ -5,6 +5,7 @@ import { Segmented } from './ui/Segmented'
 import { surfacesFor } from '../lib/surfaces'
 import { BTN } from '../styles/buttons'
 import logoUrl from '../assets/logo.png'
+import { safeTop, safeLeft, safeRight } from '../styles/safeArea'
 import type { CustomerInfo, Role } from '@shared/types/index'
 
 // 로고 옆 배지는 영어 한 단어로만 — 한글까지 넣으면 배지가 길어져 로고를 밀어낸다
@@ -131,9 +132,16 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 'var(--sp-4)',
-    height: HEADER_H,
+    /*
+     * 아이폰 노치·다이내믹 아일랜드 아래로 내려 앉힌다. 흰 배경은 화면 꼭대기까지
+     * 올라가고 로고·버튼만 그만큼 내려온다 — 바를 낮추지 않는다.
+     * 좌우도 둥근 모서리와 가로 모드를 감안해 벌린다.
+     */
+    height: safeTop(`${HEADER_H}px`),
+    paddingTop: 'env(safe-area-inset-top, 0px)',
     boxSizing: 'border-box',
-    padding: '0 var(--sp-5)',
+    paddingLeft: safeLeft('var(--sp-5)'),
+    paddingRight: safeRight('var(--sp-5)'),
     borderBottom: 'var(--hairline)',
     background: '#fff',
     // 어떤 경우에도 내용이 바 밖으로 새어 나가지 않게

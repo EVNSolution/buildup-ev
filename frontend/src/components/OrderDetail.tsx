@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, Fragment } from 'react'
+import { useEffect, useMemo, useRef, useState, Fragment } from 'react'
 import { openPdf } from '../lib/openPdf'
 import type { ApiOrderMakerDetail, OrderVehicleInfo } from '@shared/types/index'
 import { calcBom } from '@buildup-ev/shared/bom'
@@ -407,6 +407,27 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [err, setErr] = useState('')
   // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
   const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load' | 'chat'>('steps')
+
+  /*
+   * **주문 번호와 탭은 붙박이, 아래 내용만 스크롤된다.**
+   *
+   * 목록이 길어지면 지금 어느 주문의 무슨 탭을 보고 있는지 잃는다. 남은 화면 높이를
+   * 재서 그만큼만 차지하게 하고, 그 안에서만 스크롤시킨다.
+   * `100vh` 를 쓰지 않는 이유: 모바일 주소창이 접혔다 펴지며 실제 높이가 달라지는데
+   * `vh` 는 그걸 안 따라간다. `innerHeight` 는 따라간다.
+   */
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [boxH, setBoxH] = useState<number | null>(null)
+  useEffect(() => {
+    const fit = () => {
+      const top = rootRef.current?.getBoundingClientRect().top ?? 0
+      setBoxH(Math.max(320, Math.round(window.innerHeight - top - 12)))
+    }
+    fit()
+    const t = setTimeout(fit, 120)   // 글꼴·레이아웃이 자리 잡은 뒤 한 번 더
+    window.addEventListener('resize', fit)
+    return () => { window.removeEventListener('resize', fit); clearTimeout(t) }
+  }, [])
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
@@ -427,7 +448,14 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   if (!detail) return null
 
   return (
-    <div style={{ ...det.root, maxWidth: isMobile ? '100%' : 720 }}>
+    <div
+      ref={rootRef}
+      style={{
+        ...det.root,
+        maxWidth: isMobile ? '100%' : 720,
+        ...(boxH ? { height: boxH } : null),
+      }}
+    >
       {/* 헤더 */}
       <div style={det.header}>
         <button style={det.backBtn} onClick={onBack}>{backLabel}</button>
@@ -483,6 +511,13 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
           대화
         </button>
       </div>
+
+      {/*
+        여기서부터가 **스크롤되는 영역**이다. 위(주문 번호·탭)는 늘 붙어 있어야
+        어느 주문의 무슨 탭을 보고 있는지 잃지 않는다 — 목록이 길어지면 특히 그렇다.
+        대화 탭은 스스로 높이를 채우므로 이 상자가 넘치지 않는다.
+      */}
+      <div style={tab === 'chat' ? det.bodyFixed : det.body}>
 
       {tab === 'chat' && (
         <OrderChatTab
@@ -566,6 +601,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         </div>
       )}
 
+      </div>
     </div>
   )
 }
@@ -573,7 +609,15 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
 // ── 스타일 ────────────────────────────────────────────────────────────────────
 
 const det: Record<string, React.CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 },
+  /**
+   * 주문 번호·탭은 붙박이, 아래만 스크롤. 높이는 화면을 재서 정한다(아래 useEffect) —
+   * `vh` 는 모바일 주소창이 접혔다 펴질 때 따라가지 못한다.
+   */
+  root: { display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720, minHeight: 0 },
+  /** 탭 내용 — 여기만 스크롤된다 */
+  body: { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' },
+  /** 대화 탭은 자기가 높이를 채운다 — 이중 스크롤이 생기지 않게 넘김을 막는다 */
+  bodyFixed: { flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
   loading: { color: 'var(--muted)', fontSize: 14, padding: '40px 0' },
   err: { color: 'var(--warn)', fontSize: 13 },
   header: { display: 'flex', flexDirection: 'column', gap: 8 },

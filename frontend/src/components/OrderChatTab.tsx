@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAllComments, postComment, type StepComment } from '../api/stepComments'
 import { BTN } from '../styles/buttons'
 import { PushToggle } from './PushToggle'
+import { safeBottom } from '../styles/safeArea'
 
 /**
  * 「대화」 탭 — 이 주문에서 오간 **모든 이야기를 시간순으로** 한 줄로 읽는다.
@@ -80,6 +81,28 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
     window.addEventListener('resize', fit)
     return () => { window.removeEventListener('resize', fit); clearTimeout(t) }
   }, [rows === null])
+
+  /*
+   * **페이지가 조금이라도 스크롤되면 안 된다.**
+   *
+   * 위에서 남은 높이를 재도 바깥 여백·테두리 때문에 몇 px 이 넘칠 때가 있었다
+   * (「미세하게 스크롤된다」는 제보). 두 가지로 막는다.
+   *   ① 넘친 만큼 실제로 재서 줄인다 — 내용이 잘리지 않게
+   *   ② 그래도 남으면 body 스크롤 자체를 잠근다 — 원천봉쇄
+   */
+  useEffect(() => {
+    if (boxH == null) return
+    const de = document.documentElement
+    const over = de.scrollHeight - de.clientHeight
+    if (over > 0) setBoxH(b => (b == null ? b : Math.max(280, b - over)))
+  }, [boxH])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // 탭을 벗어나면 반드시 되돌린다 — 안 되돌리면 앱 전체가 굳는다
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   const label = useMemo(
     () => new Map(steps.map(s2 => [s2.code, s2.label])),
@@ -210,7 +233,10 @@ const s: Record<string, React.CSSProperties> = {
   empty: { color: 'var(--muted)', fontSize: 'var(--fs-body)', lineHeight: 1.6, textAlign: 'center', margin: 'auto 0' },
   err: { color: 'var(--req)', fontSize: 'var(--fs-body)', padding: 'var(--sp-4)' },
   errLine: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
-  composer: { flex: 'none', borderTop: 'var(--hairline)', padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  composer: {
+    flex: 'none', borderTop: 'var(--hairline)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
+    padding: 'var(--sp-4)', paddingBottom: safeBottom('var(--sp-4)'),
+  },
   pickRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   pickLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', flex: 'none' },
   pick: {

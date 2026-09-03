@@ -8,7 +8,7 @@ import {
   fetchSteps, completeStep, undoStep, uploadStepFile, deleteStepFile, stepFileUrl,
   type ApiStepsResponse,
 } from '../api/steps'
-import { shrinkImage, fmtBytes, MAX_EDGE } from '../lib/imageResize'
+import { shrinkImage, fmtBytes } from '../lib/imageResize'
 import { BTN } from '../styles/buttons'
 import { DocLink } from './DocLink'
 import { openPdf } from '../lib/openPdf'
@@ -247,7 +247,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                         style={gate.ok && dateOk && ackOk && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
                         disabled={!gate.ok || !dateOk || !ackOk || busy === def.code}
                         onClick={() => handleComplete(def.code)}
-                      >{busy === def.code ? '처리 중' : '완료 처리'}</button>
+                      >{busy === def.code ? '처리 중' : '완료'}</button>
                     )}
                     {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
                       <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
@@ -381,19 +381,28 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
   onDelete: (id: number) => void
 }) {
   const ref = useRef<HTMLInputElement>(null)
+  /** 서류는 PDF 도 받고 사진은 이미지만 받는다 — 화면 문구는 없애도 이 구분은 남는다 */
   const original = keepsOriginal(kind)
   return (
     <div style={s.evidence}>
       <div style={s.evidenceHead}>
         <span style={files.length > 0 ? s.evidenceOk : optional ? s.evidenceOpt : s.evidenceNeed}>
           {files.length > 0 ? '✓' : '·'} {EVIDENCE_LABEL[kind]}
-          {optional && <span style={s.optTag}> · 선택</span>}
+          {/*
+            필수인지 선택인지 **둘 다 적는다.** 예전엔 선택일 때만 「· 선택」을 적었는데,
+            아무 표시가 없는 항목이 필수인지 그냥 안 적힌 것인지 알 수 없었다.
+            날짜 칸(`· 필수`)과 같은 표기를 쓴다 — 같은 뜻이면 같게 보여야 한다.
+          */}
+          {optional
+            ? <span style={s.optTag}> · 선택</span>
+            : <span style={s.req}> · 필수</span>}
           {files.length > 1 && <span style={s.optTag}> · {files.length}장</span>}
         </span>
-        <span style={s.evidenceHint}>{original ? '원본 저장' : `긴 변 ${MAX_EDGE}px 로 축소 저장`}</span>
+        {/* 등록 버튼은 **대화 버튼과 같은 줄 끝**에 선다 — 오른쪽 끝이 나란해야 눈이 편하다 */}
+        <span style={s.spacer} />
         {canEdit && (
           <button style={busy ? BTN.rowDisabled : BTN.row} disabled={busy} onClick={() => ref.current?.click()}>
-            {busy ? '등록 중' : files.length > 0 ? '추가' : '등록'}
+            {busy ? '올리는 중' : files.length > 0 ? '추가' : '업로드'}
           </button>
         )}
         {/* 여러 장 고를 수 있다 — 검수 사진은 한 장으로 끝나는 일이 드물다 */}
@@ -420,12 +429,24 @@ const s: Record<string, React.CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' },
 
   record: { display: 'flex', gap: 'var(--sp-5)', flexWrap: 'wrap', paddingBottom: 'var(--sp-3)', borderBottom: 'var(--hairline)' },
-  /** 대화 버튼 — 단계 줄의 다른 버튼들과 같은 크기. 빨간 점만 얹는다 */
+  /**
+   * 대화 버튼 — **다른 버튼과 같은 크기**여야 한다.
+   *
+   * 예전엔 여백만 준 제 폭짜리였고, 그래서 「완료 처리」·「등록」과 세로로 안 맞아
+   * 오른쪽 끝이 들쭉날쭉했다(실제 제보 사진). `BTN.row` 를 그대로 쓴다 —
+   * 폭 92px 이 못 박혀 있어 무엇이 오든 나란해진다.
+   * 빨간 점을 얹어야 하므로 `position` 만 더한다.
+   */
   chatBtn: {
+    ...BTN.row,
     position: 'relative' as const,
-    border: 'var(--hairline)', background: 'var(--bg)', borderRadius: 6,
-    padding: '3px 9px', fontSize: 'var(--fs-caption)', cursor: 'pointer',
-    color: 'var(--body)', fontFamily: 'inherit', flexShrink: 0,
+    /*
+     * 대화는 **다른 일**이다 — 업로드·완료는 진행을 바꾸고, 대화는 이야기를 남긴다.
+     * 크기는 같게 두되(줄이 나란해야 하니까) 테두리만 브랜드색으로 은은하게 둘러
+     * 「추가/업로드」와 눈으로 갈린다.
+     */
+    border: '1px solid var(--lime)',
+    color: 'var(--lime-ink)',
   },
   /**
    * 안 읽은 대화 표시. **개수를 적지 않는다** — 「몇 개인가」가 아니라
@@ -483,7 +504,8 @@ const s: Record<string, React.CSSProperties> = {
   body: { paddingLeft: 20, marginTop: 'var(--sp-2)' },
   dateRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap', marginBottom: 'var(--sp-2)' },
   label: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
-  req: { color: 'var(--req)', fontWeight: 700 },
+  /** 필수/선택은 **크기가 아니라 색으로** 구분한다 — 라벨보다 튀면 정작 항목 이름이 묻힌다 */
+  req: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--req)' },
   date: { maxWidth: 190 },
 
   ackRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap', marginBottom: 'var(--sp-2)' },
@@ -491,12 +513,17 @@ const s: Record<string, React.CSSProperties> = {
   ackHint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
 
   evidence: { marginTop: 'var(--sp-2)' },
+  /** 증빙 줄의 오른쪽 끝을 단계 줄과 맞춘다 — 버튼 열이 하나로 보이게 */
   evidenceHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' },
-  evidenceOk: { fontSize: 'var(--fs-label)', color: 'var(--dark)' },
-  evidenceOpt: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)' },
-  optTag: { fontWeight: 400, color: 'var(--muted)' },
-  evidenceNeed: { fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 600 },
-  evidenceHint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', flex: 1, minWidth: 0 },
+  evidenceOk: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--dark)' },
+  /*
+   * 증빙 줄은 **필수든 선택이든 같은 크기·같은 굵기**로 적는다.
+   * 예전엔 필수만 크고 굵고 빨갰는데, 그러면 항목 이름끼리 크기가 달라 목록이 어수선했다.
+   * 구분은 뒤에 붙는 「· 필수」/「· 선택」 태그의 **색**으로만 한다.
+   */
+  evidenceOpt: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--body)' },
+  optTag: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--muted)' },
+  evidenceNeed: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--body)' },
   file: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginTop: 3, paddingLeft: 14 },
   fileName: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', textDecoration: 'underline', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   fileSize: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
