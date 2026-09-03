@@ -26,7 +26,10 @@ const stamp = (iso: string) => {
 }
 const dayOf = (iso: string) => iso.slice(0, 10)
 
-export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite: boolean }) {
+export function OrderChatTab(
+  { orderId, canWrite, initialStep }:
+  { orderId: number; canWrite: boolean; /** 알림을 눌러 들어왔을 때 골라 둘 단계 */ initialStep?: string },
+) {
   const [rows, setRows] = useState<StepComment[] | null>(null)
   const [steps, setSteps] = useState<{ code: string; label: string }[]>([])
   const [me, setMe] = useState('')
@@ -57,8 +60,13 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
       .then(d => {
         if (!alive) return
         setRows(d.comments); setSteps(d.steps); setMe(d.me)
-        // 마지막으로 이야기하던 단계를 기본값으로 — 대개 이어서 쓴다
-        setStep(prev => prev || d.comments[d.comments.length - 1]?.step_code || d.steps[0]?.code || '')
+        /*
+         * 알림을 눌러 들어왔으면 **그 단계**를 고른 채로 연다 — 알림이 말하는 내용이
+         * 그 단계에 있으므로 바로 이어서 답할 수 있다.
+         * 그 밖에는 마지막으로 이야기하던 단계를 기본값으로 — 대개 이어서 쓴다.
+         */
+        const preferred = initialStep && d.steps.some(x => x.code === initialStep) ? initialStep : ''
+        setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || d.steps[0]?.code || '')
       })
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
     return () => { alive = false }

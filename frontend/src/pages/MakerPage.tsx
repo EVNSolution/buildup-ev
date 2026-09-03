@@ -4,6 +4,7 @@ import { fetchOrders, acceptOrder, rejectOrder } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
+import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useScreenRefresh } from '../contexts/RefreshContext'
@@ -21,6 +22,12 @@ export function MakerPage() {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  /*
+   * **알림을 누르고 들어온 경우** — `/?order=19&tab=chat` 를 읽어 그 주문을 대화 탭으로
+   * 편다. 주소는 한 번 읽고 지운다 — 안 지우면 목록으로 돌아가도 계속 다시 열린다.
+   */
+  const [deepLink, setDeepLink] = useState<OrderDeepLink | null>(null)
+  useOrderDeepLink(link => { setDeepLink(link); setSelectedId(link.orderId) })
   const [acceptingId, setAcceptingId] = useState<number | null>(null)
   /** 수락 팝업을 띄운 주문 — 납기일을 받아야 수락이 완료된다 */
   const [acceptTarget, setAcceptTarget] = useState<ApiOrder | null>(null)
@@ -110,7 +117,14 @@ export function MakerPage() {
 
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
         {selectedId !== null ? (
-          <OrderDetail orderId={selectedId} onBack={() => setSelectedId(null)} makerView />
+          <OrderDetail
+            orderId={selectedId}
+            onBack={() => setSelectedId(null)}
+            makerView
+            /* 알림을 눌러 들어온 그 주문일 때만 대화 탭으로 연다 */
+            initialTab={deepLink?.chat && deepLink.orderId === selectedId ? 'chat' : undefined}
+            initialChatStep={deepLink?.orderId === selectedId ? deepLink?.step : undefined}
+          />
         ) : (
           <>
             {err && <div style={styles.errMsg}>{err}</div>}

@@ -14,6 +14,7 @@ import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
+import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { OrderFilesTab } from '../components/OrderFilesTab'
 import { CustomerFolders } from '../components/CustomerFolders'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
@@ -1279,7 +1280,7 @@ function QuotesTab() {
 }
 
 // ── 주문 칸반 탭 ──────────────────────────────────────────────────────────
-function KanbanTab() {
+function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   const { session } = useAuth()
   const canControl = session?.user.is_master ?? false
   /** 주문을 치울 수 있는가 — 기능모듈로 **계정별**로 켠다. 관리자라고 다 되지 않는다. */
@@ -1288,7 +1289,11 @@ function KanbanTab() {
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
+  /*
+   * 알림을 눌러 들어왔으면 그 주문을 **바로 편다.** 목록에서 다시 찾게 하면
+   * 알림을 누른 의미가 없다.
+   */
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(deepLink?.orderId ?? null)
 
   function load() {
     setLoading(true); setErr('')
@@ -1314,6 +1319,9 @@ function KanbanTab() {
         orderId={selectedOrderId}
         onBack={() => setSelectedOrderId(null)}
         backLabel="← 주문 진행"
+        /* 알림을 눌러 들어온 그 주문일 때만 대화 탭으로 연다 */
+        initialTab={deepLink?.chat && deepLink.orderId === selectedOrderId ? 'chat' : undefined}
+        initialChatStep={deepLink?.orderId === selectedOrderId ? deepLink?.step : undefined}
         /*
          * 삭제 버튼은 **제목 줄 오른쪽**에 둔다. 예전엔 화면 맨 아래에 있어
          * 되돌리기 어려운 조작인데도 스크롤 끝에서 마주쳤다.
@@ -1365,6 +1373,14 @@ export function AdminPage() {
     setSaving(null)
   }
 
+  /*
+   * **알림을 누르고 들어온 경우** — `/?order=19&tab=chat` 를 읽어 「주문 진행」 탭을
+   * 펴고 그 주문을 연다. 주소는 한 번 읽고 지운다(useOrderDeepLink) — 안 지우면
+   * 목록으로 돌아가 새로고침할 때마다 같은 주문이 다시 열린다.
+   */
+  const [deepLink, setDeepLink] = useState<OrderDeepLink | null>(null)
+  useOrderDeepLink(link => { setDeepLink(link); setActiveTab('kanban') })
+
   // 탭마다 필요한 권한 — 없으면 **버튼째** 감춘다.
   // 눌러서 「권한이 없습니다」를 보게 두면 왜 있는 버튼인지 알 수 없다.
   const perm = {
@@ -1412,7 +1428,7 @@ export function AdminPage() {
         {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
-        {activeTab === 'kanban' && <KanbanTab />}
+        {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} />}
 
         {/* 주문에 딸린 사진·서류를 한자리에서 — 업로드본과 자동생성본을 갈라 본다 */}
         {activeTab === 'files' && <OrderFilesTab />}

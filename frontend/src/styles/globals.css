@@ -81,6 +81,11 @@
   --fs-title: 20px;    --fw-title: 600;
   --fs-section: 15px;  --fw-section: 600;
   --fs-body: 14px;     --fw-body: 400;
+  /*
+   * 입력칸 글꼴 — 데스크톱은 본문과 같다. 손가락 기기에서는 아래(pointer: coarse)에서
+   * 키운다. **아이폰이 초점 때 화면을 확대하는 것을 막기 위해서**다.
+   */
+  --fs-input: var(--fs-body);
   --fs-label: 13px;    --fw-label: 500;
   --fs-caption: 12px;  --fw-caption: 400;
   --ls-tight: -0.01em;      /* 제목 자간 — SF Pro 특유의 조여진 느낌 */
@@ -129,6 +134,19 @@
      */
     --h-control: 50px;
     --h-control-sm: 50px;   /* 표 안 버튼도 예외 없음 — 손가락은 28px 를 못 맞춘다 */
+
+    /*
+     * **입력칸에 초점이 가면 아이폰이 화면을 확대한다** — 글꼴이 16px 보다 작을 때만 그런다.
+     * 그런데 아래에서 `#root` 에 `zoom: .88` 이 걸리므로 16px 을 적어도 화면에는
+     * 14.08px 로 그려진다. 그래서 zoom 을 되돌린 값(16 ÷ 0.88 ≈ 18.19)을 쓰고,
+     * 반올림에 걸리지 않게 조금 여유를 둬 **18.5px** 로 한다(화면상 16.28px).
+     *   → 아이폰이 「적힌 값」을 보든 「그려진 값」을 보든 둘 다 16px 이상이다.
+     * `--h-control` 이 44 ÷ 0.88 = 50 을 쓰는 것과 **같은 이유·같은 방식**이다.
+     *
+     * ⚠️ `maximum-scale=1`·`user-scalable=no` 로 막지 않는다 — iOS 10 부터 무시되어
+     *    확대는 그대로 일어나면서, 안드로이드에서는 손가락으로 키우는 것만 막힌다.
+     */
+    --fs-input: 18.5px;
   }
 }
 
@@ -186,7 +204,7 @@ input[type='password'],
 input[type='tel'],
 input[type='number'] {
   width: 100%;
-  font-size: var(--fs-body);
+  font-size: var(--fs-input);
   padding: 0 var(--sp-3);
   min-height: var(--h-control);
   border: var(--hairline);
@@ -202,7 +220,7 @@ input[type='number'] {
  * 같은 줄의 「조회」 버튼(36px · 터치 44px)과 눈에 띄게 어긋났다.
  */
 input[type='date'] {
-  font-size: var(--fs-label);
+  font-size: var(--fs-input);
   padding: 0 var(--sp-2);
   min-height: var(--h-control);
   min-width: 0;              /* 좁은 화면에서 줄어들 수 있게 */
@@ -215,7 +233,7 @@ input[type='date'] {
 }
 /* 여러 줄 입력은 높이를 강제하지 않는다 — 좌우 여백만 맞춘다 */
 textarea {
-  font-size: var(--fs-body);
+  font-size: var(--fs-input);
   padding: var(--sp-2) var(--sp-3);
   border: var(--hairline);
   border-radius: var(--r-sm);
@@ -295,6 +313,35 @@ input, select, textarea, button {
  */
 @media (pointer: coarse) {
   #root { zoom: 0.88; }
+
+  /*
+   * **입력칸에 초점이 가도 화면이 확대되지 않게 한다.**
+   *
+   * 아이폰은 글꼴이 16px 미만인 입력칸에 초점이 가면 화면 전체를 확대한다.
+   * 한번 확대되면 손으로 되돌려야 하고, 카카오톡처럼 「키보드만큼만 올라가는」
+   * 동작과는 전혀 다르다.
+   *
+   * ⚠️ `!important` 를 쓴다 — **인라인 style 을 이겨야** 하기 때문이다.
+   *    이 앱은 인라인 스타일 객체로 UI 를 짜서 입력칸마다 제각각 `fontSize: 13`,
+   *    `12.5` 같은 값이 박혀 있다. 한 곳이라도 놓치면 그 칸에서만 확대가 되는데,
+   *    사용자는 어느 칸인지 모른 채 「가끔 확대된다」로 겪는다.
+   *    여기서 한 번에 못 박으면 **앞으로 추가되는 입력칸도 자동으로 안전하다.**
+   *
+   * checkbox·radio·file 은 글자를 입력하는 칸이 아니라 제외한다 — 크기를 각자 정한다.
+   */
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
+  select,
+  textarea {
+    font-size: var(--fs-input) !important;
+  }
+
+  /*
+   * 표 안 숫자칸은 **글꼴을 키운 만큼 넓혀 준다.** 안 그러면 「46,530,000」 이
+   * 칸 안에서 잘린다(옵션DB 실측 — 79px 칸에 18.5px 글씨).
+   * 표는 이미 가로로 스크롤되므로 넓혀도 화면이 밀리지 않는다.
+   */
+  /* 인라인 style 의 minWidth 를 이겨야 한다 — 글꼴 규칙과 같은 이유다 */
+  td input:not([type='checkbox']):not([type='radio']) { min-width: 130px !important; }
 }
 
 /*
