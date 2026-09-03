@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { fetchComments, postComment, type StepComment } from '../api/stepComments'
 import { BTN } from '../styles/buttons'
 import { PushToggle } from './PushToggle'
+import { safeBottom } from '../styles/safeArea'
 
 /**
  * 단계별 대화 — 특장사와 관리자가 그 단계 자리에서 주고받는다.
@@ -160,6 +161,7 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column',
     // 넓은 화면 — 오른쪽에 붙는 서랍. 좁은 화면 — 아래에서 올라오는 창(미디어쿼리 대신 clamp 로)
     top: 0, right: 0, bottom: 0, width: 'min(420px, 100vw)',
+    paddingTop: 'env(safe-area-inset-top, 0px)',
     boxShadow: '-2px 0 24px rgba(22,24,15,.18)',
   },
   head: {
@@ -195,6 +197,7 @@ const s: Record<string, React.CSSProperties> = {
   err: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
   composer: {
     flex: 'none', borderTop: 'var(--hairline)', padding: 'var(--sp-4)',
+    paddingBottom: safeBottom('var(--sp-4)'),
     display: 'flex', gap: 'var(--sp-2)', alignItems: 'flex-end',
   },
   input: {

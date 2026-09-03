@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { safeBottom } from '../styles/safeArea'
 import type { PricingResult, QuoteResult } from '@shared/pricing/core'
 import { priceBarView } from '@shared/pricing/core'
 import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
@@ -127,6 +128,12 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
       ...(stack || touch ? styles.bar : { ...styles.bar, ...styles.barTall }),
       // 요약 한 줄은 바로 위 「견적 저장」 버튼과 한 덩어리로 읽혀야 한다 — 위 여백을 줄인다
       ...(summary ? styles.barSummary : null),
+      /*
+       * ⚠️ 아이폰은 화면 아래 모서리가 둥글고 홈 인디케이터가 있다. 그대로 두면
+       *    검은 실구매가 줄의 아래 모서리가 잘린다(실제 사진 제보).
+       *    **줄을 작게 만들지 않는다** — 바닥에 그만큼 여백을 줘서 위로 올린다.
+       */
+      paddingBottom: safeBottom(summary ? 'var(--sp-2)' : 'var(--sp-2)'),
     }}>
       {isUnsupported && <div style={styles.warnTbd}>{tbd}</div>}
 
@@ -465,6 +472,7 @@ const styles: Record<string, React.CSSProperties> = {
   // 가격바는 칸(카드)들이 스스로 영역을 말한다 — 위쪽 구분선을 두면 화면이 토막나 보인다
   // 아래 여백을 줄여 내용을 전체적으로 내린다(가격바는 화면 맨 아래라 아래쪽 여백이 덜 필요하다)
   bar: { flexShrink: 0, background: 'var(--bg)', padding: 'var(--sp-4) var(--sp-4) var(--sp-2)' },
+
   /** 요약 한 줄 — 위 버튼과 붙여 둔다(둘 사이가 벌어지면 다른 화면처럼 읽힌다) */
   barSummary: { padding: 'var(--sp-2) var(--sp-4) var(--sp-2)' },
   /*
@@ -648,7 +656,7 @@ const styles: Record<string, React.CSSProperties> = {
    */
   popupSheet: {
     position: 'fixed' as const,
-    left: 'var(--sp-3)', right: 'var(--sp-3)', bottom: 'var(--sp-3)', top: 'auto' as const,
+    left: 'var(--sp-3)', right: 'var(--sp-3)', bottom: safeBottom('var(--sp-3)'), top: 'auto' as const,
     width: 'auto' as const, maxHeight: '78vh',
     fontSize: 13,
     zIndex: 60,

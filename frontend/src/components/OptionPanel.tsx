@@ -4,6 +4,7 @@ import type { PricingOk } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { BodyOnlyToggle, BodyOnlyNotice, VehicleOnlyToggle, CarPriceOverrideBlock } from './BodyOnlyPanel'
+import { safeBottom } from '../styles/safeArea'
 import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { groupsByCategory, OPTION_CATEGORY } from '../lib/optionRules'
 import { QuoteExtras } from './QuoteExtras'
@@ -270,7 +271,7 @@ export function OptionPanel({
       )}
 
       {/* 좁은 창은 바로 아래 실구매가 한 줄이 붙는다 — 사이가 벌어지면 남의 화면처럼 읽힌다 */}
-      <div style={compact ? { ...styles.footer, paddingBottom: 'var(--sp-2)' } : styles.footer}>
+      <div style={compact ? { ...styles.footer, paddingBottom: safeBottom('var(--sp-2)') } : styles.footer}>
         {saveError && <div style={styles.saveError}>{saveError}</div>}
         {savedQuote && !saveError && (
           <div style={styles.savedNote}>
@@ -378,7 +379,9 @@ const styles = {
   promoZeroed: { color: 'var(--dark)', fontWeight: 700 },
   footer: {
     flexShrink: 0,
-    padding: '0 var(--sp-4) var(--sp-4)',
+    // 아이폰 홈 인디케이터에 버튼이 가리지 않게 — 배경은 바닥까지, 내용만 위로
+    padding: '0 var(--sp-4)',
+    paddingBottom: safeBottom('var(--sp-4)'),
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 6,
