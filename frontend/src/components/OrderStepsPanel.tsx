@@ -197,20 +197,17 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                     {/*
                       **완료 취소는 단계 이름 바로 옆**에 둔다. 오른쪽 끝에 있으면
                       줄이 길어질수록 「어느 단계를 되돌리는 버튼인가」가 눈으로 안 이어진다.
-                    */}
+
+                      ⚠️ 취소할 수 없는 이유는 **적지 않는다.** 예전엔 「후속 단계를 먼저
+                         취소하십시오 — …」를 그 자리에 적었는데, 문장이 길어 줄이 깨졌다
+                         (실제 제보). 취소할 수 있으면 버튼, 아니면 **빈칸**으로 둔다.
+                  */}
                     {phase === 'done' && canEdit && undo.ok && (
                       <button
                         style={busy === def.code ? s.undoBtnOff : s.undoBtn}
                         disabled={busy === def.code}
                         onClick={() => handleUndo(def.code)}
                       >{busy === def.code ? '처리 중' : '완료 취소'}</button>
-                    )}
-                    {/*
-                      취소할 수 없으면 **버튼을 잠그는 대신 이유를 적는다.**
-                      잠긴 버튼은 왜 안 되는지 알려 주지 않아, 눌러 보고도 알 수 없다(실제 제보).
-                    */}
-                    {phase === 'done' && canEdit && !undo.ok && (
-                      <span style={s.undoWhy}>{(undo as { reason: string }).reason}</span>
                     )}
                     {/* 지연은 숫자로 말한다 — 「지연」만으로는 얼마나 늦었는지 모른다 */}
                     {st.stalled && st.overdue_days != null && (
@@ -508,7 +505,6 @@ const s: Record<string, React.CSSProperties> = {
   blocked: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   // 되돌리기는 눈에 띄지 않아야 한다 — 자주 쓰는 길이 아니라 잘못 눌렀을 때의 길이다
   undoBtn: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', padding: 0, fontFamily: 'inherit', textDecoration: 'underline' },
-  undoWhy: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   undoBtnOff: { border: 'none', background: 'none', color: 'var(--line-strong, #CFD4CF)', fontSize: 'var(--fs-caption)', cursor: 'not-allowed', padding: 0, fontFamily: 'inherit' },
 
   muted: { fontSize: 'var(--fs-label)', color: 'var(--muted)', padding: 'var(--sp-3) 0' },
