@@ -15,7 +15,6 @@ import { OrderChatTab } from './OrderChatTab'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { OrderRemoveModal } from './OrderRemoveModal'
 import { safeLeft, safeRight, safeScrollBottom } from '../styles/safeArea'
-import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 
@@ -432,33 +431,15 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
    * `vh` 는 그걸 안 따라간다. `innerHeight` 는 따라간다.
    */
   const rootRef = useRef<HTMLDivElement>(null)
-  const [boxH, setBoxH] = useState<number | null>(null)
-  useEffect(() => {
-    const fit = () => {
-      const el = rootRef.current
-      if (!el) return
-      /*
-       * ⚠️ **zoom 을 되돌려야 한다.** 모바일에서 `#root` 에 `zoom: .88` 이 걸려 있어
-       *    `getBoundingClientRect()`·`innerHeight` 는 화면 픽셀인데 여기서 넣는 height 는
-       *    zoom 안쪽의 CSS 픽셀이다. 그대로 넣으면 실제로는 0.88 배만 차지해
-       *    바닥에 **87px 짜리 빈 띠**가 남는다(안전영역 여백으로 오해받은 그 여백이다).
-       *    비율은 화면픽셀(rect) ÷ CSS픽셀(offsetHeight) 로 직접 잰다 — 값이 바뀌어도 따라간다.
-       */
-      const rect = el.getBoundingClientRect()
-      const zoom = el.offsetHeight > 0 ? rect.height / el.offsetHeight : 1
-      /*
-       * `innerHeight` 가 아니라 **실제로 보이는 높이**를 쓴다. 키보드가 올라오면
-       * `innerHeight` 는 그대로라서, 그 값으로 잡으면 입력칸이 키보드 뒤로 숨는다.
-       * 카카오톡처럼 키보드가 먹은 만큼만 줄어들게 한다.
-       */
-      const visible = visibleHeight() - rect.top
-      setBoxH(Math.max(320, Math.round(visible / (zoom || 1))))
-    }
-    fit()
-    const t = setTimeout(fit, 120)   // 글꼴·레이아웃이 자리 잡은 뒤 한 번 더
-    const off = onVisibleHeightChange(fit)
-    return () => { off(); clearTimeout(t) }
-  }, [])
+  /*
+   * 높이는 **부모를 채워서** 얻는다 — 여기서 뷰포트를 다시 재지 않는다.
+   *
+   * 예전엔 `visualViewport` 로 직접 쟀는데, 그 값(실제 보이는 높이)과
+   * `getBoundingClientRect().top`(레이아웃 뷰포트 기준)은 아이폰에서 **좌표계가 다르다.**
+   * 둘을 섞어 계산한 높이가 화면보다 커지면서 바깥 칸이 넘쳐 스크롤이 생겼고,
+   * 손가락으로 당기면 화면이 통째로 출렁였다(사진 제보).
+   * 뷰포트를 재는 곳은 이제 `useAppHeight` 한 곳뿐이고, 여기는 따라 늘어나기만 한다.
+   */
   const isMobile = useIsMobile()
 
   const role = session?.user.role ?? 'SALES'
@@ -481,11 +462,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   return (
     <div
       ref={rootRef}
-      style={{
-        ...det.root,
-        maxWidth: isMobile ? '100%' : 720,
-        ...(boxH ? { height: boxH } : null),
-      }}
+      style={{ ...det.root, maxWidth: isMobile ? '100%' : 720 }}
     >
       {/* 헤더 */}
       <div style={det.header}>
@@ -685,7 +662,20 @@ const det: Record<string, React.CSSProperties> = {
    * 주문 번호·탭은 붙박이, 아래만 스크롤. 높이는 화면을 재서 정한다(아래 useEffect) —
    * `vh` 는 모바일 주소창이 접혔다 펴질 때 따라가지 못한다.
    */
-  root: { display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720, minHeight: 0 },
+  /** 부모(각 화면의 본문 칸)를 그대로 채운다 — 넘치지 않으므로 바깥이 스크롤되지 않는다 */
+  /**
+   * 부모(각 화면의 본문 칸)를 그대로 채운다 — 넘치지 않으므로 바깥이 스크롤되지 않는다.
+   *
+   * 좌우 여백은 **여기 한 곳**에서 준다. 예전엔 스크롤 칸(body)에만 줘서 헤더 줄만
+   * 12px, 본문은 19px 로 어긋났다 — 「주문 삭제」가 화면 끝에 붙어 잘려 보인다.
+   */
+  root: {
+    display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720,
+    height: '100%', minHeight: 0,
+    paddingLeft: safeLeft('var(--sp-2)'),
+    paddingRight: safeRight('var(--sp-2)'),
+    boxSizing: 'border-box',
+  },
   /** 탭 내용 — 여기만 스크롤된다 */
   /**
    * 탭 내용 — 여기만 스크롤된다.
@@ -696,15 +686,13 @@ const det: Record<string, React.CSSProperties> = {
    */
   body: {
     flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
-    paddingLeft: safeLeft('var(--sp-2)'),
-    paddingRight: safeRight('var(--sp-2)'),
+    // 끝까지 당겨도 바깥으로 넘기지 않는다 — 넘기면 화면 전체가 출렁인다
+    overscrollBehavior: 'contain',
+    // 좌우는 root 가 준다(헤더·탭과 같은 선). 여기는 바닥만 살짝
     paddingBottom: safeScrollBottom(),
   },
   /** 대화 탭은 자기가 높이를 채운다 — 이중 스크롤이 생기지 않게 넘김을 막는다 */
-  bodyFixed: {
-    flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-    paddingLeft: safeLeft('var(--sp-2)'), paddingRight: safeRight('var(--sp-2)'),
-  },
+  bodyFixed: { flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
   loading: { color: 'var(--muted)', fontSize: 14, padding: '40px 0' },
   err: { color: 'var(--warn)', fontSize: 13 },
   header: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -730,11 +718,22 @@ const det: Record<string, React.CSSProperties> = {
   tabActive: { padding: '8px 18px', border: 'none', borderBottom: '2px solid var(--dark)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dark)', fontWeight: 700, marginBottom: -2, minHeight: 44 },
   section: { paddingTop: 4 },
   /** 삭제는 되돌리기 어렵다 — 경고색 테두리로만, 채우지 않는다 */
+  /**
+   * 주문 삭제 — 제목 줄 오른쪽.
+   *
+   * ⚠️ 높이를 **숫자로 못 박지 않는다.** 예전엔 `minHeight: 32` 였는데, 손가락 기기에서는
+   *    글자가 커져 32px 안에 안 들어가 **아래가 잘려 보였다**(사진 제보).
+   *    앱의 작은 버튼 규격(`--h-control-sm`)을 쓰면 손가락 기기에서 44px 로 자란다 —
+   *    같은 줄의 다른 버튼과도 크기가 맞고, 44×44 터치 기준도 지킨다.
+   *    글자는 `inline-flex` 로 가운데 세운다 — 여백으로 맞추면 글꼴이 커질 때 또 잘린다.
+   */
   removeBtn: {
     marginLeft: 'auto', flexShrink: 0,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     border: '0.5px solid var(--warn)', background: '#fff', color: 'var(--warn)',
-    borderRadius: 7, padding: '4px 12px', fontSize: 'var(--fs-caption)',
-    cursor: 'pointer', fontFamily: 'inherit', minHeight: 32,
+    borderRadius: 7, padding: '0 12px', fontSize: 'var(--fs-caption)',
+    cursor: 'pointer', fontFamily: 'inherit',
+    minHeight: 'max(32px, var(--h-control-sm))',
   },
   remarkHead: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', marginTop: 'var(--sp-5)', marginBottom: 'var(--sp-2)' },
   remarkBody: {

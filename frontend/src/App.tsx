@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useAppHeight } from './lib/viewport'
 import { AuthProvider } from './contexts/AuthContext'
 import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
@@ -11,6 +12,9 @@ import { MakerPage } from './pages/MakerPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 
 export function App() {
+  // 앱 전체 높이를 여기 한 곳에서 정한다 — 화면마다 뷰포트를 다시 재지 않는다
+  useAppHeight()
+
   return (
     <AuthProvider>
       <RefreshProvider>

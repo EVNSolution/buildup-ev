@@ -62,9 +62,17 @@ describe('문서 스크롤 잠금', () => {
   const css = () => read('frontend/src/styles/globals.css');
 
   it('🔴 두 겹으로 막는다 — overflow 만으로는 아이폰에서 안 듣는다', () => {
-    expect(css()).toMatch(/html, body, #root \{[\s\S]{0,160}overflow: hidden/);
+    expect(css()).toMatch(/html, body, #root \{[\s\S]{0,400}overflow: hidden/);
     expect(css(), '고무줄·당겨서 새로고침이 안 막혔다').toMatch(/overscroll-behavior: none/);
     expect(css(), '아이폰에서 문서가 끌린다').toMatch(/body \{\s*\n\s*position: fixed;/);
+    // 안쪽 칸이 끝에 닿아도 그 힘을 바깥으로 넘기지 않는다 — 넘기면 화면이 통째로 출렁인다
+    for (const f of ['frontend/src/pages/AdminPage.tsx',
+                     'frontend/src/pages/MakerPage.tsx',
+                     'frontend/src/components/OrderDetail.tsx',
+                     'frontend/src/components/StepChat.tsx',
+                     'frontend/src/components/OrderChatTab.tsx']) {
+      expect(read(f), `${f} — 스크롤이 바깥으로 넘어간다`).toMatch(/overscrollBehavior: 'contain'/);
+    }
   });
 
   it('🔴 안쪽 칸은 그대로 스크롤된다 — 막는 것은 문서이지 내용이 아니다', () => {

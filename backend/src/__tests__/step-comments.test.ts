@@ -78,29 +78,21 @@ describe('채팅은 한 화면에 다 들어온다', () => {
     }
   });
 
-  it('🔴 대화 탭은 남은 화면 높이에 맞춘다 — vh 가 아니라 innerHeight 로', () => {
+  it('🔴 대화 탭은 부모를 채운다 — 화면을 따로 재지 않는다', () => {
     /*
-     * 높이를 재는 곳은 **부모(OrderDetail)** 다. 탭 본문이 이미 바닥까지 채워져 있으므로
-     * 대화 탭은 그걸 채우기만 한다 — 두 곳에서 따로 재던 시절엔 zoom 보정이 한쪽에만
-     * 들어가 바닥에 89px 빈 띠가 남았다(실측).
+     * 높이를 재는 곳은 `useAppHeight` 한 곳이다. 아이폰에서 `visualViewport.height` 와
+     * `getBoundingClientRect().top` 은 좌표계가 달라, 화면마다 따로 재면 그 값이 화면보다
+     * 커져 바깥 칸이 넘친다 → 화면 전체가 스크롤된다(사진 제보).
      */
-    const detail = read('frontend/src/components/OrderDetail.tsx');
-    /*
-     * 모바일 주소창이 접혔다 펴지면 실제 높이가 달라진다 — `vh` 는 그걸 안 따라간다.
-     * **키보드**도 마찬가지라, 이제는 `innerHeight` 가 아니라 실제로 보이는 높이
-     * (`visualViewport`)를 쓴다. 없는 기기에서는 `viewport.ts` 가 `innerHeight` 로 돌아간다.
-     */
-    expect(detail).toMatch(/visibleHeight\(\)/);
-    expect(detail).toMatch(/onVisibleHeightChange/);
-    expect(detail, 'vh 는 주소창·키보드를 못 따라간다').not.toMatch(/height: '\d+vh/);
     const vp = read('frontend/src/lib/viewport.ts');
+    expect(vp).toMatch(/visualViewport/);
     expect(vp, '옛 브라우저 대비가 없다').toMatch(/window\.innerHeight/);
     expect(vp).toMatch(/addEventListener\('resize'/);
+    expect(read('frontend/src/App.tsx'), '앱이 높이를 정하지 않는다').toMatch(/useAppHeight\(\)/);
 
     const tab = codeOnly(read('frontend/src/components/OrderChatTab.tsx'));
-    // 탭은 부모를 채운다 — 화면을 다시 재지도, vh 로 어림잡지도 않는다
     expect(tab, '대화 탭이 화면을 또 재면 부모와 어긋난다').not.toMatch(/window\.innerHeight/);
-    expect(tab, 'vh 는 주소창 변화를 못 따라간다').not.toMatch(/\d+vh/);
+    expect(tab, 'vh 는 주소창·키보드를 못 따라간다').not.toMatch(/\d+vh/);
     expect(tab).toMatch(/flex: 1/);
   });
 

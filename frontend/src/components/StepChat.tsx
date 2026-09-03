@@ -268,6 +268,8 @@ const s: Record<string, React.CSSProperties> = {
   },
   body: {
     flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--sp-4)',
+    // 대화 목록 끝에서 더 당겨도 바깥으로 넘기지 않는다 — 넘기면 화면 전체가 출렁인다
+    overscrollBehavior: 'contain',
     display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)',
   },
   muted: { color: 'var(--muted)', fontSize: 'var(--fs-body)' },

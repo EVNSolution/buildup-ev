@@ -86,12 +86,20 @@ describe('키보드는 올라온 만큼만 — 카카오톡처럼', () => {
     expect(lib).toMatch(/window\.innerHeight/);
   });
 
-  it('🔴 대화 화면 두 곳이 모두 키보드를 따라간다', () => {
-    for (const f of ['frontend/src/components/OrderDetail.tsx',
-                     'frontend/src/components/StepChat.tsx']) {
-      const src = read(f);
-      expect(src, `${f} — 키보드 높이를 안 따라간다`).toMatch(/visibleHeight\(\)/);
-      expect(src, `${f} — 키보드 여닫기를 안 듣는다`).toMatch(/onVisibleHeightChange/);
-    }
+  it('🔴 키보드를 따라가는 곳 — 앱 전체와 고정 서랍', () => {
+    /*
+     * 앱 전체 높이(`useAppHeight`)가 키보드만큼 줄면 그 안의 모든 화면이 따라 줄어든다.
+     * 화면마다 따로 재던 시절에는 그 값이 화면보다 커져 바깥 칸이 넘쳤다(사진 제보).
+     * 서랍(StepChat)만 예외다 — `position: fixed` 라 흐름 밖에 있어 스스로 재야 한다.
+     */
+    const vp = read('frontend/src/lib/viewport.ts');
+    expect(vp).toMatch(/export function useAppHeight/);
+    expect(vp).toMatch(/--app-h/);
+    expect(read('frontend/src/App.tsx'), '앱이 높이를 정하지 않는다').toMatch(/useAppHeight\(\)/);
+    expect(read('frontend/src/styles/globals.css')).toMatch(/height: var\(--app-h/);
+
+    const drawer = read('frontend/src/components/StepChat.tsx');
+    expect(drawer, '고정 서랍이 키보드를 안 따라간다').toMatch(/visibleHeight\(\)/);
+    expect(drawer).toMatch(/onVisibleHeightChange/);
   });
 });
