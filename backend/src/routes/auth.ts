@@ -134,7 +134,7 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
     const acs = await prisma.accessControl.findMany({
       where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
     });
-    permissions = mergePermissions(roles, email, acs);
+    permissions = mergePermissions(roles, email, acs, { is_master: dbUser.is_master });
   }
   res.json({
     data: {
@@ -182,7 +182,7 @@ authRouter.get('/me/permissions', rbac('SALES', 'ADMIN', 'MAKER'), async (req: R
     const acs = await prisma.accessControl.findMany({
       where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
     });
-    perms = mergePermissions(roles, email, acs);
+    perms = mergePermissions(roles, email, acs, req.auth!);
   }
   res.json({ data: { permissions: perms } });
 });
