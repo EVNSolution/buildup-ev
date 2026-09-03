@@ -62,18 +62,36 @@ describe('아이폰 안전영역', () => {
     expect(helper).toMatch(/max\(\$\{base\}, env\(safe-area-inset-bottom/);
   });
 
-  it('🔴 픽셀 높이를 계산할 때 zoom 을 되돌린다 — 안 그러면 바닥에 빈 띠가 남는다', () => {
+  it('🔴 zoom 을 되돌린 높이를 **한 곳에서** 정한다 — 안 그러면 바닥에 빈 칸이 남는다', () => {
     /*
-     * 모바일에서 `#root { zoom: .88 }` 이 걸린다. `innerHeight`·`getBoundingClientRect`
-     * 는 화면 픽셀인데, style 로 넣는 height 는 zoom 안쪽의 CSS 픽셀이다.
-     * 그대로 넣으면 0.88 배만 차지해 **바닥에 87px 빈 띠**가 남았다(실측).
-     * 이 빈 띠가 「안전영역 여백이 과하다」로 오해받았다.
+     * 손가락 기기에서 `#root` 에 `zoom: .88` 이 걸린다. 화면 높이를 그대로 주면
+     * **0.88 배로 그려져 바닥에 100px 빈 칸**이 남는다(844 지정 → 743 렌더, 실측).
+     * 백분율에 기대면 브라우저 해석이 갈린다 — `calc(100% / .88)` 은 이중으로 먹었다(1090px, 실측).
+     * 그래서 zoom 값을 **직접 읽어** 한 번만 되돌린다.
      */
     expect(read('frontend/src/styles/globals.css')).toMatch(/#root \{ zoom: 0?\.88/);
-    const detail = read('frontend/src/components/OrderDetail.tsx');
-    expect(detail).toMatch(/offsetHeight/);
-    expect(detail, 'zoom 보정 없이 innerHeight 를 그대로 쓰면 안 된다')
-      .toMatch(/rect\.height \/ el\.offsetHeight/);
+    const vp = read('frontend/src/lib/viewport.ts');
+    expect(vp).toMatch(/getComputedStyle\(root\)\.zoom/);
+    expect(vp).toMatch(/--root-h/);
+    // 백분율 calc 로 되돌리면 브라우저마다 다르게 먹는다(실측 1090px) — CSS 로 되돌리지 않는다
+    expect(read('frontend/src/styles/globals.css')).not.toMatch(/#root \{ zoom[^}]*calc\(/);
+  });
+
+  it('🔴 뷰포트를 재는 곳은 **한 곳뿐**이다', () => {
+    /*
+     * 예전엔 주문 상세·대화 탭이 각자 뷰포트를 쟀다. 아이폰에서 `visualViewport.height`
+     * 와 `getBoundingClientRect().top` 은 **좌표계가 달라**, 섞어 계산한 높이가 화면보다
+     * 커졌다 → 바깥 칸이 넘쳐 화면 전체가 스크롤됐다(사진 제보).
+     * 이제 각 화면은 부모를 채우기만 한다.
+     */
+    for (const f of ['frontend/src/components/OrderDetail.tsx',
+                     'frontend/src/components/OrderChatTab.tsx']) {
+      const src = read(f);
+      expect(src, `${f} — 화면을 또 재고 있다`).not.toMatch(/visibleHeight\(\)/);
+      expect(src, `${f} — innerHeight 를 직접 쓰고 있다`).not.toMatch(/window\.innerHeight/);
+    }
+    // 주문 상세는 부모를 채운다
+    expect(read('frontend/src/components/OrderDetail.tsx')).toMatch(/height: '100%'/);
   });
 
 });

@@ -171,7 +171,15 @@ export function MakerPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   root: { height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  body: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' },
+  body: {
+    flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px',
+    /*
+     * 끝까지 스크롤한 뒤 더 당겨도 **바깥으로 넘기지 않는다.** 아이폰은 안쪽 칸이 끝에
+     * 닿으면 그 힘을 바깥으로 넘겨 화면 전체를 출렁이게 한다 — 채팅하다 손가락이
+     * 미끄러지면 화면이 통째로 움직인다(사진 제보).
+     */
+    overscrollBehavior: 'contain' as const,
+  },
   // 영업·관리 화면과 같은 자리·같은 높이의 한 줄
   tabBar: { flexShrink: 0, display: 'flex', alignItems: 'stretch', background: '#fff' },
   barLeft: { display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '0 var(--sp-4)', minHeight: 'var(--h-control)' },

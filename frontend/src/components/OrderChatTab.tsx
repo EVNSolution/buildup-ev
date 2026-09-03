@@ -248,6 +248,8 @@ const s: Record<string, React.CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' },
   list: {
     flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--sp-4)',
+    // 대화 목록 끝에서 더 당겨도 바깥으로 넘기지 않는다 — 넘기면 화면 전체가 출렁인다
+    overscrollBehavior: 'contain',
     display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)',
   },
   day: { display: 'flex', alignItems: 'center', justifyContent: 'center', margin: 'var(--sp-2) 0' },
