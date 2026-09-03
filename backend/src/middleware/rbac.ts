@@ -176,7 +176,7 @@ export async function hasPermission(
   if (testPermissionBypassEnabled()) return true;
   try {
     const acs = await lookup(req.auth);
-    return mergePermissions(req.auth.roles, req.auth.email, acs).includes(code);
+    return mergePermissions(req.auth.roles, req.auth.email, acs, req.auth).includes(code);
   } catch {
     return false;
   }
@@ -193,7 +193,7 @@ export function requirePermission(code: string, lookup: PermissionLookup = loadA
 
     try {
       const acs = await lookup(req.auth);
-      const permissions = mergePermissions(req.auth.roles, req.auth.email, acs);
+      const permissions = mergePermissions(req.auth.roles, req.auth.email, acs, req.auth);
       if (!permissions.includes(code)) {
         res.status(403).json({ error: { code: 'PERMISSION_DENIED', message: `'${code}' 권한이 없습니다.` } });
         return;
