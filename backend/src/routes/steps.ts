@@ -22,7 +22,7 @@ import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
 import multer from 'multer';
 import {
-  listComments, addComment, unreadByStep, markRead, COMMENT_MAX,
+  listComments, listAllComments, addComment, unreadByStep, markRead, COMMENT_MAX,
 } from '../services/step-comments.js';
 import { writeFile, unlink, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -528,6 +528,24 @@ stepsRouter.get('/:id/step-comments/unread', rbac('ADMIN', 'SALES', 'MAKER'),
     const r = await loadOrder(id, req);
     if ('err' in r) { denyOrder(res, r.err); return; }
     res.json({ data: await unreadByStep(id, req.auth!.email) });
+  }));
+
+/**
+ * 주문의 대화 **전체**(시간순) — 「대화」 탭. 어느 단계 이야기인지 라벨을 함께 준다.
+ * 여기서는 읽음 처리를 하지 않는다 — 단계별 빨간 점은 그 단계를 열어야 꺼진다.
+ */
+stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = Number(req.params['id']);
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+    const defs = stepsFor(r.order.body_only);
+    res.json({ data: {
+      comments: await listAllComments(id),
+      me: req.auth!.email,
+      // 화면이 코드 대신 이름을 보여 주고, 쓸 때 고를 수 있게 목록도 함께 준다
+      steps: defs.map(d => ({ code: d.code, label: d.label })),
+    } });
   }));
 
 /** 한 단계의 대화 전체. 여는 순간 읽은 것으로 표시한다 */

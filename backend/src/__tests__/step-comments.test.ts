@@ -34,6 +34,65 @@ describe('이력은 지워지지 않는다', () => {
   });
 });
 
+describe('대화 탭 — 시간순 한 줄', () => {
+  it('🔴 전체 조회는 시간순이다 — 이력은 시간을 따라 읽는다', () => {
+    const svc = read('backend/src/services/step-comments.ts');
+    const fn = svc.slice(svc.indexOf('export async function listAllComments'));
+    expect(fn.slice(0, 400)).toMatch(/orderBy:\s*\{\s*id:\s*'asc'\s*\}/);
+  });
+
+  it('🔴 전체 조회는 읽음 처리를 하지 않는다 — 빨간 점은 그 단계를 열어야 꺼진다', () => {
+    const routes = read('backend/src/routes/steps.ts');
+    const i = routes.indexOf("stepsRouter.get('/:id/step-comments'");
+    const handler = routes.slice(i, routes.indexOf('}));', i));
+    expect(handler).not.toMatch(/markRead\(/);
+  });
+
+  it('쓸 때 고를 단계 목록을 함께 준다 — 화면이 코드를 짐작하지 않게', () => {
+    const routes = read('backend/src/routes/steps.ts');
+    const i = routes.indexOf("stepsRouter.get('/:id/step-comments'");
+    expect(routes.slice(i, routes.indexOf('}));', i))).toMatch(/steps:\s*defs\.map/);
+  });
+
+  it('🔴 대화 탭에서 쓴 글도 같은 테이블·같은 step_code 로 들어간다', () => {
+    const tab = read('frontend/src/components/OrderChatTab.tsx');
+    const drawer = read('frontend/src/components/StepChat.tsx');
+    // 둘 다 같은 postComment(orderId, stepCode, body) 를 쓴다 — 저장 경로가 하나여야
+    // 대화 탭에서 남긴 글이 그 단계의 창에도 뜬다
+    expect(tab).toMatch(/postComment\(orderId, step, body\)/);
+    expect(drawer).toMatch(/postComment\(orderId, stepCode, body\)/);
+  });
+});
+
+describe('채팅은 한 화면에 다 들어온다', () => {
+  it('🔴 바깥까지 스크롤시키는 scrollIntoView 를 쓰지 않는다', () => {
+    /*
+     * scrollIntoView 는 **조상 스크롤 컨테이너까지** 움직인다. 실제로 그 탓에
+     * 주문 제목과 「← 배정 주문」 버튼이 화면 밖으로 밀려났다. 목록 자신만 내린다.
+     */
+    for (const f of ['frontend/src/components/OrderChatTab.tsx',
+                     'frontend/src/components/StepChat.tsx']) {
+      const src = codeOnly(read(f));
+      expect(src, `${f}`).not.toMatch(/scrollIntoView/);
+      expect(src, `${f}`).toMatch(/scrollTop = .*scrollHeight/);
+    }
+  });
+
+  it('🔴 대화 탭은 남은 화면 높이에 맞춘다 — vh 가 아니라 innerHeight 로', () => {
+    const tab = read('frontend/src/components/OrderChatTab.tsx');
+    // 모바일 주소창이 접혔다 펴지면 실제 높이가 달라진다 — vh 는 그걸 안 따라간다
+    expect(tab).toMatch(/window\.innerHeight/);
+    expect(tab).toMatch(/addEventListener\('resize'/);
+  });
+
+  it('🔴 서랍이 열려 있는 동안 뒤 화면이 스크롤되지 않는다', () => {
+    const drawer = read('frontend/src/components/StepChat.tsx');
+    expect(drawer).toMatch(/document\.body\.style\.overflow = 'hidden'/);
+    // 닫을 때 반드시 되돌린다 — 안 되돌리면 앱 전체가 굳는다
+    expect(drawer).toMatch(/document\.body\.style\.overflow = prev/);
+  });
+});
+
 describe('푸시는 없어도 앱이 돌아간다', () => {
   it('🔴 VAPID 키가 없으면 조용히 꺼진다 — 던지지 않는다', () => {
     const push = read('backend/src/services/push.ts');

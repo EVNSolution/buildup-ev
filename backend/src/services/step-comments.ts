@@ -39,6 +39,24 @@ export async function listComments(orderId: number, stepCode: string): Promise<C
 }
 
 /**
+ * 주문의 **모든 대화를 시간순으로** — 「대화」 탭이 쓴다.
+ *
+ * 단계별로 흩어 보면 전체 흐름이 안 읽힌다. 어느 단계 이야기인지는 각 글에 붙여 두고,
+ * 순서는 오간 그대로 둔다 — 이력을 읽는다는 것은 시간을 따라 읽는다는 뜻이다.
+ */
+export async function listAllComments(orderId: number): Promise<CommentRow[]> {
+  if (!prisma) return [];
+  return prisma.orderStepComment.findMany({
+    where: { order_id: orderId },
+    orderBy: { id: 'asc' },
+    select: {
+      id: true, step_code: true, author: true, author_role: true,
+      author_name: true, body: true, created_at: true,
+    },
+  });
+}
+
+/**
  * 단계마다 **안 읽은 글이 몇 개인가** — 버튼의 빨간 점을 켜는 근거.
  *
  * 내가 쓴 글은 세지 않는다. 내가 방금 쓴 글 때문에 내 화면에 빨간 점이 켜지면

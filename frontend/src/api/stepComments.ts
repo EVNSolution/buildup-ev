@@ -34,6 +34,19 @@ export async function fetchComments(
   return b.data
 }
 
+/** 주문의 대화 전체(시간순) + 쓸 때 고를 단계 목록 */
+export async function fetchAllComments(orderId: number): Promise<{
+  comments: StepComment[]
+  me: string
+  steps: { code: string; label: string }[]
+}> {
+  const res = await fetch(`/api/v1/orders/${orderId}/step-comments`, { credentials: 'include' })
+  const b = await jsonOrThrow(res, '대화 이력 조회') as { data: {
+    comments: StepComment[]; me: string; steps: { code: string; label: string }[]
+  } }
+  return b.data
+}
+
 export async function postComment(
   orderId: number, stepCode: string, body: string,
 ): Promise<StepComment> {

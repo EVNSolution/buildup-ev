@@ -39,7 +39,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const endRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -52,8 +52,24 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, stepCode])
 
-  // 새 글이 오면 아래로 — 채팅은 마지막 줄이 중요하다
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [rows?.length])
+  /*
+   * 새 글이 오면 아래로. ⚠️ `scrollIntoView` 는 바깥 컨테이너까지 움직인다 —
+   * 목록 자신만 내린다.
+   */
+  useEffect(() => {
+    const el = listRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [rows?.length])
+
+  /*
+   * 서랍이 열려 있는 동안 **뒤 화면이 스크롤되지 않게** 잠근다.
+   * 안 막으면 서랍 안에서 손가락을 움직였는데 뒤 목록이 흘러가 있다(모바일에서 특히).
+   */
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   async function send() {
     const body = text.trim()
@@ -81,7 +97,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
           <button style={s.close} onClick={onClose} aria-label="닫기">✕</button>
         </header>
 
-        <div style={s.body}>
+        <div ref={listRef} style={s.body}>
           {rows === null && <div style={s.muted}>불러오는 중…</div>}
           {rows?.length === 0 && (
             <div style={s.empty}>
@@ -102,7 +118,6 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
               </div>
             )
           })}
-          <div ref={endRef} />
         </div>
 
         {err && <div style={s.err}>{err}</div>}

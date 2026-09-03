@@ -193,6 +193,25 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                       {phase === 'done' ? '✓' : phase === 'now' ? '●' : '○'}
                     </span>
                     <span style={phase === 'later' ? s.nameLater : s.name}>{def.label}</span>
+
+                    {/*
+                      **완료 취소는 단계 이름 바로 옆**에 둔다. 오른쪽 끝에 있으면
+                      줄이 길어질수록 「어느 단계를 되돌리는 버튼인가」가 눈으로 안 이어진다.
+                    */}
+                    {phase === 'done' && canEdit && undo.ok && (
+                      <button
+                        style={busy === def.code ? s.undoBtnOff : s.undoBtn}
+                        disabled={busy === def.code}
+                        onClick={() => handleUndo(def.code)}
+                      >{busy === def.code ? '처리 중' : '완료 취소'}</button>
+                    )}
+                    {/*
+                      취소할 수 없으면 **버튼을 잠그는 대신 이유를 적는다.**
+                      잠긴 버튼은 왜 안 되는지 알려 주지 않아, 눌러 보고도 알 수 없다(실제 제보).
+                    */}
+                    {phase === 'done' && canEdit && !undo.ok && (
+                      <span style={s.undoWhy}>{(undo as { reason: string }).reason}</span>
+                    )}
                     {/* 지연은 숫자로 말한다 — 「지연」만으로는 얼마나 늦었는지 모른다 */}
                     {st.stalled && st.overdue_days != null && (
                       <span style={s.lateTag}>기한 {st.due_at} · {st.overdue_days}일 경과</span>
@@ -204,41 +223,11 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
 
                     <span style={s.spacer} />
 
-                    {/*
-                      단계별 대화 — 이 단계에서 오간 이야기가 여기 남는다.
-                      안 읽은 글이 있으면 빨간 점. 숫자를 적지 않는 이유는 「몇 개인가」가
-                      아니라 「내가 안 본 것이 있나」만 알면 열어 보기 때문이다.
-                    */}
-                    <button
-                      style={s.chatBtn}
-                      onClick={() => setChat({ code: def.code, label: def.label })}
-                      title={`${def.label} 대화`}
-                    >
-                      대화
-                      {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label="안 읽은 대화 있음" />}
-                    </button>
-
                     {phase === 'done' && (
-                      <>
-                        <span style={s.doneMeta}>
-                          {st.done_at?.slice(0, 10)}
-                          {st.planned_at ? ` · ${def.dateLabel} ${st.planned_at}` : ''}
-                        </span>
-                        {canEdit && undo.ok && (
-                          <button
-                            style={busy === def.code ? s.undoBtnOff : s.undoBtn}
-                            disabled={busy === def.code}
-                            onClick={() => handleUndo(def.code)}
-                          >{busy === def.code ? '처리 중' : '완료 취소'}</button>
-                        )}
-                        {/*
-                          취소할 수 없으면 **버튼을 잠그는 대신 이유를 적는다.**
-                          잠긴 버튼은 왜 안 되는지 알려 주지 않아, 눌러 보고도 알 수 없다(실제 제보).
-                        */}
-                        {canEdit && !undo.ok && (
-                          <span style={s.undoWhy}>{(undo as { reason: string }).reason}</span>
-                        )}
-                      </>
+                      <span style={s.doneMeta}>
+                        {st.done_at?.slice(0, 10)}
+                        {st.planned_at ? ` · ${def.dateLabel} ${st.planned_at}` : ''}
+                      </span>
                     )}
 
                     {phase === 'later' && (
@@ -266,6 +255,20 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                     {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
                       <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
                     )}
+
+                    {/*
+                      단계별 대화 — 이 단계에서 오간 이야기가 여기 남는다.
+                      안 읽은 글이 있으면 빨간 점. 숫자를 적지 않는 이유는 「몇 개인가」가
+                      아니라 「내가 안 본 것이 있나」만 알면 열어 보기 때문이다.
+                    */}
+                    <button
+                      style={s.chatBtn}
+                      onClick={() => setChat({ code: def.code, label: def.label })}
+                      title={`${def.label} 대화`}
+                    >
+                      대화
+                      {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label="안 읽은 대화 있음" />}
+                    </button>
                   </div>
 
                   {/* 지금 할 수 있는 단계만 펼친다 — 나머지는 한 줄로 둔다 */}
