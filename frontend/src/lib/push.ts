@@ -39,12 +39,20 @@ export async function pushState(): Promise<PushState> {
   return sub ? { kind: 'on' } : { kind: 'off' }
 }
 
-/** 서버가 준 공개키(base64url) → 브라우저가 요구하는 바이트 배열 */
-function toBytes(base64url: string): Uint8Array {
+/**
+ * 서버가 준 공개키(base64url) → 브라우저가 요구하는 바이트 배열.
+ *
+ * ⚠️ **`ArrayBuffer` 위에 직접 만든다.** `Uint8Array.from(...)` 은
+ *    `Uint8Array<ArrayBufferLike>` 로 잡혀 `applicationServerKey`(BufferSource)에
+ *    넣을 수 없다 — `SharedArrayBuffer` 일 수도 있다고 보기 때문이다.
+ */
+function toBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const pad = '='.repeat((4 - (base64url.length % 4)) % 4)
   const b64 = (base64url + pad).replace(/-/g, '+').replace(/_/g, '/')
   const raw = atob(b64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+  const out = new Uint8Array(new ArrayBuffer(raw.length))
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
+  return out
 }
 
 export async function enablePush(publicKey: string): Promise<void> {
