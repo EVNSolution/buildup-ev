@@ -382,7 +382,10 @@ ordersRouter.patch('/:id/reject', rbac('ADMIN', 'MAKER'), requirePermission('ord
  *    누가 언제 왜 치웠는지가 사라지면 나중에 아무도 설명하지 못한다.
  *    (견적 삭제가 서명된 계약까지 연쇄로 지운 사고 이후의 규칙 — CLAUDE.md)
  *
- * ⚠️ **수락 대기·진행중까지만.** 인도가 끝난 건은 치우지 않는다 — 이미 일어난 거래다.
+ * ⚠️ **상태를 가리지 않는다.** 예전에는 수락 대기·진행중까지만 허용했는데, 그러면
+ *    잘못 들어간 건·더미 건이 인도 완료로 넘어간 순간 **아무도 치울 수 없었다**
+ *    (실제 제보 — 권한을 켜도 버튼이 뜨지 않았다). 지우는 게 아니라 **감추는** 조작이고,
+ *    사유·삭제자·시각이 남으며, 권한 자체가 계정별로 켜져 있어 아무나 하지 못한다.
  *
  * 권한은 `order.remove` 로 **계정별로** 켠다. 관리자라고 다 되면 안 되는 일이다.
  */
@@ -402,20 +405,22 @@ ordersRouter.patch('/:id/cancel', rbac('ADMIN'), requirePermission('order.remove
     if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
     if (order.canceled_at) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 치운 주문입니다' } }); return; }
 
-    // 수락 대기(assigned) · 진행중(ordered) 까지만
-    if (order.quote.status !== 'assigned' && order.quote.status !== 'ordered') {
-      res.status(409).json({
-        error: { code: 'CONFLICT', message: `수락 대기·진행중 주문만 치울 수 있습니다 (현재 ${order.quote.status})` },
-      });
-      return;
-    }
-
     await prisma.order.update({
       where: { id },
       data: { canceled_at: new Date(), canceled_by: req.auth?.email ?? 'unknown', cancel_reason: reason },
     });
-    // 견적은 계약완료로 되돌린다 — 계약은 그대로고 만들 곳만 없어진 것이다
-    await setQuoteStatus(order.quote.id, 'contracted', req.auth?.email ?? 'unknown');
+
+    /*
+     * 견적 상태는 **배정을 무르는 경우에만** 되돌린다.
+     *
+     * 수락 대기·진행중이면 「계약은 그대로고 만들 곳만 없어진 것」이라 계약완료로 돌리는 게 맞다.
+     * 그런데 이미 인도까지 끝난 건(completed)을 계약완료로 돌리면 **일어난 일을 고쳐 쓰는**
+     * 셈이 된다 — 주문만 목록에서 감추면 될 일에 거래 이력을 건드릴 이유가 없다.
+     * 그래서 그 밖의 상태는 손대지 않는다.
+     */
+    if (order.quote.status === 'assigned' || order.quote.status === 'ordered') {
+      await setQuoteStatus(order.quote.id, 'contracted', req.auth?.email ?? 'unknown');
+    }
     const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
     res.json({ data: { quote: updated, reason } });
   } catch (e) {
