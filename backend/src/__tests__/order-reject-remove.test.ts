@@ -97,17 +97,35 @@ describe('기능모듈·migration', () => {
 describe('화면', () => {
   const MODAL = read('frontend/src/components/AcceptOrderModal.tsx');
   const ADMIN = read('frontend/src/pages/AdminPage.tsx');
+  const DETAIL = read('frontend/src/components/OrderDetail.tsx');
+  const REMOVE = read('frontend/src/components/OrderRemoveModal.tsx');
 
   it('거부는 사유를 적어야 눌린다', () => {
     expect(MODAL).toMatch(/disabled=\{!reason\.trim\(\) \|\| busy\}/);
   });
 
-  it('치우기 버튼은 권한이 있을 때만 뜬다', () => {
+  /*
+   * 삭제 버튼은 주문 상세의 **제목 줄**로 옮겼다(예전엔 화면 맨 아래 인라인 박스).
+   * 자리는 바뀌었지만 지켜야 할 것은 같다 — 권한이 있어야 보이고, 사유가 있어야 눌린다.
+   */
+  it('🔴 삭제 버튼은 권한이 있을 때만 뜬다', () => {
     expect(ADMIN).toMatch(/const canRemove = usePermission\('order\.remove'\)/);
-    expect(ADMIN).toMatch(/\{canRemove && removable &&/);
+    // 권한이 없으면 onRemove 를 **넘기지 않는다** — 상세는 받은 것이 없으면 자리를 비운다
+    expect(ADMIN).toMatch(/onRemove=\{canRemove && removable/);
+    expect(DETAIL).toMatch(/\{onRemove && \(/);
   });
 
-  it('치우기도 사유를 적어야 눌린다', () => {
-    expect(ADMIN).toMatch(/disabled=\{!reason\.trim\(\) \|\| busy\}/);
+  it('🔴 특장사 화면에는 삭제 자리가 없다 — onRemove 를 안 넘긴다', () => {
+    const MAKER = read('frontend/src/pages/MakerPage.tsx');
+    expect(MAKER).not.toMatch(/onRemove=/);
+  });
+
+  it('🔴 바로 지워지지 않는다 — 팝업이 먼저 뜬다', () => {
+    expect(DETAIL).toMatch(/setRemoving\(true\)/);
+    expect(DETAIL).toMatch(/OrderRemoveModal/);
+  });
+
+  it('🔴 삭제도 사유를 적어야 눌린다', () => {
+    expect(REMOVE).toMatch(/disabled=\{!reason\.trim\(\) \|\| busy\}/);
   });
 });

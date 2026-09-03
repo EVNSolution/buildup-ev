@@ -9,7 +9,7 @@
  * (사용자 × 주문 × 단계)로 따로 저장한다.
  */
 import { prisma } from '../lib/prisma.js';
-import { notify } from './push.js';
+import { notify, pushAllowed } from './push.js';
 import { adminRecipients } from './notify.js';
 
 /** 한 번에 쓸 수 있는 길이 — DB 컬럼(VARCHAR 2000)과 같은 값이어야 한다 */
@@ -22,6 +22,8 @@ export interface CommentRow {
   author_role: string;
   author_name: string | null;
   body: string;
+  /** 붙인 사진(order_file.id). 없으면 null */
+  image_file_id: number | null;
   created_at: Date;
 }
 
@@ -33,7 +35,7 @@ export async function listComments(orderId: number, stepCode: string): Promise<C
     orderBy: { id: 'asc' },
     select: {
       id: true, step_code: true, author: true, author_role: true,
-      author_name: true, body: true, created_at: true,
+      author_name: true, body: true, image_file_id: true, created_at: true,
     },
   });
 }
@@ -51,7 +53,7 @@ export async function listAllComments(orderId: number): Promise<CommentRow[]> {
     orderBy: { id: 'asc' },
     select: {
       id: true, step_code: true, author: true, author_role: true,
-      author_name: true, body: true, created_at: true,
+      author_name: true, body: true, image_file_id: true, created_at: true,
     },
   });
 }
@@ -115,6 +117,8 @@ export async function addComment(args: {
   authorRole: string;
   authorName: string | null;
   body: string;
+  /** 함께 붙인 사진(order_file.id) */
+  imageFileId?: number | null;
 }): Promise<CommentRow> {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
   const body = args.body.trim().slice(0, COMMENT_MAX);
@@ -123,10 +127,11 @@ export async function addComment(args: {
       order_id: args.orderId, step_code: args.stepCode,
       author: args.author, author_role: args.authorRole,
       author_name: args.authorName, body,
+      image_file_id: args.imageFileId ?? null,
     },
     select: {
       id: true, step_code: true, author: true, author_role: true,
-      author_name: true, body: true, created_at: true,
+      author_name: true, body: true, image_file_id: true, created_at: true,
     },
   });
   // 쓴 사람은 그 단계를 읽은 것으로 본다 — 자기 글에 빨간 점이 켜지지 않게
@@ -172,17 +177,19 @@ async function notifyOthers(
       adminRecipients(),
     ]);
 
-    const to = [...new Set([
+    const candidates = [...new Set([
       ...makers.map((m) => m.email),
       ...participants.map((p) => p.author),
       ...admins,
     ])].filter((e) => e !== args.author);
+    // 기능모듈 「앱 알림」이 켜진 계정만 — 기기 구독은 그 다음 조건이다
+    const to = await pushAllowed(candidates);
     if (to.length === 0) return;
 
     const who = args.authorName ?? args.author;
     notify(to, {
       title: `주문 #${order.id} · ${args.stepLabel}`,
-      body: `${who}: ${row.body.slice(0, 120)}`,
+      body: `${who}: ${row.body.slice(0, 120) || '(사진)'}`,
       url: `/?order=${order.id}&step=${args.stepCode}`,
       tag: `step-${order.id}-${args.stepCode}`,
     });

@@ -7,8 +7,14 @@ export interface StepComment {
   author_role: string
   author_name: string | null
   body: string
+  /** 붙인 사진(order_file.id). 없으면 null */
+  image_file_id: number | null
   created_at: string
 }
+
+/** 대화에 붙은 사진 주소 — 증빙 파일과 같은 길을 쓴다 */
+export const commentImageUrl = (orderId: number, fileId: number) =>
+  `/api/v1/orders/${orderId}/files/${fileId}`
 
 async function jsonOrThrow(res: Response, what: string) {
   if (!res.ok) {
@@ -47,14 +53,22 @@ export async function fetchAllComments(orderId: number): Promise<{
   return b.data
 }
 
+/**
+ * 글 남기기 — 사진을 함께 붙일 수 있다.
+ *
+ * multipart 로 보낸다(글만 보낼 때도 같은 길). `Content-Type` 을 직접 적지 않는다 —
+ * 브라우저가 경계 문자열까지 넣어 만들어 줘야 서버가 읽는다.
+ */
 export async function postComment(
-  orderId: number, stepCode: string, body: string,
+  orderId: number, stepCode: string, body: string, image?: File | null,
 ): Promise<StepComment> {
+  const fd = new FormData()
+  fd.append('body', body)
+  if (image) fd.append('image', image)
   const res = await fetch(`/api/v1/orders/${orderId}/steps/${stepCode}/comments`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ body }),
+    body: fd,
   })
   const b = await jsonOrThrow(res, '전송') as { data: StepComment }
   return b.data

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchAllComments, postComment, type StepComment } from '../api/stepComments'
+import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { BTN } from '../styles/buttons'
+import { shrinkImage } from '../lib/imageResize'
 import { PushToggle } from './PushToggle'
 import { safeBottom } from '../styles/safeArea'
 
@@ -33,6 +34,12 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  /*
+   * 붙일 사진 — 보내기 전에 **줄여서** 올린다. 요즘 폰 사진은 한 장에 5MB 를 넘고,
+   * 대화에 그대로 쌓이면 현장에서 목록을 여는 것만으로 데이터를 다 쓴다.
+   */
+  const [image, setImage] = useState<File | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   /*
@@ -111,12 +118,12 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
 
   async function send() {
     const body = text.trim()
-    if (body === '' || step === '' || busy) return
+    if ((body === '' && !image) || step === '' || busy) return
     setBusy(true); setErr('')
     try {
-      const row = await postComment(orderId, step, body)
+      const row = await postComment(orderId, step, body, image)
       setRows(prev => [...(prev ?? []), row])
-      setText('')
+      setText(''); setImage(null)
     } catch (e) {
       setErr(e instanceof Error ? e.message : '전송하지 못했습니다')
     } finally { setBusy(false) }
@@ -152,7 +159,14 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
                   <span style={s.role}>{ROLE_LABEL[c.author_role] ?? c.author_role}</span>
                   <span style={s.time}>{stamp(c.created_at).slice(11)}</span>
                 </div>
-                <div style={mine ? s.mine : s.them}>{c.body}</div>
+                <div style={mine ? s.mine : s.them}>
+                  {c.image_file_id && (
+                    <a href={commentImageUrl(orderId, c.image_file_id)} target="_blank" rel="noreferrer">
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
+                    </a>
+                  )}
+                  {c.body}
+                </div>
               </div>
             </div>
           )
@@ -164,6 +178,13 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
 
       {canWrite ? (
         <div style={s.composer}>
+          {image && (
+            <div style={s.preview}>
+              <img src={URL.createObjectURL(image)} alt="첨부할 사진" style={s.previewImg} />
+              <span style={s.previewName}>{image.name}</span>
+              <button style={s.previewX} onClick={() => setImage(null)} aria-label="첨부 취소">✕</button>
+            </div>
+          )}
           {/* 무엇에 대한 이야기인지 **먼저** 고른다 — 쓰고 나서 고르면 잘못 붙는다 */}
           <label style={s.pickRow}>
             <span style={s.pickLabel}>단계</span>
@@ -172,6 +193,25 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
             </select>
           </label>
           <div style={s.sendRow}>
+            {/*
+              사진 첨부 — 올리기 전에 줄인다(`shrinkImage`). 현장에서 찍은 사진이
+              그대로 쌓이면 목록을 여는 것만으로 데이터를 다 쓴다.
+            */}
+            <button
+              style={s.clip}
+              onClick={() => fileRef.current?.click()}
+              title="사진 첨부"
+            >{image ? '📎 1' : '📎'}</button>
+            <input
+              ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={async e => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (!f) return
+                try { setImage((await shrinkImage(f)).file) }
+                catch { setImage(f) }   // 못 줄여도 원본으로 보낸다 — 못 보내는 것보다 낫다
+              }}
+            />
             <textarea
               style={s.input}
               rows={2}
@@ -184,8 +224,8 @@ export function OrderChatTab({ orderId, canWrite }: { orderId: number; canWrite:
               }}
             />
             <button
-              style={busy || text.trim() === '' ? { ...BTN.primary, opacity: 0.45 } : BTN.primary}
-              disabled={busy || text.trim() === ''}
+              style={busy || (text.trim() === '' && !image) ? { ...BTN.primary, opacity: 0.45 } : BTN.primary}
+              disabled={busy || (text.trim() === '' && !image)}
               onClick={() => void send()}
             >{busy ? '전송 중…' : '남기기'}</button>
           </div>
@@ -233,6 +273,19 @@ const s: Record<string, React.CSSProperties> = {
   empty: { color: 'var(--muted)', fontSize: 'var(--fs-body)', lineHeight: 1.6, textAlign: 'center', margin: 'auto 0' },
   err: { color: 'var(--req)', fontSize: 'var(--fs-body)', padding: 'var(--sp-4)' },
   errLine: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
+  clip: {
+    flexShrink: 0, border: 'var(--hairline)', background: 'var(--bg)', borderRadius: 8,
+    minHeight: 38, padding: '0 10px', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit',
+  },
+  preview: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
+  previewImg: { width: 36, height: 36, objectFit: 'cover' as const, borderRadius: 6, border: 'var(--hairline)' },
+  previewName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  previewX: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 },
+  /** 말풍선 안의 사진 — 눌러서 원본을 연다 */
+  photo: {
+    display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 8,
+    marginBottom: 'var(--sp-2)', objectFit: 'cover' as const,
+  },
   composer: {
     flex: 'none', borderTop: 'var(--hairline)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
     padding: 'var(--sp-4)', paddingBottom: safeBottom('var(--sp-4)'),

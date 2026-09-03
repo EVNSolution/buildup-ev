@@ -96,12 +96,28 @@ export async function confirmQuote(quoteId: number): Promise<void> {
 }
 
 /** 배정 (확정→배정, 특장사 선정 + 주문 생성) */
-export async function assignQuote(quoteId: number, makerOrgId: string): Promise<void> {
+/** 배정 전에 보여 줄 발주서 자료 — 특장사가 수락할 때 보는 것과 **같은 사양** */
+export async function fetchOrderPreview(quoteId: number): Promise<{
+  model_code: string
+  customer_name: string
+  sales_memo: string
+  options: { id: number; group_code: string; group_name: string; value_code: string; value_name: string }[]
+}> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/order-preview`, { credentials: 'include' })
+  if (!res.ok) throw new Error('발주 내용을 불러오지 못했습니다')
+  const b = await res.json() as { data: {
+    model_code: string; customer_name: string; sales_memo: string
+    options: { id: number; group_code: string; group_name: string; value_code: string; value_name: string }[]
+  } }
+  return b.data
+}
+
+export async function assignQuote(quoteId: number, makerOrgId: string, remark?: string): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/assign`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ maker_org_id: makerOrgId }),
+    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '' }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }

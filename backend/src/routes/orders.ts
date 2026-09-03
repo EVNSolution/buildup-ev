@@ -184,6 +184,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
         where: { id },
         include: {
           quote: { select: { model_code: true, selections: true, customer: { select: { name: true } } } },
+          maker_org: { select: { name: true } },
           documents: { orderBy: { id: 'asc' } },
           options: { include: { value: { include: { group: { select: { code: true, name: true } } } } } },
         },
@@ -238,6 +239,10 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           options,
           documents: order.documents,
           vehicle_info: (order as unknown as { vehicle_info?: unknown }).vehicle_info ?? null,
+          // 발주서를 상세에서도 다시 그릴 수 있게 — 수락한 뒤에 확인할 방법이 없었다
+          remark: order.remark,
+          maker_org_name: order.maker_org?.name ?? null,
+          delivery_due: order.delivery_due,
         },
       });
       return;

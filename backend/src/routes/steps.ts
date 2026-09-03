@@ -560,8 +560,16 @@ stepsRouter.get('/:id/steps/:code/comments', rbac('ADMIN', 'SALES', 'MAKER'),
     res.json({ data: { comments: rows, me: req.auth!.email } });
   }));
 
-/** 글 남기기 — 관리자·특장사만 */
-stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'),
+/**
+ * 글 남기기 — 관리자·특장사만. **사진을 함께 붙일 수 있다.**
+ *
+ * 사진은 증빙과 **같은 곳**(order_file, kind='chat')에 저장한다 — 저장 경로·크기 제한·
+ * 내려받기 길을 새로 만들면 한쪽만 고쳐지는 자리가 또 생긴다.
+ * 다만 evidence 종류가 아니므로 단계의 증빙 목록에는 뜨지 않는다.
+ *
+ * multipart 로 받는다(글만 보낼 때도 같은 경로). 파일이 없으면 그냥 글만 남는다.
+ */
+stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'), upload.single('image'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params['id']);
     const code = String(req.params['code']);
@@ -569,8 +577,9 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'),
     if ('err' in r) { denyOrder(res, r.err); return; }
 
     const body = String((req.body as { body?: unknown })?.body ?? '').trim();
-    if (body === '') {
-      res.status(400).json({ error: { code: 'BAD_INPUT', message: '내용을 입력하세요' } });
+    // 사진만 보내는 것도 허용한다 — 「이 상태입니다」 한 장으로 끝나는 이야기가 있다
+    if (body === '' && !req.file) {
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: '내용을 입력하거나 사진을 붙이세요' } });
       return;
     }
     if (body.length > COMMENT_MAX) {
@@ -584,6 +593,35 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'),
       return;
     }
 
+    /*
+     * 사진 — 있으면 먼저 저장하고 그 id 를 글에 붙인다.
+     * 글이 비어 있어도 사진만 남길 수 있다(현장에서 「이 상태입니다」 한 장이면 될 때가 있다).
+     */
+    let imageFileId: number | null = null;
+    const img = req.file;
+    if (img) {
+      if (!ALLOWED_MIME[img.mimetype]) {
+        res.status(400).json({ error: { code: 'BAD_INPUT', message: '사진(JPG·PNG·WEBP·HEIC) 또는 PDF 만 붙일 수 있습니다' } });
+        return;
+      }
+      if (img.size > MAX_DOC_BYTES) {
+        res.status(400).json({ error: { code: 'FILE_TOO_LARGE', message: `${Math.round(MAX_DOC_BYTES / 1024 / 1024)}MB 를 넘습니다` } });
+        return;
+      }
+      const { abs, rel } = await reserveFilePath(id, img.mimetype);
+      await writeFile(abs, img.buffer);
+      const f = await prisma!.orderFile.create({
+        data: {
+          order_id: id, step_code: code, kind: 'chat', path: rel,
+          original_name: safeDisplayName(img.originalname ?? ''),
+          mime: img.mimetype, size_bytes: img.size, kept_original: false,
+          uploaded_by: req.auth!.email,
+        },
+        select: { id: true },
+      });
+      imageFileId = f.id;
+    }
+
     const auth = req.auth!;
     const me = prisma ? await prisma.user.findUnique({
       where: { email: auth.email }, select: { name: true },
@@ -595,6 +633,7 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'),
       authorRole: auth.roles.includes('MAKER') && !isAdmin(auth) ? 'MAKER' : (isAdmin(auth) ? 'ADMIN' : 'SALES'),
       authorName: me?.name ?? null,
       body,
+      imageFileId,
     });
     res.status(201).json({ data: row });
   }));

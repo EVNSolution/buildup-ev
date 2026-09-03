@@ -344,6 +344,8 @@ export interface ApiOrder {
   delivery_due?: string | null;
   /** 발주 수락 시각 */
   accepted_at?: string | null;
+  /** 발주서 비고 — 이 주문만의 요청사항. 있으면 목록에 「커스텀」이 뜬다 */
+  remark?: string | null;
   created_at: string;
   quote: {
     model_code: string;
@@ -394,4 +396,9 @@ export interface ApiOrderMakerDetail {
   options: ApiOrderOption[];
   documents: ApiDocument[];
   vehicle_info?: OrderVehicleInfo | null;
+  /** 발주서 비고 — 이 주문만의 요청사항 */
+  remark?: string | null;
+  /** 배정된 특장사 이름 — 발주서를 다시 그리는 데 필요하다 */
+  maker_org_name?: string | null;
+  delivery_due?: string | null;
 }

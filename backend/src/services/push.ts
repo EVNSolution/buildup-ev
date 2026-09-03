@@ -13,6 +13,7 @@
  */
 import webpush from 'web-push';
 import { prisma } from '../lib/prisma.js';
+import { mergePermissions } from '../lib/permissions.js';
 
 const PUBLIC = process.env['VAPID_PUBLIC_KEY']?.trim() ?? '';
 const PRIVATE = process.env['VAPID_PRIVATE_KEY']?.trim() ?? '';
@@ -30,6 +31,32 @@ if (pushEnabled()) {
 
 /** 화면이 구독할 때 필요한 공개키. 비밀키는 **절대** 내보내지 않는다 */
 export const publicKey = (): string => PUBLIC;
+
+/** 앱 알림을 받겠다고 켜 둔 계정만 남긴다 — 기능모듈 `notify.push` */
+export const PUSH_MODULE = 'notify.push';
+
+/**
+ * 후보 중에서 **앱 알림을 받을 수 있는 계정**만 거른다.
+ *
+ * 판정은 화면·API 와 같은 `mergePermissions` 를 쓴다 — 역할 기본값을 계정별 설정이 덮는다.
+ * 실제로 알림이 가려면 본인이 기기에서 구독까지 해야 한다(두 조건이 모두 필요).
+ */
+export async function pushAllowed(emails: string[]): Promise<string[]> {
+  if (!prisma || emails.length === 0) return [];
+  const [users, acs] = await Promise.all([
+    prisma.user.findMany({
+      where: { email: { in: emails }, active: true, status: 'active' },
+      select: { email: true, role: true, extra_roles: true },
+    }),
+    prisma.accessControl.findMany({
+      where: { module_code: PUSH_MODULE },
+      select: { subject_type: true, subject_ref: true, module_code: true, enabled: true },
+    }),
+  ]);
+  return users
+    .filter(u => mergePermissions([u.role, ...u.extra_roles], u.email, acs).includes(PUSH_MODULE))
+    .map(u => u.email);
+}
 
 export interface PushPayload {
   title: string;
