@@ -15,9 +15,11 @@ import { BTN } from '../styles/buttons'
  *
  * 특장사가 보는 서류는 발주서뿐이다(계약서·견적서는 서버에서 막았다).
  */
-export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error, onAccept, onClose , onReject}: {
+export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, busy, error, onAccept, onClose, onReject }: {
   orderId: number
   makerOrgName: string
+  /** 발주서 비고 — 이 주문만의 요청사항. 수락 전에 반드시 보이는 자리다 */
+  remark?: string
   /** 납기 한도의 기산점 = 배정일(발주일) */
   orderedAt: string
   busy: boolean
@@ -65,7 +67,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
   return (
     <div style={m.overlay} onClick={onClose}>
       <div style={m.box} onClick={e => e.stopPropagation()}>
-        <div style={m.title}>주문 #{orderId} 수락</div>
+        {/* 제목은 「수락」이 아니라 주문 번호만 — 이 팝업은 보고 나서 수락·거부를 고르는 자리다 */}
+        <div style={m.title}>주문 #{orderId}</div>
 
         <div style={m.scroll}>
           {loadErr
@@ -78,6 +81,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 modelCode={modelCode}
                 options={options}
                 deliveryDue={due}
+                remark={remark}
               />
             )}
 
@@ -116,9 +120,6 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         {rejecting && (
           <div style={m.rejectBox}>
             <div style={m.rejectTitle}>이 주문을 거부합니다</div>
-            <div style={m.rejectDesc}>
-              배정이 풀려 <b>다른 특장사에 다시 맡길 수 있게</b> 됩니다. 계약은 그대로입니다.
-            </div>
             <label style={m.rejectLabel}>거부 사유<span style={m.req}> · 필수</span></label>
             <textarea
               style={m.rejectInput} rows={3} value={reason} maxLength={500}
@@ -166,7 +167,6 @@ const m: Record<string, React.CSSProperties> = {
     padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
   },
   rejectTitle: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
-  rejectDesc: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 },
   rejectLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
   rejectInput: {
     width: '100%', fontSize: 13, padding: '8px 10px', borderRadius: 7,

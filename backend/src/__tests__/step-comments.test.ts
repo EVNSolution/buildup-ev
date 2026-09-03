@@ -59,8 +59,8 @@ describe('대화 탭 — 시간순 한 줄', () => {
     const drawer = read('frontend/src/components/StepChat.tsx');
     // 둘 다 같은 postComment(orderId, stepCode, body) 를 쓴다 — 저장 경로가 하나여야
     // 대화 탭에서 남긴 글이 그 단계의 창에도 뜬다
-    expect(tab).toMatch(/postComment\(orderId, step, body\)/);
-    expect(drawer).toMatch(/postComment\(orderId, stepCode, body\)/);
+    expect(tab).toMatch(/postComment\(orderId, step, body, image\)/);
+    expect(drawer).toMatch(/postComment\(orderId, stepCode, body, image\)/);
   });
 });
 

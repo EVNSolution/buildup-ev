@@ -8,7 +8,6 @@ import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import { RefreshButton } from '../components/RefreshButton'
-import { InboxPanel } from '../components/InboxPanel'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { isAcceptOverdue, daysSince } from '@shared/schedule/businessDays'
 
@@ -122,29 +121,25 @@ export function MakerPage() {
             ) : (
               <>
                 {/*
-                  「내용 보기」를 따로 두지 않는다 — 수락 팝업이 발주서를 통째로 보여준다.
-                  버튼이 둘이면 내용을 안 보고 수락하는 길이 남고, 본 사람도 수락하려면
-                  목록으로 되돌아와야 했다.
+                  수락 대기도 **진행 중과 같은 줄 모양**을 쓴다. 두 목록이 위아래로
+                  붙어 있는데 생김새가 다르면 다른 종류의 것으로 읽힌다.
+                  수락 버튼은 두지 않는다 — 줄을 누르면 발주서가 뜨고 거기서 수락·거부를 고른다.
+                  버튼이 따로 있으면 **내용을 안 보고 수락하는 길**이 남는다.
                 */}
-                <InboxPanel
-                  title="수락 대기"
-                  items={pending.map(o => {
-                    const from = new Date(o.assigned_at ?? o.created_at)
-                    const late = isAcceptOverdue(from, new Date())
-                    return {
-                      id: o.id,
-                      no: `주문 #${o.id}`,
-                      title: o.quote.customer?.name ?? '고객 미상',
-                      sub: o.quote.model_code,
-                      meta: `발주 ${(o.assigned_at ?? o.created_at).slice(0, 10)}`,
-                      urgent: late,
-                      urgentNote: late ? `발주 후 ${daysSince(from, new Date())}일째` : undefined,
-                    }
-                  })}
-                  acceptLabel="주문 수락"
-                  busyId={acceptingId}
-                  onAccept={id => { setAcceptErr(''); setAcceptTarget(pending.find(o => o.id === id) ?? null) }}
-                />
+                {pending.length > 0 && (
+                  <>
+                    <div style={styles.boardTitle}>수락 대기 ({pending.length})</div>
+                    <OrderStepsBoard
+                      orders={pending}
+                      mode="pending"
+                      lateInfo={o => {
+                        const from = new Date(o.assigned_at ?? o.created_at)
+                        return { days: daysSince(from, new Date()), late: isAcceptOverdue(from, new Date()) }
+                      }}
+                      onCardClick={id => { setAcceptErr(''); setAcceptTarget(pending.find(o => o.id === id) ?? null) }}
+                    />
+                  </>
+                )}
                 {active.length > 0 && (
                   <>
                     <div style={styles.boardTitle}>진행 중 ({active.length})</div>

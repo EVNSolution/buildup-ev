@@ -24,6 +24,8 @@ import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import { stepsFor } from '@buildup-ev/shared/process';
+import { clampMemo } from '@buildup-ev/shared/docs/memo';
+import { optionsFromSelections } from '../services/order-options.js';
 
 export const quotesRouter = Router();
 
@@ -922,6 +924,31 @@ quotesRouter.patch('/:id/accept-sales', rbac('SALES', 'ADMIN'), async (req: Requ
   }
 });
 
+/**
+ * 배정 **전에** 발주서를 미리 보여 주기 위한 자료.
+ *
+ * 관리자는 무엇을 발주하는지 보고 비고를 적어야 하고, 그때 보는 발주서는 특장사가
+ * 수락할 때 보는 것과 **같아야 한다**. 그래서 사양 해석을 같은 함수로 한다.
+ */
+quotesRouter.get('/:id/order-preview', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+  const quote = await prisma.quote.findUnique({
+    where: { id },
+    select: { model_code: true, selections: true, inputs: true, customer: { select: { name: true } } },
+  });
+  if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+  const inp = (quote.inputs ?? {}) as Record<string, unknown>;
+  res.json({ data: {
+    model_code: quote.model_code,
+    customer_name: quote.customer?.name ?? '',
+    // 영업이 남긴 메모 — 배정 화면에서 **읽기만** 한다(고치는 자리는 견적 수정이다)
+    sales_memo: (inp['memo'] as string | undefined) ?? '',
+    options: await optionsFromSelections((quote.selections ?? {}) as Record<string, string>),
+  } });
+});
+
 quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
@@ -933,7 +960,7 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     return;
   }
 
-  const { maker_org_id } = req.body as { maker_org_id?: string };
+  const { maker_org_id, remark } = req.body as { maker_org_id?: string; remark?: string };
   if (!maker_org_id) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '배정 특장사(maker_org_id) 필수' } });
     return;
@@ -965,7 +992,12 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     const [updatedQuote, order] = await prisma.$transaction([
       prisma.quote.findUnique({ where: { id } }),
       prisma.order.create({
-        data: { quote_id: id, maker_org_id, assigned_at: now },
+        /*
+         * 비고 — 발주서에 실리는 이 주문만의 요청사항.
+         * 화면과 **같은 규칙**(clampMemo)으로 자른다. 서버에서 안 자르면 API 를 직접
+         * 부르는 경로로 긴 글이 들어와 발주서 양식이 깨진다.
+         */
+        data: { quote_id: id, maker_org_id, assigned_at: now, remark: clampMemo(remark ?? '') || null },
       }),
     ]);
 

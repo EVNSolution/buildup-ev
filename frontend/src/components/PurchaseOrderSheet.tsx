@@ -8,14 +8,13 @@ import { DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
  * 계약서·견적서에는 고객 개인정보와 판매가가 들어 있어 특장사에게 가지 않는다(서버에서 막았다).
  * 특장사가 알아야 하는 것은 「누가 무엇을 언제까지 만들어 달라고 했는가」뿐이고, 그게 발주서다.
  *
- * ⚠️ **품목·수량·단가는 아직 비어 있다.** 발주 품목은 견적 옵션과 1:1이 아니라
- *    변환 규칙과 특장사별 단가표가 필요하다(docs/process-redesign.md §4-3, 남주 확인 대기).
- *    금액을 임시로 지어내지 않는다 — 발주서의 금액은 곧 지급 근거다.
- *    지금은 **무엇을 만들어야 하는지(사양)** 까지만 확정해서 보여주고, 표가 들어오면
- *    아래 「품목」 자리에 그대로 끼운다.
+ * ⚠️ **품목·수량·단가 칸은 두지 않는다.** 발주 품목은 견적 옵션과 1:1이 아니라 변환
+ *    규칙과 특장사별 단가표가 필요하다(docs/process-redesign.md §4-3). 빈 칸을 띄워
+ *    두면 「곧 채워지나」 하고 기다리게 되므로 아예 뺐다 — 표가 확정되면 그때 넣는다.
+ *    지금 발주 내용은 **사양**이고, 이 주문만의 요청은 **비고**다.
  */
 export function PurchaseOrderSheet({
-  orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue,
+  orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue, remark, editable,
 }: {
   orderId: number
   /** 발주일 = 배정일 */
@@ -25,6 +24,10 @@ export function PurchaseOrderSheet({
   options: ApiOrderOption[]
   /** 고른 납기일 — 아직이면 '' */
   deliveryDue: string
+  /** 이 주문만의 요청사항. 없으면 「특별 요청사항 없음」 */
+  remark?: string
+  /** 비고를 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
+  editable?: React.ReactNode
 }) {
   return (
     <div style={s.sheet}>
@@ -55,10 +58,18 @@ export function PurchaseOrderSheet({
         </tbody>
       </table>
 
-      <div style={s.section}>품목 · 금액</div>
-      <div style={s.pending}>
-        발주 품목과 단가는 <b>확정 후 이 자리에 표시</b>됩니다. 지금은 위 사양이 발주 내용입니다.
-      </div>
+      {/*
+        비고 — **이 주문만의 요청사항.** 관리자가 배정할 때 적고, 특장사는 수락 전에 읽는다.
+        줄바꿈·띄어쓰기를 적은 그대로 보여준다(`pre-wrap`) — 「윗줄은 A, 아랫줄은 B」처럼
+        줄로 뜻을 나눈 글이 한 줄로 붙으면 다른 말이 된다.
+        쓰는 자리(배정 팝업)에서 4줄로 잘라 두므로 여기서 양식이 깨질 일은 없다.
+      */}
+      <div style={s.section}>비고</div>
+      {editable
+        ? editable
+        : remark?.trim()
+          ? <div style={s.remark}>{remark}</div>
+          : <div style={s.remarkEmpty}>특별 요청사항 없음</div>}
 
       <div style={s.section}>특이사항</div>
       <ol style={s.notes}>
@@ -104,6 +115,12 @@ const s: Record<string, React.CSSProperties> = {
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-label)', marginTop: 'var(--sp-2)' },
   tdLabel: { padding: '5px 12px 5px 0', color: 'var(--muted)', width: 96, whiteSpace: 'nowrap', verticalAlign: 'top' },
   tdValue: { padding: '5px 0', color: 'var(--dark)' },
+  /** 비고 본문 — 적은 그대로(줄바꿈·띄어쓰기 보존) */
+  remark: {
+    whiteSpace: 'pre-wrap' as const, fontSize: 'var(--fs-caption)', lineHeight: 1.6,
+    color: 'var(--dark)', padding: 'var(--sp-2) 0',
+  },
+  remarkEmpty: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', padding: 'var(--sp-2) 0' },
   pending: {
     marginTop: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)',
     background: 'var(--card)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2) var(--sp-3)', lineHeight: 'var(--lh-body)',

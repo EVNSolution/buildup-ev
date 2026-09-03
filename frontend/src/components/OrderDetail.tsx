@@ -12,6 +12,8 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { PdfModal } from './PdfModal'
 import { OrderStepsPanel } from './OrderStepsPanel'
 import { OrderChatTab } from './OrderChatTab'
+import { PurchaseOrderSheet } from './PurchaseOrderSheet'
+import { OrderRemoveModal } from './OrderRemoveModal'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 
@@ -390,6 +392,8 @@ interface Props {
   orderId: number
   onBack: () => void
   backLabel?: string
+  /** 넘기면 제목 줄에 「주문 삭제」가 뜬다. 권한이 없으면 넘기지 않는다 */
+  onRemove?: () => void
   /**
    * 특장사 화면 여부. true 면 계약서 영역을 **role 과 무관하게** 렌더하지 않는다.
    * 특장사가 볼 수 있는 서류는 구조변경 관련 서류뿐 — 관리자 계정으로 특장사
@@ -398,11 +402,13 @@ interface Props {
   makerView?: boolean
 }
 
-export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false }: Props) {
+export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false, onRemove }: Props) {
   // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
+  /** 삭제 확인 팝업 — 바로 지우지 않는다 */
+  const [removing, setRemoving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
@@ -462,6 +468,13 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         <div style={det.titleRow}>
           <span style={{ ...det.orderId, fontSize: isMobile ? 18 : 20 }}>주문 #{detail.id}</span>
           <span style={det.model}>{detail.model_code}</span>
+          {/*
+            주문 삭제 — **권한이 있는 관리자에게만** 보인다. 특장사에게는 자리 자체가 없다.
+            바로 지우지 않는다: 눌러도 팝업이 먼저 뜨고 사유를 적어야 지워진다.
+          */}
+          {onRemove && (
+            <button style={det.removeBtn} onClick={() => setRemoving(true)}>주문 삭제</button>
+          )}
         </div>
         <div style={det.metaRow}>
           <span>배정일 {fmtDatetime(detail.assigned_at)}</span>
@@ -569,12 +582,37 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
               </tbody>
             </table>
           )}
+
+          {/*
+            비고 — 배정할 때 적힌 **이 주문만의 요청사항.** 사양의 마지막 줄에 둔다:
+            무엇을 만들지 다 읽은 뒤에 「단, 이 건은」을 읽는 순서가 맞다.
+            줄바꿈·띄어쓰기는 적은 그대로 보여준다.
+          */}
+          <div style={det.remarkHead}>비고</div>
+          {detail.remark?.trim()
+            ? <div style={det.remarkBody}>{detail.remark}</div>
+            : <div style={det.remarkNone}>특별 요청사항 없음</div>}
         </div>
       )}
 
       {/* 서류 탭 */}
       {tab === 'docs' && canViewDocsTab && (
         <div style={det.section}>
+          {/*
+            발주서 — **수락하고 나면 다시 볼 방법이 없었다**(수락 팝업에서만 보였다).
+            납기·비고를 나중에 확인할 일이 잦으므로 서류 탭 맨 위에 그대로 둔다.
+          */}
+          <div style={det.poHead}>발주서</div>
+          <PurchaseOrderSheet
+            orderId={detail.id}
+            orderedAt={new Date(detail.assigned_at ?? detail.created_at)}
+            makerOrgName={detail.maker_org_name ?? ''}
+            modelCode={detail.model_code}
+            options={detail.options}
+            deliveryDue={detail.delivery_due?.slice(0, 10) ?? ''}
+            remark={detail.remark ?? ''}
+          />
+          <div style={det.poGap} />
           <DocsTab
             orderId={detail.id}
             documents={detail.documents}
@@ -602,6 +640,14 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
       )}
 
       </div>
+
+      {removing && onRemove && (
+        <OrderRemoveModal
+          orderId={detail.id}
+          onClose={() => setRemoving(false)}
+          onDone={() => { setRemoving(false); onRemove() }}
+        />
+      )}
     </div>
   )
 }
@@ -642,6 +688,21 @@ const det: Record<string, React.CSSProperties> = {
   tabBtn: { padding: '8px 18px', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: -2, minHeight: 44 },
   tabActive: { padding: '8px 18px', border: 'none', borderBottom: '2px solid var(--dark)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dark)', fontWeight: 700, marginBottom: -2, minHeight: 44 },
   section: { paddingTop: 4 },
+  /** 삭제는 되돌리기 어렵다 — 경고색 테두리로만, 채우지 않는다 */
+  removeBtn: {
+    marginLeft: 'auto', flexShrink: 0,
+    border: '0.5px solid var(--warn)', background: '#fff', color: 'var(--warn)',
+    borderRadius: 7, padding: '4px 12px', fontSize: 'var(--fs-caption)',
+    cursor: 'pointer', fontFamily: 'inherit', minHeight: 32,
+  },
+  remarkHead: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', marginTop: 'var(--sp-5)', marginBottom: 'var(--sp-2)' },
+  remarkBody: {
+    whiteSpace: 'pre-wrap' as const, fontSize: 'var(--fs-body)', lineHeight: 1.6,
+    background: 'var(--card)', borderRadius: 8, padding: 'var(--sp-3)', color: 'var(--dark)',
+  },
+  remarkNone: { fontSize: 'var(--fs-body)', color: 'var(--muted)' },
+  poHead: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', marginBottom: 'var(--sp-2)' },
+  poGap: { height: 'var(--sp-6)' },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
   th: { textAlign: 'left' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },

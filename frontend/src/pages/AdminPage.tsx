@@ -5,11 +5,13 @@ import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User 
 import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden } from '../api/quotes'
+import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden, fetchOrderPreview } from '../api/quotes'
+import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
+import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
-import { fetchOrders, fetchMakerOrgs, cancelOrder } from '../api/orders'
+import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderFilesTab } from '../components/OrderFilesTab'
@@ -85,28 +87,92 @@ function isEnabled(ac: AccessControl[], type: 'role' | 'user', ref: string, code
 }
 
 // ── 특장사 확정 모달 ───────────────────────────────────────────────────────
+/**
+ * 제작 배정 — **발주서를 보고, 이 주문만의 요청을 적고, 맡긴다.**
+ *
+ * 예전에는 특장사만 고르고 끝이었다. 그러면 무엇을 발주하는지 모른 채 넘기게 되고,
+ * 「이 건은 이렇게 해 주세요」를 전할 자리가 없어 전화·카톡으로 새어 나갔다.
+ *
+ * 여기서 보는 발주서는 **특장사가 수락할 때 보는 것과 같다**(같은 컴포넌트·같은 사양).
+ */
 interface ConfirmModalProps {
   quoteId: number; makerOrgs: Org[]; loading: boolean; error: string
-  onConfirm: (makerOrgId: string) => void; onClose: () => void
+  onConfirm: (makerOrgId: string, remark: string) => void; onClose: () => void
 }
 function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }: ConfirmModalProps) {
   const [selected, setSelected] = useState('')
+  const [remark, setRemark] = useState('')
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof fetchOrderPreview>> | null>(null)
+  const [loadErr, setLoadErr] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    fetchOrderPreview(quoteId)
+      .then(d => { if (alive) setPreview(d) })
+      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : '발주 내용을 불러오지 못했습니다') })
+    return () => { alive = false }
+  }, [quoteId])
+
+  const makerName = makerOrgs.find(o => o.code === selected)?.name ?? ''
+
   return (
     <div style={modal.overlay} onClick={onClose}>
-      <div style={modal.box} onClick={e => e.stopPropagation()}>
+      <div style={{ ...modal.box, ...modal.boxWide }} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>견적 #{quoteId} — 제작 배정</div>
-        <div style={modal.desc}>제작을 맡길 특장사를 선택하세요. 배정하면 주문이 생성되고 특장사 수락 대기 상태가 됩니다.</div>
-        <label style={modal.label}>특장사<span style={modal.req}> · 필수</span></label>
-        <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
-          <option value="">선택하세요</option>
-          {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
-        </select>
+
+        <div style={modal.scroll}>
+          <label style={modal.label}>특장사<span style={modal.req}> · 필수</span></label>
+          <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
+            <option value="">선택하세요</option>
+            {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
+          </select>
+
+          {/*
+            영업이 남긴 메모 — **읽기만** 한다. 고치는 자리는 견적 수정이지 배정이 아니다.
+            비어 있으면 칸 자체를 띄우지 않는다(빈 상자는 「뭘 적어야 하나」로 읽힌다).
+          */}
+          {preview?.sales_memo.trim() && (
+            <>
+              <label style={modal.label}>영업 메모 <span style={modal.readonly}>· 읽기 전용</span></label>
+              <div style={modal.memo}>{preview.sales_memo}</div>
+            </>
+          )}
+
+          {loadErr && <div style={modal.error}>{loadErr}</div>}
+
+          {preview && (
+            <>
+              <label style={modal.label}>발주서 <span style={modal.readonly}>· 특장사가 보는 그대로</span></label>
+              <PurchaseOrderSheet
+                orderId={0}
+                orderedAt={new Date()}
+                makerOrgName={makerName || '(특장사 선택 전)'}
+                modelCode={preview.model_code}
+                options={preview.options}
+                deliveryDue=""
+                remark={remark}
+                editable={
+                  <textarea
+                    style={modal.remarkInput}
+                    rows={MEMO_MAX_LINES}
+                    placeholder={`이 주문만의 요청사항 (${MEMO_LIMIT_HINT})`}
+                    value={remark}
+                    onChange={e => setRemark(clampMemo(e.target.value))}
+                  />
+                }
+              />
+            </>
+          )}
+        </div>
+
         {error && <div style={modal.error}>{error}</div>}
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
-          <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
-            {loading ? '처리 중…' : '제작 배정'}
-          </button>
+          <button
+            style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn}
+            disabled={!selected || loading}
+            onClick={() => onConfirm(selected, remark)}
+          >{loading ? '처리 중…' : '제작 배정'}</button>
         </div>
       </div>
     </div>
@@ -913,11 +979,11 @@ function QuotesTab() {
    */
 
   // 제작 배정 (계약완료→배정) — 특장사 선택 모달
-  async function handleAssign(makerOrgId: string) {
+  async function handleAssign(makerOrgId: string, remark: string) {
     if (!confirmingId) return
     setConfirmLoading(true); setConfirmError('')
     try {
-      await assignQuote(confirmingId, makerOrgId)
+      await assignQuote(confirmingId, makerOrgId, remark)
       setConfirmingId(null); load()
     } catch (e: unknown) {
       setConfirmError(e instanceof Error ? e.message : '배정 실패')
@@ -1244,15 +1310,19 @@ function KanbanTab() {
      */
     const removable = !!picked && (picked.quote.status === 'assigned' || picked.quote.status === 'ordered')
     return (
-      <div>
-        <OrderDetail orderId={selectedOrderId} onBack={() => setSelectedOrderId(null)} backLabel="← 주문 진행" />
-        {canRemove && removable && (
-          <OrderRemoveBox
-            orderId={selectedOrderId}
-            onDone={() => { setSelectedOrderId(null); load() }}
-          />
-        )}
-      </div>
+      <OrderDetail
+        orderId={selectedOrderId}
+        onBack={() => setSelectedOrderId(null)}
+        backLabel="← 주문 진행"
+        /*
+         * 삭제 버튼은 **제목 줄 오른쪽**에 둔다. 예전엔 화면 맨 아래에 있어
+         * 되돌리기 어려운 조작인데도 스크롤 끝에서 마주쳤다.
+         * 권한이 없으면 아예 넘기지 않는다 — 특장사에게는 이 자리가 비어 있다.
+         */
+        onRemove={canRemove && removable
+          ? () => { setSelectedOrderId(null); load() }
+          : undefined}
+      />
     )
   }
 
@@ -1265,76 +1335,6 @@ function KanbanTab() {
   )
 }
 
-/**
- * 주문 치우기 — 목록에서 뺀다. **행은 지워지지 않는다.**
- *
- * 「삭제」라고 부르지만 상태로 남긴다. 누가 언제 왜 치웠는지가 사라지면
- * 나중에 아무도 설명하지 못한다(견적 삭제가 서명된 계약까지 연쇄로 지운 사고가 있었다).
- *
- * 한 번에 치워지지 않는다 — 사유를 적어야 눌린다.
- */
-function OrderRemoveBox({ orderId, onDone }: { orderId: number; onDone: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [reason, setReason] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-
-  async function go() {
-    setBusy(true); setErr('')
-    try { await cancelOrder(orderId, reason.trim()); onDone() }
-    catch (e) { setErr(e instanceof Error ? e.message : '주문 치우기 실패') }
-    finally { setBusy(false) }
-  }
-
-  if (!open) {
-    return (
-      <div style={rm.bar}>
-        <button style={rm.openBtn} onClick={() => setOpen(true)}>주문 치우기</button>
-        <span style={rm.hint}>목록에서만 빠집니다 — 기록은 남습니다.</span>
-      </div>
-    )
-  }
-  return (
-    <div style={rm.box}>
-      <div style={rm.title}>이 주문을 목록에서 치웁니다</div>
-      <div style={rm.desc}>
-        견적은 <b>계약완료</b>로 돌아가 다시 배정할 수 있습니다.
-        주문 기록과 그동안의 서류는 <b>지워지지 않습니다.</b>
-      </div>
-      <label style={rm.label}>치우는 사유<span style={rm.req}> · 필수</span></label>
-      <textarea
-        style={rm.input} rows={2} value={reason} maxLength={500}
-        placeholder="예) 중복 배정 / 고객 요청으로 제작 보류"
-        onChange={e => setReason(e.target.value)}
-      />
-      {err && <div style={rm.err}>{err}</div>}
-      <div style={rm.actions}>
-        <button style={BTN.secondary} onClick={() => setOpen(false)} disabled={busy}>그만두기</button>
-        <button style={reason.trim() && !busy ? rm.goBtn : BTN.disabled} disabled={!reason.trim() || busy} onClick={go}>
-          {busy ? '처리 중…' : '치우기'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-const rm: Record<string, React.CSSProperties> = {
-  bar: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, paddingTop: 12, borderTop: '0.5px solid var(--line)' },
-  openBtn: { ...BTN.secondary, color: 'var(--warn)', borderColor: 'var(--warn)' },
-  hint: { fontSize: 11, color: 'var(--muted)' },
-  box: {
-    marginTop: 16, border: '0.5px solid var(--warn)', background: 'var(--warnbg)',
-    borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6,
-  },
-  title: { fontSize: 14, fontWeight: 700, color: 'var(--dark)' },
-  desc: { fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 },
-  label: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
-  req: { color: 'var(--req)', fontWeight: 700 },
-  input: { width: '100%', fontSize: 13, padding: '8px 10px', borderRadius: 7, border: '0.5px solid var(--line)', background: '#fff', resize: 'vertical', fontFamily: 'inherit' },
-  err: { fontSize: 12, color: 'var(--warn)' },
-  actions: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 },
-  goBtn: { ...BTN.primary, background: 'var(--warn)', borderColor: 'var(--warn)' },
-}
 
 // ── AdminPage ────────────────────────────────────────────────────────────
 export function AdminPage() {

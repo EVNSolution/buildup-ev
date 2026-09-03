@@ -15,16 +15,25 @@ import { STEPS } from '@shared/process/steps'
  *
  * 늦은 건이 맨 위로 온다. 라임(할 일)과 빨강(늦었다)의 뜻은 다른 화면과 같다.
  */
-export function OrderStepsBoard({ orders, onCardClick }: {
+export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo }: {
   orders: ApiOrder[]
   onCardClick: (orderId: number) => void
+  /**
+   * `pending` — 아직 수락 전. 진척도 대신 **발주 후 며칠째**를 보여 준다.
+   * 구조를 진행 중과 같게 두는 이유: 두 목록이 위아래로 붙어 있어, 줄 모양이 다르면
+   * 같은 종류의 것이 아닌 줄 알게 된다.
+   */
+  mode?: 'active' | 'pending'
+  /** 수락 전 주문이 늦었는지 판정 — 목록마다 기준이 달라 바깥에서 넘긴다 */
+  lateInfo?: (o: ApiOrder) => { days: number; late: boolean }
 }) {
   if (orders.length === 0) {
-    return <div style={s.empty}>진행 중인 주문이 없습니다.</div>
+    return <div style={s.empty}>{mode === 'pending' ? '수락 대기 중인 주문이 없습니다.' : '진행 중인 주문이 없습니다.'}</div>
   }
 
   // 늦은 것 → 할 일이 있는 것 → 나머지
   const sorted = [...orders].sort((a, b) => {
+    if (mode === 'pending') return Number(lateInfo?.(b).late ?? false) - Number(lateInfo?.(a).late ?? false)
     const rank = (o: ApiOrder) => (o.steps?.stalled ? 0 : (o.steps?.open.length ?? 0) > 0 ? 1 : 2)
     return rank(a) - rank(b)
   })
@@ -35,7 +44,8 @@ export function OrderStepsBoard({ orders, onCardClick }: {
         const st = o.steps
         const done = st?.done ?? 0
         const total = st?.total ?? STEPS.length
-        const late = !!st?.stalled
+        const info = mode === 'pending' ? lateInfo?.(o) : undefined
+        const late = mode === 'pending' ? !!info?.late : !!st?.stalled
         return (
           <button key={o.id} style={late ? s.rowLate : s.row} onClick={() => onCardClick(o.id)}>
             <div style={s.main}>
@@ -43,11 +53,18 @@ export function OrderStepsBoard({ orders, onCardClick }: {
                 <span style={s.no}>주문 #{o.id}</span>
                 <span style={s.name}>{o.quote.customer?.name ?? '고객 미상'}</span>
                 <span style={s.model}>{o.quote.model_code}</span>
-                {late && <span style={s.lateTag}>지연</span>}
+                {/*
+                  비고가 적힌 주문 = **이 건만의 요청이 있다.** 목록에서 바로 보여야
+                  「열어 봐야 아는」 일이 안 생긴다.
+                */}
+                {o.remark?.trim() && <span style={s.custom}>커스텀</span>}
+                {late && mode !== 'pending' && <span style={s.lateTag}>지연</span>}
               </div>
               {/* 끝낸 것만 적는다 — 「✓」 로 완료라는 뜻을 눈에도 못박는다 */}
               <div style={s.line2}>
-                {done > 0 && done === total
+                {mode === 'pending'
+                  ? <span style={s.orderedAt}>발주 {(o.assigned_at ?? o.created_at ?? '').slice(0, 10)}</span>
+                  : done > 0 && done === total
                   ? <span style={s.doneAll}>✓ 모든 단계 완료</span>
                   : st?.last_done
                     ? <span style={s.doneStep}>✓ {st.last_done}<span style={s.doneCount}> · {done}/{total} 완료</span></span>
@@ -60,13 +77,23 @@ export function OrderStepsBoard({ orders, onCardClick }: {
               무엇이 진척이고 무엇이 기한인지 구분되지 않는다.
             */}
             <div style={s.side}>
-              <span style={s.due}>{o.delivery_due ? `납기 ${o.delivery_due.slice(0, 10)}` : ''}</span>
-              <span style={s.progress}>
-                <span style={s.count}>{done}/{total}</span>
-                <span style={s.bar}>
-                  <span style={{ ...s.barFill, width: `${Math.round((done / total) * 100)}%`, background: late ? 'var(--req)' : 'var(--lime)' }} />
-                </span>
-              </span>
+              {mode === 'pending' ? (
+                /*
+                  수락 전에는 진척이 없다. 그 자리에 **며칠 지났는지**를 둔다 —
+                  괜찮으면 초록, 늦으면 빨강. 둘 다 굵게 적어 눈에 먼저 들어오게 한다.
+                */
+                <span style={late ? s.sinceLate : s.since}>발주 후 {info?.days ?? 0}일째</span>
+              ) : (
+                <>
+                  <span style={s.due}>{o.delivery_due ? `납기 ${o.delivery_due.slice(0, 10)}` : ''}</span>
+                  <span style={s.progress}>
+                    <span style={s.count}>{done}/{total}</span>
+                    <span style={s.bar}>
+                      <span style={{ ...s.barFill, width: `${Math.round((done / total) * 100)}%`, background: late ? 'var(--req)' : 'var(--lime)' }} />
+                    </span>
+                  </span>
+                </>
+              )}
             </div>
           </button>
         )
@@ -99,13 +126,35 @@ const s: Record<string, React.CSSProperties> = {
   doneCount: { color: 'var(--muted)' },
   muted: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   // 납기 ↔ 진척도 사이는 --sp-6(32px). 붙어 있으면 한 덩어리로 읽힌다
-  side: { display: 'flex', alignItems: 'center', gap: 'var(--sp-6)', flexShrink: 0 },
+  // 오른쪽 끝으로 민다 — 줄마다 같은 자리에 있어야 세로로 훑을 수 있다
+  side: { display: 'flex', alignItems: 'center', gap: 'var(--sp-5)', flexShrink: 0, marginLeft: 'auto' },
   // 진척도는 숫자와 막대가 한 벌 — 이 둘만 붙어 있어야 한다
   progress: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   count: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
-  bar: { display: 'block', width: 64, height: 4, borderRadius: 999, background: 'var(--line)', overflow: 'hidden' },
+  /** 막대는 길수록 「얼마나 왔나」가 눈으로 읽힌다 — 64px 은 짧아 차이가 안 보였다 */
+  bar: { display: 'block', width: 132, height: 5, borderRadius: 999, background: 'var(--line)', overflow: 'hidden' },
   barFill: { display: 'block', height: '100%', borderRadius: 999 },
-  // 납기가 없어도 자리를 지킨다 — 줄마다 진척도 위치가 흔들리면 세로로 훑기 어렵다
-  due: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', minWidth: 96, textAlign: 'right' },
+  /**
+   * 납기는 이 목록에서 가장 자주 찾는 값이라 굵게.
+   * 자리는 지키되 **왼쪽 정렬** — 오른쪽으로 붙이면 납기가 있는 줄과 없는 줄에서
+   * 날짜 시작점이 달라져 세로로 훑을 수 없다.
+   */
+  due: {
+    fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums', minWidth: 104, textAlign: 'left',
+  },
+  /** 수락 전 — 발주일은 진행 중의 「끝낸 단계」와 같은 자리(둘째 줄 왼쪽) */
+  orderedAt: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
+  /** 며칠 지났나 — 괜찮으면 초록, 늦으면 빨강. 진척도 자리에 선다 */
+  since: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--lime-ink)', fontVariantNumeric: 'tabular-nums' },
+  sinceLate: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--req)', fontVariantNumeric: 'tabular-nums' },
+  /**
+   * 「커스텀」 — 비고가 적힌 주문. 검정 바탕에 브랜드색 글씨로 작게.
+   * 테두리를 두지 않는다: 줄 안의 다른 태그(지연)와 모양이 겹치면 뜻이 흐려진다.
+   */
+  custom: {
+    background: 'var(--dark)', color: 'var(--lime)', border: 'none',
+    borderRadius: 5, padding: '1px 7px', fontSize: 11, fontWeight: 700, flexShrink: 0,
+  },
   empty: { padding: 'var(--sp-5) 0', textAlign: 'center', color: 'var(--muted)', fontSize: 'var(--fs-label)' },
 }

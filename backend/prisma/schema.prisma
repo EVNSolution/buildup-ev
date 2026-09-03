@@ -501,6 +501,12 @@ model Order {
   /// 거부 사유 — 필수. 「왜 안 받았는지」가 없으면 다시 배정할 수도, 고칠 수도 없다.
   reject_reason String?   @db.VarChar(500)
 
+  /// 발주서 「비고」 — 관리자가 배정할 때 적는 **이 주문만의 요청사항**.
+  /// 특장사는 수락하기 전에 발주서에서 이 칸을 읽는다.
+  /// 메모와 같은 규칙(4줄 · 한 줄 40자)으로 잘라 넣는다 — 발주서 양식이 깨지면 안 된다.
+  /// 줄바꿈·띄어쓰기는 적은 그대로 보관한다.
+  remark String? @db.VarChar(500)
+
   /// 관리자가 치운 시각. 목록에서 빠지지만 행은 그대로 남는다.
   /// ⚠️ 지우지 않는다 — 잘못 들어간 것도 상태로 관리한다(CLAUDE.md).
   canceled_at   DateTime?
@@ -702,17 +708,19 @@ model ModusignWebhookEvent {
 /// **이력이 핵심이다.** 고치거나 지우지 않는다 — 「그때 무슨 이야기가 오갔나」가
 /// 나중에 책임 소재를 가르는 근거가 된다. 잘못 쓴 글은 다음 글로 바로잡는다.
 model OrderStepComment {
-  id          Int      @id @default(autoincrement())
-  order_id    Int
+  id            Int      @id @default(autoincrement())
+  order_id      Int
   /// 어느 단계에 붙은 이야기인가 (order_step.code 와 같은 값)
-  step_code   String   @db.VarChar(40)
-  author      String   @db.VarChar(120)
+  step_code     String   @db.VarChar(40)
+  author        String   @db.VarChar(120)
   /// 쓴 사람의 역할 — 나중에 계정이 지워져도 「누가」가 남는다
-  author_role String   @db.VarChar(10)
+  author_role   String   @db.VarChar(10)
   /// 화면에 보이는 이름. 계정 이름이 바뀌어도 그때 이름 그대로 남는다
-  author_name String?  @db.VarChar(80)
-  body        String   @db.VarChar(2000)
-  created_at  DateTime @default(now())
+  author_name   String?  @db.VarChar(80)
+  body          String   @db.VarChar(2000)
+  /// 붙인 사진 — order_file 의 id. 저장·내려받기는 증빙과 같은 길을 쓴다(kind='chat').
+  image_file_id Int?
+  created_at    DateTime @default(now())
 
   order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
