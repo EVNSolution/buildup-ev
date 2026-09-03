@@ -14,6 +14,7 @@ import { OrderStepsPanel } from './OrderStepsPanel'
 import { OrderChatTab } from './OrderChatTab'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { OrderRemoveModal } from './OrderRemoveModal'
+import { safeLeft, safeRight, safeScrollBottom } from '../styles/safeArea'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 
@@ -426,8 +427,19 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [boxH, setBoxH] = useState<number | null>(null)
   useEffect(() => {
     const fit = () => {
-      const top = rootRef.current?.getBoundingClientRect().top ?? 0
-      setBoxH(Math.max(320, Math.round(window.innerHeight - top - 12)))
+      const el = rootRef.current
+      if (!el) return
+      /*
+       * ⚠️ **zoom 을 되돌려야 한다.** 모바일에서 `#root` 에 `zoom: .88` 이 걸려 있어
+       *    `getBoundingClientRect()`·`innerHeight` 는 화면 픽셀인데 여기서 넣는 height 는
+       *    zoom 안쪽의 CSS 픽셀이다. 그대로 넣으면 실제로는 0.88 배만 차지해
+       *    바닥에 **87px 짜리 빈 띠**가 남는다(안전영역 여백으로 오해받은 그 여백이다).
+       *    비율은 화면픽셀(rect) ÷ CSS픽셀(offsetHeight) 로 직접 잰다 — 값이 바뀌어도 따라간다.
+       */
+      const rect = el.getBoundingClientRect()
+      const zoom = el.offsetHeight > 0 ? rect.height / el.offsetHeight : 1
+      const visible = window.innerHeight - rect.top
+      setBoxH(Math.max(320, Math.round(visible / (zoom || 1))))
     }
     fit()
     const t = setTimeout(fit, 120)   // 글꼴·레이아웃이 자리 잡은 뒤 한 번 더
@@ -661,9 +673,24 @@ const det: Record<string, React.CSSProperties> = {
    */
   root: { display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720, minHeight: 0 },
   /** 탭 내용 — 여기만 스크롤된다 */
-  body: { flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' },
+  /**
+   * 탭 내용 — 여기만 스크롤된다.
+   *
+   * 좌우로 벌린다: 예전엔 여백이 12px 뿐이라 오른쪽 끝 버튼(대화·업로드)이
+   * 실기기에서 잘려 보였다(사진 제보). 가로 안전영역까지 더해 둔다.
+   * 바닥은 **살짝만** — 고정된 바가 없는 화면이라 내용을 꽉 채우고 곡률만 피한다.
+   */
+  body: {
+    flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+    paddingLeft: safeLeft('var(--sp-2)'),
+    paddingRight: safeRight('var(--sp-2)'),
+    paddingBottom: safeScrollBottom(),
+  },
   /** 대화 탭은 자기가 높이를 채운다 — 이중 스크롤이 생기지 않게 넘김을 막는다 */
-  bodyFixed: { flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' },
+  bodyFixed: {
+    flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+    paddingLeft: safeLeft('var(--sp-2)'), paddingRight: safeRight('var(--sp-2)'),
+  },
   loading: { color: 'var(--muted)', fontSize: 14, padding: '40px 0' },
   err: { color: 'var(--warn)', fontSize: 13 },
   header: { display: 'flex', flexDirection: 'column', gap: 8 },

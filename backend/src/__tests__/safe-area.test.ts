@@ -34,10 +34,46 @@ describe('아이폰 안전영역', () => {
 
   it('🔴 안전영역은 여백으로 민다 — 높이를 줄여 피하지 않는다', () => {
     const helper = read('frontend/src/styles/safeArea.ts');
-    // calc(기본값 + inset) 꼴이어야 한다. inset 만 쓰면 원래 여백이 사라진다
-    expect(helper).toMatch(/calc\(\$\{base\} \+ env\(safe-area-inset-bottom/);
+    /*
+     * 아래쪽은 `max(base, inset)` 이다 — `base + inset` 이 아니다.
+     *
+     * 더하면 원래 여백(16px)에 홈 인디케이터(34px)가 **얹혀** 50px 이 되어
+     * 「아래 안전구역 마진이 너무 심하다」는 제보가 나왔다. 지켜야 할 것은 두 가지뿐이다.
+     *   ① 인디케이터를 피할 만큼은 반드시 확보한다(≥ inset)
+     *   ② 안전영역이 없는 기기에서 원래 여백이 사라지지 않는다(≥ base)
+     * `max` 는 둘 다 만족하고, 여백을 필요 이상으로 부풀리지 않는다.
+     */
+    expect(helper).toMatch(/max\(\$\{base\}, env\(safe-area-inset-bottom/);
+    // 되돌아가지 않게 못을 박는다 — 더하기 꼴이 다시 들어오면 50px 여백이 부활한다
+    expect(helper).not.toMatch(/calc\(\$\{base\} \+ env\(safe-area-inset-bottom/);
+    // 위쪽(노치)은 겹쳐 가리므로 더하는 게 맞다 — 아래와 사정이 다르다
     expect(helper).toMatch(/calc\(\$\{base\} \+ env\(safe-area-inset-top/);
     // 안전영역이 없는 기기에서는 0px — 다른 기기에 영향이 없어야 한다
     expect(helper).toMatch(/safe-area-inset-bottom, 0px/);
   });
+
+  it('🔴 스크롤로 끝나는 화면은 꽉 채우고 바닥만 살짝 띄운다', () => {
+    /*
+     * 하단 고정 바가 없는 화면(주문 진행)은 내용이 바닥까지 차야 한다.
+     * 여기서도 `max` 라 인디케이터가 없는 기기에서는 8px 만 남는다.
+     */
+    const helper = read('frontend/src/styles/safeArea.ts');
+    expect(helper).toMatch(/safeScrollBottom/);
+    expect(helper).toMatch(/max\(\$\{base\}, env\(safe-area-inset-bottom/);
+  });
+
+  it('🔴 픽셀 높이를 계산할 때 zoom 을 되돌린다 — 안 그러면 바닥에 빈 띠가 남는다', () => {
+    /*
+     * 모바일에서 `#root { zoom: .88 }` 이 걸린다. `innerHeight`·`getBoundingClientRect`
+     * 는 화면 픽셀인데, style 로 넣는 height 는 zoom 안쪽의 CSS 픽셀이다.
+     * 그대로 넣으면 0.88 배만 차지해 **바닥에 87px 빈 띠**가 남았다(실측).
+     * 이 빈 띠가 「안전영역 여백이 과하다」로 오해받았다.
+     */
+    expect(read('frontend/src/styles/globals.css')).toMatch(/#root \{ zoom: 0?\.88/);
+    const detail = read('frontend/src/components/OrderDetail.tsx');
+    expect(detail).toMatch(/offsetHeight/);
+    expect(detail, 'zoom 보정 없이 innerHeight 를 그대로 쓰면 안 된다')
+      .toMatch(/rect\.height \/ el\.offsetHeight/);
+  });
+
 });
