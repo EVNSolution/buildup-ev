@@ -15,6 +15,7 @@ import { OrderChatTab } from './OrderChatTab'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { OrderRemoveModal } from './OrderRemoveModal'
 import { safeLeft, safeRight, safeScrollBottom } from '../styles/safeArea'
+import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 
@@ -401,9 +402,16 @@ interface Props {
    * 화면을 열어도 계약서가 보이면 안 되므로 role 게이트만으로는 부족하다.
    */
   makerView?: boolean
+  /**
+   * 처음 열 탭. 푸시 알림을 눌러 들어오면 `'chat'` 으로 열린다 —
+   * 알림이 말하는 내용이 거기 있는데 단계 탭부터 보여 주면 다시 찾아야 한다.
+   */
+  initialTab?: 'steps' | 'spec' | 'docs' | 'load' | 'chat'
+  /** 대화 탭에서 미리 골라 둘 단계 코드(알림이 온 그 단계) */
+  initialChatStep?: string
 }
 
-export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false, onRemove }: Props) {
+export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false, onRemove, initialTab, initialChatStep }: Props) {
   // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
@@ -413,7 +421,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
-  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load' | 'chat'>('steps')
+  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load' | 'chat'>(initialTab ?? 'steps')
 
   /*
    * **주문 번호와 탭은 붙박이, 아래 내용만 스크롤된다.**
@@ -438,13 +446,18 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
        */
       const rect = el.getBoundingClientRect()
       const zoom = el.offsetHeight > 0 ? rect.height / el.offsetHeight : 1
-      const visible = window.innerHeight - rect.top
+      /*
+       * `innerHeight` 가 아니라 **실제로 보이는 높이**를 쓴다. 키보드가 올라오면
+       * `innerHeight` 는 그대로라서, 그 값으로 잡으면 입력칸이 키보드 뒤로 숨는다.
+       * 카카오톡처럼 키보드가 먹은 만큼만 줄어들게 한다.
+       */
+      const visible = visibleHeight() - rect.top
       setBoxH(Math.max(320, Math.round(visible / (zoom || 1))))
     }
     fit()
     const t = setTimeout(fit, 120)   // 글꼴·레이아웃이 자리 잡은 뒤 한 번 더
-    window.addEventListener('resize', fit)
-    return () => { window.removeEventListener('resize', fit); clearTimeout(t) }
+    const off = onVisibleHeightChange(fit)
+    return () => { off(); clearTimeout(t) }
   }, [])
   const isMobile = useIsMobile()
 
@@ -548,6 +561,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
         <OrderChatTab
           orderId={detail.id}
           canWrite={rolesOf(session!.user).some(r => r === 'ADMIN' || r === 'MAKER')}
+          initialStep={initialChatStep}
         />
       )}
 

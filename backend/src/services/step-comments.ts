@@ -190,7 +190,13 @@ async function notifyOthers(
     notify(to, {
       title: `주문 #${order.id} · ${args.stepLabel}`,
       body: `${who}: ${row.body.slice(0, 120) || '(사진)'}`,
-      url: `/?order=${order.id}&step=${args.stepCode}`,
+      /*
+       * 알림을 누르면 **그 주문의 「대화」 탭**이 열린다.
+       * `/` 로 보내는 이유: 받는 사람이 관리자인지 특장사인지 서버는 모른다.
+       * `/` 가 각자 화면으로 보내면서 이 물음표 뒤를 그대로 들고 간다(HomeGate).
+       * `step` 은 대화 탭에서 그 단계를 골라 둔 상태로 열기 위한 값이다.
+       */
+      url: `/?order=${order.id}&tab=chat&step=${encodeURIComponent(args.stepCode)}`,
       tag: `step-${order.id}-${args.stepCode}`,
     });
   } catch (e) {
