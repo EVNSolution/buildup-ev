@@ -1319,13 +1319,14 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
 
   if (selectedOrderId !== null) {
-    const picked = orders.find(o => o.id === selectedOrderId)
     /*
-     * 치울 수 있는 것은 **수락 대기·진행중**까지다. 인도가 끝난 건은 이미 일어난 거래다.
      * 보드 카드마다 버튼을 흩뿌리지 않고 **열어 본 자리**에 둔다 — 되돌리기 어려운 조작은
      * 한 건을 들여다보는 자리에 있어야 잘못 누르지 않는다.
+     *
+     * ⚠️ 상태로 막지 않는다. 예전엔 수락 대기·진행중일 때만 버튼을 띄웠는데, 그러면
+     *    잘못 들어간 건이 인도 완료로 넘어간 순간 **버튼이 사라져 아무 설명도 없이**
+     *    치울 수 없었다(실제 제보). 판정은 서버가 권한으로 한다.
      */
-    const removable = !!picked && (picked.quote.status === 'assigned' || picked.quote.status === 'ordered')
     return (
       <OrderDetail
         orderId={selectedOrderId}
@@ -1339,7 +1340,7 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
          * 되돌리기 어려운 조작인데도 스크롤 끝에서 마주쳤다.
          * 권한이 없으면 아예 넘기지 않는다 — 특장사에게는 이 자리가 비어 있다.
          */
-        onRemove={canRemove && removable
+        onRemove={canRemove
           ? () => { setSelectedOrderId(null); load() }
           : undefined}
       />

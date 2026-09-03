@@ -53,8 +53,26 @@ describe('관리자 주문 치우기', () => {
     expect(CANCEL).toMatch(/치우는 사유를 적어야 합니다/);
   });
 
-  it('🔴 수락 대기·진행중까지만 — 인도가 끝난 건은 이미 일어난 거래다', () => {
-    expect(CANCEL).toMatch(/!== 'assigned' && order\.quote\.status !== 'ordered'/);
+  it('🔴 상태로 막지 않는다 — 인도가 끝난 건도 치울 수 있다', () => {
+    /*
+     * 예전엔 수락 대기·진행중까지만 허용했다. 그러면 잘못 들어간 건·더미 건이 인도
+     * 완료로 넘어간 순간 **아무도 치울 수 없었다**(실제 제보 — 권한을 켜도 버튼이
+     * 뜨지 않았고, 왜 안 되는지 화면이 말해 주지도 않았다).
+     * 지우는 게 아니라 감추는 조작이고, 사유·삭제자·시각이 남으며, 권한 자체가
+     * 계정별로 켜져 있어 아무나 하지 못한다 — 상태로 한 번 더 막을 이유가 없다.
+     */
+    expect(CANCEL, '상태 게이트가 되살아났다')
+      .not.toMatch(/!== 'assigned' && order\.quote\.status !== 'ordered'/);
+    expect(CANCEL, '상태 때문에 409 로 막고 있다').not.toMatch(/주문만 치울 수 있습니다/);
+  });
+
+  it('🔴 인도까지 끝난 건의 **거래 이력은 고쳐 쓰지 않는다**', () => {
+    /*
+     * 배정을 무르는 경우(수락 대기·진행중)에만 견적을 계약완료로 되돌린다.
+     * 이미 인도까지 끝난 건을 계약완료로 돌리면 일어난 일을 고쳐 쓰는 셈이 된다 —
+     * 주문만 목록에서 감추면 될 일에 거래 이력을 건드릴 이유가 없다.
+     */
+    expect(CANCEL).toMatch(/if \(order\.quote\.status === 'assigned' \|\| order\.quote\.status === 'ordered'\) \{[\s\S]{0,200}setQuoteStatus\(/);
   });
 
   it('🔴 권한은 계정별 기능모듈로 — 관리자라고 다 되지 않는다', () => {
@@ -111,7 +129,9 @@ describe('화면', () => {
   it('🔴 삭제 버튼은 권한이 있을 때만 뜬다', () => {
     expect(ADMIN).toMatch(/const canRemove = usePermission\('order\.remove'\)/);
     // 권한이 없으면 onRemove 를 **넘기지 않는다** — 상세는 받은 것이 없으면 자리를 비운다
-    expect(ADMIN).toMatch(/onRemove=\{canRemove && removable/);
+    expect(ADMIN).toMatch(/onRemove=\{canRemove\s*\n?\s*\?/);
+    // 상태로 버튼을 감추지 않는다 — 감추면 왜 못 치우는지 알 방법이 없다(실제 제보)
+    expect(ADMIN, '상태 게이트가 되살아났다').not.toMatch(/canRemove && removable/);
     expect(DETAIL).toMatch(/\{onRemove && \(/);
   });
 
