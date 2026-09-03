@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { fetchComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { BTN } from '../styles/buttons'
 import { shrinkImage } from '../lib/imageResize'
@@ -48,6 +49,30 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
   const [image, setImage] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
+
+  /*
+   * **키보드가 올라온 만큼만 줄인다** — 카카오톡처럼.
+   *
+   * 서랍은 `position: fixed` 라 아이폰에서 키보드가 올라와도 그대로 화면 전체를
+   * 차지한다(레이아웃 뷰포트는 안 줄어든다). 그러면 입력칸이 키보드 뒤로 숨는다.
+   * 실제로 보이는 높이(`visualViewport`)에 맞춰 서랍 자체를 줄인다.
+   */
+  const [panelH, setPanelH] = useState<number | null>(null)
+  useEffect(() => {
+    const fit = () => {
+      const el = panelRef.current
+      if (!el) return
+      // zoom(.88) 되돌리기 — 화면 픽셀로 잰 값을 CSS 픽셀 height 로 넣어야 한다
+      const rect = el.getBoundingClientRect()
+      const zoom = el.offsetHeight > 0 ? rect.height / el.offsetHeight : 1
+      setPanelH(Math.max(240, Math.round(visibleHeight() / (zoom || 1))))
+    }
+    fit()
+    const t = setTimeout(fit, 120)
+    const off = onVisibleHeightChange(fit)
+    return () => { off(); clearTimeout(t) }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -96,7 +121,12 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
     <>
       {/* 뒤를 덮어 바깥 클릭으로 닫는다 — 좁은 화면에서 닫기 버튼을 찾기 어렵다 */}
       <div style={s.scrim} onClick={onClose} />
-      <aside style={s.panel} role="dialog" aria-label={`${stepLabel} 대화`}>
+      <aside
+        ref={panelRef}
+        style={panelH ? { ...s.panel, height: panelH, bottom: 'auto' } : s.panel}
+        role="dialog"
+        aria-label={`${stepLabel} 대화`}
+      >
         <header style={s.head}>
           <div style={s.headText}>
             <div style={s.title}>{stepLabel}</div>

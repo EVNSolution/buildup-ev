@@ -85,9 +85,17 @@ describe('채팅은 한 화면에 다 들어온다', () => {
      * 들어가 바닥에 89px 빈 띠가 남았다(실측).
      */
     const detail = read('frontend/src/components/OrderDetail.tsx');
-    // 모바일 주소창이 접혔다 펴지면 실제 높이가 달라진다 — vh 는 그걸 안 따라간다
-    expect(detail).toMatch(/window\.innerHeight/);
-    expect(detail).toMatch(/addEventListener\('resize'/);
+    /*
+     * 모바일 주소창이 접혔다 펴지면 실제 높이가 달라진다 — `vh` 는 그걸 안 따라간다.
+     * **키보드**도 마찬가지라, 이제는 `innerHeight` 가 아니라 실제로 보이는 높이
+     * (`visualViewport`)를 쓴다. 없는 기기에서는 `viewport.ts` 가 `innerHeight` 로 돌아간다.
+     */
+    expect(detail).toMatch(/visibleHeight\(\)/);
+    expect(detail).toMatch(/onVisibleHeightChange/);
+    expect(detail, 'vh 는 주소창·키보드를 못 따라간다').not.toMatch(/height: '\d+vh/);
+    const vp = read('frontend/src/lib/viewport.ts');
+    expect(vp, '옛 브라우저 대비가 없다').toMatch(/window\.innerHeight/);
+    expect(vp).toMatch(/addEventListener\('resize'/);
 
     const tab = codeOnly(read('frontend/src/components/OrderChatTab.tsx'));
     // 탭은 부모를 채운다 — 화면을 다시 재지도, vh 로 어림잡지도 않는다
