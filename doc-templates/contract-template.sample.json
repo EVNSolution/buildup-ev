@@ -21,6 +21,8 @@
   "spec_door": "슬라이딩",
   "spec_door_add": "O",
   "spec_partition": "없음",
+  "spec_custom_label": "기타/커스텀 옵션 추가",
+  "spec_custom": "작업등, 사이드스텝",
   "price_total": "20,123,000",
   "price_down": "400,000",
   "price_balance": "19,723,000",

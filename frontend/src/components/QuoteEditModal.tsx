@@ -13,7 +13,8 @@ import { InteriorOptionsTab } from './tabs/InteriorOptionsTab'
 import { QuoteCustomerForm, missingRequired, type QuoteSaveValues } from './QuoteSaveModal'
 import { QuoteExtras } from './QuoteExtras'
 import { CarPriceOverrideBlock } from './BodyOnlyPanel'
-import { assembleOptionSum, trimPriceVatIncluded } from '@shared/pricing/core'
+import { assembleOptionSum, trimPriceVatIncluded, checkCustomOptions, readCustomOptions } from '@shared/pricing/core'
+import type { CustomOptionDraft } from '@shared/pricing/core'
 import { customerEditValues, mapBizType, isBodyOnly } from '../lib/quoteCustomer'
 import { fetchRegions } from '../api/quotes'
 import { BTN } from '../styles/buttons'
@@ -169,12 +170,23 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
     [bundle, sel],
   )
 
+  /*
+   * 커스텀 특장 옵션 — **컨피규레이터와 같은 칸이 여기에도 있어야 한다.**
+   * 한쪽에만 두면 저장 뒤에 고칠 수 없는 값이 생긴다(차량 가격 직접입력이 그랬다).
+   */
+  const [customOptions, setCustomOptions] = useState<CustomOptionDraft[]>(
+    () => readCustomOptions(inp['custom_options']).map(o => ({ name: o.name, price: o.price })),
+  )
+
   function pick(group: string, value: string) {
     if (!bundle) return
     setSel(prev => sanitizeSelections({ ...prev, [group]: value }, bundle))
   }
 
   async function save() {
+    // 반쪽만 적힌 줄은 **여기서도** 막는다 — 서버와 같은 함수로 판정한다
+    const custom = checkCustomOptions(customOptions)
+    if (!custom.ok) { onFail(new Error(custom.message)); return }
     setBusy(true)
     try {
       /*
@@ -190,6 +202,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         || [...promoZeroed].sort().join(',') !== [...((inp['promotion_zeroed'] as string[]) ?? [])].sort().join(',')
         || carPrice !== (inp['car_price_override'] != null ? Number(inp['car_price_override']) : null)
         || carTrimLabel.trim() !== (((inp['car_trim_label'] as string) ?? '').trim())
+        || JSON.stringify(custom.options) !== JSON.stringify(readCustomOptions(inp['custom_options']))
       await saveQuoteInputs(quote.id, {
         memo: memo.trim(),
         local_subsidy_off: localOff,
@@ -198,6 +211,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         // 끄면 `null` 을 보내 저장값을 지운다 — 0 을 보내면 차량가가 0원이 된다
         car_price_override: isBodyOnly(quote) ? null : carPrice,
         car_trim_label: isBodyOnly(quote) || carPrice == null ? '' : carTrimLabel.trim(),
+        custom_options: custom.options,
       })
       // 할인·보조금을 함께 바꿨으면 여기 금액은 이미 지난 값이다(서버가 뒤에 다시 계산한다).
       // 그럴 땐 금액을 말하지 않는다 — 틀린 숫자를 보여 주느니 목록에서 확인하는 편이 낫다.
@@ -231,6 +245,8 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         <InteriorOptionsTab
           groups={byCat(OPTION_CATEGORY.interior)} selections={sel} onSelect={pick}
           disabledGroupCodes={disabled} hiddenValueCodes={hidden.values} optionPrices={bundle.option_prices}
+          customOptions={customOptions}
+          onCustomOptionsChange={frozen ? undefined : setCustomOptions}
         />
 
         {/* 컨피규레이터와 **같은 조각** — 한쪽에만 칸을 두면 다른 쪽에서 못 고치는 값이 생긴다 */}
@@ -243,7 +259,8 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
             onTrimLabelChange={setCarTrimLabel}
             disabled={frozen || isBodyOnly(quote)}
             trimPrice={trimPriceVatIncluded(
-              assembleOptionSum(sel, c => bundle.option_prices[c] ?? 0, [...promoZeroed]).trim_price,
+              // 트림가만 쓴다 — 커스텀 옵션은 특장 쪽이라 여기서는 빈 목록으로 충분하다
+              assembleOptionSum(sel, c => bundle.option_prices[c] ?? 0, [...promoZeroed], []).trim_price,
             )}
             trimName={bundle.groups.find(g => g.code === 'TRIM')?.values.find(v => v.code === sel['TRIM'])?.name}
           />

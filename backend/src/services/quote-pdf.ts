@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
-import { calcQuote, resolveTrimLabel, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL } from '@buildup-ev/shared/pricing';
+import { calcQuote, resolveTrimLabel, optionBreakdown, toDieselStatus, DIESEL_STATUS_LABEL, readCustomOptions } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, quoteExtraFromInputs, type CustomerInput } from './quote-calc.js';
 import { archiveCustomerDoc } from './doc-archive.js';
 
@@ -146,6 +146,25 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     topRow('TEMP', `온도기록계 : ${ox(tempOn)}`),
     topRow('PARTITION', `격벽 : ${partDisp}`),
   ];
+  /*
+   * 커스텀 특장 옵션 — 단가표에 없는 사양을 영업이 적어 넣은 줄.
+   * **고정 6줄 아래, ⑦ 특장 가격 바로 위**에 옵션명 그대로 붙는다.
+   * 금액은 **영업이 적은 값 그대로** 찍는다. 고객에게 말한 숫자가 그 값이다.
+   *
+   * ⚠️ 공급가로 되돌렸다 다시 곱하면 1원이 어긋나는 금액이 있다(50,000원 → 50,001원).
+   *    `round(s × 1.1) = 50,000` 을 만족하는 정수 공급가 `s` 가 **아예 없다** —
+   *    부가세 10% 를 정수로 쪼개는 이상 피할 수 없는 자리다.
+   *    그래서 되돌린 값을 찍으면 영업이 적은 숫자와 다른 숫자가 고객에게 나간다.
+   *
+   *    ⑦ 특장 가격(공급가 합계 ×1.1)과 세로 합이 1원 어긋날 수 있는데, 이건
+   *    **새로 생긴 문제가 아니다** — 기존 옵션 줄도 각각 반올림해 찍으므로 무작위
+   *    2만 건 중 1만 건에서 이미 1원 차이가 난다(실측). 사람이 적은 금액이 바뀌는 쪽이
+   *    훨씬 나쁘다.
+   */
+  for (const o of readCustomOptions(inp['custom_options'])) {
+    topOptions.push({ label: `${o.name} :`, amount: won(o.price) });
+  }
+
   /*
    * 프로모션 — **금액 할인이 있을 때만** 옵션 목록 맨 아래에 한 줄 붙인다(음수).
    * 무상제공(0원 처리)은 이 행을 만들지 않는다 — 옵션 단가가 이미 0원이라 이중으로 빼게 된다.

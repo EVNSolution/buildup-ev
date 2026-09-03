@@ -29,23 +29,23 @@ const FULL_SUM = 17_563_636 + 400_000 + 280_000 + 760_000 + 450_000 + 600_000;
 
 describe('재량할인(프로모션) — 조립 단계 0원 처리', () => {
   it('할인 없으면 전체 합계', () => {
-    expect(assembleOptionSum(SEL, price).option_sum).toBe(FULL_SUM);
+    expect(assembleOptionSum(SEL, price, [], []).option_sum).toBe(FULL_SUM);
   });
 
   it('그룹 하나 0원 처리 → 해당 단가만큼 정확히 감소', () => {
-    const r = assembleOptionSum(SEL, price, ['TOP']);
+    const r = assembleOptionSum(SEL, price, ['TOP'], []);
     expect(r.option_sum).toBe(FULL_SUM - 17_563_636);
     expect(r.trim_price).toBe(45_136_364); // 트림은 특장할인 대상 아님
   });
 
   it('여러 그룹 동시 0원 처리', () => {
-    const r = assembleOptionSum(SEL, price, ['SPOILER', 'TEMP', 'PARTITION']);
+    const r = assembleOptionSum(SEL, price, ['SPOILER', 'TEMP', 'PARTITION'], []);
     expect(r.option_sum).toBe(FULL_SUM - 400_000 - 450_000 - 600_000);
   });
 
   it('전 그룹 0원 처리 → 특장 합계 0', () => {
     const all = ['TOP', 'SPOILER', 'DOORTYPE', 'DOORADD', 'TEMP', 'PARTITION'];
-    expect(assembleOptionSum(SEL, price, all).option_sum).toBe(0);
+    expect(assembleOptionSum(SEL, price, all, []).option_sum).toBe(0);
   });
 
   it('breakdown: 0원 처리된 그룹만 0, 나머지는 유지 (견적서 개별 행 표기)', () => {
@@ -56,7 +56,7 @@ describe('재량할인(프로모션) — 조립 단계 0원 처리', () => {
   });
 
   it('없는 그룹코드를 넘겨도 무시(안전)', () => {
-    expect(assembleOptionSum(SEL, price, ['NOPE']).option_sum).toBe(FULL_SUM);
+    expect(assembleOptionSum(SEL, price, ['NOPE'], []).option_sum).toBe(FULL_SUM);
   });
 
   it('calcPrice(화면·저장): 할인분이 공급가·부가세·특장취득세·실구매가에 모두 반영', () => {

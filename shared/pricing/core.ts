@@ -30,6 +30,14 @@ export { vehicleOnlyParams } from './vehicle-only.js';
 export { noVatRefund, NO_VAT_REFUND_BIZ_TYPES } from './vat-refund.js';
 export { resolveCarPrice, trimPriceVatIncluded, resolveTrimLabel, CAR_TRIM_LABEL_MAX } from './car-price.js';
 
+// 커스텀 특장 옵션 — 단가표에 없는 사양을 영업이 직접 적어 넣는다
+export {
+  rowState, checkCustomOptions, readCustomOptions,
+  customOptionSupply, customOptionsSupplySum,
+  CUSTOM_OPTION_NAME_MAX, CUSTOM_OPTION_MAX_ROWS, CUSTOM_OPTION_PRICE_MAX,
+} from './custom-options.js';
+export type { CustomOption, CustomOptionDraft, CustomOptionsCheck, RowState } from './custom-options.js';
+
 export { priceBarView } from './pricebar.js';
 export type { PriceBarView } from './pricebar.js';
 

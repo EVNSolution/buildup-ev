@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { prisma } from '../lib/prisma.js';
+import { readCustomOptions } from '@buildup-ev/shared/pricing';
 import { archiveCustomerDoc } from './doc-archive.js';
 import { calcQuote } from '@buildup-ev/shared/pricing';
 import { buildQuoteParams, quoteExtraFromInputs } from './quote-calc.js';
@@ -110,6 +111,15 @@ export interface ContractTokens {
   buyer_address: string; buyer_tel: string; buyer_mobile: string; buyer_email: string;
   spec_body: string; spec_height: string; spec_spoiler: string; spec_temp: string;
   spec_door: string; spec_door_add: string; spec_partition: string;
+  /**
+   * 단가표에 없는 사양 — 영업이 직접 적어 넣은 줄. 온도기록계 오른쪽 빈칸에 들어간다.
+   *
+   * ⚠️ 적은 게 없으면 **라벨까지 함께 빈칸**이다. 제목만 찍혀 있고 값이 비면 고객은
+   *    무언가 빠졌다고 읽는다. 금액은 여기 적지 않는다 — 이미 총금액에 녹아 있고
+   *    (`option_sum` → `supply_price`·`final_price`), 사양표에 금액이 섞이면
+   *    어느 것이 계약 금액인지 헷갈린다.
+   */
+  spec_custom_label: string; spec_custom: string;
   price_total: string; price_down: string; price_balance: string;
   special_terms: string;
   receipt_year: string; receipt_month: string; receipt_day: string;
@@ -203,6 +213,11 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
   const customer = quote.customer;
   const sel = (quote.selections ?? {}) as Record<string, string>;
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
+  /*
+   * 커스텀 특장 옵션 — 사양표에는 **이름만** 나간다. 금액은 계산이 이미
+   * `option_sum` 에 더해 `price_total` 까지 흘러가 있다(이중으로 적지 않는다).
+   */
+  const customText = readCustomOptions(inp['custom_options']).map((o) => o.name).join(', ');
   const isCorp = isCorporateContract(inp['biz_type']);
   const ceoName = String(inp['ceo_name'] ?? '').trim();
   const agentName = String(inp['buyer_agent'] ?? '').trim();
@@ -279,6 +294,8 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
     spec_door: DOOR_DISP[sel['DOORTYPE'] ?? ''] ?? '',
     spec_door_add: ox(sel['DOORADD'] === 'ADD_DRIVER'),
     spec_partition: PART_DISP[sel['PARTITION'] ?? ''] ?? '없음',
+    spec_custom: customText,
+    spec_custom_label: customText ? '기타/커스텀 옵션 추가' : '',
     price_total: won(priceTotal),
     price_down: won(priceDown),
     price_balance: won(priceBalance),

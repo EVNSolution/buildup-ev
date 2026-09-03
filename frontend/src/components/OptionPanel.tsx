@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ApiPricingBundle } from '@shared/types/index'
-import type { PricingOk } from '@shared/pricing/core'
+import type { PricingOk, CustomOptionDraft } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
 import { BodyOptionsTab } from './tabs/BodyOptionsTab'
 import { BodyOnlyToggle, BodyOnlyNotice, VehicleOnlyToggle, CarPriceOverrideBlock } from './BodyOnlyPanel'
@@ -71,6 +71,12 @@ interface Props {
   // 지방보조금 소진 시 이 견적에만 미적용(영업 재량)
   localSubsidyOff: boolean
   onToggleLocalSubsidy: (v: boolean) => void
+  /**
+   * 커스텀 특장 옵션 — 「옵션」 탭 맨 아래에서 영업이 직접 적는다.
+   * 공개 화면에는 주지 않는다(금액을 고객이 만질 자리가 아니다).
+   */
+  customOptions?: CustomOptionDraft[]
+  onCustomOptionsChange?: (next: CustomOptionDraft[]) => void
 }
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -121,6 +127,8 @@ export function OptionPanel({
   onPromotionDiscountChange,
   localSubsidyOff,
   onToggleLocalSubsidy,
+  customOptions,
+  onCustomOptionsChange,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('vehicle')
 
@@ -246,6 +254,8 @@ export function OptionPanel({
             disabledGroupCodes={disabledGroupCodes}
             hiddenValueCodes={hiddenValueCodes}
             optionPrices={optionPrices}
+            customOptions={customOptions}
+            onCustomOptionsChange={onCustomOptionsChange}
           />
         )}
       </div>

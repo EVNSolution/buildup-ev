@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
+import { useChatPoll, sameComments } from '../lib/chatPoll'
 import { fetchComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { BTN } from '../styles/buttons'
 import { shrinkImage } from '../lib/imageResize'
@@ -83,6 +84,26 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
     return () => { alive = false }
     // onRead 는 매 렌더 새 함수라 넣으면 무한 루프가 된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, stepCode])
+
+  /*
+   * **상대가 남긴 글이 저절로 뜨게** 한다. 열 때 한 번만 받아 오던 시절에는
+   * 알림만 오고 화면은 그대로여서, 새로고침을 눌러야 보였다(실제 제보).
+   *
+   * 여기서는 `setRows(null)`(불러오는 중)을 **하지 않는다** — 5초마다 화면이 비면
+   * 글을 읽던 사람이 매번 깜빡임을 본다. 바뀐 게 없으면 아예 손대지 않는다.
+   */
+  useChatPoll(() => {
+    fetchComments(orderId, stepCode)
+      .then(d => {
+        setRows(prev => {
+          if (sameComments(prev, d.comments)) return prev
+          // 새 글이 **실제로 왔을 때만** 읽음 처리한다 — 5초마다 부르면 서버가 낭비된다
+          onRead()
+          return d.comments
+        })
+      })
+      .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
   }, [orderId, stepCode])
 
   /*

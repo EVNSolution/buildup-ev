@@ -344,8 +344,13 @@ export interface ApiOrder {
   delivery_due?: string | null;
   /** 발주 수락 시각 */
   accepted_at?: string | null;
-  /** 발주서 비고 — 이 주문만의 요청사항. 있으면 목록에 「커스텀」이 뜬다 */
+  /** 발주서 비고 — 이 주문만의 요청사항 */
   remark?: string | null;
+  /**
+   * 「커스텀」 배지 — **관리자가 배정할 때 정한다.**
+   * 예전엔 비고에 뭐라도 적히면 자동으로 붙어, 납기 안내 같은 메모에도 배지가 달렸다.
+   */
+  custom_badge?: boolean;
   created_at: string;
   quote: {
     model_code: string;

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
-import { buildLiveTotal } from '../lib/liveQuote'
+import { buildLiveTotal, liveCustomOptions } from '../lib/liveQuote'
 import { mapBizType, customerEditValues, isBodyOnly, isVehicleOnly } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
-import { calcPrice, assembleOptionSum, trimPriceVatIncluded, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY } from '@shared/pricing/core'
+import { calcPrice, assembleOptionSum, trimPriceVatIncluded, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY, checkCustomOptions } from '@shared/pricing/core'
+import type { CustomOptionDraft } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { quotePriceExtras } from '@shared/pricing/quote-request'
 import { fetchPricingBundle } from '../api/models'
@@ -714,6 +715,11 @@ export function SalesPage() {
   const [carPriceOverride, setCarPriceOverride] = useState<number | null>(null)
   /** 직접 입력한 트림명. 비면 고른 트림명이 서류에 나간다 */
   const [carTrimLabel, setCarTrimLabel] = useState('')
+  /**
+   * 커스텀 특장 옵션 — 「옵션」 탭 맨 아래에서 영업이 직접 적는 줄.
+   * 반쪽만 적힌 줄이 있으면 **저장 버튼이 막힌다**(임시저장 포함).
+   */
+  const [customOptions, setCustomOptions] = useState<CustomOptionDraft[]>([])
   const [v2lConfirmed, setV2lConfirmed] = useState(false)
   /** 보유 차종 — 특장만 견적의 전제라 임시저장 단계에서 받는다 */
   const [ownedModel, setOwnedModel] = useState('')
@@ -779,7 +785,9 @@ export function SalesPage() {
 
     const price = (code: string) => bundle.option_prices[code] ?? 0
     // 재량할인(프로모션) 0원 처리를 조립 단계에 반영 → 화면 가격이 실제 견적과 일치
-    const { trim_price, option_sum } = assembleOptionSum(selections, price, [...promotionZeroed])
+    const { trim_price, option_sum } = assembleOptionSum(
+      selections, price, [...promotionZeroed], liveCustomOptions(customOptions),
+    )
     return calcPrice({
       trim_price,
       option_sum,
@@ -814,9 +822,9 @@ export function SalesPage() {
     () => buildLiveTotal({
       bundle, selections, subsidyInputs, subsidyLocal, subsidyReady,
       promotionZeroed, promotionDiscount, localSubsidyOff, customer, bodyOnly, vehicleOnly,
-      carPriceOverride,
+      carPriceOverride, customOptions,
     }),
-    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly, vehicleOnly, carPriceOverride],
+    [bundle, selections, subsidyLocal, subsidyInputs, subsidyReady, customer, promotionZeroed, promotionDiscount, localSubsidyOff, bodyOnly, vehicleOnly, carPriceOverride, customOptions],
   )
 
   function handleSelect(groupCode: string, valueCode: string) {
@@ -868,6 +876,13 @@ export function SalesPage() {
       setSaveError('냉동 사양은 차량의 V2L 포트 확인이 필요합니다. 「차량 트림」에서 확인란을 체크해 주세요.')
       return
     }
+    /*
+     * 커스텀 옵션이 반쪽만 적혀 있으면 **임시저장도 막는다.**
+     * 옵션명만 있으면 얼마를 받을지 모르고, 금액만 있으면 무엇인지 모른 채 청구된다.
+     * 판정은 서버와 **같은 함수**로 한다 — 두 곳이 다르면 화면은 통과시키고 서버가 막는다.
+     */
+    const custom = checkCustomOptions(customOptions)
+    if (!custom.ok) { setSaveError(custom.message); return }
 
     setIsSaving(true)
     setSaveError('')
@@ -887,6 +902,8 @@ export function SalesPage() {
         car_price_override: bodyOnly ? null : carPriceOverride,
         car_trim_label: bodyOnly || carPriceOverride == null ? '' : carTrimLabel.trim(),
         vehicle_owned: bodyOnly ? { model: ownedModel.trim() } : undefined,
+        // 다 적은 줄만 간다(+ 만 누르고 비워 둔 줄은 없는 것과 같다)
+        custom_options: custom.options,
         customer: {
           name: v.name.trim(),
           // 법인만 값이 있다 → 계약서 {{ceo_name}}. 개인이면 보내지 않는다.
@@ -1018,7 +1035,7 @@ export function SalesPage() {
               calc={displayCalc}
               total={liveTotal}
               hasCustomer={subsidyReady}
-              breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
+              breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed], liveCustomOptions(customOptions)) : null}
               subsidy={subsidyInputs}
               onSubsidyChange={setSubsidyInputs}
               regions={regions}
@@ -1028,6 +1045,8 @@ export function SalesPage() {
         )}
 
         <OptionPanel
+          customOptions={customOptions}
+          onCustomOptionsChange={next => { setCustomOptions(next); setSavedQuote(null); setSaveError('') }}
           compact={compact}
           bundle={bundle}
           selections={selections}
@@ -1055,7 +1074,8 @@ export function SalesPage() {
           onCarTrimLabelChange={setCarTrimLabel}
           trimName={bundle?.groups.find(g => g.code === 'TRIM')?.values.find(v => v.code === selections['TRIM'])?.name}
           trimPrice={trimPriceVatIncluded(
-            bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]).trim_price : 0,
+            // 트림가만 쓴다 — 커스텀 옵션은 특장 쪽이라 여기서는 빈 목록으로 충분하다
+            bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed], []).trim_price : 0,
           )}
           onToggleVehicleOnly={v => {
             setVehicleOnly(v)
@@ -1087,7 +1107,7 @@ export function SalesPage() {
             calc={displayCalc}
             total={liveTotal}
             hasCustomer={subsidyReady}
-            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed]) : null}
+            breakdown={bundle ? assembleOptionSum(selections, c => bundle.option_prices[c] ?? 0, [...promotionZeroed], liveCustomOptions(customOptions)) : null}
             subsidy={subsidyInputs}
             onSubsidyChange={setSubsidyInputs}
             regions={regions}

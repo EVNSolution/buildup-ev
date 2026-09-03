@@ -169,10 +169,31 @@
 }
 ::-webkit-scrollbar { width: 0; height: 0; }
 
+/*
+ * **화면 전체는 절대 스크롤되지 않는다.** 스크롤되는 것은 각 화면이 정한 안쪽 칸뿐이다.
+ * 그래야 헤더·탭이 늘 제자리에 있고, 지금 어느 주문의 무슨 탭인지 잃지 않는다.
+ *
+ * ⚠️ `overflow: hidden` **만으로는 아이폰에서 안 막힌다.** 사파리는 그래도 문서를
+ *    끌어당겨(고무줄) 화면이 통째로 움직이고, 그 김에 주소창이 접혔다 펴진다 —
+ *    쓰는 사람에게는 「화면 전체가 스크롤된다」로 보인다(반복 제보).
+ *    그래서 두 겹으로 막는다.
+ *      ① `overscroll-behavior: none` — 고무줄·당겨서 새로고침을 끈다
+ *      ② `body { position: fixed }` — 문서에 **스크롤할 것 자체를 없앤다**.
+ *         아이폰에서 확실하게 듣는 방법은 이것뿐이다.
+ *
+ * 안쪽 칸(`overflow-y: auto`)은 그대로 스크롤된다 — 막는 것은 문서이지 내용이 아니다.
+ */
 html, body, #root {
   height: 100%;
   margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
 }
 
 body {
