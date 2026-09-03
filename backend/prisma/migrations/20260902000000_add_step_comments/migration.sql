@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS "order_step_comment" (
   "author_name" VARCHAR(80),
   "body"        VARCHAR(2000) NOT NULL,
   "created_at"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "order_step_comment_order_fk"
+  CONSTRAINT "order_step_comment_order_id_fkey"
     FOREIGN KEY ("order_id") REFERENCES "order"("id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
 CREATE INDEX IF NOT EXISTS "order_step_comment_thread_idx"
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS "order_step_read" (
   "order_id"     INTEGER NOT NULL,
   "step_code"    VARCHAR(40) NOT NULL,
   "last_read_at" TIMESTAMP(3) NOT NULL,
-  CONSTRAINT "order_step_read_order_fk"
+  CONSTRAINT "order_step_read_order_id_fkey"
     FOREIGN KEY ("order_id") REFERENCES "order"("id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "order_step_read_unique"
