@@ -132,15 +132,18 @@ class DeploySpeedContractTest(unittest.TestCase):
         self.assertIn('= "$LOCKFILE_SHA256" ]', REMOTE)
         self.assertIn("LOCKFILE_SHA256=", REMOTE)
 
-    def test_audit_job_gets_the_dependency_tree(self):
+    def test_audit_reads_the_lockfile_instead_of_rebuilding_the_tree(self):
         """
-        취약점 검사는 의존성 트리가 **없으면 더 느리다** — 1분 36초 → 5분 53초(실측).
-        떼어내 나란히 돌리는 이득이 통째로 날아가고 오히려 새 병목이 된다.
+        `npm audit` 은 기본적으로 트리를 레지스트리에서 다시 풀어내며, 그게 시간을
+        통째로 잡아먹는다(실측 304초). `--package-lock-only` 는 177초 → 2.5초다.
+
+        범위를 줄이는 것이 아니다 — 의존성 382개를 그대로 감사하고 결과도 같았다.
+        `npm ci` 가 설치하는 것이 곧 잠금파일이라 두 트리가 다를 수 없다.
         """
         audit = WORKFLOW[WORKFLOW.index("  audit:"):WORKFLOW.index("  deploy:")]
-        self.assertIn("actions/cache/restore@", audit)
-        self.assertIn("hashFiles('package-lock.json')", audit)
-        self.assertIn("cache: npm", audit)
+        self.assertIn("--package-lock-only", audit)
+        # 관문 자체는 그대로여야 한다 — 빨라지자고 기준을 낮추지 않는다
+        self.assertIn("--audit-level=high", audit)
 
     def test_deploy_reports_whether_dependencies_were_reused(self):
         # 로그에 안 남으면 「왜 이번엔 빨랐지」를 나중에 되짚을 수 없다

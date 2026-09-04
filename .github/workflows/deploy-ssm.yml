@@ -126,12 +126,15 @@ jobs:
           bash -n deploy/baseline-existing-database.sh
           bash -n deploy/apply-schema-migrations.sh
 
-  # 취약점 검사는 **레지스트리를 다녀오느라 느리다.** 다른 검증과 주고받는 것이 없으므로
-  # 나란히 돌린다 — 배포는 여전히 이 잡을 기다린다(관문은 그대로).
+  # 취약점 검사 — **잠금파일만 보고 한다.**
   #
-  # ⚠️ 의존성 트리가 **없으면 오히려 더 느리다.** 떼어내면서 캐시를 안 줬더니
-  #    1분 36초 → 5분 53초가 됐다(실측). 트리가 없으면 잠금파일에서 다시 풀어내느라
-  #    레지스트리를 수천 번 다녀온다. 검증 잡과 **같은 캐시**를 되살려 준다.
+  # `npm audit` 은 기본적으로 의존성 트리를 레지스트리에서 다시 풀어내며, 그게 시간을
+  # 통째로 잡아먹는다(실측: 304초. 캐시를 줘도 그대로였다 — npm 의 메타데이터 캐시는
+  # `npm ci` 가 채우는데, 캐시 적중으로 그걸 건너뛰니 audit 이 직접 다 받아왔다).
+  #
+  # `--package-lock-only` 는 잠금파일에서 바로 감사한다 — **177초 → 2.5초**(실측).
+  # 검사 범위는 같다: 의존성 382개 전부, 결과도 동일했다. `npm ci` 가 설치하는 것이
+  # 곧 잠금파일이므로, 「선언된 트리」와 「설치된 트리」가 다를 수 없다.
   audit:
     name: High 취약점 검사
     runs-on: ubuntu-latest
@@ -144,19 +147,8 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
-          cache: npm
-      # 되살리기만 한다 — 만드는 쪽은 검증 잡 하나로 두어 같은 키를 두 잡이 다투지 않게.
-      - name: 의존성 캐시 되살리기
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            node_modules
-            backend/node_modules
-            frontend/node_modules
-            shared/node_modules
-          key: deps-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
       - name: High 취약점 검사
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --package-lock-only
 
   deploy:
     name: 운영 슬롯 배포
