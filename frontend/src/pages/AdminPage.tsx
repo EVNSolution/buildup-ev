@@ -1706,7 +1706,22 @@ const modal: Record<string, React.CSSProperties> = {
     marginTop: 'var(--sp-3)', fontSize: 'var(--fs-label)', cursor: 'pointer',
   },
   req: { color: 'var(--req)', fontWeight: 700 },
-  select: { fontSize: 14, padding: '10px 12px', border: '0.5px solid var(--line)', borderRadius: 9, width: '100%' },
+  /**
+   * 팝업 안 고르는 칸 — **앱 공통 컨트롤 규칙을 그대로 따른다.**
+   *
+   * 예전에는 여기만 글꼴(14px)과 **세로 패딩(10px)** 을 인라인으로 박아 두어,
+   * 공통 규칙(`min-height: var(--h-control)`, 세로 패딩 없음)에서 혼자 빠져 있었다.
+   * 높이를 정하는 주체가 둘(최소높이 · 세로 패딩)이면 좁은 화면에서 서로 다투고,
+   * 그때 밀려나는 것은 글자다 — 휴대폰에서 「선택하세요」가 잘려 보였다(사진 제보).
+   *
+   * 세로 여백은 컨트롤이 **최소높이로** 만들게 두고 좌우만 잡는다. 그래야 글자가
+   * 늘 한가운데 오고, 손가락 기기에서 글꼴이 16px 로 커져도 칸이 알아서 따라온다.
+   */
+  select: {
+    fontSize: 'var(--fs-input)', lineHeight: 1.4,
+    padding: '0 12px', minHeight: 'var(--h-control)', boxSizing: 'border-box',
+    border: '0.5px solid var(--line)', borderRadius: 9, width: '100%',
+  },
   error: { fontSize: 12, color: 'var(--warn)', background: 'var(--warnbg)', border: '0.5px solid var(--warn)', padding: '7px 10px', borderRadius: 7 },
   file: { width: '100%', fontSize: 'var(--fs-label)', color: 'var(--dark)', padding: 'var(--sp-2) 0' },
   hint: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 'var(--sp-1)' },

@@ -194,7 +194,27 @@ SCHEMA_MIGRATION_SHA256="$(find backend/prisma/migrations -type f \( -name migra
 SCHEMA_MIGRATION_COUNT="$(find backend/prisma/migrations -mindepth 2 -maxdepth 2 -type f -name migration.sql | wc -l | tr -d ' ')"
 
 fetch_and_validate_env
-npm ci
+
+# 의존성 — **잠금파일이 그대로면 다시 깔지 않는다.**
+#
+# `npm ci` 는 node_modules 를 통째로 지우고 다시 만든다. 슬롯 디렉터리는 배포 사이에
+# 그대로 남아 있으므로, 잠금파일이 안 바뀐 배포에서는 **똑같은 트리를 4분 걸려 다시
+# 만드는 것**이 된다(실측: 배포 18분 중 상당 부분).
+#
+# 판정은 두 가지를 모두 본다:
+#   · npm 이 설치를 끝내고 남기는 `node_modules/.package-lock.json` 이 있는가
+#   · 지난번에 깐 잠금파일 해시가 지금과 같은가
+# 도장을 **node_modules 안에** 두는 것이 핵심이다 — `npm ci` 는 그 디렉터리를 지우므로
+# 도장이 설치 없이 살아남을 수 없다. 거짓말을 할 수 없는 자리다.
+npm_install_stamp='node_modules/.buildup-ev-lockfile-sha256'
+if [ -f node_modules/.package-lock.json ] &&
+   [ "$(cat "$npm_install_stamp" 2>/dev/null || true)" = "$LOCKFILE_SHA256" ]; then
+  echo "deps=cached lockfileSha256=$LOCKFILE_SHA256"
+else
+  npm ci
+  printf '%s' "$LOCKFILE_SHA256" > "$npm_install_stamp"
+  echo "deps=installed lockfileSha256=$LOCKFILE_SHA256"
+fi
 npm exec --workspace=backend -- prisma generate
 if ! migration_output="$(APP_BASE_DIR="$APP_BASE_DIR" SOURCE_REVISION="$SOURCE_REVISION" deploy/apply-schema-migrations.sh)"; then
   append_evidence "event=schema-migration-blocked" "slot=$slot" "revision=$SOURCE_REVISION" "schemaMigrationSha256=$SCHEMA_MIGRATION_SHA256" "schemaMigrationCount=$SCHEMA_MIGRATION_COUNT"

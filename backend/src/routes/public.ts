@@ -21,6 +21,7 @@ import { prisma } from '../lib/prisma.js';
 import { loadPricingBundle, listRegionNames, findLocalSubsidy } from '../services/catalog.js';
 import { buildQuoteParams } from '../services/quote-calc.js';
 import { calcQuote } from '@buildup-ev/shared/pricing';
+import { notifyAssignNeeded } from '../services/notify.js';
 
 export const publicRouter = Router();
 
@@ -247,6 +248,13 @@ publicRouter.post('/inquiries', submitLimiter, async (req: Request, res: Respons
       },
       select: { id: true },
     });
+
+    /*
+     * 문의가 들어왔다 = **영업 배정을 기다리는 건이 생겼다.**
+     * 관리자가 목록을 새로고침하다 발견하게 두지 않는다.
+     * 기다리지 않는다 — 알림이 늦다고 고객의 접수 응답이 늦어지면 안 된다.
+     */
+    void notifyAssignNeeded('sales', quote.id);
 
     // 응답은 접수번호만 — 저장 내용을 되돌려주지 않는다
     res.status(201).json({ data: { inquiry_id: quote.id } });
