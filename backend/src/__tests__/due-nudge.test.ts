@@ -105,13 +105,13 @@ describe('누구에게', () => {
 describe('대화 사진 → 증빙', () => {
   const routes = () => read('backend/src/routes/steps.ts');
 
-  it('🔴 사진 증빙만 — 서류는 원본이 필요하다', () => {
+  it('🔴 종류를 고르게 하지 않는다 — 언제나 「검수 사진」', () => {
     /*
-     * 서류 증빙(인수증·튜닝신청서·승인서…)은 글자를 읽어야 해서 원본을 지켜 보관한다.
-     * 대화 사진은 올릴 때 이미 줄여 놓으므로, 서류 자리에 넣으면 읽을 수 없는 서류가 남는다.
+     * 처음엔 단계가 받는 사진 증빙을 골라 넣었는데, 종류를 고르게 하면
+     * 「이게 무슨 증빙이지?」에서 멈춘다 — 그 멈춤이 바로 단계를 안 밟는 이유다.
+     * 검수 사진은 모든 단계가 받는 선택 증빙이라 어느 단계에서 눌러도 들어간다.
      */
-    expect(routes()).toMatch(/if \(keepsOriginal\(kind\)\)/);
-    expect(routes()).toMatch(/NEEDS_ORIGINAL/);
+    expect(routes()).toMatch(/const kind: EvidenceKind = 'inspection_photo'/);
   });
 
   it('🔴 파일을 **복사**한다 — 대화에서 사진이 사라지면 안 된다', () => {

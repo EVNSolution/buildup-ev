@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { promoteChatPhoto } from '../api/steps'
-import { STEP_BY_CODE, EVIDENCE_LABEL, keepsOriginal } from '@shared/process/steps'
+import { PhotoViewer } from './PhotoViewer'
+import { useBackClose } from '../lib/backClose'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { fetchComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { PushToggle } from './PushToggle'
@@ -28,7 +29,7 @@ function stamp(iso: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRead }: {
+export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRead, overdue = false }: {
   orderId: number
   stepCode: string
   stepLabel: string
@@ -37,12 +38,21 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
   onClose: () => void
   /** 읽음 처리가 끝났다 — 바깥의 빨간 점을 끄게 알린다 */
   onRead: () => void
+  /**
+   * 납기를 넘긴 주문인가 — **대화창 안의 초록도 붉게** 바꾼다.
+   * 주문 화면만 붉고 대화는 초록이면 같은 건인데 톤이 갈려, 급한 건이라는 감각이 끊긴다.
+   */
+  overdue?: boolean
 }) {
   const [rows, setRows] = useState<StepComment[] | null>(null)
   const [me, setMe] = useState('')
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  /** 크게 보고 있는 사진(order_file id). null 이면 안 보고 있다 */
+  const [viewing, setViewing] = useState<number | null>(null)
+  // 뒤로가기 한 번이면 서랍이 닫히고 주문 상세로 돌아온다
+  useBackClose(true, onClose)
   /*
    * 붙일 사진 — 보내기 전에 **줄여서** 올린다. 요즘 폰 사진은 한 장에 5MB 를 넘고,
    * 대화에 그대로 쌓이면 현장에서 목록을 여는 것만으로 데이터를 다 쓴다.
@@ -51,22 +61,13 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
   const listRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
 
-  /*
-   * 이 단계가 받는 **사진 증빙** 한 가지. 서류 증빙(인수증·튜닝신청서…)은 원본이 필요해
-   * 대화 사진으로 대신할 수 없다 — 그런 단계에서는 버튼을 아예 띄우지 않는다.
-   */
-  const photoKind = useMemo(() => {
-    const def = STEP_BY_CODE[stepCode]
-    return def?.evidence.find(e => !keepsOriginal(e))
-  }, [stepCode])
   const [promoting, setPromoting] = useState<number | null>(null)
   const [promoted, setPromoted] = useState<Set<number>>(new Set())
 
   async function promote(fileId: number) {
-    if (!photoKind) return
     setPromoting(fileId); setErr('')
     try {
-      await promoteChatPhoto(orderId, stepCode, fileId, photoKind)
+      await promoteChatPhoto(orderId, stepCode, fileId)
       setPromoted(prev => new Set(prev).add(fileId))
       onRead()   // 증빙이 늘었으니 바깥 목록도 다시 읽게 한다
     } catch (e) {
@@ -168,7 +169,14 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
       <div style={s.scrim} onClick={onClose} />
       <aside
         ref={panelRef}
-        style={panelH ? { ...s.panel, height: panelH, bottom: 'auto' } : s.panel}
+        style={{
+          ...(panelH ? { ...s.panel, height: panelH, bottom: 'auto' } : s.panel),
+          /*
+           * 색 이름만 바꿔 끼운다 — 보낸 말풍선·종·보내기 아이콘이 모두 `--lime` 을
+           * 보고 있어 한 번에 따라온다. 새 색을 쓰는 자리가 생겨도 저절로 포함된다.
+           */
+          ...(overdue ? ({ '--lime': 'var(--req)', '--lime-ink': 'var(--req)', '--lime-bg': 'rgba(192,57,43,.08)' } as React.CSSProperties) : null),
+        }}
         role="dialog"
         aria-label={`${stepLabel} 대화`}
       >
@@ -200,10 +208,18 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                   <span style={s.time}>{stamp(c.created_at)}</span>
                 </div>
                 <div style={mine ? s.mine : s.them}>
+                  {/*
+                    **같은 화면 위에 크게 편다.** 새 탭으로 열면 대화 맥락이 끊기고,
+                    휴대폰에서는 돌아오는 길이 브라우저 탭 목록을 거쳐야 해서 멀다(제보).
+                  */}
                   {c.image_file_id && (
-                    <a href={commentImageUrl(orderId, c.image_file_id)} target="_blank" rel="noreferrer">
+                    <button
+                      style={s.photoBtn}
+                      onClick={() => setViewing(c.image_file_id!)}
+                      aria-label="사진 크게 보기"
+                    >
                       <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
-                    </a>
+                    </button>
                   )}
                   {c.body}
                 </div>
@@ -212,16 +228,16 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                   업로드의 번거로움이다. 대화에는 사진을 곧잘 올리므로, 한 번 더 올릴 일을 없앤다.
                   사진 증빙을 받는 단계에서만 뜬다(서류 증빙은 원본이 필요해 안 된다).
                 */}
-                {c.image_file_id && photoKind && canWrite && (
+                {c.image_file_id && (
                   <button
-                    style={s.promote}
+                    style={mine ? { ...s.promote, alignSelf: 'flex-end' } : s.promote}
                     disabled={promoting === c.image_file_id}
                     onClick={() => void promote(c.image_file_id!)}
-                    title={`이 사진을 「${EVIDENCE_LABEL[photoKind]}」으로 등록합니다`}
+                    title="이 사진을 이 단계의 「검수 사진」으로 등록합니다"
                   >
-                    {promoted.has(c.image_file_id) ? '✓ 증빙 등록됨'
+                    {promoted.has(c.image_file_id) ? '✓ 검수 사진으로 등록됨'
                       : promoting === c.image_file_id ? '등록 중…'
-                      : `증빙으로 등록 · ${EVIDENCE_LABEL[photoKind]}`}
+                      : '검수 사진으로 등록'}
                   </button>
                 )}
               </div>
@@ -243,6 +259,14 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
         ) : (
           <div style={s.readonly}>조회만 가능합니다</div>
         )}
+
+      {/* 사진 크게 보기 — 뒤로가기 한 번으로 대화로 돌아온다 */}
+      {viewing != null && (
+        <PhotoViewer
+          src={commentImageUrl(orderId, viewing)}
+          onClose={() => setViewing(null)}
+        />
+      )}
       </aside>
     </>
   )
@@ -283,6 +307,10 @@ const s: Record<string, React.CSSProperties> = {
   },
   muted: { color: 'var(--muted)', fontSize: 'var(--fs-body)' },
   /** 말풍선 아래 작은 줄 — 사진을 증빙으로 올리는 자리 */
+  /**
+   * 말풍선 **바로 아래**에 붙는다. 사진이 오른쪽 말풍선이면 버튼도 오른쪽이다 —
+   * 반대편에 있으면 어느 사진에 대한 버튼인지 알 수 없다(사진 제보).
+   */
   promote: {
     marginTop: 4, alignSelf: 'flex-start',
     border: '0.5px solid var(--lime)', background: 'transparent', color: 'var(--lime-ink)',
@@ -304,6 +332,8 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 'var(--fs-body)', lineHeight: 1.55, whiteSpace: 'pre-wrap', maxWidth: '90%',
   },
   err: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
+  /** 말풍선 안 사진을 감싸는 버튼 — 테두리·배경 없이 사진만 보이게 */
+  photoBtn: { display: 'block', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' },
   photo: {
     display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 8,
     marginBottom: 'var(--sp-2)', objectFit: 'cover' as const,

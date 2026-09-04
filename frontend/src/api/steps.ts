@@ -111,15 +111,17 @@ export const stepFileUrl = (orderId: number, fileId: number) =>
  * 특장사가 단계를 끝까지 안 밟는 큰 이유가 업로드의 번거로움이다. 대화에는 사진을
  * 곧잘 올리므로(카톡처럼 찍어 보내면 되니까), 그것을 그대로 증빙으로 쓰게 한다.
  * 파일은 **복사**된다 — 대화에서 사진이 사라지지 않는다.
+ * 종류는 서버가 **언제나 「검수 사진」**으로 넣는다 — 고르게 하면 「이게 무슨 증빙이지?」
+ * 에서 멈춘다. 그 멈춤이 바로 단계를 안 밟는 이유다.
  */
 export async function promoteChatPhoto(
-  orderId: number, stepCode: string, fileId: number, kind: string,
+  orderId: number, stepCode: string, fileId: number,
 ): Promise<void> {
   const res = await fetch(`/api/v1/orders/${orderId}/steps/${stepCode}/files/from-chat`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ file_id: fileId, kind }),
+    body: JSON.stringify({ file_id: fileId }),
   })
   if (!res.ok) {
     const b = await res.json().catch(() => ({})) as { error?: { message?: string } }

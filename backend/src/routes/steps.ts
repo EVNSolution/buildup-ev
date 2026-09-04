@@ -460,7 +460,7 @@ stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), canC
  * ⚠️ 파일을 **복사한다**(옮기지 않는다). 대화에서 사진이 사라지면 오간 이야기가
  *    무슨 사진에 대한 것이었는지 알 수 없게 된다. 지울 때도 서로 영향이 없다.
  */
-stepsRouter.post('/:id/steps/:code/files/from-chat', rbac('ADMIN', 'SALES', 'MAKER'), canChangeSteps,
+stepsRouter.post('/:id/steps/:code/files/from-chat', rbac('ADMIN', 'MAKER'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     const code = String(req.params['code'] ?? '');
@@ -471,22 +471,18 @@ stepsRouter.post('/:id/steps/:code/files/from-chat', rbac('ADMIN', 'SALES', 'MAK
     const def = stepMapFor(r.order.body_only)[code];
     if (!def) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '이 주문에는 해당하지 않는 단계입니다' } }); return; }
 
-    const { file_id: rawId, kind: rawKind } = (req.body ?? {}) as { file_id?: unknown; kind?: unknown };
+    const { file_id: rawId } = (req.body ?? {}) as { file_id?: unknown };
     const fileId = Number(rawId);
-    const kind = String(rawKind ?? '') as EvidenceKind;
     if (!Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '어느 사진인지 알 수 없습니다' } }); return; }
 
-    if (!acceptsEvidence(def, kind)) {
-      const ok = [...def.evidence, ...EXTRA_EVIDENCE].map(e => EVIDENCE_LABEL[e]).join(' · ');
-      res.status(400).json({ error: { code: 'BAD_INPUT', message: `이 단계에 등록할 수 있는 증빙이 아닙니다 — ${ok}` } });
-      return;
-    }
-    if (keepsOriginal(kind)) {
-      res.status(400).json({
-        error: { code: 'NEEDS_ORIGINAL', message: '이 증빙은 원본이 필요합니다. 대화 사진은 줄여 저장되므로 파일로 올려 주세요.' },
-      });
-      return;
-    }
+    /*
+     * **언제나 「검수 사진」으로 넣는다.**
+     *
+     * 종류를 고르게 하면 「이게 무슨 증빙이지?」에서 멈춘다 — 그 멈춤이 바로 지금
+     * 단계를 안 밟는 이유다. 검수 사진은 모든 단계가 받는 선택 증빙이라(EXTRA_EVIDENCE)
+     * 어느 단계에서 눌러도 들어간다. 정식 서류는 원래 자리에 따로 올린다.
+     */
+    const kind: EvidenceKind = 'inspection_photo';
 
     // 이 주문의 **대화 사진**만 — 남의 주문 파일이나 이미 증빙인 것을 다시 복사하지 않는다
     const src = await prisma!.orderFile.findFirst({ where: { id: fileId, order_id: id, kind: 'chat' } });
@@ -706,7 +702,11 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'), upload.sin
         data: {
           order_id: id, step_code: code, kind: 'chat', path: rel,
           original_name: safeDisplayName(img.originalname ?? ''),
-          mime: img.mimetype, size_bytes: img.size, kept_original: false,
+          /*
+           * **원본 그대로 보관한다.** 대화 사진은 증빙으로도 쓰이고, 미세한 흠집을
+           * 봐야 할 때가 있다(제보). 줄여 놓으면 그때 확인할 방법이 없다.
+           */
+          mime: img.mimetype, size_bytes: img.size, kept_original: true,
           uploaded_by: req.auth!.email,
         },
         select: { id: true },

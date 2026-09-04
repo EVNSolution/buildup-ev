@@ -94,6 +94,12 @@ function Meta({ label, value }: { label: string; value: string }) {
   )
 }
 
+/*
+ * 발주서 안의 글씨는 **한 값으로 묶는다**(`--fs-sheet`).
+ * 값칸·표·비고·특이사항이 제각각 다른 크기였고, 거기에 비고 **입력칸**만 또 다른 크기라
+ * 특장사가 받아 보는 발주서와 이질감이 컸다(사진 제보).
+ * 입력칸도 이 값을 물려받아 **적을 때와 읽을 때가 같은 글씨**가 된다.
+ */
 const s: Record<string, React.CSSProperties> = {
   // 서류처럼 보이게 — 화면 요소가 아니라 '받은 문서'로 읽혀야 한다
   sheet: {
@@ -107,27 +113,27 @@ const s: Record<string, React.CSSProperties> = {
   metaRow: { display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap', marginTop: 'var(--sp-3)' },
   meta: { flex: '1 1 160px', minWidth: 0, display: 'flex', gap: 'var(--sp-2)', alignItems: 'baseline' },
   metaLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', width: 52, flexShrink: 0 },
-  metaValue: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
+  metaValue: { fontSize: 'var(--fs-sheet)', color: 'var(--dark)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
   section: {
     fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)',
     marginTop: 'var(--sp-4)', paddingBottom: 'var(--sp-1)', borderBottom: 'var(--hairline)',
   },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-label)', marginTop: 'var(--sp-2)' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-sheet)', marginTop: 'var(--sp-2)' },
   tdLabel: { padding: '5px 12px 5px 0', color: 'var(--muted)', width: 96, whiteSpace: 'nowrap', verticalAlign: 'top' },
   tdValue: { padding: '5px 0', color: 'var(--dark)' },
   /** 비고 본문 — 적은 그대로(줄바꿈·띄어쓰기 보존) */
   remark: {
-    whiteSpace: 'pre-wrap' as const, fontSize: 'var(--fs-caption)', lineHeight: 1.6,
+    whiteSpace: 'pre-wrap' as const, fontSize: 'var(--fs-sheet)', lineHeight: 1.6,
     color: 'var(--dark)', padding: 'var(--sp-2) 0',
   },
-  remarkEmpty: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', padding: 'var(--sp-2) 0' },
+  remarkEmpty: { fontSize: 'var(--fs-sheet)', color: 'var(--muted)', padding: 'var(--sp-2) 0' },
   pending: {
     marginTop: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)',
     background: 'var(--card)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2) var(--sp-3)', lineHeight: 'var(--lh-body)',
   },
   notes: {
     margin: 'var(--sp-2) 0 0', paddingLeft: 18,
-    fontSize: 'var(--fs-caption)', color: 'var(--body)', lineHeight: 'var(--lh-body)',
+    fontSize: 'var(--fs-sheet)', color: 'var(--body)', lineHeight: 'var(--lh-body)',
     display: 'flex', flexDirection: 'column', gap: 3,
   },
   due: { color: 'var(--dark)' },

@@ -113,14 +113,20 @@ describe('제작 배정 버튼', () => {
     expect(ADMIN.match(/\{q\.status === 'contracted' && \(/g)?.length).toBe(2);
   });
 
-  it('🔴 서명이 끝난 건에는 「견적 숨기기」를 두지 않는다 — 그 자리를 제작 배정이 쓴다', () => {
+  it('🔴 「견적 숨기기」는 없앴다 — 되살아나지 않게 못박는다', () => {
     /*
-     * 서명이 끝나면 숨길 일이 없다(서버도 막는다). 그 자리를 비워 두는 대신
-     * 제작 배정이 쓰면 **버튼 개수가 늘지 않아** 줄이 밀리지 않는다.
+     * 쓰이지 않았고 견적 목록 상단만 번잡하게 했다(제보).
+     * 화면·API 양쪽에서 걷어냈고, 목록도 숨김 여부로 거르지 않아
+     * **예전에 숨긴 건도 다시 보인다** — 화면에서 사라져 못 찾는 건이 남지 않게.
+     *
+     * ⚠️ `hidden_at` 컬럼과 고객 숨기기는 그대로다 — 기능을 걷었다고 기록까지 지우지 않는다.
      */
-    expect(ADMIN).toMatch(/const signed = q\.contract\?\.status === 'COMPLETED'/);
-    expect(ADMIN.match(/const signed = q\.contract\?\.status === 'COMPLETED'/g)?.length).toBe(2);
-    // 숨기기 버튼은 signed 가 아닐 때만
-    expect(ADMIN.match(/\{!signed && \(/g)?.length).toBe(2);
+    // 주석은 뺀다 — 「왜 없앴는지」는 코드 옆에 남겨 두어야 다음 사람이 되살리지 않는다
+    const code = ADMIN.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code, '숨기기 버튼이 되살아났다').not.toMatch(/견적 숨기기/);
+    expect(read('backend/src/routes/quotes.ts'), '숨김 라우트가 되살아났다')
+      .not.toMatch(/quotesRouter\.patch\('\/:id\/hidden'/);
+    // 목록은 숨김 여부를 조건에 넣지 않는다
+    expect(ADMIN).not.toMatch(/to: filterTo \|\| undefined, view \}/);
   });
 });

@@ -9,6 +9,7 @@ import {
   type ApiStepsResponse,
 } from '../api/steps'
 import { shrinkImage, fmtBytes } from '../lib/imageResize'
+import { dueInfo } from '@shared/process/due'
 import { BTN } from '../styles/buttons'
 import { DocLink } from './DocLink'
 import { openPdf } from '../lib/openPdf'
@@ -156,8 +157,25 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
     finally { setBusy(null) }
   }
 
+  const due = dueInfo(res.order.delivery_due)
+
+  /*
+   * **납기가 지난 주문은 화면이 통째로 붉어진다.**
+   *
+   * 목록에서만 붉고 열어 보면 여느 주문과 똑같이 초록이면, 들어온 순간 급한 건이라는
+   * 감각이 사라진다(제보). 초록은 이 화면에서 「끝났다·진행 중」을 뜻하는데,
+   * 납기를 넘긴 건에는 그 톤이 맞지 않는다.
+   *
+   * 색을 쓰는 자리를 하나씩 고치지 않고 **색 이름만 바꿔 끼운다** — 진척 막대·완료 표시·
+   * 지금 단계 줄·대화 버튼이 모두 `--lime` 을 보고 있어 한 번에 따라온다.
+   * 새 색을 쓰는 자리가 나중에 생겨도 저절로 포함된다.
+   */
+  const rootStyle: React.CSSProperties = due.state === 'overdue'
+    ? { ...s.root, ...({ '--lime': 'var(--req)', '--lime-ink': 'var(--req)', '--lime-bg': 'rgba(192,57,43,.08)' } as React.CSSProperties) }
+    : s.root
+
   return (
-    <div style={s.root}>
+    <div style={rootStyle}>
       {/*
         발주·수락·납기는 **단계가 아니라 이미 끝난 기록**이다. 머리말에 적어 두고
         완료/되돌리기 대상으로 두지 않는다 — 같은 일을 두 번 관리하지 않기 위해서.
@@ -165,7 +183,13 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
       <div style={s.record}>
         <Rec label="발주" value={res.order.assigned_at?.slice(0, 10) ?? '—'} />
         <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? '미수락'} />
-        <Rec label="납기" value={res.order.delivery_due ?? '—'} strong={!!res.order.delivery_due} />
+        {/* 납기 옆에 「n일 경과」·「n일 전」을 붙인다 — 날짜만으로는 급한지 세어 봐야 안다 */}
+        <Rec
+          label="납기"
+          value={res.order.delivery_due ? `${res.order.delivery_due}${due.label ? `  ${due.label}` : ''}` : '—'}
+          strong={!!res.order.delivery_due}
+          tone={due.state === 'overdue' ? 'late' : undefined}
+        />
       </div>
 
       {err && <div style={s.err}>{err}</div>}
@@ -379,6 +403,8 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
           stepCode={chat.code}
           stepLabel={chat.label}
           canWrite={myRoles.includes('ADMIN') || myRoles.includes('MAKER')}
+          /* 납기를 넘긴 주문은 대화창 안도 붉다 — 주문 화면만 붉고 대화는 초록이면 톤이 갈린다 */
+          overdue={due.state === 'overdue'}
           onRead={reloadUnread}
           onClose={() => { setChat(null); reloadUnread() }}
         />
@@ -387,11 +413,15 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   )
 }
 
-function Rec({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Rec({ label, value, strong, tone }: {
+  label: string; value: string; strong?: boolean
+  /** `late` — 납기를 넘긴 값. 붉게 적는다 */
+  tone?: 'late'
+}) {
   return (
     <div style={s.rec}>
       <span style={s.recLabel}>{label}</span>
-      <span style={strong ? s.recValueStrong : s.recValue}>{value}</span>
+      <span style={tone === 'late' ? s.recValueLate : strong ? s.recValueStrong : s.recValue}>{value}</span>
     </div>
   )
 }
@@ -497,6 +527,8 @@ const s: Record<string, React.CSSProperties> = {
   recLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   recValue: { fontSize: 'var(--fs-label)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   recValueStrong: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 650, fontVariantNumeric: 'tabular-nums' },
+  /** 납기를 넘긴 값 — 굵고 붉게. 화면에서 가장 먼저 읽혀야 한다 */
+  recValueLate: { fontSize: 'var(--fs-body)', fontWeight: 800, color: 'var(--req)', fontVariantNumeric: 'tabular-nums' },
 
   track: { display: 'flex', flexDirection: 'column' },
   trackHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', paddingBottom: 'var(--sp-2)' },

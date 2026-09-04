@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
+import { useBackClose } from '../lib/backClose'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useScreenRefresh } from '../contexts/RefreshContext'
@@ -26,6 +27,8 @@ export function MakerPage() {
    * **알림을 누르고 들어온 경우** — `/?order=19&tab=chat` 를 읽어 그 주문을 대화 탭으로
    * 편다. 주소는 한 번 읽고 지운다 — 안 지우면 목록으로 돌아가도 계속 다시 열린다.
    */
+  // 뒤로가기 한 번이면 목록으로 — 보던 자리가 그대로 남는다
+  useBackClose(selectedId !== null, () => setSelectedId(null))
   const [deepLink, setDeepLink] = useState<OrderDeepLink | null>(null)
   useOrderDeepLink(link => { setDeepLink(link); setSelectedId(link.orderId) })
   const [acceptingId, setAcceptingId] = useState<number | null>(null)

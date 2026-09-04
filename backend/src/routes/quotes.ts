@@ -220,63 +220,15 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
   }
 });
 
-// ── PATCH /quotes/:id/hidden — 숨기기 / 다시 보이기 ─────────────────────────
-/**
- * 지우지 않고 화면에서만 감춘다.
+/*
+ * 「견적 숨기기」는 **없앴다**(2026-09).
  *
- * **계약서가 고객에게 나가기 전까지는 언제든 숨길 수 있다**(영업사원도 가능).
- * 잘못 만든 견적을 정리하는 일은 흔하고, 그때마다 관리자를 부를 이유가 없다.
- * 나간 뒤에는 숨길 수 없다 — 고객이 이미 받아 본 것이고 서명이 진행 중일 수 있다.
- * 다만 **마스터는 무엇이든** 숨길 수 있다(잘못 나간 계약까지 정리해야 하는 사람이 하나는 필요하다).
+ * 쓰이지 않았고 견적 목록 상단만 번잡하게 했다(제보). 목록도 더 이상 숨김 여부로 거르지
+ * 않으므로 **예전에 숨긴 건도 다시 보인다** — 화면에서 사라져 못 찾는 건이 남지 않게.
  *
- * 견적 상태로 가르지 않는다. 예전엔 임시저장만 숨길 수 있게 했는데, 확정만 해 두고
- * 계약서를 안 보낸 견적이 정리되지 않아 테스트 데이터가 쌓였다.
- * (삭제는 아예 없앴다. #198)
+ * ⚠️ `hidden_at`·`hidden_by` **컬럼은 지우지 않는다.** 누가 언제 숨겼는지는 기록이고,
+ *    기능을 걷었다고 기록까지 지울 이유가 없다(CLAUDE.md — 지우지 말고 남긴다).
  */
-quotesRouter.patch('/:id/hidden', rbac('ADMIN', 'SALES'), async (req: Request, res): Promise<void> => {
-  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
-  const id = Number(req.params['id']);
-  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 견적 id' } }); return; }
-
-  const hidden = (req.body as { hidden?: unknown })?.hidden;
-  if (typeof hidden !== 'boolean') {
-    res.status(400).json({ error: { code: 'BAD_INPUT', message: 'hidden 은 true 또는 false' } }); return;
-  }
-
-  try {
-    const quote = await prisma.quote.findUnique({
-      where: { id },
-      select: {
-        id: true, sales_user_id: true, hidden_at: true,
-        _count: { select: { contracts: { where: SENT_CONTRACT_FILTER } } },
-      },
-    });
-    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-    if (ownQuotesOnly(req.auth!) && quote.sales_user_id !== req.auth!.email) {
-      res.status(403).json({ error: { code: 'FORBIDDEN', message: '본인 견적만 숨길 수 있습니다' } }); return;
-    }
-
-    // 다시 보이기는 언제나 허용한다 — 잘못 숨긴 것을 되돌리는 길은 막지 않는다
-    if (hidden && !canHideAnything(req.auth) && quote._count.contracts > 0) {
-      res.status(409).json({ error: { code: 'NOT_HIDABLE',
-        message: '계약서가 고객에게 발송된 견적은 숨길 수 없습니다.' } });
-      return;
-    }
-
-    const updated = await prisma.quote.update({
-      where: { id },
-      data: hidden
-        ? { hidden_at: new Date(), hidden_by: req.auth?.email ?? 'unknown' }
-        : { hidden_at: null, hidden_by: null },
-      select: { id: true, hidden_at: true, hidden_by: true },
-    });
-    console.info(`[quotes] 견적 ${id} ${hidden ? '숨김' : '다시 보이기'} — ${req.auth?.email ?? 'unknown'}`);
-    res.json({ data: updated });
-  } catch (e) {
-    console.error('[PATCH /quotes/:id/hidden]', e);
-    res.status(500).json({ error: { code: 'INTERNAL', message: '숨김 처리 중 오류가 발생했습니다.' } });
-  }
-});
 
 // ── POST /quotes/calculate — 미저장 계산 ─────────────────────────────────
 

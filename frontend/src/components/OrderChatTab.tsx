@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
+import { PhotoViewer } from './PhotoViewer'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { PushToggle } from './PushToggle'
 import { ChatComposer } from './ChatComposer'
@@ -26,8 +27,14 @@ const stamp = (iso: string) => {
 const dayOf = (iso: string) => iso.slice(0, 10)
 
 export function OrderChatTab(
-  { orderId, canWrite, initialStep }:
-  { orderId: number; canWrite: boolean; /** 알림을 눌러 들어왔을 때 골라 둘 단계 */ initialStep?: string },
+  { orderId, canWrite, initialStep, overdue = false }:
+  {
+    orderId: number; canWrite: boolean
+    /** 알림을 눌러 들어왔을 때 골라 둘 단계 */
+    initialStep?: string
+    /** 납기를 넘긴 주문인가 — 대화 안의 초록도 붉게 바꾼다 */
+    overdue?: boolean
+  },
 ) {
   const [rows, setRows] = useState<StepComment[] | null>(null)
   const [steps, setSteps] = useState<{ code: string; label: string }[]>([])
@@ -36,6 +43,8 @@ export function OrderChatTab(
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  /** 크게 보고 있는 사진(order_file id). null 이면 안 보고 있다 */
+  const [viewing, setViewing] = useState<number | null>(null)
   /*
    * 붙일 사진 — 보내기 전에 **줄여서** 올린다. 요즘 폰 사진은 한 장에 5MB 를 넘고,
    * 대화에 그대로 쌓이면 현장에서 목록을 여는 것만으로 데이터를 다 쓴다.
@@ -140,7 +149,7 @@ export function OrderChatTab(
 
   let lastDay = ''
   return (
-    <div style={s.root}>
+    <div style={overdue ? { ...s.root, ...({ '--lime': 'var(--req)', '--lime-ink': 'var(--req)', '--lime-bg': 'rgba(192,57,43,.08)' } as React.CSSProperties) } : s.root}>
       {/* 알림 종 — **왼쪽 위**. 예전엔 입력줄 위에 문구까지 달고 한 줄을 통째로 썼다 */}
       <div style={s.bellRow}><PushToggle /></div>
 
@@ -169,10 +178,18 @@ export function OrderChatTab(
                   <span style={s.time}>{stamp(c.created_at).slice(11)}</span>
                 </div>
                 <div style={mine ? s.mine : s.them}>
+                  {/*
+                    **같은 화면 위에 크게 편다.** 새 탭으로 열면 대화 맥락이 끊기고,
+                    휴대폰에서는 돌아오는 길이 브라우저 탭 목록을 거쳐야 해서 멀다(제보).
+                  */}
                   {c.image_file_id && (
-                    <a href={commentImageUrl(orderId, c.image_file_id)} target="_blank" rel="noreferrer">
+                    <button
+                      style={s.photoBtn}
+                      onClick={() => setViewing(c.image_file_id!)}
+                      aria-label="사진 크게 보기"
+                    >
                       <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
-                    </a>
+                    </button>
                   )}
                   {c.body}
                 </div>
@@ -205,6 +222,14 @@ export function OrderChatTab(
         />
       ) : (
         <div style={s.readonly}>조회만 가능합니다</div>
+      )}
+
+      {/* 사진 크게 보기 — 뒤로가기 한 번으로 대화로 돌아온다 */}
+      {viewing != null && (
+        <PhotoViewer
+          src={commentImageUrl(orderId, viewing)}
+          onClose={() => setViewing(null)}
+        />
       )}
     </div>
   )
@@ -253,6 +278,8 @@ const s: Record<string, React.CSSProperties> = {
   errLine: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
   /** 종 한 칸 — 줄을 통째로 쓰지 않게 높이를 종 크기에 맞춘다 */
   bellRow: { flex: 'none', display: 'flex', justifyContent: 'flex-start', padding: '2px var(--sp-2) 0' },
+  /** 말풍선 안 사진을 감싸는 버튼 — 테두리·배경 없이 사진만 보이게 */
+  photoBtn: { display: 'block', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' },
   photo: {
     display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 8,
     marginBottom: 'var(--sp-2)', objectFit: 'cover' as const,
