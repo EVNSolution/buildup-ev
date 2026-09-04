@@ -74,6 +74,8 @@ export interface CustomerInfo {
   // ── 계약서 전용 입력(견적 저장 단계에서 함께 받는다) ──
   // 전부 선택 입력 — 비워두면 계약서에 공란으로 나간다.
   contract_party?: string;             // 계약처
+  /** 계약일자(YYYY-MM-DD) — 계약서를 만들 때 고른다. 비면 만드는 날 */
+  contract_date?: string;
   buyer_agent?: string;                // 대리인(위임장 필수)
   buyer_relation?: string;             // 관계
   buyer_regno?: string;                // 생년월일 / 사업자번호

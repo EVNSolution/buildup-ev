@@ -31,6 +31,13 @@ export interface QuoteSaveValues {
   buyer_regno: string
   buyer_tel: string
   /**
+   * 계약일자(`YYYY-MM-DD`) — **계약서를 만들 때 고른다.** 기본은 오늘.
+   *
+   * 예전엔 견적을 만든 날이 그대로 찍혀, 며칠 지나 계약해도 계약서에는 지난 날짜가
+   * 나갔다(제보). 계약일은 견적일과 다른 날이다.
+   */
+  contract_date: string
+  /**
    * 특장만 견적에서 고객이 보유한 **차종**. 계약서 단계에서만 받는다 —
    * 견적 단계에서는 금액만 보면 되고, 등록번호·차대번호는 계약 이후
    * 특장사가 자동차등록증을 보고 채운다.
@@ -38,11 +45,18 @@ export interface QuoteSaveValues {
   owned_model: string
 }
 
+/** 오늘(YYYY-MM-DD) — 계약일자 기본값. 시간대에 끌려가지 않게 현지 날짜로 만든다 */
+export function today(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 export function emptyQuoteSaveValues(subsidy: SubsidyInputs): QuoteSaveValues {
   return {
     subsidy, name: '', ceo_name: '', email: '', phone: '', address: '', address_detail: '',
     contract_party: '', buyer_agent: '', buyer_relation: '', buyer_regno: '', buyer_tel: '',
-    owned_model: '',
+    contract_date: today(), owned_model: '',
   }
 }
 
@@ -58,6 +72,8 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
     address: c.address ?? '',
     address_detail: c.address_detail ?? '',
     contract_party: c.contract_party ?? '',
+    // 이미 고른 날이 있으면 그대로 — 다시 열어도 같은 날짜여야 한다
+    contract_date: c.contract_date || today(),
     buyer_agent: c.buyer_agent ?? '',
     buyer_relation: c.buyer_relation ?? '',
     buyer_regno: c.buyer_regno ?? '',
@@ -297,6 +313,21 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
           사업자 구분(라벨이 바뀐다) → 성명(상호) → 생년월일(사업자번호).
           뒤의 두 값이 **고객 마스터를 찾는 키**라, 먼저 받아야 나머지를 자동으로 채울 수 있다.
         */}
+        {/*
+          계약일자 — **계약서 단계에서만** 묻는다. 기본은 오늘이고 손으로 고칠 수 있다.
+          견적 단계에는 없다(그때는 계약일이 정해지지 않았다).
+        */}
+        {forContract && (
+          <div style={{ ...s.row, ...s.gridFull }}>
+            <label style={s.label}>계약일자<Tag need /></label>
+            <input
+              style={s.field} type="date" value={v.contract_date}
+              onChange={e => set('contract_date', e.target.value)}
+            />
+            <div style={s.hintLine}>계약서에 찍히는 날짜입니다. 기본은 오늘.</div>
+          </div>
+        )}
+
         <div style={{ ...s.row, ...s.gridFull }}>
           <label style={s.label}>사업자 구분<Tag need /></label>
           <select
@@ -611,6 +642,8 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 8, background: '#fff', outline: 'none',
   },
   warn: { fontSize: 'var(--fs-body)', color: 'var(--warn)', marginTop: 'var(--sp-1)' },
+  /** 칸 아래 한 줄 안내 — 경고가 아니라 설명이라 회색으로 둔다 */
+  hintLine: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginTop: 4 },
   autofill: {
     fontSize: 14, color: 'var(--dark)', background: 'var(--lime-bg)',
     border: '0.5px solid var(--lime)', borderRadius: 8, padding: '8px 10px', marginBottom: 12,

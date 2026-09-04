@@ -85,6 +85,8 @@ export function customerEditValues(q: ApiQuote): QuoteSaveValues {
     address: q.customer?.address ?? '',
     address_detail: q.customer?.address_detail ?? '',
     contract_party: str('contract_party'),
+    // 이미 고른 계약일이 있으면 그대로 — 없으면 폼이 오늘로 채운다
+    contract_date: str('contract_date'),
     buyer_agent: str('buyer_agent'),
     buyer_relation: str('buyer_relation'),
     buyer_regno: str('buyer_regno'),

@@ -230,7 +230,18 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
 
   const data = {
     vehicleModel: modelName,
-    workDate: quote.created_at.toISOString().slice(0, 10),
+    /*
+     * 견적일자 = **마지막으로 고친 날**.
+     *
+     * 예전엔 만든 날(`created_at`)을 찍어, 옵션이나 고객정보를 몇 번 고쳐도 견적서에는
+     * 처음 만든 날이 그대로 나갔다(제보). 고객이 받는 견적서의 날짜는 「이 내용이
+     * 언제 기준인가」를 말해야 한다.
+     *
+     * ⚠️ 금액 계산에 쓰는 해(`calcYear`)는 **만든 해 그대로** 둔다(위 buildQuoteParams).
+     *    보조금·세율은 해마다 달라서, 해를 넘겨 메모 한 줄만 고쳐도 금액이 통째로
+     *    바뀌면 이미 나간 견적과 어긋난다. 날짜 표기와 금액 기준은 다른 이야기다.
+     */
+    workDate: (quote.updated_at ?? quote.created_at).toISOString().slice(0, 10),
     salesRep,
     customerName: quote.customer?.name ?? '',
     modelSubtitle: `${modelName} : PV5 ${trimName} ${bodyDisp}탑차 – ${topDisp}`,

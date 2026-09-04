@@ -361,6 +361,8 @@ function MyListView() {
               buyer_relation: values.buyer_relation.trim(),
               buyer_regno: values.buyer_regno.trim(),
               buyer_tel: values.buyer_tel,
+              // 계약서에 찍힐 날 — 다시 뽑아도 같은 날짜가 나오게 남긴다
+              contract_date: values.contract_date,
             })
             const next = contractPrep.next
             setContractPrep(null)

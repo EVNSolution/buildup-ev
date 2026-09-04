@@ -126,6 +126,24 @@ export interface ContractTokens {
   receipt_amount: string; receipt_payee: string;
 }
 
+/**
+ * 팝업에서 고른 계약일자(`YYYY-MM-DD`)를 날짜로 읽는다.
+ *
+ * 형태가 아니거나 없는 날(2026-02-31 같은)이면 **없는 것으로 본다** — 그러면 오늘로
+ * 떨어진다. 손으로 고친 값이 들어와도 계약서 생성이 통째로 실패하지 않는다.
+ * 시간대에 끌려가지 않게 **현지 정오**로 만든다(UTC 로 읽으면 하루 밀리는 날이 생긴다).
+ */
+export function readContractDate(raw: unknown): Date | null {
+  if (typeof raw !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+  if (!m) return null;
+  const [y, mo, da] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(y, mo - 1, da, 12, 0, 0);
+  // 없는 날은 자바스크립트가 다음 달로 넘겨 버린다 — 되돌려 확인한다
+  if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== da) return null;
+  return d;
+}
+
 // 옵션 선택값 → 계약서 표기(데이터계약 §2 값 예시). 하드코딩 금지 원칙에 따라 코드→표기 매핑만 둔다.
 const BODY_DISP: Record<string, string> = { BODY_REEFER: '냉장/냉동', BODY_DRY: '내장' };
 const HEIGHT_DISP: Record<string, string> = { TOP_LOW: '저상', TOP_STD: '표준' };
@@ -258,9 +276,19 @@ export async function buildContractTokensFromQuote(quoteId: number): Promise<Con
   const priceDown = Math.min(q.body_deposit, priceTotal);  // 계약금(DB 상수)
   const priceBalance = Math.max(priceTotal - priceDown, 0);
 
-  // 계약서의 모든 날짜는 **견적서 생성 날짜**(견적 생성일) 기준 — 견적서와 어긋나지 않게.
-  const d = quote.created_at ?? new Date();
+  /*
+   * 계약일자 — **계약서를 만들 때 정한다.**
+   *
+   * 예전엔 견적을 만든 날(`created_at`)을 그대로 썼다. 견적을 낸 뒤 며칠 지나 계약하는
+   * 것이 보통이라, 계약서에 늘 지난 날짜가 찍혔다(제보). 계약일은 견적일과 다른 날이다.
+   *
+   * 순서: 팝업에서 적어 둔 날 → 없으면 **오늘**.
+   * 적어 둔 값은 `inputs.contract_date` 에 남아, 다시 뽑아도 같은 날짜가 나온다 —
+   * 서명까지 끝난 계약서를 다시 열었을 때 날짜가 바뀌면 안 된다.
+   */
   const pad = (n: number) => String(n).padStart(2, '0');
+  const picked = readContractDate(inp['contract_date']);
+  const d = picked ?? new Date();
 
   return {
     contract_no: quote.quote_no ?? `Q-${quote.id}`,
