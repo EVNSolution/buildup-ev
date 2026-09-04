@@ -27,11 +27,25 @@ export interface CommentRow {
   created_at: Date;
 }
 
+/**
+ * `after` 뒤에 생긴 것만 고르는 조건.
+ *
+ * 대화창을 열어 두면 몇 초마다 다시 물어보는데, 그때마다 **처음부터 전부** 내려주면
+ * 대화가 길어질수록 오가는 양이 계속 커진다. 이미 받은 마지막 `id` 를 알려 주면
+ * 그 뒤에 생긴 것만 오간다 — 새 글이 없으면 빈 목록이다.
+ *
+ * `id` 는 Postgres 가 주는 단조 증가 번호라 **먼저 저장된 글이 반드시 작은 번호**다.
+ * 그래서 「그 번호 뒤」가 곧 「그 뒤에 오간 이야기」와 같다.
+ */
+function afterId(after?: number): { id?: { gt: number } } {
+  return after != null && Number.isInteger(after) && after > 0 ? { id: { gt: after } } : {};
+}
+
 /** 한 단계의 대화 — 오래된 것부터. 채팅이라 위에서 아래로 읽는다 */
-export async function listComments(orderId: number, stepCode: string): Promise<CommentRow[]> {
+export async function listComments(orderId: number, stepCode: string, after?: number): Promise<CommentRow[]> {
   if (!prisma) return [];
   return prisma.orderStepComment.findMany({
-    where: { order_id: orderId, step_code: stepCode },
+    where: { order_id: orderId, step_code: stepCode, ...afterId(after) },
     orderBy: { id: 'asc' },
     select: {
       id: true, step_code: true, author: true, author_role: true,
@@ -46,10 +60,10 @@ export async function listComments(orderId: number, stepCode: string): Promise<C
  * 단계별로 흩어 보면 전체 흐름이 안 읽힌다. 어느 단계 이야기인지는 각 글에 붙여 두고,
  * 순서는 오간 그대로 둔다 — 이력을 읽는다는 것은 시간을 따라 읽는다는 뜻이다.
  */
-export async function listAllComments(orderId: number): Promise<CommentRow[]> {
+export async function listAllComments(orderId: number, after?: number): Promise<CommentRow[]> {
   if (!prisma) return [];
   return prisma.orderStepComment.findMany({
-    where: { order_id: orderId },
+    where: { order_id: orderId, ...afterId(after) },
     orderBy: { id: 'asc' },
     select: {
       id: true, step_code: true, author: true, author_role: true,
@@ -99,6 +113,30 @@ export async function markRead(
     create: { user_email: userEmail, order_id: orderId, step_code: stepCode, last_read_at: now },
     update: { last_read_at: now },
   });
+}
+
+/**
+ * 주문의 **모든 단계**를 읽은 것으로 표시한다 — 「대화」 탭을 여는 순간.
+ *
+ * 그 탭은 모든 단계의 이야기를 시간순으로 한 줄로 보여 준다. 거기까지 열어 봤으면
+ * 본 것이 맞다. 여기서 표시하지 않으면 탭을 나오는 순간 「안 읽음」이 되살아나
+ * **읽었는데도 강조가 다시 켜진다**(실측).
+ *
+ * 글이 오간 단계만 표시한다 — 이야기가 없던 단계까지 건드릴 이유가 없다.
+ */
+export async function markAllRead(orderId: number, userEmail: string): Promise<void> {
+  if (!prisma) return;
+  const steps = await prisma.orderStepComment.findMany({
+    where: { order_id: orderId },
+    distinct: ['step_code'],
+    select: { step_code: true },
+  });
+  const now = new Date();
+  await Promise.all(steps.map(({ step_code }) => prisma!.orderStepRead.upsert({
+    where: { user_email_order_id_step_code: { user_email: userEmail, order_id: orderId, step_code } },
+    create: { user_email: userEmail, order_id: orderId, step_code, last_read_at: now },
+    update: { last_read_at: now },
+  })));
 }
 
 /**

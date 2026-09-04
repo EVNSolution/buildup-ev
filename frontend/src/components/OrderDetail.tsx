@@ -15,6 +15,8 @@ import { OrderChatTab } from './OrderChatTab'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { OrderRemoveModal } from './OrderRemoveModal'
 import { safeLeft, safeRight, safeScrollBottom } from '../styles/safeArea'
+import { fetchUnread } from '../api/stepComments'
+import { useChatPoll, CHAT_POLL_IDLE_MS } from '../lib/chatPoll'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 
@@ -423,6 +425,37 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
   const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load' | 'chat'>(initialTab ?? 'steps')
 
   /*
+   * **안 읽은 대화가 있으면 「대화」 탭 전체를 칠한다.**
+   *
+   * 빨간 점만으로는 다른 탭을 보고 있을 때 눈에 안 들어온다 — 윈도우 작업표시줄이
+   * 새 알림을 버튼째 물들이는 것과 같은 방식으로, 탭 자체를 주황으로 채운다.
+   *
+   * 대화 탭에 들어가 있는 동안은 켜지 않는다 — 지금 읽고 있는 것을 「안 읽음」이라고
+   * 말하는 셈이 된다.
+   */
+  const [unreadChat, setUnreadChat] = useState(0)
+  const loadUnread = () => {
+    fetchUnread(orderId)
+      .then(u => setUnreadChat(Object.values(u).reduce((a, n) => a + n, 0)))
+      .catch(() => { /* 표시가 안 켜질 뿐이다 */ })
+  }
+  useChatPoll(
+    () => {
+      // 대화 탭에 있는 동안은 묻지 않는다 — 지금 읽고 있는 것을 「안 읽음」이라 할 수 없다
+      if (tab === 'chat') return
+      loadUnread()
+    },
+    () => CHAT_POLL_IDLE_MS,
+    [orderId],
+  )
+  useEffect(() => {
+    // 처음 열 때 한 번, 그리고 대화 탭에 들어가면 바로 끈다
+    if (tab === 'chat') { setUnreadChat(0); return }
+    loadUnread()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, tab])
+
+  /*
    * **주문 번호와 탭은 붙박이, 아래 내용만 스크롤된다.**
    *
    * 목록이 길어지면 지금 어느 주문의 무슨 탭을 보고 있는지 잃는다. 남은 화면 높이를
@@ -522,7 +555,15 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
           대화 — **목록 제일 끝.** 단계별 창이 그 단계에 집중하는 자리라면,
           여기는 오간 이야기를 시간순으로 한 줄로 읽는 자리다.
         */}
-        <button style={tab === 'chat' ? det.tabActive : det.tabBtn} onClick={() => setTab('chat')}>
+        <button
+          style={
+            tab === 'chat' ? det.tabActive
+            : unreadChat > 0 ? det.tabAlert
+            : det.tabBtn
+          }
+          onClick={() => setTab('chat')}
+          aria-label={unreadChat > 0 ? '대화 — 안 읽은 글 있음' : '대화'}
+        >
           대화
         </button>
       </div>
@@ -549,7 +590,12 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             눌러 보고 403 을 받게 하는 것은 안내가 아니다 — 기능모듈 「주문 상태 변경」
             (order.control)이 꺼진 계정에는 조회만 보인다. 서버도 같은 권한으로 막는다.
           */}
-          <OrderStepsPanel orderId={detail.id} canEdit={canChangeSteps} />
+          <OrderStepsPanel
+            orderId={detail.id}
+            canEdit={canChangeSteps}
+            /* 여기서 대화를 읽어 0 이 되면 「대화」 탭 강조도 그 자리에서 꺼진다 */
+            onUnreadChange={setUnreadChat}
+          />
         </div>
       )}
 
@@ -716,6 +762,24 @@ const det: Record<string, React.CSSProperties> = {
   tabs: { display: 'flex', gap: 4, borderBottom: '2px solid var(--line)', paddingBottom: 0 },
   tabBtn: { padding: '8px 18px', border: 'none', borderBottom: '2px solid transparent', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: -2, minHeight: 44 },
   tabActive: { padding: '8px 18px', border: 'none', borderBottom: '2px solid var(--dark)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--dark)', fontWeight: 700, marginBottom: -2, minHeight: 44 },
+  /**
+   * 안 읽은 대화가 있는 탭 — **버튼째 주황으로 채운다.**
+   *
+   * 점 하나로는 다른 탭을 보고 있을 때 눈에 안 들어온다. 윈도우 작업표시줄이 새 알림을
+   * 버튼째 물들이는 것과 같은 방식이다. 크기·자리는 다른 탭과 똑같이 둔다 —
+   * 색만 달라야 줄이 흔들리지 않는다.
+   */
+  tabAlert: {
+    padding: '8px 18px', border: 'none', borderBottom: '2px solid var(--alert)',
+    /*
+     * 아래가 제일 진하고 위로 갈수록 투명해진다 — 밑줄에서 색이 배어 오르는 모양.
+     * 통째로 칠하고 모서리를 둥글게 하면 그 탭만 다른 부품처럼 튀어 보인다(제보).
+     * 글자는 본래 색 그대로 둔다 — 흰 글자로 바꾸면 옅어지는 위쪽에서 읽히지 않는다.
+     */
+    background: 'linear-gradient(to top, var(--alert-fade), transparent)',
+    cursor: 'pointer', fontSize: 13,
+    color: 'var(--dark)', fontWeight: 700, marginBottom: -2, minHeight: 44,
+  },
   section: { paddingTop: 4 },
   /** 삭제는 되돌리기 어렵다 — 경고색 테두리로만, 채우지 않는다 */
   /**

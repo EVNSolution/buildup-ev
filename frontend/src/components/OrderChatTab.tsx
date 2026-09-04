@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
-import { useChatPoll, sameComments } from '../lib/chatPoll'
-import { BTN } from '../styles/buttons'
-import { shrinkImage } from '../lib/imageResize'
+import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { PushToggle } from './PushToggle'
-import { safeBottom } from '../styles/safeArea'
+import { ChatComposer } from './ChatComposer'
 
 /**
  * 「대화」 탭 — 이 주문에서 오간 **모든 이야기를 시간순으로** 한 줄로 읽는다.
@@ -43,7 +41,6 @@ export function OrderChatTab(
    * 대화에 그대로 쌓이면 현장에서 목록을 여는 것만으로 데이터를 다 쓴다.
    */
   const [image, setImage] = useState<File | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   /*
    * **채팅은 한 화면에 다 들어와야 한다.** 바깥이 같이 스크롤되면 글을 쓰다 말고
@@ -60,14 +57,16 @@ export function OrderChatTab(
     fetchAllComments(orderId)
       .then(d => {
         if (!alive) return
-        setRows(d.comments); setSteps(d.steps); setMe(d.me)
+        // 첫 조회라 단계 목록이 함께 온다(증분 조회에는 안 온다)
+        const steps = d.steps ?? []
+        setRows(d.comments); setSteps(steps); setMe(d.me)
         /*
          * 알림을 눌러 들어왔으면 **그 단계**를 고른 채로 연다 — 알림이 말하는 내용이
          * 그 단계에 있으므로 바로 이어서 답할 수 있다.
          * 그 밖에는 마지막으로 이야기하던 단계를 기본값으로 — 대개 이어서 쓴다.
          */
-        const preferred = initialStep && d.steps.some(x => x.code === initialStep) ? initialStep : ''
-        setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || d.steps[0]?.code || '')
+        const preferred = initialStep && steps.some(x => x.code === initialStep) ? initialStep : ''
+        setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || steps[0]?.code || '')
       })
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
     return () => { alive = false }
@@ -80,14 +79,16 @@ export function OrderChatTab(
    * 고른 단계(`step`)는 **건드리지 않는다.** 답을 쓰려고 골라 둔 것이 5초마다
    * 되돌아가면 글을 쓸 수 없다.
    */
-  useChatPoll(() => {
-    fetchAllComments(orderId)
-      .then(d => {
-        setRows(prev => (sameComments(prev, d.comments) ? prev : d.comments))
-        setSteps(prev => (prev.length === d.steps.length ? prev : d.steps))
-      })
-      .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
-  }, [orderId])
+  useChatPoll(
+    () => {
+      // **새로 생긴 것만** — 단계 목록은 처음 한 번 받았으니 다시 받지 않는다
+      fetchAllComments(orderId, lastId(rows))
+        .then(d => { if (d.comments.length > 0) setRows(prev => appendComments(prev, d.comments)) })
+        .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
+    },
+    () => pollDelay(lastMessageAt(rows)),
+    [orderId],
+  )
 
   /*
    * ⚠️ `scrollIntoView` 를 쓰지 않는다. 그것은 **바깥 스크롤 컨테이너까지 함께** 움직여서,
@@ -140,11 +141,14 @@ export function OrderChatTab(
   let lastDay = ''
   return (
     <div style={s.root}>
+      {/* 알림 종 — **왼쪽 위**. 예전엔 입력줄 위에 문구까지 달고 한 줄을 통째로 썼다 */}
+      <div style={s.bellRow}><PushToggle /></div>
+
       <div ref={listRef} style={s.list}>
         {rows.length === 0 && (
           <div style={s.empty}>
-            아직 오간 이야기가 없습니다.
-            {canWrite && <><br />어느 단계에 대한 이야기인지 고르고 남기면 상대에게 알림이 갑니다.</>}
+            아직 오간 대화가 없습니다.
+            {canWrite && <><br />어느 단계에 대한 대화인지 고르고 남기면 상대에게 알림이 갑니다.</>}
           </div>
         )}
         {rows.map(c => {
@@ -179,62 +183,26 @@ export function OrderChatTab(
       </div>
 
       {err && <div style={s.errLine}>{err}</div>}
-      <PushToggle />
 
       {canWrite ? (
-        <div style={s.composer}>
-          {image && (
-            <div style={s.preview}>
-              <img src={URL.createObjectURL(image)} alt="첨부할 사진" style={s.previewImg} />
-              <span style={s.previewName}>{image.name}</span>
-              <button style={s.previewX} onClick={() => setImage(null)} aria-label="첨부 취소">✕</button>
-            </div>
-          )}
-          {/* 무엇에 대한 이야기인지 **먼저** 고른다 — 쓰고 나서 고르면 잘못 붙는다 */}
-          <label style={s.pickRow}>
-            <span style={s.pickLabel}>단계</span>
-            <select style={s.pick} value={step} onChange={e => setStep(e.target.value)}>
+        <ChatComposer
+          text={text}
+          onTextChange={setText}
+          image={image}
+          onImageChange={setImage}
+          onSend={() => void send()}
+          busy={busy}
+          /*
+            무엇에 대한 이야기인지 **먼저** 고른다 — 쓰고 나서 고르면 잘못 붙는다.
+            라벨(「단계」)은 뺐다. 고를 것이 단계뿐이라 말하지 않아도 알고,
+            라벨이 앞을 차지하면 칸이 입력줄보다 좁아져 줄이 어긋나 보였다(제보).
+          */
+          above={
+            <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label="단계 고르기">
               {steps.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
             </select>
-          </label>
-          <div style={s.sendRow}>
-            {/*
-              사진 첨부 — 올리기 전에 줄인다(`shrinkImage`). 현장에서 찍은 사진이
-              그대로 쌓이면 목록을 여는 것만으로 데이터를 다 쓴다.
-            */}
-            <button
-              style={s.clip}
-              onClick={() => fileRef.current?.click()}
-              title="사진 첨부"
-            >{image ? '📎 1' : '📎'}</button>
-            <input
-              ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={async e => {
-                const f = e.target.files?.[0]
-                e.target.value = ''
-                if (!f) return
-                try { setImage((await shrinkImage(f)).file) }
-                catch { setImage(f) }   // 못 줄여도 원본으로 보낸다 — 못 보내는 것보다 낫다
-              }}
-            />
-            <textarea
-              style={s.input}
-              rows={2}
-              maxLength={2000}
-              placeholder="내용을 입력하세요"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send() }
-              }}
-            />
-            <button
-              style={busy || (text.trim() === '' && !image) ? { ...BTN.primary, opacity: 0.45 } : BTN.primary}
-              disabled={busy || (text.trim() === '' && !image)}
-              onClick={() => void send()}
-            >{busy ? '전송 중…' : '남기기'}</button>
-          </div>
-        </div>
+          }
+        />
       ) : (
         <div style={s.readonly}>조회만 가능합니다</div>
       )}
@@ -243,6 +211,8 @@ export function OrderChatTab(
 }
 
 const s: Record<string, React.CSSProperties> = {
+  /** 단계 고르기 — 입력줄 **바로 위, 같은 폭**. 라벨 없이 칸 하나로 둔다 */
+  pick: { width: '100%', boxSizing: 'border-box' },
   /** 높이는 화면을 재서 정한다(위 useEffect) — 여기 값은 계산 전 잠깐 쓰는 것 */
   /** 부모가 정한 높이를 그대로 채운다 — 여기서 화면을 재지 않는다(zoom 함정) */
   root: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' },
@@ -281,33 +251,11 @@ const s: Record<string, React.CSSProperties> = {
   empty: { color: 'var(--muted)', fontSize: 'var(--fs-body)', lineHeight: 1.6, textAlign: 'center', margin: 'auto 0' },
   err: { color: 'var(--req)', fontSize: 'var(--fs-body)', padding: 'var(--sp-4)' },
   errLine: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
-  clip: {
-    flexShrink: 0, border: 'var(--hairline)', background: 'var(--bg)', borderRadius: 8,
-    minHeight: 38, padding: '0 10px', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit',
-  },
-  preview: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  previewImg: { width: 36, height: 36, objectFit: 'cover' as const, borderRadius: 6, border: 'var(--hairline)' },
-  previewName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  previewX: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 },
-  /** 말풍선 안의 사진 — 눌러서 원본을 연다 */
+  /** 종 한 칸 — 줄을 통째로 쓰지 않게 높이를 종 크기에 맞춘다 */
+  bellRow: { flex: 'none', display: 'flex', justifyContent: 'flex-start', padding: '2px var(--sp-2) 0' },
   photo: {
     display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 8,
     marginBottom: 'var(--sp-2)', objectFit: 'cover' as const,
-  },
-  composer: {
-    flex: 'none', borderTop: 'var(--hairline)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
-    padding: 'var(--sp-4)', paddingBottom: safeBottom('var(--sp-4)'),
-  },
-  pickRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
-  pickLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', flex: 'none' },
-  pick: {
-    flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8,
-    border: 'var(--hairline)', fontSize: 'var(--fs-label)', fontFamily: 'inherit', background: 'var(--bg)',
-  },
-  sendRow: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'flex-end' },
-  input: {
-    flex: 1, minWidth: 0, resize: 'none', fontFamily: 'inherit', fontSize: 'var(--fs-body)',
-    padding: 'var(--sp-2)', borderRadius: 8, border: 'var(--hairline)', boxSizing: 'border-box',
   },
   readonly: {
     flex: 'none', borderTop: 'var(--hairline)', padding: 'var(--sp-4)',

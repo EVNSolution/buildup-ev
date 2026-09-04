@@ -28,11 +28,20 @@ describe('대화 — 새 글이 저절로 뜬다', () => {
     expect(lib).toMatch(/'focus'/);
   });
 
-  it('🔴 바뀐 게 없으면 목록을 손대지 않는다 — 5초마다 다시 그리면 화면이 튄다', () => {
-    expect(read('frontend/src/lib/chatPoll.ts')).toMatch(/export function sameComments/);
+  it('🔴 바뀐 게 없으면 목록을 손대지 않는다 — 다시 그리면 사진이 깜빡이고 스크롤이 튄다', () => {
+    /*
+     * 증분 조회로 바뀐 뒤에는 **빈 응답이 곧 「새 글 없음」**이다.
+     * `appendComments` 는 그때 **앞서 쓰던 배열을 그대로** 돌려준다 —
+     * 내용이 같은 새 배열을 넣으면 리액트가 목록을 통째로 다시 그린다.
+     */
+    const lib = read('frontend/src/lib/chatPoll.ts');
+    expect(lib).toMatch(/export function appendComments/);
+    expect(lib, '새 글이 없을 때 앞서 쓰던 배열을 그대로 돌려줘야 한다')
+      .toMatch(/if \(incoming\.length === 0\) return prev/);
+    expect(lib, '걸러 낸 결과가 비어도 마찬가지다').toMatch(/if \(added\.length === 0\) return prev/);
     for (const f of ['frontend/src/components/StepChat.tsx',
                      'frontend/src/components/OrderChatTab.tsx']) {
-      expect(codeOnly(read(f)), f).toMatch(/sameComments\(/);
+      expect(codeOnly(read(f)), f).toMatch(/appendComments\(/);
     }
   });
 

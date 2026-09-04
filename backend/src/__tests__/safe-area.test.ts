@@ -15,11 +15,15 @@ const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
 
 /** 화면 끝에 닿는 면들 — 하나라도 빠지면 그 화면만 잘린다 */
 const EDGE_SURFACES = [
-  'frontend/src/components/PriceBar.tsx',    // 컨피규레이터 실구매가 줄
-  'frontend/src/components/OptionPanel.tsx', // 견적 저장 버튼
-  'frontend/src/components/StepChat.tsx',    // 단계별 대화 서랍
-  'frontend/src/components/OrderChatTab.tsx',// 대화 탭 입력칸
-  'frontend/src/components/Header.tsx',      // 노치 아래 헤더
+  'frontend/src/components/PriceBar.tsx',      // 컨피규레이터 실구매가 줄
+  'frontend/src/components/OptionPanel.tsx',   // 견적 저장 버튼
+  /*
+   * 대화 입력줄 — 단계별 서랍과 「대화」 탭이 **같은 것**을 쓴다.
+   * 예전엔 두 화면이 각자 입력줄을 갖고 각자 안전영역을 챙겼다.
+   * 하나로 합치면서 바닥에 닿는 면도 여기 하나가 됐다.
+   */
+  'frontend/src/components/ChatComposer.tsx',
+  'frontend/src/components/Header.tsx',        // 노치 아래 헤더
 ];
 
 describe('아이폰 안전영역', () => {
@@ -30,6 +34,11 @@ describe('아이폰 안전영역', () => {
   it('🔴 화면 끝에 닿는 면은 모두 안전영역을 쓴다', () => {
     const missing = EDGE_SURFACES.filter(f => !read(f).includes('styles/safeArea'));
     expect(missing, `안전영역을 안 쓰는 화면:\n${missing.join('\n')}`).toEqual([]);
+  });
+
+  it('🔴 단계별 대화 서랍은 노치 아래에서 시작한다', () => {
+    // 화면 끝까지 덮는 고정 서랍이라 위쪽 노치를 스스로 피해야 한다
+    expect(read('frontend/src/components/StepChat.tsx')).toMatch(/env\(safe-area-inset-top/);
   });
 
   it('🔴 안전영역은 여백으로 민다 — 높이를 줄여 피하지 않는다', () => {
