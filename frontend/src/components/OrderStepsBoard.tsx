@@ -1,5 +1,6 @@
 import type { ApiOrder } from '@shared/types/index'
 import { STEPS } from '@shared/process/steps'
+import { dueInfo } from '@shared/process/due'
 
 /**
  * 주문 여러 건을 한눈에 — **옛 6단계 칸반을 대신한다.**
@@ -31,9 +32,17 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
     return <div style={s.empty}>{mode === 'pending' ? '수락 대기 중인 주문이 없습니다.' : '진행 중인 주문이 없습니다.'}</div>
   }
 
-  // 늦은 것 → 할 일이 있는 것 → 나머지
+  /*
+   * **급한 순서로 놓는다.**
+   *
+   * 납기가 지난 건이 맨 위, 그다음이 오늘·내일·모레 순이다(`sortKey` = 남은 날).
+   * 지난 건은 음수라 저절로 위로 올라가고, 많이 지난 것일수록 더 위다.
+   * 납기가 같거나 없으면 예전 기준(멈춘 것 → 할 일 있는 것 → 나머지)으로 가른다.
+   */
   const sorted = [...orders].sort((a, b) => {
     if (mode === 'pending') return Number(lateInfo?.(b).late ?? false) - Number(lateInfo?.(a).late ?? false)
+    const byDue = dueInfo(a.delivery_due).sortKey - dueInfo(b.delivery_due).sortKey
+    if (byDue !== 0) return byDue
     const rank = (o: ApiOrder) => (o.steps?.stalled ? 0 : (o.steps?.open.length ?? 0) > 0 ? 1 : 2)
     return rank(a) - rank(b)
   })
@@ -45,7 +54,13 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
         const done = st?.done ?? 0
         const total = st?.total ?? STEPS.length
         const info = mode === 'pending' ? lateInfo?.(o) : undefined
-        const late = mode === 'pending' ? !!info?.late : !!st?.stalled
+        const due = dueInfo(o.delivery_due)
+        /*
+         * 줄 전체를 붉게 하는 것은 **납기가 지났을 때만**이다.
+         * 사흘 안으로 다가온 건은 날짜만 붉게 한다 — 다가온 것과 넘긴 것은 다른 일이고,
+         * 줄까지 다 붉으면 정말 넘긴 건이 묻힌다.
+         */
+        const late = mode === 'pending' ? !!info?.late : due.state === 'overdue' || !!st?.stalled
         return (
           <button key={o.id} style={late ? s.rowLate : s.row} onClick={() => onCardClick(o.id)}>
             <div style={s.main}>
@@ -79,7 +94,16 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
               */}
               {mode !== 'pending' && o.delivery_due && (
                 <div style={s.line2}>
-                  <span style={s.due}>납기 {o.delivery_due.slice(0, 10)}</span>
+                  <span style={due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
+                    납기 {o.delivery_due.slice(0, 10)}
+                  </span>
+                  {/*
+                    「n일 전」·「n일 경과」는 날짜 **옆**에 붙인다 — 날짜만으로는
+                    오늘이 며칠인지 세어 봐야 급한지 알 수 있다.
+                  */}
+                  {due.label && (
+                    <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{due.label}</span>
+                  )}
                 </div>
               )}
             </div>
@@ -151,6 +175,20 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700,
     fontVariantNumeric: 'tabular-nums',
   },
+  /** 사흘 안으로 다가온 납기 — 날짜만 붉게 */
+  dueSoon: {
+    fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  /** 넘긴 납기 — 가장 강하게. 줄 전체도 함께 붉어진다 */
+  dueOver: {
+    fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 800,
+    fontVariantNumeric: 'tabular-nums',
+  },
+  /** 「n일 전」 — 날짜 옆 */
+  dueTag: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700, marginLeft: 'var(--sp-2)' },
+  /** 「n일 경과」 — 넘긴 건이라 한 단계 더 굵게 */
+  dueTagOver: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 800, marginLeft: 'var(--sp-2)' },
   /** 수락 전 — 발주일은 진행 중의 「끝낸 단계」와 같은 자리(둘째 줄 왼쪽) */
   orderedAt: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   /** 며칠 지났나 — 괜찮으면 초록, 늦으면 빨강. 진척도 자리에 선다 */

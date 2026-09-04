@@ -15,6 +15,7 @@ import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
+import { filterByCustomer } from '../lib/quoteSearch'
 import { OrderFilesTab } from '../components/OrderFilesTab'
 import { CustomerFolders } from '../components/CustomerFolders'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
@@ -945,6 +946,11 @@ function QuotesTab() {
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
+  /**
+   * 고객 이름 검색 — **불러온 결과 안에서** 좁힌다.
+   * 기간·상태는 그대로 두고 그 안에서만 거른다. 서버를 다시 부르지 않아 글자를 칠 때마다 바로 줄어든다.
+   */
+  const [nameQuery, setNameQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
@@ -1051,6 +1057,9 @@ function QuotesTab() {
     return 'progress'
   }
 
+  // 화면에 실제로 그릴 목록 — 기간·상태로 받아 온 것을 이름으로 한 번 더 좁힌다
+  const shown = filterByCustomer(quotes, nameQuery)
+
   return (
     <div>
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
@@ -1076,18 +1085,30 @@ function QuotesTab() {
           size="sm"
         />
         <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
+        {/* 이름 검색은 「조회」를 누르지 않는다 — 이미 불러온 것에서 바로 좁힌다 */}
+        <input
+          type="text"
+          value={nameQuery}
+          onChange={e => setNameQuery(e.target.value)}
+          placeholder="고객 이름"
+          aria-label="고객 이름으로 좁히기"
+          style={{ ...qt.select, ...(isMobile ? { flex: 1 } : { width: 160 }) }}
+        />
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
 
       {loading ? (
         <div style={qt.loading}>로딩 중…</div>
-      ) : quotes.length === 0 ? (
-        <EmptyState title="조건에 맞는 견적이 없습니다" description="기간이나 상태 조건을 바꿔 다시 조회해 보세요." />
+      ) : shown.length === 0 ? (
+        <EmptyState
+          title={nameQuery.trim() ? `「${nameQuery.trim()}」에 맞는 견적이 없습니다` : '조건에 맞는 견적이 없습니다'}
+          description={nameQuery.trim() ? '이름을 지우면 기간 안의 전체가 보입니다.' : '기간이나 상태 조건을 바꿔 다시 조회해 보세요.'}
+        />
       ) : isMobile ? (
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {quotes.map(q => {
+          {shown.map(q => {
             /* 서명이 끝난 건은 숨길 일이 없다 — 그 자리를 제작 배정이 쓴다 */
             const signed = q.contract?.status === 'COMPLETED'
             return (
@@ -1183,7 +1204,7 @@ function QuotesTab() {
               </tr>
             </thead>
             <tbody>
-              {quotes.map(q => {
+              {shown.map(q => {
                 /* 서명이 끝난 건은 숨길 일이 없다 — 그 자리를 제작 배정이 쓴다 */
                 const signed = q.contract?.status === 'COMPLETED'
                 return (

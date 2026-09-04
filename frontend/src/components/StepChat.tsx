@@ -211,8 +211,14 @@ const s: Record<string, React.CSSProperties> = {
   panel: {
     position: 'fixed', zIndex: 41, background: 'var(--bg)',
     display: 'flex', flexDirection: 'column',
-    // 넓은 화면 — 오른쪽에 붙는 서랍. 좁은 화면 — 아래에서 올라오는 창(미디어쿼리 대신 clamp 로)
-    top: 0, right: 0, bottom: 0, width: 'min(420px, 100vw)',
+    /*
+     * 넓은 화면 — 오른쪽에 붙는 서랍. 좁은 화면 — 화면을 꽉 채운다.
+     *
+     * ⚠️ `100vw` 를 쓰지 않는다. 이 서랍은 `zoom: .88` 이 걸린 `#root` 안에 있는데,
+     *    `vw` 는 그 보정을 받지 않아 **0.88 배로 그려진다**(390 화면에서 343px, 실측).
+     *    `--root-w` 는 그 보정이 들어간 값이다(useAppHeight).
+     */
+    top: 0, right: 0, bottom: 0, width: 'var(--panel-w, min(420px, 100vw))',
     paddingTop: 'env(safe-area-inset-top, 0px)',
     boxShadow: '-2px 0 24px rgba(22,24,15,.18)',
   },

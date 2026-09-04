@@ -24,6 +24,7 @@ import { QuoteSaveModal, valuesFromCustomer, missingForContract, type QuoteSaveV
 import { DEFAULT_SUBSIDY_INPUTS, type SubsidyInputs } from '../components/SubsidyInputs'
 import { ContractPanel } from '../components/ContractPanel'
 import { QuoteEditModal } from '../components/QuoteEditModal'
+import { filterByCustomer } from '../lib/quoteSearch'
 import { SalesPerformance } from '../components/SalesPerformance'
 import { CustomerViewModal } from '../components/CustomerViewModal'
 import { EmailSendModal } from '../components/EmailSendModal'
@@ -122,6 +123,11 @@ function MyListWithFolders() {
 
 function MyListView() {
   const [quotes, setQuotes]   = useState<ApiQuote[]>([])
+  /**
+   * 고객 이름 검색 — **불러온 결과 안에서** 좁힌다.
+   * 서버를 다시 부르지 않아 글자를 칠 때마다 바로 줄어든다.
+   */
+  const [nameQuery, setNameQuery] = useState('')
   const [orders, setOrders]   = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
@@ -245,20 +251,28 @@ function MyListView() {
    * 날짜별 묶음 — 목록이 쌓이면 "언제 것인지"가 먼저 필요한 정보가 된다.
    * 서버가 최신순으로 주므로 **순서를 다시 정렬하지 않는다**(Map 이 삽입 순서를 지킨다).
    */
+  /** 이름으로 좁힌 목록 — 날짜 묶음도 이것을 기준으로 만든다(찾은 건만 남아야 한다) */
+  const shownQuotes = useMemo(() => filterByCustomer(quotes, nameQuery), [quotes, nameQuery])
+
   const byDate = useMemo(() => {
     const m = new Map<string, ApiQuote[]>()
-    for (const q of quotes) {
+    for (const q of shownQuotes) {
       const d = fmtDate(q.created_at)
       const list = m.get(d)
       if (list) list.push(q); else m.set(d, [q])
     }
     return [...m.entries()]
-  }, [quotes])
+  }, [shownQuotes])
 
-  // 가장 최근 날짜만 펼쳐 둔다 — 목록을 처음 열었을 때 오늘 것부터 보이게
+  /*
+   * 가장 최근 날짜만 펼쳐 둔다 — 목록을 처음 열었을 때 오늘 것부터 보이게.
+   * 다만 **이름으로 찾는 중에는 전부 펼친다** — 찾은 건이 접힌 날짜 안에 있으면
+   * 「없다」로 보인다.
+   */
   useEffect(() => {
+    if (nameQuery.trim()) { setCollapsed(new Set()); return }
     if (byDate.length > 1) setCollapsed(new Set(byDate.slice(1).map(([d]) => d)))
-  }, [byDate.length])
+  }, [byDate.length, nameQuery])
 
   /*
    * ⚠️ 첫 로드에서만 「로딩 중…」으로 갈아친다.
@@ -432,11 +446,27 @@ function MyListView() {
         onAccept={handleAccept}
       />
       <div style={lv.section}>
-        <div style={lv.sectionTitle}>내 견적 ({quotes.length})</div>
+        <div style={lv.listHead}>
+          <div style={lv.sectionTitle}>내 견적 ({shownQuotes.length}{nameQuery.trim() && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
+          {/* 이름을 치면 바로 좁아진다 — 다시 조회할 필요가 없다 */}
+          <input
+            type="text"
+            value={nameQuery}
+            onChange={e => setNameQuery(e.target.value)}
+            placeholder="고객 이름"
+            aria-label="고객 이름으로 좁히기"
+            style={lv.search}
+          />
+        </div>
         {quotes.length === 0 ? (
           <EmptyState
             title="아직 저장된 견적이 없습니다"
             description="컨피규레이터에서 옵션을 고르고 견적을 저장하면 여기에 쌓입니다."
+          />
+        ) : shownQuotes.length === 0 ? (
+          <EmptyState
+            title={`「${nameQuery.trim()}」에 맞는 견적이 없습니다`}
+            description="이름을 지우면 전체가 다시 보입니다."
           />
         ) : (
           <div style={lv.tableWrap}>
@@ -1246,6 +1276,9 @@ const lv: Record<string, React.CSSProperties> = {
   viewSwitch: { flexShrink: 0, padding: '0 24px', marginTop: 'var(--sp-3)' },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--dark)', marginBottom: 12 },
+  /** 제목 줄 — 왼쪽 제목, 오른쪽 이름 검색 */
+  listHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', justifyContent: 'space-between', flexWrap: 'wrap' as const },
+  search: { width: 160, minWidth: 0, marginBottom: 12 },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
   tableWrap: { overflowX: 'auto' },
   /*
