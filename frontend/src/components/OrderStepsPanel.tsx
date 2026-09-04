@@ -36,10 +36,15 @@ const ACTOR_LABEL: Record<string, string> = {
   SALES: '영업', ADMIN: '관리자', MAKER: '특장사', SYSTEM: '시스템',
 }
 
-export function OrderStepsPanel({ orderId, canEdit = true }: {
+export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   orderId: number
   /** 조회만 하는 화면에서는 버튼을 감춘다 */
   canEdit?: boolean
+  /**
+   * 안 읽은 대화 **총 개수**가 바뀌면 알린다 — 「대화」 탭 강조를 켜고 끄는 데 쓴다.
+   * 이 화면에서 단계별 대화를 읽어 0 이 되면 그 자리에서 꺼져야 한다.
+   */
+  onUnreadChange?: (total: number) => void
 }) {
   /*
    * 단계별 대화 — 특장사와 관리자가 그 단계 자리에서 주고받는다.
@@ -47,7 +52,19 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
    */
   const [chat, setChat] = useState<{ code: string; label: string } | null>(null)
   const [unread, setUnread] = useState<Record<string, number>>({})
-  const reloadUnread = () => { fetchUnread(orderId).then(setUnread).catch(() => { /* 점이 안 켜질 뿐 */ }) }
+  const reloadUnread = () => {
+    fetchUnread(orderId)
+      .then(u => {
+        setUnread(u)
+        /*
+         * 위(주문 상세)에도 바로 알린다 — 단계별 대화를 읽어 안 읽은 것이 0 이 되면
+         * 「대화」 탭의 강조도 그 자리에서 꺼져야 한다.
+         * 안 알리면 다음 폴링(15초)까지 다 읽었는데도 강조가 남아 있다.
+         */
+        onUnreadChange?.(Object.values(u).reduce((a, n) => a + n, 0))
+      })
+      .catch(() => { /* 점이 안 켜질 뿐 */ })
+  }
   useEffect(reloadUnread, [orderId])
 
   const { session } = useAuth()
@@ -254,7 +271,7 @@ export function OrderStepsPanel({ orderId, canEdit = true }: {
                     )}
 
                     {/*
-                      단계별 대화 — 이 단계에서 오간 이야기가 여기 남는다.
+                      단계별 대화 — 이 단계에서 오간 대화가 여기 남는다.
                       안 읽은 글이 있으면 빨간 점. 숫자를 적지 않는 이유는 「몇 개인가」가
                       아니라 「내가 안 본 것이 있나」만 알면 열어 보기 때문이다.
                     */}

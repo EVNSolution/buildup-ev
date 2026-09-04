@@ -590,7 +590,12 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             눌러 보고 403 을 받게 하는 것은 안내가 아니다 — 기능모듈 「주문 상태 변경」
             (order.control)이 꺼진 계정에는 조회만 보인다. 서버도 같은 권한으로 막는다.
           */}
-          <OrderStepsPanel orderId={detail.id} canEdit={canChangeSteps} />
+          <OrderStepsPanel
+            orderId={detail.id}
+            canEdit={canChangeSteps}
+            /* 여기서 대화를 읽어 0 이 되면 「대화」 탭 강조도 그 자리에서 꺼진다 */
+            onUnreadChange={setUnreadChat}
+          />
         </div>
       )}
 
@@ -766,9 +771,14 @@ const det: Record<string, React.CSSProperties> = {
    */
   tabAlert: {
     padding: '8px 18px', border: 'none', borderBottom: '2px solid var(--alert)',
-    background: 'var(--alert)', cursor: 'pointer', fontSize: 13,
-    color: '#fff', fontWeight: 700, marginBottom: -2, minHeight: 44,
-    borderTopLeftRadius: 8, borderTopRightRadius: 8,
+    /*
+     * 아래가 제일 진하고 위로 갈수록 투명해진다 — 밑줄에서 색이 배어 오르는 모양.
+     * 통째로 칠하고 모서리를 둥글게 하면 그 탭만 다른 부품처럼 튀어 보인다(제보).
+     * 글자는 본래 색 그대로 둔다 — 흰 글자로 바꾸면 옅어지는 위쪽에서 읽히지 않는다.
+     */
+    background: 'linear-gradient(to top, var(--alert-fade), transparent)',
+    cursor: 'pointer', fontSize: 13,
+    color: 'var(--dark)', fontWeight: 700, marginBottom: -2, minHeight: 44,
   },
   section: { paddingTop: 4 },
   /** 삭제는 되돌리기 어렵다 — 경고색 테두리로만, 채우지 않는다 */

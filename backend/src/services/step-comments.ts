@@ -116,6 +116,30 @@ export async function markRead(
 }
 
 /**
+ * 주문의 **모든 단계**를 읽은 것으로 표시한다 — 「대화」 탭을 여는 순간.
+ *
+ * 그 탭은 모든 단계의 이야기를 시간순으로 한 줄로 보여 준다. 거기까지 열어 봤으면
+ * 본 것이 맞다. 여기서 표시하지 않으면 탭을 나오는 순간 「안 읽음」이 되살아나
+ * **읽었는데도 강조가 다시 켜진다**(실측).
+ *
+ * 글이 오간 단계만 표시한다 — 이야기가 없던 단계까지 건드릴 이유가 없다.
+ */
+export async function markAllRead(orderId: number, userEmail: string): Promise<void> {
+  if (!prisma) return;
+  const steps = await prisma.orderStepComment.findMany({
+    where: { order_id: orderId },
+    distinct: ['step_code'],
+    select: { step_code: true },
+  });
+  const now = new Date();
+  await Promise.all(steps.map(({ step_code }) => prisma!.orderStepRead.upsert({
+    where: { user_email_order_id_step_code: { user_email: userEmail, order_id: orderId, step_code } },
+    create: { user_email: userEmail, order_id: orderId, step_code, last_read_at: now },
+    update: { last_read_at: now },
+  })));
+}
+
+/**
  * 글을 남긴다. 남긴 뒤 **상대편에게** 푸시를 보낸다.
  *
  * 상대편 = 이 주문에 관여하는 사람 중 나를 뺀 사람들:

@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { fetchComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
-import { BTN } from '../styles/buttons'
-import { shrinkImage } from '../lib/imageResize'
 import { PushToggle } from './PushToggle'
-import { safeBottom } from '../styles/safeArea'
+import { ChatComposer } from './ChatComposer'
 
 /**
  * 단계별 대화 — 특장사와 관리자가 그 단계 자리에서 주고받는다.
@@ -48,7 +46,6 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
    * 대화에 그대로 쌓이면 현장에서 목록을 여는 것만으로 데이터를 다 쓴다.
    */
   const [image, setImage] = useState<File | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
 
@@ -151,6 +148,8 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
         aria-label={`${stepLabel} 대화`}
       >
         <header style={s.head}>
+          {/* 알림 종 — **왼쪽 위**. 예전엔 입력줄 위에 문구까지 달고 한 줄을 통째로 썼다 */}
+          <PushToggle />
           <div style={s.headText}>
             <div style={s.title}>{stepLabel}</div>
             <div style={s.sub}>주문 #{orderId} · 단계별 대화</div>
@@ -162,7 +161,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
           {rows === null && <div style={s.muted}>불러오는 중…</div>}
           {rows?.length === 0 && (
             <div style={s.empty}>
-              아직 오간 이야기가 없습니다.
+              아직 오간 대화가 없습니다.
               {canWrite && <><br />이 단계에 대해 남기면 상대에게 알림이 갑니다.</>}
             </div>
           )}
@@ -190,55 +189,15 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
 
         {err && <div style={s.err}>{err}</div>}
 
-        {/* 알림은 이 자리에서 권한다 — 대화를 보고 있을 때가 가장 와닿는다 */}
-        <PushToggle />
-
         {canWrite ? (
-          <div style={s.composer}>
-            {/*
-              사진 첨부 — 올리기 전에 줄인다(`shrinkImage`). 현장에서 찍은 사진이
-              그대로 쌓이면 목록을 여는 것만으로 데이터를 다 쓴다.
-            */}
-            <button
-              style={s.clip}
-              onClick={() => fileRef.current?.click()}
-              title="사진 첨부"
-            >{image ? '📎 1' : '📎'}</button>
-            <input
-              ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={async e => {
-                const f = e.target.files?.[0]
-                e.target.value = ''
-                if (!f) return
-                try { setImage((await shrinkImage(f)).file) }
-                catch { setImage(f) }   // 못 줄여도 원본으로 보낸다 — 못 보내는 것보다 낫다
-              }}
-            />
-          {image && (
-            <div style={s.preview}>
-              <img src={URL.createObjectURL(image)} alt="첨부할 사진" style={s.previewImg} />
-              <span style={s.previewName}>{image.name}</span>
-              <button style={s.previewX} onClick={() => setImage(null)} aria-label="첨부 취소">✕</button>
-            </div>
-          )}
-            <textarea
-              style={s.input}
-              rows={2}
-              placeholder="내용을 입력하세요"
-              value={text}
-              maxLength={2000}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={e => {
-                // ⌘/Ctrl + Enter 로 보낸다. 그냥 Enter 는 줄바꿈 — 여러 줄로 적는 일이 많다
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send() }
-              }}
-            />
-            <button
-              style={busy || (text.trim() === '' && !image) ? { ...BTN.primary, opacity: 0.45 } : BTN.primary}
-              disabled={busy || (text.trim() === '' && !image)}
-              onClick={() => void send()}
-            >{busy ? '전송 중…' : '남기기'}</button>
-          </div>
+            <ChatComposer
+            text={text}
+            onTextChange={setText}
+            image={image}
+            onImageChange={setImage}
+            onSend={() => void send()}
+            busy={busy}
+          />
         ) : (
           <div style={s.readonly}>조회만 가능합니다</div>
         )}
@@ -290,27 +249,9 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: 'var(--fs-body)', lineHeight: 1.55, whiteSpace: 'pre-wrap', maxWidth: '90%',
   },
   err: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
-  clip: {
-    flexShrink: 0, border: 'var(--hairline)', background: 'var(--bg)', borderRadius: 8,
-    minHeight: 38, padding: '0 10px', cursor: 'pointer', fontSize: 15, fontFamily: 'inherit',
-  },
-  preview: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  previewImg: { width: 36, height: 36, objectFit: 'cover' as const, borderRadius: 6, border: 'var(--hairline)' },
-  previewName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  previewX: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 },
-  /** 말풍선 안의 사진 — 눌러서 원본을 연다 */
   photo: {
     display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 8,
     marginBottom: 'var(--sp-2)', objectFit: 'cover' as const,
-  },
-  composer: {
-    flex: 'none', borderTop: 'var(--hairline)', padding: 'var(--sp-4)',
-    paddingBottom: safeBottom('var(--sp-4)'),
-    display: 'flex', gap: 'var(--sp-2)', alignItems: 'flex-end',
-  },
-  input: {
-    flex: 1, minWidth: 0, resize: 'none', fontFamily: 'inherit', fontSize: 'var(--fs-body)',
-    padding: 'var(--sp-2)', borderRadius: 8, border: 'var(--hairline)', boxSizing: 'border-box',
   },
   readonly: {
     flex: 'none', borderTop: 'var(--hairline)', padding: 'var(--sp-4)',

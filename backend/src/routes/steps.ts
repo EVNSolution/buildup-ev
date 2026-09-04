@@ -22,7 +22,7 @@ import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
 import multer from 'multer';
 import {
-  listComments, listAllComments, addComment, unreadByStep, markRead, COMMENT_MAX,
+  listComments, listAllComments, addComment, unreadByStep, markRead, markAllRead, COMMENT_MAX,
 } from '../services/step-comments.js';
 import { writeFile, unlink, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -532,7 +532,11 @@ stepsRouter.get('/:id/step-comments/unread', rbac('ADMIN', 'SALES', 'MAKER'),
 
 /**
  * 주문의 대화 **전체**(시간순) — 「대화」 탭. 어느 단계 이야기인지 라벨을 함께 준다.
- * 여기서는 읽음 처리를 하지 않는다 — 단계별 빨간 점은 그 단계를 열어야 꺼진다.
+ *
+ * **처음 열 때 전 단계를 읽음으로 표시한다.** 이 탭은 모든 단계의 이야기를 한 줄로
+ * 보여 주므로 거기까지 열었으면 본 것이 맞다. 표시하지 않으면 탭을 나오는 순간
+ * 「안 읽음」이 되살아나 읽었는데도 강조가 다시 켜진다(실측).
+ * 증분 조회(`after`)일 때는 하지 않는다 — 몇 초마다 같은 쓰기를 반복할 이유가 없다.
  */
 stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
   guard(async (req: Request, res: Response): Promise<void> => {
@@ -546,6 +550,9 @@ stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
      */
     const after = Number(req.query['after']);
     const incremental = Number.isInteger(after) && after > 0;
+    if (!incremental) {
+      await markAllRead(id, req.auth!.email).catch(() => { /* 표시 실패로 조회를 막지 않는다 */ });
+    }
     const defs = stepsFor(r.order.body_only);
     res.json({ data: {
       comments: await listAllComments(id, incremental ? after : undefined),

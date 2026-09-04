@@ -102,14 +102,45 @@ describe('안 읽은 대화 표시', () => {
     expect(read('frontend/src/styles/buttons.ts')).toMatch(/overflow: 'hidden'/);
   });
 
-  it('🔴 대화 탭은 버튼째 칠한다 — 크기·자리는 다른 탭과 같게', () => {
+  it('🔴 대화 탭은 아래에서 위로 옅어지는 그라데이션 — 통째로 칠하거나 둥글리지 않는다', () => {
+    /*
+     * 통째로 칠하고 모서리를 둥글게 했더니 그 탭만 다른 부품처럼 튀어 보였다(제보).
+     * 밑줄에서 색이 배어 오르는 모양으로 바꾼다. 글자는 본래 색 그대로 둔다 —
+     * 흰 글자로 바꾸면 옅어지는 위쪽에서 읽히지 않는다.
+     */
     const det = read('frontend/src/components/OrderDetail.tsx');
     expect(det).toMatch(/tabAlert: \{/);
-    expect(det).toMatch(/background: 'var\(--alert\)'/);
+    expect(det).toMatch(/linear-gradient\(to top, var\(--alert-fade\), transparent\)/);
+    expect(det, '모서리를 둥글리면 그 탭만 튀어 보인다').not.toMatch(/tabAlert: \{[\s\S]{0,600}borderTopLeftRadius/);
+    expect(det, "흰 글자는 옅어지는 위쪽에서 안 보인다").not.toMatch(/tabAlert: \{[\s\S]{0,600}color: '#fff'/);
     expect(det).toMatch(/unreadChat > 0 \? det\.tabAlert/);
     // 위험(--warn)·필수(--req)와 다른 색이어야 「새 소식」과 「위험」이 안 섞인다
     const css = read('frontend/src/styles/globals.css');
     expect(css).toMatch(/--alert: #/);
+    expect(css).toMatch(/--alert-fade: rgba/);
+  });
+
+  it('🔴 대화 탭을 열면 **서버에서도** 읽음 처리한다 — 안 그러면 나오는 순간 되살아난다', () => {
+    /*
+     * 화면에서만 끄면 탭을 나오는 순간 다음 조회가 「안 읽음 5건」을 도로 가져온다(실측).
+     * 그 탭은 모든 단계의 이야기를 한 줄로 보여 주므로 거기까지 열었으면 본 것이 맞다.
+     */
+    const svc = read('backend/src/services/step-comments.ts');
+    expect(svc).toMatch(/export async function markAllRead/);
+    const routes = read('backend/src/routes/steps.ts');
+    expect(routes).toMatch(/if \(!incremental\) \{[\s\S]{0,200}markAllRead\(id, req\.auth!\.email\)/);
+    // 증분 조회마다 같은 쓰기를 반복하지 않는다
+    expect(routes).toMatch(/incremental/);
+  });
+
+  it('🔴 단계 탭에서 마지막 대화를 읽는 순간 강조가 꺼진다', () => {
+    /*
+     * 단계별로 읽어 0 이 되면 그 자리에서 꺼져야 한다. 안 알리면 다음 폴링(15초)까지
+     * 다 읽었는데도 강조가 남는다.
+     */
+    const panel = read('frontend/src/components/OrderStepsPanel.tsx');
+    expect(panel).toMatch(/onUnreadChange\?\.\(Object\.values\(u\)\.reduce/);
+    expect(read('frontend/src/components/OrderDetail.tsx')).toMatch(/onUnreadChange=\{setUnreadChat\}/);
   });
 
   it('🔴 대화 탭에 들어가 있는 동안은 켜지 않는다', () => {
@@ -117,5 +148,67 @@ describe('안 읽은 대화 표시', () => {
     // 읽고 있는 것을 「안 읽음」이라 말할 수 없다 — 들어가면 끄고, 묻지도 않는다
     expect(det).toMatch(/if \(tab === 'chat'\) \{ setUnreadChat\(0\); return \}/);
     expect(det).toMatch(/if \(tab === 'chat'\) return/);
+  });
+});
+
+/**
+ * **입력줄은 카카오톡처럼 하나의 상자다.**
+ * 첨부 버튼만 따로 작은 네모라 입력칸과 높이가 안 맞아 혼자 떠 보였다(제보).
+ */
+describe('대화 입력줄', () => {
+  const composer = () => read('frontend/src/components/ChatComposer.tsx');
+
+  it('🔴 두 대화 화면이 **같은 입력줄**을 쓴다', () => {
+    // 따로 두었더니 한쪽만 고쳐지는 자리가 생겼다(첨부 버튼 모양이 그랬다)
+    for (const f of ['frontend/src/components/StepChat.tsx',
+                     'frontend/src/components/OrderChatTab.tsx']) {
+      expect(codeOnly(read(f)), f).toMatch(/<ChatComposer/);
+    }
+  });
+
+  it('🔴 테두리는 바깥 상자 하나 — 첨부·입력·보내기가 그 안에 있다', () => {
+    const src = composer();
+    expect(src).toMatch(/box: \{[\s\S]{0,200}border: 'var\(--hairline\)'/);
+    // 입력칸 자신은 테두리를 갖지 않는다 — 상자가 입력칸처럼 보이는 역할을 한다
+    expect(src).toMatch(/area: \{[\s\S]{0,200}border: 'none'/);
+    // 글이 길어져도 첨부·보내기는 바닥에 남는다
+    expect(src).toMatch(/box: \{[\s\S]{0,120}alignItems: 'flex-end'/);
+  });
+
+  it('🔴 모바일 4.5줄 · PC 8.5줄까지만 자란다', () => {
+    /*
+     * `.5` 는 일부러다 — 맨 윗줄이 반쯤 걸쳐 보여야 「위에 더 있다」가 읽힌다.
+     * 실측: 모바일 115px(줄높이 25.9) · PC 181px(줄높이 19.6) 에서 멈추고 스크롤이 켜졌다.
+     */
+    const src = composer();
+    expect(src).toMatch(/const MAX_LINES_MOBILE = 4\.5/);
+    expect(src).toMatch(/const MAX_LINES_DESKTOP = 8\.5/);
+  });
+
+  it('🔴 최대 높이를 픽셀로 못 박지 않는다 — 글꼴이 기기마다 다르다', () => {
+    /*
+     * 손가락 기기 18.5px(확대 방지) · PC 14px 이라 줄 높이가 다르다.
+     * 숫자로 적어 두면 한쪽에서만 맞는다 — 그때의 줄 높이를 재서 계산한다.
+     */
+    const src = composer();
+    expect(src).toMatch(/parseFloat\(cs\.lineHeight\)/);
+    expect(src).toMatch(/line \* \(isMobile \? MAX_LINES_MOBILE : MAX_LINES_DESKTOP\)/);
+  });
+
+  it('🔴 한도에 닿았을 때만 스크롤을 켠다', () => {
+    // 늘 켜 두면 짧은 글에서도 막대 자리가 생긴다
+    expect(composer()).toMatch(/overflowY = el\.scrollHeight > max \? 'auto' : 'hidden'/);
+  });
+
+  it('🔴 보낸 뒤 비워지면 다시 한 줄로 줄어든다', () => {
+    // 값이 바뀌는 경로가 onChange 만은 아니다(전송 후 초기화)
+    expect(composer()).toMatch(/useEffect\(grow, \[text, isMobile\]\)/);
+  });
+
+  it('🔴 「대화」 탭의 단계 고르기는 그대로 있다', () => {
+    // 입력줄을 공용으로 바꾸며 함께 지워진 적이 있다 — 무엇에 대한 글인지 못 고르면 못 쓴다
+    const tab = read('frontend/src/components/OrderChatTab.tsx');
+    expect(tab).toMatch(/<select style=\{s\.pick\}/);
+    expect(tab).toMatch(/setStep\(e\.target\.value\)/);
   });
 });
