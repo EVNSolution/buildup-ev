@@ -264,3 +264,37 @@ describe('날짜 머리와 발주서 크기', () => {
     expect(SHEET.slice(i, i + 600)).toContain('maxWidth: BASE_W');
   });
 });
+
+describe('견적 목록 좁히는 줄', () => {
+  it('🔴 상태·이름 칸의 높이를 못 박는다', () => {
+    /*
+     * 공통 규칙은 `min-height` 만 정하고 나머지는 브라우저에 맡긴다. 그러면 사파리가
+     * `<select>` 에 자기 고유 높이를 얹어 바로 옆 입력칸과 몇 px 씩 어긋난다(제보).
+     * 크롬에서는 둘 다 44px 로 나와 **개발 중에는 보이지 않는다.**
+     */
+    const i = ADMIN.indexOf('\n  select: {\n    flex:');
+    expect(i, '좁히는 줄의 칸 스타일이 없다').toBeGreaterThan(0);
+    const decl = ADMIN.slice(i, ADMIN.indexOf('\n  },', i));
+    expect(decl).toContain("height: 'var(--h-control)'");
+    expect(decl).toContain('boxSizing');
+  });
+
+  it('🔴 「배정 필요건만」은 한 번만 그린다', () => {
+    /*
+     * 자리가 화면 폭에 따라 다르다. 두 자리에 그대로 두면 넓은 화면에서 **두 개가 뜬다** —
+     * 하나를 켜도 다른 하나는 꺼진 채라 어느 것이 진짜인지 알 수 없게 된다.
+     * 그래서 칸은 컴포넌트 하나로 두고, 어디에 세울지만 고른다.
+     */
+    expect(ADMIN).toContain('function OnlyAssignToggle(');
+    expect(ADMIN.match(/<OnlyAssignToggle/g)?.length, '세우는 자리가 둘이어야 한다').toBe(2);
+    // 각 자리는 서로 배타적인 조건을 쓴다
+    expect(ADMIN).toMatch(/view === 'list' && isMobile && \(/);
+    expect(ADMIN).toMatch(/onlyAssignControl=\{isMobile \? undefined :/);
+  });
+
+  it('넓은 화면에서는 좁히는 조건끼리 모인다', () => {
+    // 오른쪽 끝에 홀로 두면 왼쪽 것들과 멀어져 「상관없는 버튼」으로 읽힌다(제보)
+    const bar = ADMIN.slice(ADMIN.indexOf('<div style={{ ...qt.filterBar'), ADMIN.indexOf('{err && <div style={qt.errMsg}'));
+    expect(bar).toContain('{onlyAssignControl}');
+  });
+});

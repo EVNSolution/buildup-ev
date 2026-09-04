@@ -47,9 +47,16 @@ describe('배정 팝업 고르는 칸', () => {
   const ADMIN = readFileSync(path.join(ROOT, 'frontend/src/pages/AdminPage.tsx'), 'utf8');
 
   it('🔴 앱 공통 컨트롤 규칙을 따른다 — 세로 패딩으로 높이를 정하지 않는다', () => {
-    const i = ADMIN.indexOf('\n  select: {\n');
+    /*
+     * ⚠️ **어느 스타일 객체의 것인지까지 짚는다.** 이 파일에는 `select` 라는 이름의 칸이
+     *    둘 있다 — 배정 팝업(`modal`)과 견적 목록 좁히는 줄(`qt`). 이름만으로 찾았더니
+     *    엉뚱한 쪽을 집어 **멀쩡한 코드에서 실패**했다.
+     */
+    const objStart = ADMIN.indexOf('const modal: Record<string, React.CSSProperties> = {');
+    expect(objStart, '배정 팝업 스타일 객체가 없다').toBeGreaterThan(0);
+    const i = ADMIN.indexOf('\n  select: {\n', objStart);
     expect(i).toBeGreaterThan(0);
-    const decl = ADMIN.slice(i, i + 320);
+    const decl = ADMIN.slice(i, ADMIN.indexOf('\n  },', i));
     expect(decl).toContain("fontSize: 'var(--fs-input)'");
     expect(decl).toContain("minHeight: 'var(--h-control)'");
     expect(decl).toContain("padding: '0 12px'");
