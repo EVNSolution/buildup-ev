@@ -28,10 +28,18 @@ describe('제작 배정 알림 수신자', () => {
   });
 
   it('화면·API 와 같은 권한 계산을 쓴다', () => {
-    // 여기만 따로 판정하면 화면의 토글과 실제 발송이 어긋난다
-    const fn = NOTIFY.slice(NOTIFY.indexOf('async function adminRecipients'), NOTIFY.indexOf('const won ='));
-    expect(fn).toContain('mergePermissions');
-    expect(fn).toContain('ASSIGN_NOTIFY_MODULE');
+    // 여기만 따로 판정하면 화면의 토글과 실제 발송이 어긋난다.
+    // 판정은 isAssignRecipient 로 떼어 냈고(시험 가능하게), 수신자 조회는 그것만 쓴다.
+    const decide = NOTIFY.slice(NOTIFY.indexOf('export function isAssignRecipient'),
+                                NOTIFY.indexOf('export async function adminRecipients'));
+    expect(decide).toContain('mergePermissions');
+    expect(decide).toContain('ASSIGN_NOTIFY_MODULE');
+
+    const fetchAll = NOTIFY.slice(NOTIFY.indexOf('export async function adminRecipients'),
+                                  NOTIFY.indexOf('const won ='));
+    expect(fetchAll).toContain('isAssignRecipient');
+    // 조회 쪽에서 판정을 다시 쓰면 두 규칙이 갈라진다
+    expect(fetchAll).not.toContain('mergePermissions');
   });
 
   it('아무도 안 켰으면 조용히 넘어가지 않고 이유를 남긴다', () => {

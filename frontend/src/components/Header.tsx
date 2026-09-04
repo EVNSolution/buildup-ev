@@ -53,17 +53,8 @@ export function Header({ customer }: Props) {
       */}
       <div style={styles.brand}>
         <img src={logoUrl} alt="EV&Solution" style={styles.logo} />
-        {/*
-          휴대폰에서 전환 토글까지 있으면 한 줄에 다 들어가지 않아 로그아웃이 둘째 줄로 밀린다.
-          그때는 워드마크를 접는다 — 로고만으로도 어느 서비스인지 알 수 있고,
-          토글은 접으면 다른 화면으로 갈 길이 사라진다(중요도가 다르다).
-        */}
-        {!(isMobile && mySurfaces.length > 1) && (
-          <>
-            <span style={styles.brandLine} aria-hidden />
-            <span style={styles.wordmark}>Buildup-EV</span>
-          </>
-        )}
+        <span style={styles.brandLine} aria-hidden />
+        <span style={styles.wordmark}>Buildup-EV</span>
       </div>
       {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
       <div style={{ flex: 1 }} />
@@ -74,12 +65,23 @@ export function Header({ customer }: Props) {
         겸직을 준 계정과 마스터 계정이 대상이다.
       */}
       {mySurfaces.length > 1 && (
-        <div style={{ flexShrink: 0 }}>
+        /*
+         * 휴대폰에서는 **제 줄을 하나 차지한다.**
+         *
+         * 한 줄에 로고·토글·이름·로그아웃을 다 욱여넣었더니 토글이 70px 로 눌려
+         * 칸마다 35px 밖에 안 됐고, 이름과 맞붙어 어디까지가 버튼인지 알 수 없었다
+         * (사진 제보 — 역할 셋을 가진 마스터 계정에서 특히 심하다).
+         *
+         * `order: 1` 로 뒤로 보내고 `flexBasis: 100%` 를 주면 줄바꿈이 일어나
+         * 첫 줄은 로고·이름·로그아웃, 둘째 줄은 토글이 된다. 폭이 넉넉해지니
+         * 글자를 줄이는 `size="sm"` 도 필요 없다 — 손가락이 닿는 크기를 그대로 쓴다.
+         */
+        <div style={isMobile ? { order: 1, flexBasis: '100%' } : { flexShrink: 0 }}>
           <Segmented
             items={mySurfaces.map(s => ({ value: s.path, label: s.label }))}
             value={mySurfaces.find(s => s.path === location.pathname)?.path ?? mySurfaces[0]!.path}
             onChange={p => navigate(p)}
-            size={isMobile ? 'sm' : undefined}
+            fullWidth={isMobile}
           />
         </div>
       )}
