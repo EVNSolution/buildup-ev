@@ -132,6 +132,16 @@ class DeploySpeedContractTest(unittest.TestCase):
         self.assertIn('= "$LOCKFILE_SHA256" ]', REMOTE)
         self.assertIn("LOCKFILE_SHA256=", REMOTE)
 
+    def test_audit_job_gets_the_dependency_tree(self):
+        """
+        취약점 검사는 의존성 트리가 **없으면 더 느리다** — 1분 36초 → 5분 53초(실측).
+        떼어내 나란히 돌리는 이득이 통째로 날아가고 오히려 새 병목이 된다.
+        """
+        audit = WORKFLOW[WORKFLOW.index("  audit:"):WORKFLOW.index("  deploy:")]
+        self.assertIn("actions/cache/restore@", audit)
+        self.assertIn("hashFiles('package-lock.json')", audit)
+        self.assertIn("cache: npm", audit)
+
     def test_deploy_reports_whether_dependencies_were_reused(self):
         # 로그에 안 남으면 「왜 이번엔 빨랐지」를 나중에 되짚을 수 없다
         self.assertIn("deps=cached", REMOTE)
