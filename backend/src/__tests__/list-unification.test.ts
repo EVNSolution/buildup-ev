@@ -232,3 +232,35 @@ describe('올린 파일 열람', () => {
     expect(LINK).toContain('e.metaKey || e.ctrlKey || e.shiftKey');
   });
 });
+
+describe('날짜 머리와 발주서 크기', () => {
+  const SHEET = read('frontend/src/components/PurchaseOrderSheet.tsx');
+
+  it('🔴 날짜 줄에 회색 띠를 깔지 않는다', () => {
+    /*
+     * 목록에 없던 회색 줄이 생겨 「무슨 일이냐」는 제보가 나왔다.
+     * 날짜 줄은 **구분자**지 강조가 아니다 — 가르는 것은 가는 선 하나면 충분하다.
+     */
+    const i = ADMIN.indexOf('\n  groupRow: {');
+    expect(i).toBeGreaterThan(0);
+    expect(ADMIN.slice(i, i + 120), '회색 배경이 되살아났다').not.toMatch(/background:/);
+  });
+
+  it('영업 「내 견적」과 같은 모양을 쓴다', () => {
+    // 두 목록의 날짜 줄이 다르게 생기면, 같은 것을 보고도 다른 화면이라고 느낀다
+    const sales = read('frontend/src/pages/SalesPage.tsx');
+    const decl = "groupRow: { cursor: 'pointer' }";
+    expect(sales).toContain(decl);
+    expect(ADMIN).toContain(decl);
+  });
+
+  it('🔴 발주서는 기준 폭보다 커지지 않는다', () => {
+    /*
+     * 좁으면 축소해 담는 것이 목적이었는데, 넓은 자리(서류 탭)에서는 1 배를 넘겨
+     * 확대돼 화면을 가득 채웠다(제보). 서류는 실물 크기가 있다.
+     */
+    const i = SHEET.indexOf('\n  frame: {');
+    expect(i).toBeGreaterThan(0);
+    expect(SHEET.slice(i, i + 600)).toContain('maxWidth: BASE_W');
+  });
+});

@@ -18,6 +18,18 @@ import path from 'node:path';
 const ROOT = path.resolve(__dirname, '../../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
 
+/**
+ * 인라인 스타일 객체에서 **선언 하나를 통째로** 꺼낸다 — `name: { … }`.
+ * 글자 수로 자르면 주석 길이에 따라 검사가 흔들린다(실제로 그렇게 헛짚었다).
+ */
+function styleBlock(src: string, name: string): string {
+  const i = src.indexOf(`\n  ${name}: {`);
+  expect(i, `${name} 스타일이 없다`).toBeGreaterThan(0);
+  const end = src.indexOf('\n  },', i);
+  expect(end, `${name} 스타일이 닫히지 않았다`).toBeGreaterThan(i);
+  return src.slice(i, end);
+}
+
 const ADMIN = 'frontend/src/pages/AdminPage.tsx';
 const SHEET = 'frontend/src/components/PurchaseOrderSheet.tsx';
 
@@ -54,11 +66,14 @@ describe('발주서', () => {
   });
 
   it('세로 flex 안에서 눌리지 않는다', () => {
-    const src = read(SHEET);
-    const i = src.indexOf('  frame: {');
-    expect(i).toBeGreaterThan(0);
-    // flexShrink 를 빼면 남는 높이에 맞춰 눌린다 — 실측 0.956(A4 는 0.707)
-    expect(src.slice(i, i + 400)).toMatch(/flexShrink: 0/);
+    /*
+     * flexShrink 를 빼면 남는 높이에 맞춰 눌린다 — 실측 0.956(A4 는 0.707).
+     *
+     * ⚠️ **선언 블록 전체를 본다.** 예전에는 앞에서 400 자만 잘라 봤는데, 주석이
+     *    길어지자 정작 볼 줄이 그 밖으로 밀려 **멀쩡한 코드에서 실패**했다.
+     *    검사가 글자 수에 흔들리면 고칠 곳을 잘못 짚게 된다.
+     */
+    expect(styleBlock(read(SHEET), 'frame')).toMatch(/flexShrink: 0/);
   });
 
   it('좁은 화면에서는 다시 조판하지 않고 통째로 축소한다', () => {
