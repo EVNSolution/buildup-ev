@@ -93,7 +93,6 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           </select>
         )}
         <button style={BTN.barPrimary} onClick={load}>조회</button>
-        <span style={s.hint}>기준일: 견적 생성일</span>
       </div>
 
       {err && <div style={s.err}>{err}</div>}
@@ -306,10 +305,14 @@ const s: Record<string, React.CSSProperties> = {
   bar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' },
   // 모양·높이는 globals.css 가 정한다 — 여기서는 **줄어드는 방식만** 정한다
   date: { flex: '0 1 auto', minWidth: 0 },
-  // 계정 선택(관리자) — 늘어나지 않고, 좁아지면 다른 칸과 함께 줄어든다
-  select: { flex: '0 1 220px', minWidth: 0, maxWidth: '100%' },
+  /*
+   * 계정 선택(관리자) — **남는 폭을 가져간다.**
+   * 예전에는 오른쪽에 「기준일: 견적 생성일」 안내가 붙어 자리를 메웠는데, 그 문구를
+   * 걷어내자 줄 오른쪽이 비었다(제보). 늘어나도 되는 것은 이 칸뿐이다 —
+   * 날짜칸은 내용 폭이 정해져 있고 「조회」는 글자 폭이면 충분하다.
+   */
+  select: { flex: '1 1 220px', minWidth: 0, maxWidth: '100%' },
   sep: { color: 'var(--muted)' },
-  hint: { fontSize: 12.5, color: 'var(--muted)' },
   section: { marginBottom: 26 },
   /** 접었다 펴는 제목 줄 — 버튼이지만 제목처럼 보인다(줄 전체가 누름 영역) */
   h: {

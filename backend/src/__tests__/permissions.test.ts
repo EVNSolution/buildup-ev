@@ -149,12 +149,26 @@ describe('canSeeQuotePrices — 금액을 볼 자격', () => {
 describe('운영 권한 경계', () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it('운영에서는 is_master 표시만으로 역할을 우회하지 않는다', () => {
+  it('🔴 마스터는 운영에서도 통과한다 — 마스터가 아니면 표시만으로 통과하지 못한다', () => {
+    /*
+     * 규칙이 바뀌었다. 한동안 운영에서는 마스터도 우회하지 않았는데, 그러자 운영의
+     * 마스터 계정에서 「옵션DB」·「무게상수」 탭이 보이지 않았다(제보). 시스템 주인이
+     * 자기 시스템의 일부를 못 보는 상태였다.
+     *
+     * 실제 마스터는 `rolesOf` 로 세 역할을 모두 갖는다 — 아래처럼 역할 하나만 준
+     * 마스터는 시험을 위한 모양이고, 그 경우에도 통과하는 것이 지금의 규칙이다.
+     *
+     * ⚠️ 넓어지는 것은 **마스터에게만**이다. 마스터가 아닌 계정은 환경과 무관하게
+     *    역할과 소유로만 판단한다 — 그 경계는 그대로다.
+     */
     vi.stubEnv('NODE_ENV', 'production');
     const masterMaker = ctx(['MAKER'], { is_master: true });
-    expect(masterBypassEnabled(masterMaker)).toBe(false);
-    expect(isAdmin(masterMaker)).toBe(false);
-    expect(canSeeQuotePrices(masterMaker)).toBe(false);
+    expect(masterBypassEnabled(masterMaker)).toBe(true);
+
+    const plainMaker = ctx(['MAKER']);
+    expect(masterBypassEnabled(plainMaker)).toBe(false);
+    expect(isAdmin(plainMaker)).toBe(false);
+    expect(canSeeQuotePrices(plainMaker)).toBe(false);
   });
 
   it('권한 저장소 조회 실패는 503으로 닫고 다음 핸들러를 실행하지 않는다', async () => {

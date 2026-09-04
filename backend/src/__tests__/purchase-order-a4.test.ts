@@ -86,3 +86,40 @@ describe('발주서', () => {
     expect(src).not.toMatch(/\bzoom:/);
   });
 });
+
+describe('발주서 내용', () => {
+  const SRC = read(SHEET);
+
+  it('🔴 한 장을 넘치면 잘라 내지 않고 줄여서 담는다', () => {
+    /*
+     * `overflow: hidden` 으로 넘치는 만큼을 잘랐더니 특이사항 3·4 항이 소리 없이
+     * 사라졌다 — 읽는 사람은 **없는 줄 안다**(사진 제보). 서류에서 이건 사고다.
+     * 종이에 맞춰 인쇄할 때처럼 글씨를 조금 줄여 한 장에 담는다(실측 배율 0.982).
+     */
+    expect(SRC).toMatch(/setFit\(natural > room \? room \/ natural : 1\)/);
+    expect(SRC).toMatch(/transform: `scale\(\$\{fit\}\)`/);
+  });
+
+  it('🔴 재는 값과 손대는 값이 서로 물리지 않는다', () => {
+    /*
+     * 처음엔 `scrollHeight / fit` 로 되돌려 읽었다. 그러면 배율을 바꿀 때마다 측정값이
+     * 조금씩 달라져 **끝없이 다시 그렸다**(Maximum update depth exceeded — 화면이 백지가 됐다).
+     * `scrollHeight` 는 transform 의 영향을 받지 않으므로 되돌릴 필요가 없다.
+     */
+    /*
+     * ⚠️ **주석은 빼고 본다.** 「왜 이렇게 하면 안 되는가」를 적어 둔 주석에 검사가 걸려
+     *    멀쩡한 코드에서 실패했다 — 이 저장소에서 두 번째다.
+     */
+    const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code, '측정값을 배율로 되돌리고 있다').not.toMatch(/scrollHeight \/ \(?fit/);
+    // 의존성 없는 effect 는 매 렌더 재구독하며 같은 고리를 만든다
+    const i = SRC.indexOf('const natural = el.scrollHeight');
+    expect(SRC.slice(i, i + 400)).toMatch(/\}, \[\]\)/);
+  });
+
+  it('담기는 높이는 종이 안쪽 여백을 뺀 값이다', () => {
+    // 여백을 빼지 않으면 「들어간다」고 판단해 놓고 실제로는 마지막 줄이 걸린다
+    expect(SRC).toMatch(/const room = BASE_H - PAGE_PAD \* 2/);
+    expect(SRC).toMatch(/padding: PAGE_PAD/);
+  });
+});

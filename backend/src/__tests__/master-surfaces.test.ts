@@ -34,19 +34,29 @@ describe('마스터 계정', () => {
   });
 
   /**
-   * 권한 무제한 우회는 **운영에서 꺼져 있어야 한다.** 역할 보유와 달리 감사할 수 없다.
+   * 마스터는 **모든 기능모듈을 가진다 — 운영에서도.**
+   *
+   * 한동안 운영에서는 꺼 두었다(감사 가능하게 하려고). 그러자 운영의 마스터 계정에서
+   * 「옵션DB」·「무게상수」 탭이 보이지 않았다 — 기능모듈 화면에서 켜 주기 전에는
+   * 시스템 주인이 자기 시스템의 일부를 못 보는 상태였다(제보). 규칙을 바꿨다.
    */
-  it('권한 무제한 우회는 운영에서 꺼진다', () => {
+  it('🔴 마스터의 모듈 보유는 운영에서도 그대로다', () => {
     process.env['NODE_ENV'] = 'production';
-    expect(masterBypassEnabled({ is_master: true })).toBe(false);
+    expect(masterBypassEnabled({ is_master: true })).toBe(true);
     process.env['NODE_ENV'] = 'development';
     expect(masterBypassEnabled({ is_master: true })).toBe(true);
   });
 
-  it('우회가 꺼져도 역할은 남는다 — 이 둘은 별개다', () => {
+  it('모듈 보유와 역할 보유는 여전히 별개다', () => {
+    /*
+     * 한동안 둘을 한 함수로 판단해, 운영에서 우회를 끄자 마스터의 화면 전환까지
+     * 함께 꺼졌다(2026-08-19). 지금은 둘 다 켜져 있지만 **판단하는 곳은 다르다** —
+     * 한쪽을 바꿔도 다른 쪽이 따라 움직이면 안 된다.
+     */
     process.env['NODE_ENV'] = 'production';
-    expect(masterBypassEnabled({ is_master: true })).toBe(false);
-    expect(rolesOf(MASTER)).toHaveLength(3);   // 그래도 세 화면은 쓴다
+    expect(masterBypassEnabled({ is_master: true })).toBe(true);
+    expect(rolesOf(MASTER)).toHaveLength(3);   // 세 화면은 역할이 정한다
+    expect(masterBypassEnabled({ is_master: false })).toBe(false);
   });
 
   it('마스터가 아니면 가진 역할만', () => {

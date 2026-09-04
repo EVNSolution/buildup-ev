@@ -3,6 +3,7 @@ import type { Request } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { LOCK_MODULE, mergePermissions } from '../lib/permissions.js';
+import { rolesOf, type Role } from '@buildup-ev/shared/types';
 
 export const accessControlRouter = Router();
 
@@ -60,6 +61,49 @@ accessControlRouter.post('/', rbac('ADMIN'), requirePermission('account.manage')
         },
       });
       return;
+    }
+  }
+
+  /*
+   * **역할 토글은 「앞으로 만들 계정의 기본값」이다** — 이미 있는 계정은 건드리지 않는다.
+   *
+   * 예전에는 역할 값을 켜고 끄면 그 역할을 가진 **모든 계정이 즉시 함께** 바뀌었다.
+   * 새 기능을 열어 주려고 역할을 켰을 뿐인데, 일부러 꺼 두었던 계정까지 함께 열렸다.
+   * 반대로 끄면 잘 쓰던 사람들의 화면이 한꺼번에 사라졌다.
+   *
+   * 그래서 바꾸기 **직전에** 각 계정이 지금 무엇을 갖고 있는지 계산해 계정별 값으로
+   * 굳혀 둔다. 그러면 역할 값이 바뀌어도 그들의 결과는 그대로다 —
+   * 계정별 값이 마지막 말이기 때문이다(`mergePermissions`).
+   *
+   * ⚠️ 이미 계정별 값이 있는 사람은 **덮어쓰지 않는다.** 그건 누군가 손으로 정해 둔
+   *    결정이고, 역할을 만지는 김에 지워 버릴 것이 아니다.
+   * ⚠️ 마스터는 굳히지 않는다 — 어차피 모든 모듈을 갖는다.
+   */
+  if (subject_type === 'role') {
+    const [users, sameModule] = await Promise.all([
+      prisma.user.findMany({ select: { email: true, role: true, extra_roles: true, is_master: true } }),
+      prisma.accessControl.findMany({ where: { module_code } }),
+    ]);
+    const hasOwnRow = new Set(
+      sameModule.filter(a => a.subject_type === 'user').map(a => a.subject_ref),
+    );
+    const frozen = users
+      // 이 역할을 가진 계정만 영향을 받는다 — 나머지는 굳힐 이유가 없다
+      .filter(u => !u.is_master && !hasOwnRow.has(u.email)
+        && rolesOf({ role: u.role as Role, extra_roles: u.extra_roles as Role[], is_master: u.is_master })
+          .includes(subject_ref as Role))
+      .map(u => ({
+        subject_type: 'user' as const,
+        subject_ref: u.email,
+        module_code,
+        enabled: mergePermissions(
+          rolesOf({ role: u.role as Role, extra_roles: u.extra_roles as Role[], is_master: u.is_master }),
+          u.email, sameModule, { is_master: u.is_master },
+        ).includes(module_code),
+        memo: '역할 기본값 변경 시점의 상태를 유지',
+      }));
+    if (frozen.length > 0) {
+      await prisma.accessControl.createMany({ data: frozen, skipDuplicates: true });
     }
   }
 

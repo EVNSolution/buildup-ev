@@ -31,7 +31,16 @@ export function PurchaseOrderSheet({
   editable?: React.ReactNode
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
+  /**
+   * 내용이 A4 한 장보다 길 때 **줄여서 담는 배율**.
+   *
+   * 예전에는 `overflow: hidden` 으로 넘치는 만큼을 잘랐다. 그러면 특이사항 3·4 항이
+   * 소리 없이 사라진다 — 읽는 사람은 **없는 줄 안다**(사진 제보). 서류에서 이건 사고다.
+   * 종이에 맞춰 인쇄할 때처럼, 잘라 내지 말고 글씨를 조금 줄여 한 장에 담는다.
+   */
+  const [fit, setFit] = useState(1)
 
   /**
    * **A4 비율은 줄여서 맞추지, 늘려서 맞추지 않는다.**
@@ -49,9 +58,33 @@ export function PurchaseOrderSheet({
   useLayoutEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const fit = () => setScale(el.clientWidth / BASE_W)
-    fit()
-    const ro = new ResizeObserver(fit)
+    const measure = () => setScale(el.clientWidth / BASE_W)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  /*
+   * 내용이 한 장에 들어가는지 재고, 넘치면 그만큼 줄인다.
+   *
+   * ⚠️ `scrollHeight` 는 **transform 의 영향을 받지 않는다** — 줄여 놓아도 늘 「원래 크기의
+   *    내용 높이」가 나온다. 그래서 잰 값으로 배율을 바꿔도 다음 측정이 흔들리지 않는다.
+   *
+   *    처음엔 이걸 모르고 `scrollHeight / fit` 로 되돌려 읽었는데, 그러면 배율을 바꿀 때마다
+   *    측정값이 조금씩 달라져 **끝없이 다시 그렸다**(Maximum update depth exceeded).
+   *    자를 대는 값과 손대는 값이 서로 물리면 안 된다.
+   */
+  useLayoutEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const measure = () => {
+      const natural = el.scrollHeight
+      const room = BASE_H - PAGE_PAD * 2
+      setFit(natural > room ? room / natural : 1)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
@@ -59,6 +92,7 @@ export function PurchaseOrderSheet({
   return (
     <div ref={wrapRef} style={s.frame}>
       <div style={{ ...s.sheet, transform: `scale(${scale})` }}>
+      <div ref={contentRef} style={{ ...s.content, transform: `scale(${fit})` }}>
       <div style={s.title}>발 주 서</div>
 
       <div style={s.metaRow}>
@@ -110,6 +144,7 @@ export function PurchaseOrderSheet({
         <li>기타: 상기 사항 외에 발주사·공급사 간 협의에 따라 진행함.</li>
       </ol>
       </div>
+      </div>
     </div>
   )
 }
@@ -123,6 +158,8 @@ export function PurchaseOrderSheet({
 const BASE_W = 560
 /** A4 는 210 × 297 mm. 기준 폭에 대응하는 높이. */
 const BASE_H = Math.round(BASE_W * 297 / 210)
+/** 종이의 안쪽 여백(px) — `s.sheet` 의 padding 과 같은 값이어야 담기는 높이를 옳게 잰다. */
+const PAGE_PAD = 16
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
@@ -176,8 +213,15 @@ const s: Record<string, React.CSSProperties> = {
     position: 'absolute', top: 0, left: 0,
     width: BASE_W, height: BASE_H, transformOrigin: 'top left',
     border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
-    padding: 'var(--sp-4)', boxSizing: 'border-box',
+    padding: PAGE_PAD, boxSizing: 'border-box',
   },
+  /**
+   * 종이 안의 내용 — 한 장을 넘치면 **줄여서 담는다.**
+   *
+   * 가운데를 기준으로 줄여 좌우 여백이 고르게 남는다. 위에서부터 줄이면 아래쪽에만
+   * 빈자리가 몰려 「덜 그려졌나」로 읽힌다.
+   */
+  content: { transformOrigin: 'top center', width: '100%' },
   title: {
     textAlign: 'center', fontSize: 15, fontWeight: 700, color: 'var(--dark)',
     letterSpacing: '.3em', paddingBottom: 'var(--sp-3)', borderBottom: '1px solid var(--line)',
