@@ -487,18 +487,19 @@ model Quote {
 
 // 주문 상태 순서(앱 레벨 강제): 제작착수→구조변경→튜닝신청→안전검사→튜닝승인→인도완료
 model Order {
-  id           Int       @id @default(autoincrement())
-  quote_id     Int       @unique
-  maker_org_id String?   @db.VarChar(30)
+  id           Int              @id @default(autoincrement())
+  quote_id     Int              @unique
+  maker_org_id String?          @db.VarChar(30)
   assigned_at  DateTime?
   /// 특장사가 수락하며 약속한 납기일. 발주일로부터 15영업일 이내(발주서 특이사항).
   /// 1단계에서 order_step[po_accepted].planned_at 으로 옮긴다.
-  delivery_due DateTime? @db.Date
+  delivery_due DateTime?        @db.Date
   /// 발주 수락 시각 — 납기 한도의 기산점
   accepted_at  DateTime?
-  created_at   DateTime  @default(now())
+  created_at   DateTime         @default(now())
   // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
   vehicle_info Json?
+  due_notices  OrderDueNotice[]
 
   /// 특장사가 거부한 시각. 거부하면 배정이 풀려 다른 특장사에 다시 맡길 수 있다.
   rejected_at   DateTime?
@@ -561,6 +562,24 @@ model OrderStep {
 }
 
 /// 단계 증빙 파일. 사진은 줄여서, 서류는 원본으로 저장한다.
+/// 납기 알림 발송 기록 — **하루에 한 번만** 보내기 위한 자물쇠.
+/// blue/green 두 슬롯이 잠깐 함께 도는 순간이 있어 같은 알림이 두 번 갈 수 있다.
+/// 유일 색인이 두 번째를 거절한다 — 코드로는 프로세스 사이의 경합을 못 막는다.
+model OrderDueNotice {
+  id       Int      @id @default(autoincrement())
+  order_id Int
+  /// soon(3일 전) · today(당일) · overdue(경과)
+  kind     String   @db.VarChar(10)
+  /// 보낸 날(현지 날짜). 경과 알림은 날마다 한 번씩 다시 간다
+  sent_on  DateTime @db.Date
+  sent_at  DateTime @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([order_id, kind, sent_on], map: "order_due_notice_once")
+  @@map("order_due_notice")
+}
+
 model OrderFile {
   id            Int      @id @default(autoincrement())
   order_id      Int

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
+import { promoteChatPhoto } from '../api/steps'
+import { STEP_BY_CODE, EVIDENCE_LABEL, keepsOriginal } from '@shared/process/steps'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { fetchComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { PushToggle } from './PushToggle'
@@ -48,6 +50,29 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
   const [image, setImage] = useState<File | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLElement>(null)
+
+  /*
+   * 이 단계가 받는 **사진 증빙** 한 가지. 서류 증빙(인수증·튜닝신청서…)은 원본이 필요해
+   * 대화 사진으로 대신할 수 없다 — 그런 단계에서는 버튼을 아예 띄우지 않는다.
+   */
+  const photoKind = useMemo(() => {
+    const def = STEP_BY_CODE[stepCode]
+    return def?.evidence.find(e => !keepsOriginal(e))
+  }, [stepCode])
+  const [promoting, setPromoting] = useState<number | null>(null)
+  const [promoted, setPromoted] = useState<Set<number>>(new Set())
+
+  async function promote(fileId: number) {
+    if (!photoKind) return
+    setPromoting(fileId); setErr('')
+    try {
+      await promoteChatPhoto(orderId, stepCode, fileId, photoKind)
+      setPromoted(prev => new Set(prev).add(fileId))
+      onRead()   // 증빙이 늘었으니 바깥 목록도 다시 읽게 한다
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '증빙으로 등록하지 못했습니다')
+    } finally { setPromoting(null) }
+  }
 
   /*
    * **키보드가 올라온 만큼만 줄인다** — 카카오톡처럼.
@@ -182,6 +207,23 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                   )}
                   {c.body}
                 </div>
+                {/*
+                  **대화 사진을 그대로 증빙으로.** 특장사가 단계를 끝까지 안 밟는 큰 이유가
+                  업로드의 번거로움이다. 대화에는 사진을 곧잘 올리므로, 한 번 더 올릴 일을 없앤다.
+                  사진 증빙을 받는 단계에서만 뜬다(서류 증빙은 원본이 필요해 안 된다).
+                */}
+                {c.image_file_id && photoKind && canWrite && (
+                  <button
+                    style={s.promote}
+                    disabled={promoting === c.image_file_id}
+                    onClick={() => void promote(c.image_file_id!)}
+                    title={`이 사진을 「${EVIDENCE_LABEL[photoKind]}」으로 등록합니다`}
+                  >
+                    {promoted.has(c.image_file_id) ? '✓ 증빙 등록됨'
+                      : promoting === c.image_file_id ? '등록 중…'
+                      : `증빙으로 등록 · ${EVIDENCE_LABEL[photoKind]}`}
+                  </button>
+                )}
               </div>
             )
           })}
@@ -240,6 +282,13 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)',
   },
   muted: { color: 'var(--muted)', fontSize: 'var(--fs-body)' },
+  /** 말풍선 아래 작은 줄 — 사진을 증빙으로 올리는 자리 */
+  promote: {
+    marginTop: 4, alignSelf: 'flex-start',
+    border: '0.5px solid var(--lime)', background: 'transparent', color: 'var(--lime-ink)',
+    borderRadius: 999, padding: '3px 10px', fontSize: 'var(--fs-caption)',
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
   empty: { color: 'var(--muted)', fontSize: 'var(--fs-body)', lineHeight: 1.6, textAlign: 'center', margin: 'auto 0' },
   themWrap: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 },
   mineWrap: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },

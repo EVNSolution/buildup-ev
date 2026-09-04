@@ -12,6 +12,7 @@
     "./bom/weight-constants": "./bom/weight-constants.ts",
     "./schedule": "./schedule/businessDays.ts",
     "./process": "./process/steps.ts",
+    "./process/due": "./process/due.ts",
     "./docs/memo": "./docs/memo.ts"
   },
   "scripts": {
