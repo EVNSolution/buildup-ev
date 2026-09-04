@@ -24,7 +24,7 @@ import multer from 'multer';
 import {
   listComments, listAllComments, addComment, unreadByStep, markRead, markAllRead, COMMENT_MAX,
 } from '../services/step-comments.js';
-import { writeFile, unlink, stat } from 'node:fs/promises';
+import { writeFile, unlink, stat, copyFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import {
   ALLOWED_MIME, maxBytesFor, MAX_DOC_BYTES, reserveFilePath, resolveStoredPath, safeDisplayName,
@@ -437,6 +437,82 @@ stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), canC
         mime: file.mimetype,
         size_bytes: file.size,
         kept_original: keepsOriginal(kind),
+        uploaded_by: req.auth?.email ?? 'unknown',
+      },
+      select: { id: true, kind: true, original_name: true, size_bytes: true, kept_original: true, uploaded_at: true },
+    });
+
+    res.status(201).json({ data: row });
+  }));
+
+/**
+ * **대화에 올린 사진을 그 단계의 증빙으로 등록한다.**
+ *
+ * 왜 필요한가: 특장사가 단계를 끝까지 안 밟는 큰 이유가 **업로드의 번거로움**이다.
+ * 대화에는 사진을 곧잘 올린다 — 카톡처럼 찍어 보내면 되니까.
+ * 그 사진을 그대로 증빙으로 쓸 수 있게 하면, 한 번 더 올릴 일이 없어진다.
+ * (대화 사진은 이미 증빙과 **같은 곳**(order_file)에 저장돼 있다 — kind 만 다르다)
+ *
+ * ⚠️ **사진 증빙만** 된다. 서류 증빙(인수증·튜닝신청서·승인서…)은 글자를 읽어야 해서
+ *    원본을 지켜 보관하는데(`KEEP_ORIGINAL`), 대화 사진은 올릴 때 이미 줄여 놓는다.
+ *    줄인 사진을 서류 자리에 넣으면 나중에 읽을 수 없는 서류가 남는다.
+ *
+ * ⚠️ 파일을 **복사한다**(옮기지 않는다). 대화에서 사진이 사라지면 오간 이야기가
+ *    무슨 사진에 대한 것이었는지 알 수 없게 된다. 지울 때도 서로 영향이 없다.
+ */
+stepsRouter.post('/:id/steps/:code/files/from-chat', rbac('ADMIN', 'SALES', 'MAKER'), canChangeSteps,
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = orderId(req);
+    const code = String(req.params['code'] ?? '');
+    if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
+
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+    const def = stepMapFor(r.order.body_only)[code];
+    if (!def) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '이 주문에는 해당하지 않는 단계입니다' } }); return; }
+
+    const { file_id: rawId, kind: rawKind } = (req.body ?? {}) as { file_id?: unknown; kind?: unknown };
+    const fileId = Number(rawId);
+    const kind = String(rawKind ?? '') as EvidenceKind;
+    if (!Number.isInteger(fileId)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '어느 사진인지 알 수 없습니다' } }); return; }
+
+    if (!acceptsEvidence(def, kind)) {
+      const ok = [...def.evidence, ...EXTRA_EVIDENCE].map(e => EVIDENCE_LABEL[e]).join(' · ');
+      res.status(400).json({ error: { code: 'BAD_INPUT', message: `이 단계에 등록할 수 있는 증빙이 아닙니다 — ${ok}` } });
+      return;
+    }
+    if (keepsOriginal(kind)) {
+      res.status(400).json({
+        error: { code: 'NEEDS_ORIGINAL', message: '이 증빙은 원본이 필요합니다. 대화 사진은 줄여 저장되므로 파일로 올려 주세요.' },
+      });
+      return;
+    }
+
+    // 이 주문의 **대화 사진**만 — 남의 주문 파일이나 이미 증빙인 것을 다시 복사하지 않는다
+    const src = await prisma!.orderFile.findFirst({ where: { id: fileId, order_id: id, kind: 'chat' } });
+    if (!src) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '대화에서 그 사진을 찾을 수 없습니다' } }); return; }
+
+    const from = resolveStoredPath(src.path);
+    if (!from) { console.error('[from-chat] 저장 경로가 루트를 벗어남', src.id); res.status(500).json({ error: { code: 'INTERNAL' } }); return; }
+
+    const { abs, rel } = await reserveFilePath(id, src.mime ?? 'image/jpeg');
+    try {
+      await copyFile(from, abs);
+    } catch (e) {
+      console.error('[from-chat] 복사 실패', e);
+      res.status(500).json({ error: { code: 'INTERNAL', message: '사진을 옮기지 못했습니다' } });
+      return;
+    }
+
+    const row = await prisma!.orderFile.create({
+      data: {
+        order_id: id, step_code: code, kind,
+        path: rel,
+        original_name: src.original_name,
+        mime: src.mime,
+        size_bytes: src.size_bytes,
+        // 대화 사진은 이미 줄여 저장한 것이라 「원본을 지킨 파일」이 아니다
+        kept_original: false,
         uploaded_by: req.auth?.email ?? 'unknown',
       },
       select: { id: true, kind: true, original_name: true, size_bytes: true, kept_original: true, uploaded_at: true },

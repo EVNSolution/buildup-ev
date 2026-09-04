@@ -196,7 +196,12 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
               const st = byCode.get(def.code)
               if (!st) return null
               const phase = phaseOf(def)
-              const kinds = st.files.map(f => f.kind)
+              /*
+               * 완료 판정에 넣는 것은 **증빙만**이다. 대화 사진(`chat`)도 같은 곳에
+               * 저장되지만 증빙은 아니다 — 대화에 사진 한 장 올렸다고 단계가 완료
+               * 가능해지면 안 된다. (증빙으로 쓰려면 대화창에서 「증빙으로 등록」)
+               */
+              const kinds = st.files.filter(f => f.kind !== 'chat').map(f => f.kind as EvidenceKind)
               const gate = canComplete(def.code, states, kinds, defs)
               const needDate = !!def.dateLabel
               const dateOk = !needDate || !!dates[def.code]
@@ -341,9 +346,15 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     </div>
                   )}
 
-                  {phase === 'done' && st.files.length > 0 && (
+                  {/*
+                    끝난 단계의 증빙 목록 — **대화 사진은 뺀다.**
+                    대화 사진도 같은 곳(order_file)에 저장되지만 증빙은 아니다.
+                    여기 섞여 보이면 올리지 않은 증빙을 올린 것으로 읽는다.
+                    (대화 사진을 증빙으로 쓰려면 대화창에서 「증빙으로 등록」을 누른다)
+                  */}
+                  {phase === 'done' && st.files.some(f => f.kind !== 'chat') && (
                     <div style={s.doneFiles}>
-                      {st.files.map(f => (
+                      {st.files.filter(f => f.kind !== 'chat').map(f => (
                         <DocLink key={f.id} href={stepFileUrl(orderId, f.id)} name={f.name ?? `파일_${f.id}`} style={s.fileName}>
                           {f.name || `파일 ${f.id}`}
                         </DocLink>

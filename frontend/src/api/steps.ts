@@ -21,7 +21,14 @@ export interface ApiStep {
 
 export interface ApiStepFile {
   id: number
-  kind: EvidenceKind
+  /**
+   * 증빙 종류, 또는 `'chat'`(대화에 올린 사진).
+   *
+   * ⚠️ 예전엔 `EvidenceKind` 로만 적어 두었는데 **사실과 달랐다** — 대화 사진도 같은 곳
+   *    (order_file)에 저장돼 이 목록에 함께 온다. 타입이 사실을 감추면 화면이
+   *    「증빙만 온다」고 믿고 짜게 된다.
+   */
+  kind: EvidenceKind | 'chat'
   name: string | null
   size: number | null
   kept_original: boolean
@@ -97,3 +104,25 @@ export async function deleteStepFile(orderId: number, fileId: number): Promise<v
 
 export const stepFileUrl = (orderId: number, fileId: number) =>
   `/api/v1/orders/${orderId}/files/${fileId}`
+
+/**
+ * 대화에 올린 사진을 **그 단계의 증빙으로** 등록한다.
+ *
+ * 특장사가 단계를 끝까지 안 밟는 큰 이유가 업로드의 번거로움이다. 대화에는 사진을
+ * 곧잘 올리므로(카톡처럼 찍어 보내면 되니까), 그것을 그대로 증빙으로 쓰게 한다.
+ * 파일은 **복사**된다 — 대화에서 사진이 사라지지 않는다.
+ */
+export async function promoteChatPhoto(
+  orderId: number, stepCode: string, fileId: number, kind: string,
+): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/steps/${stepCode}/files/from-chat`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_id: fileId, kind }),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b.error?.message ?? `증빙 등록 실패 (${res.status})`)
+  }
+}
