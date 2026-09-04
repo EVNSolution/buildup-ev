@@ -298,3 +298,41 @@ describe('견적 목록 좁히는 줄', () => {
     expect(bar).toContain('{onlyAssignControl}');
   });
 });
+
+describe('수락 대기 발주서', () => {
+  const MODAL = read('frontend/src/components/AcceptOrderModal.tsx');
+
+  it('관리자도 수락 대기 카드에서 발주서를 본다', () => {
+    // 그 발주서를 쓴 사람이 관리자다 — 특장사가 무엇을 받았는지는 봐야 한다
+    expect(ADMIN).toMatch(/onPendingOpen=\{id => setViewingPo/);
+    expect(ADMIN).toMatch(/<AcceptOrderModal\s*\n\s*readOnly/);
+  });
+
+  it('🔴 관리자는 대신 수락·거부하지 못한다', () => {
+    /*
+     * 받는 것은 **특장사의 행위**다. 대신 수락하면 「누가 받기로 했는지」가 흐려지고,
+     * 특장사는 자기가 수락하지 않은 주문의 납기를 지게 된다(대행 수락은 하지 않기로 정했다).
+     */
+    const admin = ADMIN.slice(ADMIN.indexOf('<AcceptOrderModal'), ADMIN.indexOf('<AcceptOrderModal') + 500);
+    expect(admin, '관리자 화면이 수락을 넘기고 있다').not.toContain('onAccept');
+    expect(admin, '관리자 화면이 거부를 넘기고 있다').not.toContain('onReject');
+  });
+
+  it('🔴 조회 전용에서는 할 수 없는 일을 아예 그리지 않는다', () => {
+    /*
+     * 고를 수 있게 두고 서버가 막으면 「눌러 봤는데 안 된다」로 끝난다.
+     * 납기 고르는 칸·수락·거부를 통째로 뺀다(실측: 버튼이 「닫기」 하나뿐).
+     */
+    expect(MODAL).toMatch(/\{readOnly \? null : windowClosed \?/);
+    expect(MODAL).toMatch(/\{readOnly \? null : !rejecting \?/);
+    expect(MODAL).toMatch(/readOnly \? '닫기' : '취소'/);
+  });
+
+  it('특장사 화면은 그대로 수락·거부를 갖는다', () => {
+    // 조회 전용을 붙이면서 원래 자리가 함께 잠기면, 주문이 아무도 받지 못하는 상태가 된다
+    const maker = read('frontend/src/pages/MakerPage.tsx');
+    expect(maker).toContain('onAccept=');
+    expect(maker).toContain('onReject=');
+    expect(maker).not.toContain('readOnly');
+  });
+});
