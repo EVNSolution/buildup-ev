@@ -46,6 +46,11 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
   const [stats, setStats] = useState<SalesStat[] | null>(null)
   const [attention, setAttention] = useState<AttentionItem[] | null>(null)
   const [err, setErr] = useState('')
+  /**
+   * 「처리 필요 견적」을 펼쳤는가 — **기본은 접힘.**
+   * 쌓이면 수십 줄이라 그 아래 성과 숫자가 화면 밖으로 밀린다(제보).
+   */
+  const [attentionOpen, setAttentionOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   function load() {
@@ -96,10 +101,19 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
 
       {!loading && attention && (
         <section style={s.section}>
-          <div style={s.h}>
+          {/*
+            **접어 둔다.** 쌓이면 수십 줄이 되어 그 아래 성과 숫자가 화면 밖으로 밀린다(제보).
+            몇 건인지는 접힌 채로도 보이므로, 볼 일이 있을 때만 편다.
+          */}
+          <button
+            style={s.h}
+            onClick={() => setAttentionOpen(v => !v)}
+            aria-expanded={attentionOpen}
+          >
+            <span style={s.caret}>{attentionOpen ? '▾' : '▸'}</span>
             처리 필요 견적 <span style={s.count}>{attention.length}</span>
-          </div>
-          {attention.length === 0 ? (
+          </button>
+          {!attentionOpen ? null : attention.length === 0 ? (
             <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
           ) : isMobile ? (
             /*
@@ -297,7 +311,17 @@ const s: Record<string, React.CSSProperties> = {
   sep: { color: 'var(--muted)' },
   hint: { fontSize: 12.5, color: 'var(--muted)' },
   section: { marginBottom: 26 },
-  h: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', marginBottom: 10, paddingBottom: 6, borderBottom: '0.5px solid var(--line)' },
+  /** 접었다 펴는 제목 줄 — 버튼이지만 제목처럼 보인다(줄 전체가 누름 영역) */
+  h: {
+    display: 'flex', alignItems: 'center', width: '100%',
+    fontSize: 15, fontWeight: 700, color: 'var(--dark)',
+    marginBottom: 10, paddingBottom: 6, borderBottom: '0.5px solid var(--line)',
+    background: 'transparent', border: 'none', borderRadius: 0,
+    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+    minHeight: 'var(--h-control-sm)',
+  },
+  /** 펼침 표시 — 글자 크기에 묻히지 않게 살짝 띄운다 */
+  caret: { color: 'var(--muted)', marginRight: 6, fontSize: 12 },
   count: { fontSize: 13, fontWeight: 400, color: 'var(--muted)', marginLeft: 6 },
   empty: { padding: 20, color: 'var(--muted)', fontSize: 14 },
   ok: { padding: '12px 14px', background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', color: 'var(--dark)', borderRadius: 8, fontSize: 14 },

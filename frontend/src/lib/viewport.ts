@@ -64,11 +64,54 @@ export function useAppHeight(): void {
       const root = document.getElementById('root')
       const zoom = root ? parseFloat(getComputedStyle(root).zoom) || 1 : 1
       de.style.setProperty('--root-h', `${Math.round(visible / zoom)}px`)
+      /*
+       * 폭도 같이 준다. `position: fixed` 인 요소(단계별 대화 서랍)가 `100vw` 를 쓰면
+       * **zoom 이 보정되지 않아 0.88 배로 그려진다**(390 화면에서 343px, 실측).
+       * 서랍이 화면을 못 덮으니 옆이 비고, 기기에 따라 반대로 삐져나와 가로 스크롤이
+       * 생겨 화면 전체가 좌우로 끌렸다(사진 제보).
+       */
+      de.style.setProperty('--root-w', `${Math.round(window.innerWidth / zoom)}px`)
+      /*
+       * 옆에서 나오는 창(단계별 대화 서랍)의 폭 — **넓은 화면에서는 420px 까지,
+       * 좁은 화면에서는 화면을 꽉.** 상한도 zoom 보정을 받아야 한다.
+       * CSS 로 `min(420px, 100vw)` 라고 적었더니 둘 다 보정을 못 받아 390 화면에서
+       * 370px 로 그려졌다(실측) — 20px 이 비었다.
+       */
+      de.style.setProperty('--panel-w', `${Math.round(Math.min(420, window.innerWidth) / zoom)}px`)
     }
     set()
     // 글꼴·주소창이 자리 잡은 뒤 한 번 더 — 첫 계산이 어긋나는 경우가 있다
     const t = setTimeout(set, 120)
     const off = onVisibleHeightChange(set)
     return () => { off(); clearTimeout(t) }
+  }, [])
+}
+
+/**
+ * **손가락으로 화면을 확대하지 못하게 한다.**
+ *
+ * 이 앱은 화면 하나가 한 화면에 맞게 짜여 있다(주문 상세·대화·컨피규레이터 모두
+ * 바깥은 안 움직이고 안쪽 칸만 스크롤된다). 거기서 확대가 되면 레이아웃이 어긋난 채
+ * 화면 밖으로 밀려 나가 되돌리기 어렵다(사진 제보).
+ *
+ * ⚠️ `<meta viewport>` 의 `user-scalable=no` 만으로는 **아이폰에서 안 막힌다** —
+ *    iOS 10 부터 무시한다. 사파리는 확대 제스처를 `gesture*` 이벤트로 따로 주므로
+ *    그것을 막아야 실제로 멈춘다. 더블탭 확대는 `touch-action` 이 맡는다.
+ *
+ * ⚠️ 확대를 막는 것은 **접근성을 깎는 선택**이다. 그래서 글자 자체를 작게 두지 않는다 —
+ *    입력칸은 16px 이상, 버튼은 44px 이상을 지킨다(globals.css).
+ */
+export function useNoPinchZoom(): void {
+  useEffect(() => {
+    const stop = (e: Event) => e.preventDefault()
+    // 사파리 전용 — 두 손가락 확대
+    document.addEventListener('gesturestart', stop)
+    document.addEventListener('gesturechange', stop)
+    document.addEventListener('gestureend', stop)
+    return () => {
+      document.removeEventListener('gesturestart', stop)
+      document.removeEventListener('gesturechange', stop)
+      document.removeEventListener('gestureend', stop)
+    }
   }, [])
 }

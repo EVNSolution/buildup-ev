@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAppHeight } from './lib/viewport'
+import { useAppHeight, useNoPinchZoom } from './lib/viewport'
 import { AuthProvider } from './contexts/AuthContext'
 import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
@@ -14,6 +14,8 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage'
 export function App() {
   // 앱 전체 높이를 여기 한 곳에서 정한다 — 화면마다 뷰포트를 다시 재지 않는다
   useAppHeight()
+  // 손가락으로 화면을 확대하지 못하게 한다 — 확대되면 레이아웃이 화면 밖으로 밀린다
+  useNoPinchZoom()
 
   return (
     <AuthProvider>

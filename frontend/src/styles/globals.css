@@ -203,6 +203,12 @@ html, body, #root {
   margin: 0;
   overflow: hidden;
   overscroll-behavior: none;
+  /*
+   * 더블탭 확대를 끈다(`manipulation`). 스크롤·누르기는 그대로 된다 —
+   * `none` 으로 두면 안쪽 칸 스크롤까지 막혀 아무것도 못 움직인다.
+   * 두 손가락 확대는 CSS 로 못 막아 `useNoPinchZoom` 이 맡는다.
+   */
+  touch-action: manipulation;
 }
 
 /*
