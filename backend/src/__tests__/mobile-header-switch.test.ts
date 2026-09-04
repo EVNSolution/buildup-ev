@@ -3,38 +3,42 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * **역할이 여럿인 계정의 화면 전환 토글** — 휴대폰에서 제 줄을 차지한다.
+ * **역할이 여럿인 계정의 화면 전환 토글** — 휴대폰에서 한 줄 안에, 제 크기로.
  *
- * 한 줄에 로고·토글·이름·로그아웃을 다 넣었더니 토글이 70px 로 눌려 칸마다 35px 이 됐고,
- * 이름과 맞붙어 어디까지가 버튼인지 알 수 없었다(사진 제보 — 역할 셋인 마스터에서 특히 심하다).
- * 줄을 하나 내주니 칸이 114px 이 됐다(실측).
+ * 두 번 헛짚었다.
+ *  1. 한 줄에 로고·워드마크·토글·이름·로그아웃을 다 넣었더니 토글이 70px 로 눌려
+ *     칸마다 35px 이 됐다(사진 제보).
+ *  2. 그래서 줄을 통째로 내줬더니 헤더가 60 → 116px 이 되어 화면을 너무 먹었고
+ *     (「공간 차지가 너무 심하다」), 남는 폭을 채우게 했더니 칸 하나가 화면 절반이 됐다
+ *     (「토글버튼 자체가 너무 큼」).
  *
- * ⚠️ 「글자를 줄여서」 맞추는 방식으로 되돌아가지 말 것 — 그게 원래 하던 것이고, 그래서 깨졌다.
+ * 답은 **없어도 되는 것을 접는 것**이었다 — 워드마크와 계정 이름. 그러면 토글이 제 크기로
+ * 설 자리가 난다. 넓히지도 줄이지도 않는다.
  */
 const ROOT = path.resolve(__dirname, '../../..');
 const HEADER = readFileSync(path.join(ROOT, 'frontend/src/components/Header.tsx'), 'utf8');
 
 describe('휴대폰 화면 전환 토글', () => {
-  it('🔴 제 줄을 차지한다', () => {
-    expect(HEADER).toMatch(/order: 1, flexBasis: '100%'/);
+  it('🔴 제 줄을 통째로 차지하지 않는다', () => {
+    expect(HEADER, '헤더가 두 줄이 된다').not.toMatch(/flexBasis: '100%'/);
   });
 
-  it('🔴 좁은 자리에 우겨넣으려 글자를 줄이지 않는다', () => {
+  it('🔴 남는 폭을 채우게 하지 않는다 — 글자 몇 자짜리 버튼이다', () => {
+    expect(HEADER, '칸 하나가 화면 절반을 먹는다').not.toMatch(/fullWidth=\{isMobile\}/);
+    expect(HEADER).not.toMatch(/flex: 1, minWidth: 0/);
+  });
+
+  it('🔴 좁다고 글자를 줄이지 않는다', () => {
     // size="sm" 은 「한 줄에 어떻게든 넣어 보려던」 시절의 흔적이다
     expect(HEADER).not.toMatch(/size=\{isMobile \? 'sm' : undefined\}/);
-    expect(HEADER).toMatch(/fullWidth=\{isMobile\}/);
   });
 
-  it('토글이 있다고 워드마크를 감추지 않는다', () => {
-    /*
-     * 예전엔 자리가 없어 워드마크를 접었다. 토글이 제 줄로 내려가면서 첫 줄에
-     * 자리가 생겼으므로 되살렸다 — 접을 이유가 사라졌다.
-     */
-    expect(HEADER).not.toMatch(/!\(isMobile && mySurfaces\.length > 1\)/);
+  it('자리를 내주려고 워드마크와 계정 이름을 접는다', () => {
+    expect(HEADER, '워드마크를 접지 않는다').toMatch(/\{!isMobile && \(/);
+    expect(HEADER, '계정 이름을 접지 않는다').toMatch(/!\(isMobile && mySurfaces\.length > 1\)/);
   });
 
   it('역할이 하나면 토글 자체가 없다', () => {
-    // 고를 것이 없는 토글은 자리만 차지하고 「뭔가 더 있나」 하고 누르게 만든다
     expect(HEADER).toMatch(/mySurfaces\.length > 1 && \(/);
   });
 });
@@ -43,11 +47,6 @@ describe('배정 팝업 고르는 칸', () => {
   const ADMIN = readFileSync(path.join(ROOT, 'frontend/src/pages/AdminPage.tsx'), 'utf8');
 
   it('🔴 앱 공통 컨트롤 규칙을 따른다 — 세로 패딩으로 높이를 정하지 않는다', () => {
-    /*
-     * 여기만 글꼴 14px 과 세로 패딩 10px 을 박아 두어 공통 규칙에서 빠져 있었다.
-     * 높이를 정하는 주체가 둘(최소높이 · 세로 패딩)이면 서로 다투고, 밀려나는 건 글자다
-     * — 휴대폰에서 「선택하세요」가 잘려 보였다(사진 제보).
-     */
     const i = ADMIN.indexOf('\n  select: {\n');
     expect(i).toBeGreaterThan(0);
     const decl = ADMIN.slice(i, i + 320);

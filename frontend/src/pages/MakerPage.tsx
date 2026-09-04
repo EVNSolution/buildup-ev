@@ -6,12 +6,11 @@ import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
-import { OrderStepsBoard } from '../components/OrderStepsBoard'
+import { OrderSections } from '../components/OrderSections'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import { RefreshButton } from '../components/RefreshButton'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
-import { isAcceptOverdue, daysSince } from '@shared/schedule/businessDays'
 
 // ── MakerPage ──────────────────────────────────────────────────────────────
 export function MakerPage() {
@@ -78,10 +77,6 @@ export function MakerPage() {
     }
   }
 
-  // 배정(수락 대기) vs 주문(제작 진행)
-  const pending = orders.filter(o => o.quote.status === 'assigned')
-  const active  = orders.filter(o => o.quote.status !== 'assigned')
-
   useEffect(() => {
     if (!email) return
     load()
@@ -133,37 +128,20 @@ export function MakerPage() {
             {err && <div style={styles.errMsg}>{err}</div>}
             {loading ? (
               <div style={styles.loading}>로딩 중…</div>
-            ) : orders.length === 0 ? (
-              <div style={styles.empty}>배정된 주문이 없습니다.</div>
             ) : (
-              <>
-                {/*
-                  수락 대기도 **진행 중과 같은 줄 모양**을 쓴다. 두 목록이 위아래로
-                  붙어 있는데 생김새가 다르면 다른 종류의 것으로 읽힌다.
-                  수락 버튼은 두지 않는다 — 줄을 누르면 발주서가 뜨고 거기서 수락·거부를 고른다.
-                  버튼이 따로 있으면 **내용을 안 보고 수락하는 길**이 남는다.
-                */}
-                {pending.length > 0 && (
-                  <>
-                    <div style={styles.boardTitle}>수락 대기 ({pending.length})</div>
-                    <OrderStepsBoard
-                      orders={pending}
-                      mode="pending"
-                      lateInfo={o => {
-                        const from = new Date(o.assigned_at ?? o.created_at)
-                        return { days: daysSince(from, new Date()), late: isAcceptOverdue(from, new Date()) }
-                      }}
-                      onCardClick={id => { setAcceptErr(''); setAcceptTarget(pending.find(o => o.id === id) ?? null) }}
-                    />
-                  </>
-                )}
-                {active.length > 0 && (
-                  <>
-                    <div style={styles.boardTitle}>진행 중 ({active.length})</div>
-                    <OrderStepsBoard orders={active} onCardClick={setSelectedId} />
-                  </>
-                )}
-              </>
+              /*
+                수락 대기 · 진행 중 · 완료 — **관리자 「주문 진행」과 같은 것을 본다.**
+                하는 일이 같은 화면이라 생김새가 다를 이유가 없다.
+              */
+              <OrderSections
+                orders={orders}
+                onOpen={setSelectedId}
+                /*
+                  수락 대기는 발주서 팝업으로 연다 — 줄에 수락 버튼을 두면
+                  **내용을 안 보고 수락하는 길**이 남는다.
+                */
+                onPendingOpen={id => { setAcceptErr(''); setAcceptTarget(orders.find(o => o.id === id) ?? null) }}
+              />
             )}
           </>
         )}

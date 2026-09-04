@@ -16,10 +16,14 @@ describe('납기 강조', () => {
     expect(read('shared/process/due.ts')).toMatch(/export function dueInfo/);
     const board = read('frontend/src/components/OrderStepsBoard.tsx');
     expect(board).toMatch(/from '@shared\/process\/due'/);
-    // 관리자·특장사가 **같은 목록 컴포넌트**를 쓴다 — 그래서 한 번만 고치면 된다
+    /*
+     * 관리자·특장사가 **같은 목록 컴포넌트**를 쓴다 — 그래서 한 번만 고치면 된다.
+     * 이제 두 화면 모두 `OrderSections` 를 거쳐 그 안에서 이 보드를 쓴다.
+     */
     for (const f of ['frontend/src/pages/AdminPage.tsx', 'frontend/src/pages/MakerPage.tsx']) {
-      expect(read(f), f).toMatch(/OrderStepsBoard/);
+      expect(read(f), f).toMatch(/OrderSections/);
     }
+    expect(read('frontend/src/components/OrderSections.tsx')).toMatch(/OrderStepsBoard/);
   });
 
   it('🔴 급한 순서로 정렬한다 — 지난 건이 맨 위', () => {
