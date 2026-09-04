@@ -16,6 +16,7 @@ import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { OrderRemoveModal } from './OrderRemoveModal'
 import { safeLeft, safeRight, safeScrollBottom } from '../styles/safeArea'
 import { fetchUnread } from '../api/stepComments'
+import { dueInfo } from '@shared/process/due'
 import { useChatPoll, CHAT_POLL_IDLE_MS } from '../lib/chatPoll'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
@@ -580,6 +581,8 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
           orderId={detail.id}
           canWrite={rolesOf(session!.user).some(r => r === 'ADMIN' || r === 'MAKER')}
           initialStep={initialChatStep}
+          /* 납기를 넘긴 주문은 대화 탭 안도 붉다 */
+          overdue={dueInfo(detail.delivery_due).state === 'overdue'}
         />
       )}
 

@@ -5,7 +5,7 @@ import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User 
 import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, assignQuote, assignSalesQuote, setQuoteHidden, fetchOrderPreview } from '../api/quotes'
+import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview } from '../api/quotes'
 import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
 import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
@@ -15,7 +15,9 @@ import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
+import { useBackClose } from '../lib/backClose'
 import { filterByCustomer } from '../lib/quoteSearch'
+import { safeTop, safeBottom } from '../styles/safeArea'
 import { OrderFilesTab } from '../components/OrderFilesTab'
 import { CustomerFolders } from '../components/CustomerFolders'
 import { OrderStepsBoard } from '../components/OrderStepsBoard'
@@ -125,7 +127,11 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
 
   return (
     <div style={modal.overlay} onClick={onClose}>
-      <div style={{ ...modal.box, ...modal.boxWide }} onClick={e => e.stopPropagation()}>
+      {/*
+        발주서를 그대로 보여 주는 팝업이라 **화면을 꽉 채운다.**
+        좁은 상자에 넣었더니 서류가 세로로 길게 눌려 읽기 어려웠다(사진 제보).
+      */}
+      <div style={modal.boxFull} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>견적 #{quoteId} — 제작 배정</div>
 
         <div style={modal.scroll}>
@@ -918,9 +924,18 @@ type QuotesView = 'list' | 'folders'
 
 function QuotesWithFolders() {
   const [view, setView] = useState<QuotesView>('list')
+  /**
+   * **배정이 필요한 건만 보기** — 켜면 지금 손대야 하는 건만 남는다.
+   *
+   * 관리자가 목록에서 가장 먼저 찾는 것이 그것이라, 매번 눈으로 훑지 않게 한 칸으로 둔다.
+   * 자리는 토글 **같은 줄 오른쪽 끝** — 보기 전환과 같은 성격(무엇을 보여 줄지)이라
+   * 아래 필터 줄로 내리면 기간·상태와 섞여 읽힌다.
+   */
+  const [onlyAssign, setOnlyAssign] = useState(false)
+
   return (
     <div>
-      <div style={{ marginBottom: 'var(--sp-3)' }}>
+      <div style={qt.viewRow}>
         <Segmented
           items={[
             { value: 'list' as const, label: '견적 목록' },
@@ -930,18 +945,21 @@ function QuotesWithFolders() {
           onChange={setView}
           size="sm"
         />
+        {view === 'list' && (
+          <label style={qt.onlyAssign}>
+            <input type="checkbox" checked={onlyAssign} onChange={e => setOnlyAssign(e.target.checked)} />
+            <span>배정 필요건만</span>
+          </label>
+        )}
       </div>
-      {view === 'list' ? <QuotesTab /> : <CustomerFolders />}
+      {view === 'list' ? <QuotesTab onlyAssign={onlyAssign} /> : <CustomerFolders />}
     </div>
   )
 }
 
-function QuotesTab() {
+function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
   // 견적 삭제를 없애면서 is_master 분기가 사라졌다 — 마스터만 할 수 있는 일이 이 탭엔 없다
   const isMobile = useIsMobile()
-  /** 보기 — 「진행 중」과 「숨김」을 섞지 않는다. 정리는 숨긴 것만 따로 보는 게 편하다 */
-  const [view, setView] = useState<'active' | 'hidden'>('active')
-  const [hidingId, setHidingId] = useState<number | null>(null)
 
   const [quotes, setQuotes] = useState<ApiQuote[]>([])
   const [loading, setLoading] = useState(true)
@@ -973,14 +991,18 @@ function QuotesTab() {
 
   function load() {
     setLoading(true); setErr('')
-    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined, view })
+    /*
+     * 숨김 보기를 없앴다 — 「견적 숨기기」는 쓰이지 않았고 상단만 번잡하게 했다(제보).
+     * `view` 를 보내지 않으므로 **예전에 숨긴 건도 목록에 다시 나온다.**
+     * 데이터는 그대로 두고(hidden_at 컬럼은 남는다) 보여 주기만 되돌린 것이다.
+     */
+    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined })
       .then(setQuotes)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
   }
 
-  // 보기를 바꾸면 다시 읽는다(조회 조건이 바뀐다)
-  useEffect(() => { load() }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
   useScreenRefresh(load)
 
@@ -1038,17 +1060,6 @@ function QuotesTab() {
    * 잘못 만든 견적은 지우지 않고 상태로 관리한다(만료·취소). 서버도 405 로 거절한다.
    */
 
-  /** 숨기기 / 다시 보이기 — 임시저장만 가능(서버가 막는다) */
-  async function handleHide(id: number, hidden: boolean) {
-    setHidingId(id); setErr('')
-    try {
-      await setQuoteHidden(id, hidden)
-      load()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : '숨김 처리 실패')
-    } finally { setHidingId(null) }
-  }
-
   /** 견적 상태 → 뱃지 뜻 넷 중 하나(진행중·완료·대기·경고). 상태별로 색을 새로 만들지 않는다 */
   function statusTone(status: string): BadgeTone {
     if (status === 'draft') return 'wait'
@@ -1057,8 +1068,11 @@ function QuotesTab() {
     return 'progress'
   }
 
-  // 화면에 실제로 그릴 목록 — 기간·상태로 받아 온 것을 이름으로 한 번 더 좁힌다
-  const shown = filterByCustomer(quotes, nameQuery)
+  /*
+   * 화면에 실제로 그릴 목록 — 기간·상태로 받아 온 것을 **이름**으로, 그리고
+   * **배정 필요건만** 으로 한 번 더 좁힌다. 둘 다 이미 불러온 것 안에서 거른다.
+   */
+  const shown = filterByCustomer(quotes, nameQuery).filter(q => !onlyAssign || needsAssign(q))
 
   return (
     <div>
@@ -1078,13 +1092,6 @@ function QuotesTab() {
           <span style={qt.dateSep}>~</span>
           <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput }} />
         </div>
-        <Segmented
-          items={[{ value: 'active', label: '진행 중' }, { value: 'hidden', label: '숨김' }]}
-          value={view}
-          onChange={setView}
-          size="sm"
-        />
-        <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
         {/* 이름 검색은 「조회」를 누르지 않는다 — 이미 불러온 것에서 바로 좁힌다 */}
         <input
           type="text"
@@ -1094,6 +1101,7 @@ function QuotesTab() {
           aria-label="고객 이름으로 좁히기"
           style={{ ...qt.select, ...(isMobile ? { flex: 1 } : { width: 160 }) }}
         />
+        <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
@@ -1109,8 +1117,6 @@ function QuotesTab() {
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {shown.map(q => {
-            /* 서명이 끝난 건은 숨길 일이 없다 — 그 자리를 제작 배정이 쓴다 */
-            const signed = q.contract?.status === 'COMPLETED'
             return (
             <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
@@ -1170,14 +1176,6 @@ function QuotesTab() {
                 {q.source === 'public' && !q.sales_user_id && (
                   <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
                 )}
-                {/* 데스크톱과 같은 규칙 — 서명이 끝나면 숨기기 자리를 제작 배정이 쓴다 */}
-                {!signed && (
-                  <button
-                    style={{ ...(hidingId === q.id ? BTN.rowDisabled : BTN.row), width: '100%' }}
-                    disabled={hidingId === q.id}
-                    onClick={() => handleHide(q.id, !q.hidden_at)}
-                  >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
-                )}
                 {q.status === 'contracted' && (
                   <button style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
                 )}
@@ -1205,8 +1203,6 @@ function QuotesTab() {
             </thead>
             <tbody>
               {shown.map(q => {
-                /* 서명이 끝난 건은 숨길 일이 없다 — 그 자리를 제작 배정이 쓴다 */
-                const signed = q.contract?.status === 'COMPLETED'
                 return (
                 <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
                   <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
@@ -1257,18 +1253,6 @@ function QuotesTab() {
                       )}
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
-                      )}
-                      {/*
-                        서명이 끝난 건은 **숨길 일이 없다**(서버도 막는다). 그 자리를 비워 두는 대신
-                        **제작 배정**이 쓴다 — 버튼 개수가 늘지 않아 줄이 밀리지 않는다.
-                      */}
-                      {!signed && (
-                        <button
-                          style={hidingId === q.id ? BTN.rowDisabled : BTN.row}
-                          disabled={hidingId === q.id}
-                          title={q.hidden_at ? '다시 보이게 합니다' : '이 견적만 화면에서 감춥니다. 지우지 않습니다'}
-                          onClick={() => handleHide(q.id, !q.hidden_at)}
-                        >{hidingId === q.id ? '…' : (q.hidden_at ? '다시 보이기' : '견적 숨기기')}</button>
                       )}
                       {q.status === 'contracted' && (
                         <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
@@ -1327,6 +1311,11 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
    * 알림을 누른 의미가 없다.
    */
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(deepLink?.orderId ?? null)
+  /*
+   * 뒤로가기 한 번이면 목록으로 — **치던 검색어·보던 기간은 그대로다.**
+   * 목록 화면이 그대로 살아 있고 그 위에 상세가 덮여 있을 뿐이라서다.
+   */
+  useBackClose(selectedOrderId !== null, () => setSelectedOrderId(null))
 
   function load() {
     setLoading(true); setErr('')
@@ -1572,6 +1561,17 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
+  /** 보기 전환 줄 — 왼쪽 토글, **오른쪽 끝**에 「배정 필요건만」 */
+  viewRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: 'var(--sp-3)', marginBottom: 'var(--sp-3)', flexWrap: 'wrap' as const,
+  },
+  onlyAssign: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
+    fontSize: 'var(--fs-label)', color: 'var(--dark)', cursor: 'pointer',
+    minHeight: 'var(--h-control-sm)',
+  },
+
   /**
    * 제작 배정 — 다른 버튼과 **같은 크기·같은 줄**이다. 크게 만들거나 아래로 내렸더니
    * 목록이 그 버튼으로 뒤덮이고 행 높이가 들쭉날쭉해졌다(둘 다 되돌렸다).
@@ -1641,6 +1641,32 @@ const qtMob: Record<string, React.CSSProperties> = {
 const modal: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
   box: { background: '#fff', borderRadius: 14, padding: '28px 32px', width: 400, maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: 16 },
+  /**
+   * 화면을 꽉 채우는 팝업 — 발주서처럼 **서류를 그대로 보여 주는** 자리에 쓴다.
+   * 좁은 상자에 넣으면 서류가 세로로 눌려 읽기 어렵다(사진 제보).
+   */
+  boxFull: {
+    background: '#fff', display: 'flex', flexDirection: 'column', gap: 16,
+    width: '100%', height: '100%', maxWidth: 'none', maxHeight: 'none',
+    borderRadius: 0, padding: 'var(--sp-4)',
+    paddingTop: safeTop('var(--sp-4)'), paddingBottom: safeBottom('var(--sp-4)'),
+    boxSizing: 'border-box',
+  },
+  /**
+   * 발주서 안 비고 입력칸 — **서류의 일부처럼 보이게** 한다.
+   *
+   * 테두리를 두르면 그 칸만 「입력 위젯」으로 튀어, 특장사가 받아 보는 발주서와
+   * 이질감이 생긴다(제보). 테두리를 없애고 글씨도 서류 본문과 같은 값을 쓴다.
+   */
+  remarkInput: {
+    width: '100%', boxSizing: 'border-box', resize: 'none',
+    border: 'none', outline: 'none', background: 'transparent',
+    padding: 0, margin: 0,
+    fontFamily: 'inherit', color: 'var(--body)',
+    // 서류 본문과 **같은 값** — 적을 때와 읽을 때가 같은 글씨여야 한다
+    fontSize: 'var(--fs-sheet)',
+    lineHeight: 1.6,
+  },
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)' },
   desc: { fontSize: 13, color: 'var(--muted)' },
   // 「필수」는 목록 안 안내문이 아니라 **라벨 옆 빨간 글씨** — 앱 전체가 같은 규칙이다

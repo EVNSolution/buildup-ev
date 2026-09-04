@@ -171,8 +171,12 @@ describe('대화 입력줄', () => {
     expect(src).toMatch(/box: \{[\s\S]{0,200}border: 'var\(--hairline\)'/);
     // 입력칸 자신은 테두리를 갖지 않는다 — 상자가 입력칸처럼 보이는 역할을 한다
     expect(src).toMatch(/area: \{[\s\S]{0,200}border: 'none'/);
-    // 글이 길어져도 첨부·보내기는 바닥에 남는다
-    expect(src).toMatch(/box: \{[\s\S]{0,120}alignItems: 'flex-end'/);
+    /*
+     * 아이콘은 **세로 가운데**에 선다. 예전엔 `flex-end` 였는데 위아래 여백이 달라
+     * 아래로 처져 보였다(제보). 칸으로 감싸지 않고 아이콘만 두므로 가운데가 자연스럽다.
+     */
+    expect(src).toMatch(/box: \{[\s\S]{0,160}alignItems: 'center'/);
+    expect(src, '아이콘을 칸으로 감싸지 않는다').toMatch(/icon: \{[\s\S]{0,200}background: 'transparent'/);
   });
 
   it('🔴 모바일 4.5줄 · PC 8.5줄까지만 자란다', () => {

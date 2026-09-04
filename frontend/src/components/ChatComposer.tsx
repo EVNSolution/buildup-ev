@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { BTN } from '../styles/buttons'
 import { safeBottom } from '../styles/safeArea'
-import { shrinkImage } from '../lib/imageResize'
+import { PhotoViewer } from './PhotoViewer'
+import { ClipIcon, SendIcon } from './icons/ChatIcons'
 
 /**
  * 대화 입력줄 — **단계별 서랍과 「대화」 탭이 같은 것을 쓴다.**
@@ -38,6 +38,18 @@ export function ChatComposer({
   const areaRef = useRef<HTMLTextAreaElement>(null)
   const isMobile = useIsMobile()
   const empty = text.trim() === '' && !image
+
+  /*
+   * 미리보기 주소는 **사진이 바뀔 때만** 만든다. 매 렌더마다 만들면 그때마다 새 주소가
+   * 생겨(브라우저가 메모리에 붙들고 있는다) 사진이 깜빡인다. 다 쓰면 반드시 놓아 준다.
+   */
+  const [preview, setPreview] = useState('')
+  useEffect(() => {
+    if (!image) { setPreview(''); return }
+    const url = URL.createObjectURL(image)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [image])
 
   /**
    * 내용만큼 자란다 — 한 줄에서 시작해 **모바일 4.5줄 · PC 8.5줄**까지.
@@ -76,12 +88,23 @@ export function ChatComposer({
     <div style={s.wrap}>
       {above}
 
+      {/*
+        **찍은 사진을 크게 확인하고 보낸다.**
+        예전에는 입력줄 위에 작은 썸네일만 떴다 — 현장에서 찍은 사진이 제대로 나왔는지
+        그 크기로는 알 수 없다(제보). 고르는 순간 화면 가득 띄우고, 오른쪽 위에서 보낸다.
+      */}
       {image && (
-        <div style={s.preview}>
-          <img src={URL.createObjectURL(image)} alt="첨부할 사진" style={s.previewImg} />
-          <span style={s.previewName}>{image.name}</span>
-          <button style={s.previewX} onClick={() => onImageChange(null)} aria-label="첨부 취소">✕</button>
-        </div>
+        <PhotoViewer
+          src={preview}
+          alt="보낼 사진"
+          onClose={() => onImageChange(null)}
+          action={
+            <button style={s.sendTop} onClick={onSend} disabled={busy}>
+              {busy ? '보내는 중…' : '보내기'}
+              <SendIcon size={18} />
+            </button>
+          }
+        />
       )}
 
       {/* 테두리는 이 상자 하나 — 안의 것들은 테두리를 갖지 않는다 */}
@@ -91,19 +114,23 @@ export function ChatComposer({
           그대로 쌓이면 목록을 여는 것만으로 데이터를 다 쓴다.
         */}
         <button
-          style={image ? s.clipOn : s.clip}
+          style={s.icon}
           onClick={() => fileRef.current?.click()}
           title="사진 첨부"
           aria-label="사진 첨부"
-        >📎</button>
+        ><ClipIcon /></button>
         <input
           ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
           onChange={async e => {
             const f = e.target.files?.[0]
             e.target.value = ''
             if (!f) return
-            try { onImageChange((await shrinkImage(f)).file) }
-            catch { onImageChange(f) }   // 못 줄여도 원본으로 보낸다 — 못 보내는 것보다 낫다
+            /*
+             * **줄이지 않는다.** 대화 사진은 증빙으로도 쓰이고, 미세한 흠집을 봐야 할 때가
+             * 있다(제보). 줄여 놓으면 그때 확인할 방법이 없다.
+             * 서버는 20MB 까지 받으므로 휴대폰 사진은 그대로 올라간다.
+             */
+            onImageChange(f)
           }}
         />
 
@@ -121,11 +148,14 @@ export function ChatComposer({
           }}
         />
 
+        {/* 보내기 — 글자 대신 종이비행기. 칸으로 감싸지 않고 아이콘만 둔다 */}
         <button
-          style={busy || empty ? s.sendOff : s.send}
+          style={busy || empty ? s.iconOff : s.iconSend}
           disabled={busy || empty}
           onClick={onSend}
-        >{busy ? '전송 중…' : '남기기'}</button>
+          title="보내기"
+          aria-label="보내기"
+        ><SendIcon /></button>
       </div>
     </div>
   )
@@ -144,28 +174,47 @@ const s: Record<string, React.CSSProperties> = {
     padding: 'var(--sp-3)', paddingBottom: safeBottom('var(--sp-3)'),
     display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
   },
-  /** 테두리를 가진 **하나의 상자** — 카카오톡처럼 안에 다 들어간다 */
+  /**
+   * 테두리를 가진 **하나의 상자** — 카카오톡처럼 안에 다 들어간다.
+   *
+   * 아이콘은 **세로 가운데**에 선다. 예전엔 `flex-end` 였는데 위아래 여백이 달라
+   * 아래로 처져 보였다(제보). 아이콘만 놓으므로 가운데가 자연스럽다.
+   */
   box: {
-    display: 'flex', alignItems: 'flex-end', gap: 'var(--sp-2)',
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
     border: 'var(--hairline)', borderRadius: 12, background: '#fff',
     padding: 'var(--sp-2)',
   },
-  /*
-   * 첨부·보내기는 `alignItems: flex-end` 를 받아 **바닥에 붙는다.**
-   * 글이 길어져 입력칸이 자라도 자리가 흔들리지 않는다.
+  /**
+   * 아이콘 버튼 — **칸으로 감싸지 않는다.** 테두리·배경 없이 아이콘만 둔다.
+   * 크기는 손가락 기준(44px)을 지키되 그림은 20px 이라 여백이 그 역할을 한다.
    */
-  clip: {
-    flex: 'none', width: 34, height: 34, padding: 0,
-    border: 'none', background: 'transparent', cursor: 'pointer',
-    fontSize: 17, lineHeight: 1, color: 'var(--muted)',
-    borderRadius: 8,
+  icon: {
+    flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, padding: 0,
+    border: 'none', background: 'transparent', color: 'var(--muted)',
+    cursor: 'pointer', borderRadius: 8,
   },
-  /** 붙인 게 있으면 눈에 띄게 — 무엇이 함께 나가는지 알아야 한다 */
-  clipOn: {
-    flex: 'none', width: 34, height: 34, padding: 0,
-    border: 'none', background: 'var(--lime-bg)', cursor: 'pointer',
-    fontSize: 17, lineHeight: 1, color: 'var(--lime-ink)',
-    borderRadius: 8,
+  /** 보낼 것이 있을 때 — 브랜드색으로 「지금 누르면 간다」 */
+  iconSend: {
+    flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, padding: 0,
+    border: 'none', background: 'transparent', color: 'var(--lime-ink)',
+    cursor: 'pointer', borderRadius: 8,
+  },
+  /** 보낼 것이 없을 때 — 눌러도 안 되는 것이 보이게 */
+  iconOff: {
+    flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, padding: 0,
+    border: 'none', background: 'transparent', color: 'var(--line)',
+    cursor: 'default', borderRadius: 8,
+  },
+  /** 사진을 크게 본 화면의 오른쪽 위 보내기 */
+  sendTop: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    border: 'none', borderRadius: 999, background: 'var(--lime)', color: 'var(--dark)',
+    padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'inherit',
   },
   /** 테두리·배경 없음 — 바깥 상자가 입력칸처럼 보이는 역할을 한다 */
   area: {
@@ -176,10 +225,4 @@ const s: Record<string, React.CSSProperties> = {
     // 처음 그릴 때 한 줄로 — 그 뒤 높이는 grow() 가 잡는다
     overflowY: 'hidden',
   },
-  send: { ...BTN.smPrimary, flex: 'none', width: 'auto', minWidth: 0, padding: '0 var(--sp-3)', height: 34, minHeight: 34 },
-  sendOff: { ...BTN.smPrimary, flex: 'none', width: 'auto', minWidth: 0, padding: '0 var(--sp-3)', height: 34, minHeight: 34, opacity: 0.45 },
-  preview: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  previewImg: { width: 36, height: 36, objectFit: 'cover' as const, borderRadius: 6, border: 'var(--hairline)' },
-  previewName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  previewX: { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 },
 }
