@@ -13,6 +13,13 @@
  *
  * ⚠️ 상태를 **읽기만** 한다. 견적·계약을 고치지 않는다.
  */
+/*
+ * ⚠️ **맨 처음이어야 한다.** 이 앱에는 dotenv 가 없다 — `config.ts` 가 릴리스 루트의
+ *    `.env` 를 읽어 `process.env` 에 넣는다(server.ts 도 이것을 최우선으로 부른다).
+ *    나중에 부르면 prisma 와 push 가 **빈 환경으로 먼저 만들어져** DB 도 VAPID 키도 없다고 나온다
+ *    (운영에서 실제로 「DB 연결이 없습니다」로 실패했다).
+ */
+import '../config.js';
 import { prisma } from '../lib/prisma.js';
 import { adminRecipients, notifyAssignNeeded, type AssignKind } from '../services/notify.js';
 
