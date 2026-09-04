@@ -155,7 +155,15 @@ const s: Record<string, React.CSSProperties> = {
    * 높이는 `aspect-ratio` 가 따라온다. 실제 서류는 이 안에서 축소돼 얹힌다.
    */
   frame: {
-    width: '100%', aspectRatio: '210 / 297', position: 'relative', overflow: 'hidden',
+    /*
+     * 폭은 자리에 맞춰 줄지만 **기준 폭보다 커지지는 않는다.**
+     *
+     * 좁으면 축소해 담는 것이 목적이었는데, 넓은 자리(서류 탭)에 두니 1 배를 넘겨
+     * 확대돼 화면을 가득 채웠다(제보 — 「서류탭에서 발주서가 너무 큼」).
+     * 서류는 실물 크기가 있다 — 자리가 남는다고 키울 이유가 없다.
+     */
+    width: '100%', maxWidth: BASE_W,
+    aspectRatio: '210 / 297', position: 'relative', overflow: 'hidden',
     // ⚠️ 세로 flex 안에 놓이면 남는 높이에 맞춰 **눌린다** — 실측 0.956(A4 는 0.707).
     //    비율은 서류의 정체성이라 남는 자리에 맞춰 양보하지 않는다. 넘치면 부모가 스크롤한다.
     flexShrink: 0,

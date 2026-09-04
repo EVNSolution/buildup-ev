@@ -1636,15 +1636,24 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
-  /** 날짜 머리(표) — 누르는 줄이라 커서를 바꾼다. 색은 목록 배경보다 반 단계만 진하게 */
-  groupRow: { cursor: 'pointer', background: 'var(--track)' },
+  /*
+   * 날짜 머리(표) — **영업 「내 견적」과 같은 모양**이다(lv.groupRow/groupCell 와 같은 값).
+   *
+   * ⚠️ 회색 띠를 깔지 말 것. 한때 `background: var(--track)` 을 줬더니 목록에 없던
+   *    회색 줄이 생겨 「무슨 일이냐」는 제보가 나왔다. 날짜 줄은 **구분자**지 강조가 아니다 —
+   *    윗줄과 가르는 것은 가는 선 하나면 충분하다.
+   */
+  groupRow: { cursor: 'pointer' },
   groupCell: {
-    padding: 'var(--sp-2) var(--sp-3)', borderBottom: 'var(--hairline)',
-    fontSize: 'var(--fs-label)', color: 'var(--dark)',
+    padding: 'var(--sp-3) var(--sp-3) var(--sp-2)', borderTop: 'var(--hairline)',
+    display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',
   },
-  groupArrow: { color: 'var(--muted)', marginRight: 'var(--sp-2)' },
-  groupDate: { fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
-  groupCount: { marginLeft: 'var(--sp-2)', color: 'var(--muted)', fontSize: 'var(--fs-caption)' },
+  groupArrow: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', width: 12 },
+  groupDate: {
+    fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)',
+    letterSpacing: 'var(--ls-tight)', fontVariantNumeric: 'tabular-nums' as const,
+  },
+  groupCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
 
   /** 보기 전환 줄 — 왼쪽 토글, **오른쪽 끝**에 「배정 필요건만」 */
   viewRow: {
