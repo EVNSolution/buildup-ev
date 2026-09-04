@@ -424,7 +424,9 @@ quotesRouter.patch('/:id/inputs', rbac('SALES', 'ADMIN'), requirePermission('quo
       // 대표이사 — 법인 계약서 서명블록. 저장 후 사업자구분을 고칠 때 함께 고칠 수 있어야 한다.
       'ceo_name',
       // 커스텀 특장 옵션 — 저장 뒤 「수정」에서도 고칠 수 있어야 한다(컨피규레이터와 같게)
-      'custom_options'];
+      'custom_options',
+      // 계약일자 — 계약서를 만들 때 고른 날(YYYY-MM-DD). 비면 만드는 날로 찍힌다
+      'contract_date'];
     const body = (req.body ?? {}) as Record<string, unknown>;
     /*
      * 반쪽만 적힌 줄은 **임시저장도 막는다.** 이 길이 「부분저장」이라고 예외를 두면

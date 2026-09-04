@@ -455,6 +455,11 @@ model Quote {
   hidden_at         DateTime?
   hidden_by         String?     @db.VarChar(120)
   created_at        DateTime    @default(now())
+  /// 마지막으로 고친 시각 — **견적서에 찍히는 날짜**가 이 값이다.
+  /// 옵션·고객정보·입력을 고치면 그 날짜로 다시 찍혀야 한다. 예전엔 created_at 을 찍어
+  /// 몇 번을 고쳐도 처음 만든 날이 나갔다(제보).
+  /// Prisma 가 update 마다 자동으로 채운다(@updatedAt).
+  updated_at        DateTime    @default(now()) @updatedAt
 
   // 참고용 메일 발송(견적서·계약서 PDF 첨부) 이력 — 전자서명(purchase_contract)과는 별개 채널.
   // 관리자 견적 목록에서 '보냈는지/언제/누구에게' 를 확인하는 용도. 마지막 발송 기준.
