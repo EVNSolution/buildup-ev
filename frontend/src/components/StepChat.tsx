@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
-import { useChatPoll, sameComments } from '../lib/chatPoll'
+import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { fetchComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { BTN } from '../styles/buttons'
 import { shrinkImage } from '../lib/imageResize'
@@ -93,18 +93,20 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
    * 여기서는 `setRows(null)`(불러오는 중)을 **하지 않는다** — 5초마다 화면이 비면
    * 글을 읽던 사람이 매번 깜빡임을 본다. 바뀐 게 없으면 아예 손대지 않는다.
    */
-  useChatPoll(() => {
-    fetchComments(orderId, stepCode)
-      .then(d => {
-        setRows(prev => {
-          if (sameComments(prev, d.comments)) return prev
-          // 새 글이 **실제로 왔을 때만** 읽음 처리한다 — 5초마다 부르면 서버가 낭비된다
-          onRead()
-          return d.comments
+  useChatPoll(
+    () => {
+      // **새로 생긴 것만** 받는다 — 대화가 길어져도 오가는 양이 늘지 않는다
+      fetchComments(orderId, stepCode, lastId(rows))
+        .then(d => {
+          if (d.comments.length === 0) return          // 새 글 없음 — 목록을 손대지 않는다
+          setRows(prev => appendComments(prev, d.comments))
+          onRead()                                     // 새 글이 **실제로 왔을 때만** 읽음 처리
         })
-      })
-      .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
-  }, [orderId, stepCode])
+        .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
+    },
+    () => pollDelay(lastMessageAt(rows)),
+    [orderId, stepCode],
+  )
 
   /*
    * 새 글이 오면 아래로. ⚠️ `scrollIntoView` 는 바깥 컨테이너까지 움직인다 —

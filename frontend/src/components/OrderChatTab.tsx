@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
-import { useChatPoll, sameComments } from '../lib/chatPoll'
+import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { BTN } from '../styles/buttons'
 import { shrinkImage } from '../lib/imageResize'
 import { PushToggle } from './PushToggle'
@@ -60,14 +60,16 @@ export function OrderChatTab(
     fetchAllComments(orderId)
       .then(d => {
         if (!alive) return
-        setRows(d.comments); setSteps(d.steps); setMe(d.me)
+        // 첫 조회라 단계 목록이 함께 온다(증분 조회에는 안 온다)
+        const steps = d.steps ?? []
+        setRows(d.comments); setSteps(steps); setMe(d.me)
         /*
          * 알림을 눌러 들어왔으면 **그 단계**를 고른 채로 연다 — 알림이 말하는 내용이
          * 그 단계에 있으므로 바로 이어서 답할 수 있다.
          * 그 밖에는 마지막으로 이야기하던 단계를 기본값으로 — 대개 이어서 쓴다.
          */
-        const preferred = initialStep && d.steps.some(x => x.code === initialStep) ? initialStep : ''
-        setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || d.steps[0]?.code || '')
+        const preferred = initialStep && steps.some(x => x.code === initialStep) ? initialStep : ''
+        setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || steps[0]?.code || '')
       })
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
     return () => { alive = false }
@@ -80,14 +82,16 @@ export function OrderChatTab(
    * 고른 단계(`step`)는 **건드리지 않는다.** 답을 쓰려고 골라 둔 것이 5초마다
    * 되돌아가면 글을 쓸 수 없다.
    */
-  useChatPoll(() => {
-    fetchAllComments(orderId)
-      .then(d => {
-        setRows(prev => (sameComments(prev, d.comments) ? prev : d.comments))
-        setSteps(prev => (prev.length === d.steps.length ? prev : d.steps))
-      })
-      .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
-  }, [orderId])
+  useChatPoll(
+    () => {
+      // **새로 생긴 것만** — 단계 목록은 처음 한 번 받았으니 다시 받지 않는다
+      fetchAllComments(orderId, lastId(rows))
+        .then(d => { if (d.comments.length > 0) setRows(prev => appendComments(prev, d.comments)) })
+        .catch(() => { /* 잠깐 끊긴 것뿐이다 — 다음 차례에 다시 받는다 */ })
+    },
+    () => pollDelay(lastMessageAt(rows)),
+    [orderId],
+  )
 
   /*
    * ⚠️ `scrollIntoView` 를 쓰지 않는다. 그것은 **바깥 스크롤 컨테이너까지 함께** 움직여서,

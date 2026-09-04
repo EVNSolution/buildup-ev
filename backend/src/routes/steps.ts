@@ -539,12 +539,19 @@ stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
     const id = Number(req.params['id']);
     const r = await loadOrder(id, req);
     if ('err' in r) { denyOrder(res, r.err); return; }
+    /*
+     * `?after=<마지막으로 받은 id>` — **그 뒤에 생긴 것만** 준다.
+     * 단계 목록(`steps`)은 처음 한 번만 보낸다. 14줄짜리 고정 목록이라 몇 초마다
+     * 다시 실어 보내면 증분으로 아낀 것을 그대로 도로 쓴다.
+     */
+    const after = Number(req.query['after']);
+    const incremental = Number.isInteger(after) && after > 0;
     const defs = stepsFor(r.order.body_only);
     res.json({ data: {
-      comments: await listAllComments(id),
+      comments: await listAllComments(id, incremental ? after : undefined),
       me: req.auth!.email,
       // 화면이 코드 대신 이름을 보여 주고, 쓸 때 고를 수 있게 목록도 함께 준다
-      steps: defs.map(d => ({ code: d.code, label: d.label })),
+      ...(incremental ? {} : { steps: defs.map(d => ({ code: d.code, label: d.label })) }),
     } });
   }));
 
@@ -555,7 +562,9 @@ stepsRouter.get('/:id/steps/:code/comments', rbac('ADMIN', 'SALES', 'MAKER'),
     const code = String(req.params['code']);
     const r = await loadOrder(id, req);
     if ('err' in r) { denyOrder(res, r.err); return; }
-    const rows = await listComments(id, code);
+    // `?after=<마지막으로 받은 id>` — 그 뒤에 생긴 것만
+    const after = Number(req.query['after']);
+    const rows = await listComments(id, code, Number.isInteger(after) && after > 0 ? after : undefined);
     await markRead(id, code, req.auth!.email).catch(() => { /* 표시 실패로 조회를 막지 않는다 */ });
     res.json({ data: { comments: rows, me: req.auth!.email } });
   }));

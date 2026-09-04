@@ -452,10 +452,18 @@ const s: Record<string, React.CSSProperties> = {
    * 안 읽은 대화 표시. **개수를 적지 않는다** — 「몇 개인가」가 아니라
    * 「내가 안 본 것이 있나」만 알면 열어 보게 된다. 숫자는 버튼만 복잡하게 만든다.
    */
+  /**
+   * 안 읽은 대화 표시 — **버튼 안쪽** 오른쪽 위.
+   *
+   * ⚠️ 예전엔 `top: -3, right: -3` 으로 버튼 **밖**에 뒀는데, 버튼 스타일(BTN.row)에
+   *    `overflow: hidden` 이 걸려 있어(긴 라벨 말줄임용) **점이 잘려 보였다**(사진 제보).
+   *    바깥에 두는 한 어떤 값을 줘도 잘린다 — 안으로 들인다.
+   *    라벨은 가운데 정렬이라 오른쪽 위 모서리는 비어 있어 글자를 가리지 않는다.
+   */
   dot: {
-    position: 'absolute' as const, top: -3, right: -3,
+    position: 'absolute' as const, top: 6, right: 6,
     width: 8, height: 8, borderRadius: '50%',
-    background: 'var(--req)', border: '1.5px solid var(--bg)',
+    background: 'var(--req)',
   },
   rec: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)' },
   recLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
