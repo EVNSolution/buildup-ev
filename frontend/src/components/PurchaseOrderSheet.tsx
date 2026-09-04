@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { ApiOrderOption } from '@shared/types/index'
 import { toDateInput } from '@shared/schedule/businessDays'
 import { DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
@@ -29,8 +30,35 @@ export function PurchaseOrderSheet({
   /** 비고를 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
   editable?: React.ReactNode
 }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+
+  /**
+   * **A4 비율은 줄여서 맞추지, 늘려서 맞추지 않는다.**
+   *
+   * `aspect-ratio` 만 걸어 봤더니 PC(504px 폭)에서는 정확히 A4였는데 휴대폰(347px 폭)에서는
+   * 0.516 까지 찌그러졌다. 폭이 좁으면 글이 더 접혀 내용이 길어지고, `aspect-ratio` 는
+   * **선호 크기일 뿐**이라 내용이 길면 상자가 그냥 늘어나기 때문이다.
+   *
+   * 그래서 서류는 늘 `BASE_W` 폭으로 조판하고, 남는 폭에 맞춰 **통째로 축소**한다.
+   * 실제 종이를 멀리서 보는 것과 같아서, 화면이 좁아져도 비율도 줄바꿈도 그대로다.
+   *
+   * `zoom` 이 아니라 `transform` 인 이유: iOS 는 입력칸의 **지정된** 글씨 크기로 초점 확대
+   * 여부를 판단한다. `transform` 은 지정값을 건드리지 않으므로 16px 규칙이 그대로 살아 있다.
+   */
+  useLayoutEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const fit = () => setScale(el.clientWidth / BASE_W)
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   return (
-    <div style={s.sheet}>
+    <div ref={wrapRef} style={s.frame}>
+      <div style={{ ...s.sheet, transform: `scale(${scale})` }}>
       <div style={s.title}>발 주 서</div>
 
       <div style={s.metaRow}>
@@ -81,9 +109,20 @@ export function PurchaseOrderSheet({
         <li>납품장소 및 검사방법: 당사 지정 장소 및 당사 검사기준에 의함. 사전 협의하여 진행함.</li>
         <li>기타: 상기 사항 외에 발주사·공급사 간 협의에 따라 진행함.</li>
       </ol>
+      </div>
     </div>
   )
 }
+
+/**
+ * 서류를 조판하는 기준 폭(px). 화면 폭이 아니라 **늘 이 폭으로 그린 뒤 축소**한다.
+ *
+ * 560px 을 고른 이유: 실측해 보니 내용 높이가 A4 높이(792px)에 여유 있게 들어간다.
+ * 더 좁게 잡으면 글이 접혀 내용이 A4 아래로 넘치고, 넘친 만큼은 잘려 보이지 않게 된다.
+ */
+const BASE_W = 560
+/** A4 는 210 × 297 mm. 기준 폭에 대응하는 높이. */
+const BASE_H = Math.round(BASE_W * 297 / 210)
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
@@ -102,9 +141,34 @@ function Meta({ label, value }: { label: string; value: string }) {
  */
 const s: Record<string, React.CSSProperties> = {
   // 서류처럼 보이게 — 화면 요소가 아니라 '받은 문서'로 읽혀야 한다
+  /**
+   * 발주서 — **A4 비율(210:297)을 지킨다.**
+   *
+   * 크기는 화면에 맞춰 줄었다 늘었다 해도 되지만, 비율이 달라지면 실제로 출력했을 때와
+   * 다른 문서가 된다. 특장사가 받아 보는 것과 화면에서 보는 것이 같아야 한다.
+   *
+   * ⚠️ `aspect-ratio` 는 **선호 크기**다 — 내용이 그보다 길면 상자가 늘어난다.
+   *    고정 높이로 두면 넘치는 글이 잘려 없는 것처럼 보인다. 비율은 지키되 잘리지는 않는다.
+   */
+  /**
+   * 자리만 잡는 바깥틀 — **A4 비율의 빈 상자.** 폭은 화면에 맞춰 늘었다 줄었다 하고,
+   * 높이는 `aspect-ratio` 가 따라온다. 실제 서류는 이 안에서 축소돼 얹힌다.
+   */
+  frame: {
+    width: '100%', aspectRatio: '210 / 297', position: 'relative', overflow: 'hidden',
+    // ⚠️ 세로 flex 안에 놓이면 남는 높이에 맞춰 **눌린다** — 실측 0.956(A4 는 0.707).
+    //    비율은 서류의 정체성이라 남는 자리에 맞춰 양보하지 않는다. 넘치면 부모가 스크롤한다.
+    flexShrink: 0,
+  },
+  /**
+   * 서류 본체 — 늘 `BASE_W × BASE_H` 로 그리고 바깥틀에 맞게 축소된다.
+   * 크기를 고정해야 축소 배율 하나로 비율이 정확히 보존된다.
+   */
   sheet: {
+    position: 'absolute', top: 0, left: 0,
+    width: BASE_W, height: BASE_H, transformOrigin: 'top left',
     border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
-    padding: 'var(--sp-4)',
+    padding: 'var(--sp-4)', boxSizing: 'border-box',
   },
   title: {
     textAlign: 'center', fontSize: 15, fontWeight: 700, color: 'var(--dark)',

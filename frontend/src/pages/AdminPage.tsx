@@ -104,6 +104,7 @@ interface ConfirmModalProps {
   onConfirm: (makerOrgId: string, remark: string, customBadge: boolean) => void; onClose: () => void
 }
 function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }: ConfirmModalProps) {
+  const isMobile = useIsMobile()
   const [selected, setSelected] = useState('')
   const [remark, setRemark] = useState('')
   /**
@@ -128,10 +129,12 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
   return (
     <div style={modal.overlay} onClick={onClose}>
       {/*
-        발주서를 그대로 보여 주는 팝업이라 **화면을 꽉 채운다.**
-        좁은 상자에 넣었더니 서류가 세로로 길게 눌려 읽기 어려웠다(사진 제보).
+        발주서를 그대로 보여 주는 팝업.
+        **손가락 기기는 화면을 꽉** 채우고(좁은 상자에서는 서류가 눌려 읽을 수 없다),
+        **PC 는 제 비율의 팝업**을 유지한다 — 큰 화면에서 전체화면은 과하다.
+        어느 쪽이든 상자는 화면 안에 **고정**되고 넘치는 만큼은 안에서 스크롤된다.
       */}
-      <div style={modal.boxFull} onClick={e => e.stopPropagation()}>
+      <div style={isMobile ? modal.boxFull : modal.boxSheet} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>견적 #{quoteId} — 제작 배정</div>
 
         <div style={modal.scroll}>
@@ -1651,6 +1654,32 @@ const modal: Record<string, React.CSSProperties> = {
     borderRadius: 0, padding: 'var(--sp-4)',
     paddingTop: safeTop('var(--sp-4)'), paddingBottom: safeBottom('var(--sp-4)'),
     boxSizing: 'border-box',
+  },
+  /**
+   * PC 의 서류 팝업 — **화면 안에 고정**하고 넘치는 만큼만 안에서 스크롤한다.
+   *
+   * 예전에는 높이를 정하지 않아 내용이 길어지면 위아래가 **화면 밖으로 나갔고,
+   * 스크롤도 되지 않아** 아래쪽 버튼을 누를 수 없었다(제보).
+   * 상자 높이를 화면에 묶고, 안쪽 `scroll` 이 남는 높이를 가져간다.
+   */
+  boxSheet: {
+    background: '#fff', borderRadius: 14, padding: '24px 28px',
+    width: 'min(560px, 92vw)', maxHeight: '88vh',
+    display: 'flex', flexDirection: 'column', gap: 16,
+    boxSizing: 'border-box',
+  },
+  /**
+   * 팝업 안에서 **여기만 스크롤된다.** 제목과 아래 버튼은 늘 보여야 한다 —
+   * 스크롤해서 찾아 내려가야 하는 「제작 배정」 버튼은 없느니만 못하다.
+   *
+   * ⚠️ 예전에는 이 이름만 쓰고 **값을 정의하지 않았다**(`undefined`). 아무 스타일도 안 걸려
+   *    상자가 내용만큼 늘어났고, 그래서 화면 밖으로 나가고 스크롤도 안 됐다.
+   */
+  scroll: {
+    flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+    display: 'flex', flexDirection: 'column', gap: 12,
+    // 끝까지 당겨도 바깥으로 넘기지 않는다
+    overscrollBehavior: 'contain',
   },
   /**
    * 발주서 안 비고 입력칸 — **서류의 일부처럼 보이게** 한다.
