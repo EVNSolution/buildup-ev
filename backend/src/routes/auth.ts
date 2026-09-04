@@ -122,7 +122,10 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
   const masterBypass = masterBypassEnabled({ is_master: dbUser.is_master });
   let permissions: string[];
   if (masterBypass) {
-    // 개발 환경의 무제한 우회 — 모든 활성 모듈을 본다. 운영에서는 이 갈래로 오지 않는다.
+    /*
+     * **마스터는 모든 활성 모듈을 본다** — 운영에서도 그렇다.
+     * 기능모듈 화면에서 켜 주기 전에는 시스템 주인이 자기 시스템의 일부를 못 봤다(제보).
+     */
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     permissions = allMods.map(m => m.code);
   } else {
