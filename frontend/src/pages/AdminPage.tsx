@@ -935,13 +935,17 @@ function CustomersTab() {
 type QuotesView = 'list' | 'folders'
 
 function QuotesWithFolders() {
+  const isMobile = useIsMobile()
   const [view, setView] = useState<QuotesView>('list')
   /**
    * **배정이 필요한 건만 보기** — 켜면 지금 손대야 하는 건만 남는다.
    *
-   * 관리자가 목록에서 가장 먼저 찾는 것이 그것이라, 매번 눈으로 훑지 않게 한 칸으로 둔다.
-   * 자리는 토글 **같은 줄 오른쪽 끝** — 보기 전환과 같은 성격(무엇을 보여 줄지)이라
-   * 아래 필터 줄로 내리면 기간·상태와 섞여 읽힌다.
+   * 자리가 화면 폭에 따라 다르다.
+   *  · 좁은 화면 — 보기 전환 토글과 **같은 줄 오른쪽 끝**. 아래 필터 줄까지 내려가면
+   *    한 줄이 더 생겨 목록이 그만큼 밀린다.
+   *  · 넓은 화면 — **좁히는 줄 안**, 상태·이름 바로 옆. 폭이 1000px 을 넘으면 오른쪽 끝은
+   *    왼쪽 것들과 너무 멀어져 「상관없는 버튼」으로 읽힌다(제보).
+   *    좁히는 조건끼리 모아 두면 무엇을 하는 칸인지가 자리로 드러난다.
    */
   const [onlyAssign, setOnlyAssign] = useState(false)
 
@@ -957,19 +961,40 @@ function QuotesWithFolders() {
           onChange={setView}
           size="sm"
         />
-        {view === 'list' && (
-          <label style={qt.onlyAssign}>
-            <input type="checkbox" checked={onlyAssign} onChange={e => setOnlyAssign(e.target.checked)} />
-            <span>배정 필요건만</span>
-          </label>
+        {view === 'list' && isMobile && (
+          <OnlyAssignToggle checked={onlyAssign} onChange={setOnlyAssign} />
         )}
       </div>
-      {view === 'list' ? <QuotesTab onlyAssign={onlyAssign} /> : <CustomerFolders />}
+      {view === 'list'
+        ? (
+          <QuotesTab
+            onlyAssign={onlyAssign}
+            /* 넓은 화면에서는 좁히는 줄이 이 칸을 받아 나란히 놓는다 */
+            onlyAssignControl={isMobile ? undefined : (
+              <OnlyAssignToggle checked={onlyAssign} onChange={setOnlyAssign} />
+            )}
+          />
+        )
+        : <CustomerFolders />}
     </div>
   )
 }
 
-function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
+/** 「배정 필요건만」 한 칸 — 자리는 둘인데 모양은 하나여야 한다 */
+function OnlyAssignToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label style={qt.onlyAssign}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      <span>배정 필요건만</span>
+    </label>
+  )
+}
+
+function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
+  onlyAssign?: boolean
+  /** 넓은 화면에서 좁히는 줄에 함께 세울 칸. 좁은 화면에서는 위 줄이 갖고 있어 비어 온다 */
+  onlyAssignControl?: React.ReactNode
+}) {
   // 견적 삭제를 없애면서 is_master 분기가 사라졌다 — 마스터만 할 수 있는 일이 이 탭엔 없다
   const isMobile = useIsMobile()
 
@@ -1120,6 +1145,7 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
           aria-label="고객 이름으로 좁히기"
           style={{ ...qt.select, ...(isMobile ? { flex: 1 } : { width: 160 }) }}
         />
+        {onlyAssignControl}
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
@@ -1675,9 +1701,19 @@ const qt: Record<string, React.CSSProperties> = {
    */
   assignBtn: { ...BTN.rowPrimary, color: 'var(--lime)', fontWeight: 700 },
   filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
-  // 모양·높이는 globals.css — 여기서는 줄어드는 방식만 (인라인으로 덮으면 옆 버튼과 높이가 어긋난다)
-  // 늘어나지는 않고(0) 좁아지면 줄어든다(1) — grow 를 주면 넓은 화면에서 「전체 상태」 하나가 1182px 를 차지한다(실측)
-  select: { flex: '0 1 160px', minWidth: 0, maxWidth: '100%' },
+  /*
+   * 좁히는 줄의 칸 — 늘어나지는 않고(0) 좁아지면 줄어든다(1).
+   * grow 를 주면 넓은 화면에서 「전체 상태」 하나가 1182px 를 차지한다(실측).
+   *
+   * ⚠️ **높이를 못 박는다.** 공통 규칙은 `min-height` 만 정하는데, 그러면 나머지는
+   *    브라우저가 알아서 채운다 — 사파리는 `<select>` 에 자기 고유 높이를 얹어서
+   *    바로 옆 입력칸과 **몇 px 씩 어긋난다**(제보). 크롬에서는 둘 다 44px 로 나와
+   *    개발 중에는 보이지 않는다. 자리가 정해진 칸은 높이도 우리가 정한다.
+   */
+  select: {
+    flex: '0 1 160px', minWidth: 0, maxWidth: '100%',
+    height: 'var(--h-control)', boxSizing: 'border-box' as const,
+  },
   dateInput: { flex: '0 1 auto', minWidth: 0 },
   dateSep: { color: 'var(--muted)', fontSize: 13 },
   searchBtn: { padding: '7px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', background: 'var(--dark)', color: '#fff', fontWeight: 700, fontSize: 13 },
