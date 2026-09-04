@@ -145,6 +145,22 @@ class DeploySpeedContractTest(unittest.TestCase):
         # 관문 자체는 그대로여야 한다 — 빨라지자고 기준을 낮추지 않는다
         self.assertIn("--audit-level=high", audit)
 
+    def test_audit_retries_the_registry_but_never_a_real_finding(self):
+        """
+        레지스트리 503 하나로 운영 배포가 막힌 적이 있다(2026-09-04). 남의 사정이므로
+        몇 번 더 묻는다.
+
+        ⚠️ **취약점이 나온 것까지 다시 시도하면 관문이 무의미해진다.** 그건 즉시 멈춘다.
+        끝내 답이 없어도 통과시키지 않는다 — 검사 없이 배포하는 것이 제일 나쁜 결과다.
+        """
+        audit = WORKFLOW[WORKFLOW.index("  audit:"):WORKFLOW.index("  deploy:")]
+        self.assertIn("Service Unavailable", audit)
+        self.assertIn("취약점이 발견되었다 — 다시 시도하지 않는다", audit)
+        # 재시도를 다 쓰고도 답이 없으면 실패로 끝난다
+        tail = audit[audit.index("레지스트리가 끝내 답하지 않았다"):]
+        self.assertIn("exit 1", tail)
+        self.assertNotIn("exit 0", tail)
+
     def test_deploy_reports_whether_dependencies_were_reused(self):
         # 로그에 안 남으면 「왜 이번엔 빨랐지」를 나중에 되짚을 수 없다
         self.assertIn("deps=cached", REMOTE)
