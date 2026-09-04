@@ -103,24 +103,48 @@ describe('단계 줄', () => {
 
 describe('올린 파일의 이름', () => {
   const mounted = stepMapFor(false)['mounted']!;
+  const of = (over: Partial<Parameters<typeof evidenceFileName>[0]> = {}) =>
+    evidenceFileName({ orderId: 19, customerName: '여준성', stepLabel: '특장 장착', extra: false, seq: 1, ext: '.jpg', ...over });
 
-  it('단계 이름으로 짓는다 — 「IMG_4821.jpg」로는 아무것도 못 찾는다', () => {
-    expect(evidenceFileName({ stepLabel: '특장 장착', extra: false, seq: 1, ext: '.jpg' }))
-      .toBe('특장장착.jpg');
+  it('주문번호 · 고객명 · 단계로 짓는다 — 「IMG_4821.jpg」로는 아무것도 못 찾는다', () => {
+    expect(of()).toBe('19.여준성_특장장착.jpg');
+  });
+
+  it('🔴 주문번호가 맨 앞에 온다 — 그래야 주문 단위로 걸러진다', () => {
+    /*
+     * 파일을 한곳에 모아 놓고 「19번 주문 것만」을 걸려면 앞에서 걸러야 한다.
+     * 뒤에 있으면 이름 정렬도 검색도 주문 단위로 묶이지 않는다.
+     */
+    expect(of()).toMatch(/^19\./);
+    expect(of({ orderId: 7, stepLabel: '안전검사 완료' })).toMatch(/^7\./);
   });
 
   it('선택 증빙은 번호를 붙여 갈라 둔다', () => {
-    expect(evidenceFileName({ stepLabel: '특장 장착', extra: true, seq: 1, ext: '.jpg' }))
-      .toBe('특장장착_증빙_1.jpg');
-    expect(evidenceFileName({ stepLabel: '특장 장착', extra: true, seq: 3, ext: '.jpg' }))
-      .toBe('특장장착_증빙_3.jpg');
+    expect(of({ extra: true })).toBe('19.여준성_특장장착_증빙_1.jpg');
+    expect(of({ extra: true, seq: 3 })).toBe('19.여준성_특장장착_증빙_3.jpg');
   });
 
   it('첫 장에는 번호를 붙이지 않고, 둘째부터 붙인다', () => {
-    expect(evidenceFileName({ stepLabel: '안전검사 완료', extra: false, seq: 1, ext: '.pdf' }))
-      .toBe('안전검사완료.pdf');
-    expect(evidenceFileName({ stepLabel: '안전검사 완료', extra: false, seq: 2, ext: '.pdf' }))
-      .toBe('안전검사완료_2.pdf');
+    expect(of({ stepLabel: '안전검사 완료', ext: '.pdf' })).toBe('19.여준성_안전검사완료.pdf');
+    expect(of({ stepLabel: '안전검사 완료', ext: '.pdf', seq: 2 })).toBe('19.여준성_안전검사완료_2.pdf');
+  });
+
+  it('고객명이 없으면 그 자리를 통째로 뺀다', () => {
+    // 비워 두면 `19..특장장착` 처럼 점이 둘 붙은 이름이 생긴다
+    expect(of({ customerName: null })).toBe('19.특장장착.jpg');
+    expect(of({ customerName: '  ' })).toBe('19.특장장착.jpg');
+  });
+
+  it('🔴 고객명에 든 경로 글자와 구분자를 걷어낸다', () => {
+    // 고객명은 사람이 적는 값이라 「주식회사 A/B」 같은 이름이 실제로 들어온다
+    const n = of({ customerName: '주식회사 A/B' });
+    expect(n).toBe('19.주식회사AB_특장장착.jpg');
+    expect(n).not.toMatch(/[/\\:*?"<>|\s]/);
+  });
+
+  it('회사명이 길어도 파일명이 감당할 만큼만 쓴다', () => {
+    const n = of({ customerName: '가'.repeat(120) });
+    expect(n.length).toBeLessThan(80);
   });
 
   it('같은 종류라도 단계가 요구한 것이면 덧증빙이 아니다', () => {
@@ -138,11 +162,73 @@ describe('올린 파일의 이름', () => {
     expect(steps).toContain('f.display_name ?? f.original_name');
   });
 
+  it('🔴 두 경로 모두 이름을 짓고 **저장까지** 한다', () => {
+    /*
+     * 파일이 들어오는 길은 둘이다 — 증빙 업로드, 그리고 대화 사진을 증빙으로 등록.
+     * 한쪽만 이름을 지으면 같은 자리의 파일이 두 규칙으로 섞인다(실제로 등록 쪽이 빠져 있었다).
+     *
+     * ⚠️ 「지었는가」만 보면 부족하다 — 계산해 놓고 저장하지 않아도 통과한다.
+     *    실제로 그렇게 되돌려 봤더니 이 검사가 놓쳤다. 저장까지 함께 본다.
+     */
+    const steps = read('backend/src/routes/steps.ts');
+    expect(steps.match(/orderId: id, customerName: r\.order\.customer_name/g)?.length, '이름을 짓는 곳이 둘이 아니다').toBe(2);
+    expect(steps.match(/display_name: displayName/g)?.length, '지은 이름을 저장하지 않는 곳이 있다').toBe(2);
+    expect(steps).toContain('customer: { select: { name: true } }');
+  });
+
   it('모든 단계 이름이 파일명으로 쓸 수 있다 — 경로 구분자가 없다', () => {
     for (const def of Object.values(STEP_BY_CODE)) {
-      const name = evidenceFileName({ stepLabel: def.label, extra: false, seq: 1, ext: '.jpg' });
+      const name = of({ stepLabel: def.label });
       expect(name, `${def.label} 이 파일명으로 위험하다`).not.toMatch(/[/\\:*?"<>|]/);
       expect(name).not.toMatch(/\s/);
     }
+  });
+});
+
+describe('올린 파일 열람', () => {
+  const VIEWER = read('frontend/src/components/FileViewer.tsx');
+  const LINK = read('frontend/src/components/DocLink.tsx');
+
+  it('🔴 새 탭으로 넘기지 않고 그 자리에 덮는다', () => {
+    /*
+     * 탭이 바뀌면 보던 주문이 뒤로 밀리고, 휴대폰에서 돌아오려면 브라우저 탭 목록을
+     * 거쳐야 해서 멀다(제보 — 「카톡처럼 넘기지 말고 바로 띄워 달라」).
+     */
+    expect(LINK, '아직 새 탭으로 연다').not.toContain('openPdf');
+    expect(LINK).toContain('FileViewer');
+  });
+
+  it('🔴 뒤로가기 한 번이면 닫힌다', () => {
+    // 닫는 길이 화면 안 버튼 하나뿐이면 휴대폰에서 갇힌다
+    expect(VIEWER).toContain('useBackClose(true, onClose)');
+  });
+
+  it('사진과 서류를 각각 맞는 것으로 그린다', () => {
+    expect(VIEWER).toMatch(/\.\(jpe\?g\|png\|webp\|gif\|heic\|heif\|bmp\)\$/);
+    expect(VIEWER).toContain('<img');
+    expect(VIEWER).toContain('<iframe');
+  });
+
+  it('브라우저가 못 그릴 때를 위해 내려받기를 남긴다', () => {
+    /*
+     * `dl=1` 이면 서버가 attachment 로 준다.
+     * ⚠️ **주석은 빼고 본다** — 「왜 dl=1 인가」를 적어 둔 주석 때문에 검사가 통과해 버렸다.
+     */
+    const code = VIEWER.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(code).toContain('dl=1');
+    expect(code).toContain('download={name}');
+  });
+
+  it('🔴 단계 탭과 서류 탭이 같은 길을 쓴다 — 관리·특장 구분 없이', () => {
+    /*
+     * 두 화면이 각자 여는 방식을 갖고 있으면, 「파일명을 눌렀을 때」가 자리마다 달라진다.
+     * 둘 다 DocLink 를 거치므로 여기 한 번만 고치면 네 조합이 함께 따라온다.
+     */
+    expect(read('frontend/src/components/OrderStepsPanel.tsx')).toContain('<DocLink');
+    expect(read('frontend/src/components/OrderEvidenceList.tsx')).toContain('<DocLink');
+  });
+
+  it('Ctrl/Cmd 클릭으로 새 탭에 여는 길은 남긴다', () => {
+    expect(LINK).toContain('e.metaKey || e.ctrlKey || e.shiftKey');
   });
 });

@@ -244,9 +244,13 @@ export function isExtraEvidence(def: StepDef, kind: EvidenceKind): boolean {
 /**
  * 올린 파일의 **저장 이름**을 정한다 — 「IMG_4821.jpg」로는 아무것도 찾을 수 없다.
  *
- *   특장 장착 사진        → `특장장착.jpg`
- *   같은 자리 두 번째     → `특장장착_2.jpg`
- *   그 아래 선택 증빙     → `특장장착_증빙_1.jpg`
+ *   특장 장착 사진        → `19.여준성_특장장착.jpg`
+ *   같은 자리 두 번째     → `19.여준성_특장장착_2.jpg`
+ *   그 아래 선택 증빙     → `19.여준성_특장장착_증빙_1.jpg`
+ *
+ * **주문번호가 맨 앞이다.** 파일을 한곳에 모아 놓고 「19번 주문 것만」을 걸려면 앞에서
+ * 걸러야 한다 — 뒤에 있으면 이름 정렬도 검색도 주문 단위로 묶이지 않는다.
+ * 그다음이 고객명이다: 번호만으로는 어느 건인지 사람이 알아보지 못한다.
  *
  * 규칙을 여기 한 곳에 두는 이유: 이름은 서버가 짓지만 화면도 같은 이름을 보여 줘야 하고,
  * 무엇보다 **시험할 수 있어야** 한다. 라우트 한가운데 문자열을 이어 붙이면 둘 다 못 한다.
@@ -255,6 +259,10 @@ export function isExtraEvidence(def: StepDef, kind: EvidenceKind): boolean {
  *    (`.jpg` 라고 적힌 PDF 가 올라온다).
  */
 export function evidenceFileName(args: {
+  /** 주문번호 — **맨 앞에 온다.** 이것으로 걸러야 주문 단위로 묶인다 */
+  orderId: number;
+  /** 고객 이름. 없으면 이 자리를 통째로 뺀다(`19.특장장착.jpg`) */
+  customerName?: string | null;
   /** 단계 이름 — 공백은 뺀다(「특장 장착」 → 「특장장착」) */
   stepLabel: string;
   /** 덧증빙인가 — `isExtraEvidence` 로 판정한 값 */
@@ -264,11 +272,29 @@ export function evidenceFileName(args: {
   /** 점을 포함한 확장자 — `.jpg` */
   ext: string;
 }): string {
-  const base = args.stepLabel.replace(/\s+/g, '');
+  const who = fileNamePart(args.customerName ?? '');
+  const what = fileNamePart(args.stepLabel);
+  // 고객명이 없으면 점 하나로 이어 붙이지 않는다 — `19..특장장착` 같은 이름이 생긴다
+  const base = who ? `${args.orderId}.${who}_${what}` : `${args.orderId}.${what}`;
   if (args.extra) return `${base}_증빙_${args.seq}${args.ext}`;
-  // 첫 장에는 번호를 붙이지 않는다 — 대부분 한 장뿐이고, 「특장장착_1」은 군더더기다
+  // 첫 장에는 번호를 붙이지 않는다 — 대부분 한 장뿐이고, 「…_1」은 군더더기다
   return args.seq <= 1 ? `${base}${args.ext}` : `${base}_${args.seq}${args.ext}`;
 }
+
+/**
+ * 파일 이름에 넣어도 되는 조각으로 다듬는다.
+ *
+ * 공백을 빼는 이유는 이름이 줄바꿈되거나 따옴표 없이 다루기 어려워서고,
+ * 나머지는 **경로로 읽힐 수 있는 글자**들이다 — 고객명은 사람이 적는 값이라
+ * `주식회사 A/B` 같은 이름이 실제로 들어온다.
+ */
+function fileNamePart(raw: string): string {
+  return raw
+    .replace(/[/\\:*?"<>|]/g, '')   // 경로·와일드카드로 읽히는 글자
+    .replace(/[\s_.]+/g, '')          // 공백과 구분자(_ .) — 우리가 쓰는 구분자와 섞이면 안 된다
+    .slice(0, 40);                    // 회사명이 길어도 파일명이 감당할 만큼만
+}
+
 
 /** 진행 한 건 — DB(`order_step`) 에서 읽어 온 모양. */
 export interface StepState {

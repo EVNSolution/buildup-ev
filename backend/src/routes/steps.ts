@@ -83,6 +83,8 @@ type LoadResult =
       created_at: Date; accepted_at: Date | null; delivery_due: Date | null;
       /** 특장만 주문 — 단계 카탈로그가 달라진다(차량 트랙이 「차량 도착」 하나로 줄어든다) */
       body_only: boolean;
+      /** 고객 이름 — **올린 파일 이름**에 들어간다(19.여준성_특장장착.jpg). 없을 수 있다 */
+      customer_name: string | null;
     } };
 
 /** 접근 실패를 상태에 맞는 코드·문구로. 404 에 FORBIDDEN 을 실어 보내지 않는다. */
@@ -103,7 +105,8 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
       id: true, quote_id: true, maker_org_id: true, assigned_at: true, created_at: true,
       accepted_at: true, delivery_due: true,
       // 특장만 여부는 견적 입력에 남아 있다(견적서를 다시 뽑아도 같은 금액이 나와야 해서)
-      quote: { select: { sales_user_id: true, inputs: true } },
+      // 고객 이름은 **올린 파일 이름**에 들어간다(19.여준성_특장장착.jpg)
+      quote: { select: { sales_user_id: true, inputs: true, customer: { select: { name: true } } } },
     },
   });
   if (!order) return { err: 404 };
@@ -116,7 +119,13 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
     if (!mine) return { err: 403 };
   }
   const inputs = order.quote?.inputs as { body_only?: unknown } | null;
-  return { order: { ...order, body_only: inputs?.body_only === true } };
+  return {
+    order: {
+      ...order,
+      body_only: inputs?.body_only === true,
+      customer_name: order.quote?.customer?.name ?? null,
+    },
+  };
 }
 
 /**
@@ -452,6 +461,7 @@ stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), canC
     });
     const seq = sameSpot.filter(f => isExtraEvidence(def, f.kind as EvidenceKind) === extra).length + 1;
     const displayName = evidenceFileName({
+      orderId: id, customerName: r.order.customer_name,
       stepLabel: def.label, extra, seq, ext: ALLOWED_MIME[file.mimetype] ?? '',
     });
 
@@ -528,11 +538,28 @@ stepsRouter.post('/:id/steps/:code/files/from-chat', rbac('ADMIN', 'MAKER'),
       return;
     }
 
+    /*
+     * 대화에서 올라온 사진도 **증빙이 되는 순간 증빙 이름**을 갖는다 — 규칙은 업로드와 같다.
+     * 이게 빠져 있으면 대화로 올린 것만 「IMG_4821.jpg」로 남아, 같은 자리의 파일들이
+     * 두 가지 이름 규칙으로 섞인다.
+     */
+    const extra = isExtraEvidence(def, kind);
+    const sameSpot = await prisma!.orderFile.findMany({
+      where: { order_id: id, step_code: code, kind: { not: 'chat' } },
+      select: { kind: true },
+    });
+    const seq = sameSpot.filter(f => isExtraEvidence(def, f.kind as EvidenceKind) === extra).length + 1;
+    const displayName = evidenceFileName({
+      orderId: id, customerName: r.order.customer_name,
+      stepLabel: def.label, extra, seq, ext: ALLOWED_MIME[src.mime ?? 'image/jpeg'] ?? '.jpg',
+    });
+
     const row = await prisma!.orderFile.create({
       data: {
         order_id: id, step_code: code, kind,
         path: rel,
         original_name: src.original_name,
+        display_name: displayName,
         mime: src.mime,
         size_bytes: src.size_bytes,
         // 대화 사진은 이미 줄여 저장한 것이라 「원본을 지킨 파일」이 아니다
