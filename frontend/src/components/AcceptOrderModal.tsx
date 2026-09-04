@@ -15,7 +15,7 @@ import { BTN } from '../styles/buttons'
  *
  * 특장사가 보는 서류는 발주서뿐이다(계약서·견적서는 서버에서 막았다).
  */
-export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, busy, error, onAccept, onClose, onReject }: {
+export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, busy, error, onAccept, onClose, onReject, readOnly = false }: {
   orderId: number
   makerOrgName: string
   /** 발주서 비고 — 이 주문만의 요청사항. 수락 전에 반드시 보이는 자리다 */
@@ -24,10 +24,19 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
   orderedAt: string
   busy: boolean
   error: string
-  onAccept: (deliveryDue: string) => void
+  onAccept?: (deliveryDue: string) => void
   onClose: () => void
   /** 거부 — 사유를 받아 넘긴다. 없으면 거부 버튼이 뜨지 않는다. */
   onReject?: (reason: string) => void
+  /**
+   * **읽기 전용** — 발주서만 보여 주고 납기·수락·거부는 두지 않는다.
+   *
+   * 관리자가 쓰는 자리다. 관리자도 「특장사가 무엇을 받았는지」는 봐야 한다 —
+   * 그 발주서를 쓴 사람이 관리자이기도 하다. 하지만 **받는 것은 특장사의 행위**다.
+   * 관리자가 대신 수락하면 「누가 받기로 했는지」가 흐려지고, 특장사는 자기가 수락하지
+   * 않은 주문의 납기를 지게 된다(대행 수락은 하지 않기로 정했다).
+   */
+  readOnly?: boolean
 }) {
   const base = useMemo(() => {
     const d = new Date(orderedAt)
@@ -68,7 +77,10 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
     <div style={m.overlay} onClick={onClose}>
       <div style={m.box} onClick={e => e.stopPropagation()}>
         {/* 제목은 「수락」이 아니라 주문 번호만 — 이 팝업은 보고 나서 수락·거부를 고르는 자리다 */}
-        <div style={m.title}>주문 #{orderId}</div>
+        <div style={m.title}>
+          주문 #{orderId}
+          {readOnly && <span style={m.viewTag}> · 조회 전용</span>}
+        </div>
 
         <div style={m.scroll}>
           {loadErr
@@ -87,12 +99,21 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
 
           <div style={m.dueBlock}>
             <div style={m.dueHead}>
-              <span style={m.dueLabel}>납기일<span style={m.req}> · 필수</span></span>
+              <span style={m.dueLabel}>납기일{!readOnly && <span style={m.req}> · 필수</span>}</span>
               <span style={m.dueHint}>
                 {DELIVERY_DUE_BUSINESS_DAYS}영업일 · <b>{toDateInput(limit)}</b>까지
               </span>
             </div>
-            {windowClosed ? (
+            {/*
+              조회 전용에서는 **고르는 칸을 두지 않는다.** 고를 수 있게 두고 서버가 막으면
+              「눌러 봤는데 안 된다」로 끝난다 — 할 수 없는 일은 애초에 보이지 않아야 한다.
+            */}
+            {readOnly && (
+              <div style={m.viewNote}>
+                납기일은 <b>배정된 특장사가 수락하면서</b> 정합니다.
+              </div>
+            )}
+            {readOnly ? null : windowClosed ? (
               <div style={m.closed}>
                 <b>납기 한도({toDateInput(limit)})가 이미 지났습니다.</b><br />
                 이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 <b>재배정</b>을 요청하시면
@@ -132,14 +153,14 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
         {error && <div style={m.err}>{error}</div>}
 
         <div style={m.actions}>
-          <button style={BTN.secondary} onClick={onClose} disabled={busy}>취소</button>
-          {!rejecting ? (
+          <button style={BTN.secondary} onClick={onClose} disabled={busy}>{readOnly ? '닫기' : '취소'}</button>
+          {readOnly ? null : !rejecting ? (
             <>
               <button style={m.rejectBtn} onClick={() => setRejecting(true)} disabled={busy}>거부</button>
               <button
                 style={canAccept ? BTN.primary : BTN.disabled}
                 disabled={!canAccept}
-                onClick={() => parsed && onAccept(due)}
+                onClick={() => parsed && onAccept?.(due)}
               >
                 {busy ? '처리 중' : '수락'}
               </button>
@@ -160,6 +181,9 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
 }
 
 const m: Record<string, React.CSSProperties> = {
+  /** 조회 전용 표시 — 제목 옆에 작게. 무엇을 할 수 없는 자리인지 먼저 말한다 */
+  viewTag: { fontSize: 'var(--fs-label)', fontWeight: 400, color: 'var(--muted)' },
+  viewNote: { fontSize: 'var(--fs-label)', color: 'var(--muted)', padding: 'var(--sp-2) 0' },
   rejectBtn: { ...BTN.secondary, color: 'var(--warn)', borderColor: 'var(--warn)' },
   rejectBtnOn: { ...BTN.primary, background: 'var(--warn)', borderColor: 'var(--warn)' },
   rejectBox: {

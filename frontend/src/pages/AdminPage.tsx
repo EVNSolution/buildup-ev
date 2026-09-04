@@ -13,6 +13,7 @@ import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { OrderSections } from '../components/OrderSections'
+import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
@@ -1407,6 +1408,17 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
    * 알림을 누른 의미가 없다.
    */
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(deepLink?.orderId ?? null)
+  /**
+   * 수락 대기 카드를 눌렀을 때 여는 **발주서** — 특장사가 받는 그 화면 그대로다.
+   *
+   * 관리자도 「특장사가 무엇을 받았는지」는 봐야 한다. 그 발주서를 쓴 사람이 관리자다.
+   * 다만 **받는 것은 특장사의 행위**라 수락·거부는 두지 않는다(`readOnly`) —
+   * 대신 수락하면 「누가 받기로 했는지」가 흐려지고, 특장사는 자기가 수락하지 않은
+   * 주문의 납기를 지게 된다.
+   */
+  const [viewingPo, setViewingPo] = useState<ApiOrder | null>(null)
+  /** 발주서에 적히는 특장사 이름 — 목록 응답에는 코드만 있어 따로 받아 온다 */
+  const [makerNames, setMakerNames] = useState<Record<string, string>>({})
   /*
    * 뒤로가기 한 번이면 목록으로 — **치던 검색어·보던 기간은 그대로다.**
    * 목록 화면이 그대로 살아 있고 그 위에 상세가 덮여 있을 뿐이라서다.
@@ -1419,6 +1431,12 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // 실패해도 발주서는 뜬다 — 이름 대신 코드가 보일 뿐이다
+    fetchMakerOrgs()
+      .then(orgs => setMakerNames(Object.fromEntries(orgs.map(o => [o.code, o.name]))))
+      .catch(() => setMakerNames({}))
+  }, [])
   // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
   useScreenRefresh(load)
 
@@ -1462,7 +1480,23 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
         예전에는 여기만 구획 없이 전부 한 덩어리였다. 같은 주문을 두고 두 사람이
         서로 다른 그림을 들고 이야기하게 된다.
       */}
-      <OrderSections orders={orders} onOpen={setSelectedOrderId} />
+      <OrderSections
+        orders={orders}
+        onOpen={setSelectedOrderId}
+        /* 수락 대기는 특장사와 같은 자리 — 발주서를 띄운다(조회 전용) */
+        onPendingOpen={id => setViewingPo(orders.find(o => o.id === id) ?? null)}
+      />
+      {viewingPo && (
+        <AcceptOrderModal
+          readOnly
+          orderId={viewingPo.id}
+          makerOrgName={makerNames[viewingPo.maker_org_id ?? ''] ?? viewingPo.maker_org_id ?? '—'}
+          orderedAt={viewingPo.assigned_at ?? viewingPo.created_at}
+          busy={false}
+          error=""
+          onClose={() => setViewingPo(null)}
+        />
+      )}
     </div>
   )
 }
