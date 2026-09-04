@@ -17,6 +17,7 @@ import {
   STEPS, STEP_BY_CODE, canComplete, canUndo, isOverdue, overdueDays, newlyOpened,
   stepsFor, stepMapFor, acceptsEvidence, EXTRA_EVIDENCE,
   type EvidenceKind, type StepDef, type StepState,
+  isExtraEvidence, evidenceFileName,
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
@@ -172,7 +173,7 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
     prisma!.orderStep.findMany({ where: { order_id: id } }),
     prisma!.orderFile.findMany({
       where: { order_id: id },
-      select: { id: true, step_code: true, kind: true, original_name: true, size_bytes: true, kept_original: true, uploaded_by: true, uploaded_at: true },
+      select: { id: true, step_code: true, kind: true, original_name: true, display_name: true, size_bytes: true, kept_original: true, uploaded_by: true, uploaded_at: true },
       orderBy: { uploaded_at: 'asc' },
     }),
   ]);
@@ -215,7 +216,8 @@ stepsRouter.get('/:id/steps', rbac('ADMIN', 'SALES', 'MAKER'), guard(async (req:
       overdue_days: row && row.status !== 'done' ? overdueDays(due, now) : null,
       stalled: isOverdue(def.code, row ? { code: def.code, status: row.status as StepState['status'] } : undefined, due, now, doneCodes, defs),
       files: mine.map(f => ({
-        id: f.id, kind: f.kind, name: f.original_name, size: f.size_bytes,
+        // 서버가 지은 이름을 쓰고, 없으면(옛 파일) 올릴 때 이름으로 돌아간다
+        id: f.id, kind: f.kind, name: f.display_name ?? f.original_name, size: f.size_bytes,
         kept_original: f.kept_original, uploaded_by: f.uploaded_by, uploaded_at: f.uploaded_at.toISOString(),
       })),
     };
@@ -326,7 +328,13 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
    */
   if (code === 'delivered') {
     const q = await prisma!.quote.findUnique({ where: { id: r.order.quote_id }, select: { status: true } });
-    if (q && q.status === 'ordered') {
+    /*
+     * ⚠️ **어느 상태에서 왔든 올린다.** 예전에는 `ordered` 일 때만 올렸는데, 그러면
+     *    다른 상태로 인도에 도달한 건은 **영원히 갇힌다** — 단계는 전부 끝났는데
+     *    목록에서는 계속 「진행 중」이다(실제로 15/15 인데 견적은 `confirmed` 인 건이 있었다).
+     *    인도 단계가 끝났다는 사실이 곧 인도가 끝났다는 뜻이고, 그게 판단의 근거다.
+     */
+    if (q && q.status !== 'completed') {
       await setQuoteStatus(r.order.quote_id, 'completed', req.auth?.email ?? 'unknown');
     }
   }
@@ -429,17 +437,37 @@ stepsRouter.post('/:id/steps/:code/files', rbac('ADMIN', 'SALES', 'MAKER'), canC
     const { abs, rel } = await reserveFilePath(id, file.mimetype);
     await writeFile(abs, file.buffer);
 
+    /*
+     * **이름을 다시 짓는다** — 「IMG_4821.jpg」로는 나중에 아무것도 찾을 수 없다.
+     * 단계와 자리로 짓는다: 특장장착.jpg · 특장장착_증빙_1.jpg
+     *
+     * 몇 번째인지는 **같은 자리에 이미 있는 것을 세어** 정한다. 규칙이 파일 목록에서
+     * 나오므로, 지웠다 다시 올려도 번호가 이어진다.
+     * ⚠️ 확장자는 올라온 이름이 아니라 **MIME 으로** 정한다(.jpg 라고 적힌 PDF 가 온다).
+     */
+    const extra = isExtraEvidence(def, kind);
+    const sameSpot = await prisma!.orderFile.findMany({
+      where: { order_id: id, step_code: code, kind: { not: 'chat' } },
+      select: { kind: true },
+    });
+    const seq = sameSpot.filter(f => isExtraEvidence(def, f.kind as EvidenceKind) === extra).length + 1;
+    const displayName = evidenceFileName({
+      stepLabel: def.label, extra, seq, ext: ALLOWED_MIME[file.mimetype] ?? '',
+    });
+
     const row = await prisma!.orderFile.create({
       data: {
         order_id: id, step_code: code, kind,
         path: rel,
+        // 올린 사람 기기의 이름은 **그대로 남긴다** — 화면에 쓰는 이름만 새로 짓는다
         original_name: safeDisplayName(file.originalname ?? ''),
+        display_name: displayName,
         mime: file.mimetype,
         size_bytes: file.size,
         kept_original: keepsOriginal(kind),
         uploaded_by: req.auth?.email ?? 'unknown',
       },
-      select: { id: true, kind: true, original_name: true, size_bytes: true, kept_original: true, uploaded_at: true },
+      select: { id: true, kind: true, original_name: true, display_name: true, size_bytes: true, kept_original: true, uploaded_at: true },
     });
 
     res.status(201).json({ data: row });
@@ -511,7 +539,7 @@ stepsRouter.post('/:id/steps/:code/files/from-chat', rbac('ADMIN', 'MAKER'),
         kept_original: false,
         uploaded_by: req.auth?.email ?? 'unknown',
       },
-      select: { id: true, kind: true, original_name: true, size_bytes: true, kept_original: true, uploaded_at: true },
+      select: { id: true, kind: true, original_name: true, display_name: true, size_bytes: true, kept_original: true, uploaded_at: true },
     });
 
     res.status(201).json({ data: row });
@@ -547,7 +575,8 @@ stepsRouter.get('/:id/files/:fileId', rbac('ADMIN', 'SALES', 'MAKER'), guard(asy
   const asAttachment = req.query['dl'] === '1';
   res.setHeader(
     'Content-Disposition',
-    `${asAttachment ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(f.original_name ?? 'file')}`,
+    // 내려받는 이름도 화면에 보이는 이름과 같아야 한다 — 다르면 「받은 파일이 그게 맞나」가 된다
+    `${asAttachment ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(f.display_name ?? f.original_name ?? 'file')}`,
   );
   createReadStream(abs).pipe(res);
 }));

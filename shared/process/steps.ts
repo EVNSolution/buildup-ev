@@ -231,6 +231,45 @@ export function acceptsEvidence(def: StepDef, kind: EvidenceKind): boolean {
   return def.evidence.includes(kind) || EXTRA_EVIDENCE.includes(kind);
 }
 
+/**
+ * 이 증빙이 **덧증빙**인가 — 그 단계가 요구한 것이 아니라 「어디에나 붙는」 쪽인가.
+ *
+ * 같은 종류라도 단계에 따라 다르다. 검수 사진은 어디에나 붙는 덧증빙이지만,
+ * 그것을 **요구하는** 단계에서는 그 단계의 본증빙이다.
+ */
+export function isExtraEvidence(def: StepDef, kind: EvidenceKind): boolean {
+  return !def.evidence.includes(kind) && EXTRA_EVIDENCE.includes(kind);
+}
+
+/**
+ * 올린 파일의 **저장 이름**을 정한다 — 「IMG_4821.jpg」로는 아무것도 찾을 수 없다.
+ *
+ *   특장 장착 사진        → `특장장착.jpg`
+ *   같은 자리 두 번째     → `특장장착_2.jpg`
+ *   그 아래 선택 증빙     → `특장장착_증빙_1.jpg`
+ *
+ * 규칙을 여기 한 곳에 두는 이유: 이름은 서버가 짓지만 화면도 같은 이름을 보여 줘야 하고,
+ * 무엇보다 **시험할 수 있어야** 한다. 라우트 한가운데 문자열을 이어 붙이면 둘 다 못 한다.
+ *
+ * ⚠️ 확장자는 **부르는 쪽이 준다.** 올라온 파일 이름을 믿지 않고 MIME 으로 정하기 때문이다
+ *    (`.jpg` 라고 적힌 PDF 가 올라온다).
+ */
+export function evidenceFileName(args: {
+  /** 단계 이름 — 공백은 뺀다(「특장 장착」 → 「특장장착」) */
+  stepLabel: string;
+  /** 덧증빙인가 — `isExtraEvidence` 로 판정한 값 */
+  extra: boolean;
+  /** 그 자리에서 몇 번째인가. 1 부터. */
+  seq: number;
+  /** 점을 포함한 확장자 — `.jpg` */
+  ext: string;
+}): string {
+  const base = args.stepLabel.replace(/\s+/g, '');
+  if (args.extra) return `${base}_증빙_${args.seq}${args.ext}`;
+  // 첫 장에는 번호를 붙이지 않는다 — 대부분 한 장뿐이고, 「특장장착_1」은 군더더기다
+  return args.seq <= 1 ? `${base}${args.ext}` : `${base}_${args.seq}${args.ext}`;
+}
+
 /** 진행 한 건 — DB(`order_step`) 에서 읽어 온 모양. */
 export interface StepState {
   code: string;

@@ -12,15 +12,16 @@ import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/cu
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
+import { OrderSections } from '../components/OrderSections'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
 import { filterByCustomer } from '../lib/quoteSearch'
+import { useDateGroups } from '../lib/dateGroups'
 import { safeTop, safeBottom } from '../styles/safeArea'
 import { OrderFilesTab } from '../components/OrderFilesTab'
 import { CustomerFolders } from '../components/CustomerFolders'
-import { OrderStepsBoard } from '../components/OrderStepsBoard'
 import { OptionDbTab } from '../components/OptionDbTab'
 import { CustomerViewModal } from '../components/CustomerViewModal'
 import { SalesPerformance } from '../components/SalesPerformance'
@@ -213,7 +214,15 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
  * 가장 먼저 찾아야 하는 것이 그 둘이라, 같은 표시를 준다(무엇을 배정할지는 액션 버튼이 말한다).
  */
 function needsAssign(q: ApiQuote): boolean {
-  return q.source === 'public' || q.status === 'contracted'
+  /*
+   * ⚠️ 공개 문의는 **아직 주인이 없을 때만**이다.
+   *
+   * 예전에는 `source === 'public'` 만 보아, 담당 영업을 이미 지정한 건까지 계속
+   * 「배정 필요」로 칠했다(제보). 한번 공개로 들어온 건은 **영원히** 강조된 채 남고,
+   * 「배정 필요건만」으로 걸러도 할 일 없는 건이 섞여 나온다.
+   * 지정하는 순간 할 일은 끝난 것이므로, 그때 강조도 꺼져야 한다.
+   */
+  return (q.source === 'public' && !q.sales_user_id) || q.status === 'contracted'
 }
 
 // ── 영업 배정 모달(공개 문의) ──────────────────────────────────────────────
@@ -972,9 +981,12 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
    * 기간·상태는 그대로 두고 그 안에서만 거른다. 서버를 다시 부르지 않아 글자를 칠 때마다 바로 줄어든다.
    */
   const [nameQuery, setNameQuery] = useState('')
+  /**
+   * 상태 좁히기 — **불러온 것 안에서** 거른다(서버를 다시 부르지 않는다).
+   * 기간 필터(시작일·종료일·조회)는 걷어냈다: 좁은 화면에서 한 줄을 통째로 먹으면서도
+   * 정작 자주 쓰는 「오늘 것만」에는 날짜를 두 개나 골라야 했다. 날짜별 접기가 그 일을 한다.
+   */
   const [filterStatus, setFilterStatus] = useState('')
-  const [filterFrom, setFilterFrom] = useState('')
-  const [filterTo, setFilterTo] = useState('')
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   // 공개 문의 → 영업 배정
   const [assignSalesId, setAssignSalesId] = useState<number | null>(null)
@@ -999,7 +1011,7 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
      * `view` 를 보내지 않으므로 **예전에 숨긴 건도 목록에 다시 나온다.**
      * 데이터는 그대로 두고(hidden_at 컬럼은 남는다) 보여 주기만 되돌린 것이다.
      */
-    fetchQuotes({ status: filterStatus || undefined, from: filterFrom || undefined, to: filterTo || undefined })
+    fetchQuotes({})
       .then(setQuotes)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
@@ -1075,10 +1087,20 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
    * 화면에 실제로 그릴 목록 — 기간·상태로 받아 온 것을 **이름**으로, 그리고
    * **배정 필요건만** 으로 한 번 더 좁힌다. 둘 다 이미 불러온 것 안에서 거른다.
    */
-  const shown = filterByCustomer(quotes, nameQuery).filter(q => !onlyAssign || needsAssign(q))
+  const shown = filterByCustomer(quotes, nameQuery)
+    .filter(q => !onlyAssign || needsAssign(q))
+    .filter(q => !filterStatus || q.status === filterStatus)
+
+  /** 날짜별 묶음 — 영업 「내 견적」과 같은 방식이다(같은 훅을 쓴다) */
+  const { groups, isOpen, toggle } = useDateGroups(shown, q => (q.created_at ?? '').slice(0, 10), !!nameQuery.trim())
 
   return (
     <div>
+      {/*
+        좁히는 줄 — **두 칸뿐이다.** 둘 다 이미 불러온 것 안에서 바로 거르므로
+        「조회」 버튼이 없다. 예전에는 상태·시작일·종료일·이름·조회 다섯이 한 줄에 있어
+        좁은 화면에서 칸이 서로를 밀어내 글자가 잘렸다(사진 제보).
+      */}
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1 } : {}) }}>
           <option value="">전체 상태</option>
@@ -1090,12 +1112,6 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
           <option value="completed">완료</option>
           <option value="expired">만료</option>
         </select>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} style={{ ...qt.dateInput }} />
-          <span style={qt.dateSep}>~</span>
-          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} style={{ ...qt.dateInput }} />
-        </div>
-        {/* 이름 검색은 「조회」를 누르지 않는다 — 이미 불러온 것에서 바로 좁힌다 */}
         <input
           type="text"
           value={nameQuery}
@@ -1104,7 +1120,6 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
           aria-label="고객 이름으로 좁히기"
           style={{ ...qt.select, ...(isMobile ? { flex: 1 } : { width: 160 }) }}
         />
-        <button onClick={load} style={{ ...BTN.barPrimary, ...(isMobile ? { flex: 1 } : {}) }}>조회</button>
       </div>
 
       {err && <div style={qt.errMsg}>{err}</div>}
@@ -1119,7 +1134,18 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
       ) : isMobile ? (
         // ── 모바일: 카드 리스트 ──
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {shown.map(q => {
+          {groups.map(([date, rows]) => (
+          <div key={date} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/*
+              날짜 머리 — 누르면 그 날짜만 접힌다. **카드 모양은 그대로 둔다** —
+              좁은 화면에서는 카드가 표보다 읽기 좋다(제보). 바꾼 것은 묶는 방식뿐이다.
+            */}
+            <button type="button" style={qtMob.groupHead} onClick={() => toggle(date)} aria-expanded={isOpen(date)}>
+              <span style={qtMob.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
+              <span style={qtMob.groupDate}>{date}</span>
+              <span style={qtMob.groupCount}>{rows.length}건</span>
+            </button>
+            {isOpen(date) && rows.map(q => {
             return (
             <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
@@ -1169,23 +1195,54 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
                   disabled={q.status === 'draft'}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)}
                 >계약서</button>
-                {q.contract?.status === 'COMPLETED' && (
-                  <button
-                    style={{ ...BTN.rowPrimary, width: '100%' }}
-                    onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                  >{q.contract?.signing_method === 'PAPER' ? '계약서 스캔본' : '서명본'}</button>
-                )}
-                {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
-                {q.source === 'public' && !q.sales_user_id && (
-                  <button style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
-                )}
-                {q.status === 'contracted' && (
-                  <button style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
-                )}
+                {/*
+                  둘째 줄 — **빈칸을 남기지 않는다.**
+
+                  첫 줄(고객정보·견적서·계약서)은 늘 셋이라 3열이 꽉 찬다. 둘째 줄은 건에 따라
+                  하나이거나 둘인데, 그냥 두면 오른쪽에 빈칸이 생겨 줄이 어중간해 보인다.
+
+                  그래서 **마지막 버튼이 남는 칸을 가져간다.** 배정 버튼이 늘 마지막이라
+                  「제작 배정」은 서명본과 함께일 때 두 칸, 혼자일 때 세 칸이 된다 —
+                  이 줄에서 실제로 「하는 일」이 그것이고, 넓을수록 누르기 쉽다.
+                */}
+                {(() => {
+                  const signed = q.contract?.status === 'COMPLETED'
+                  const salesAssign = q.source === 'public' && !q.sales_user_id
+                  const makerAssign = q.status === 'contracted'
+                  const row: React.ReactNode[] = []
+
+                  if (signed) row.push(
+                    <button
+                      key="signed"
+                      style={{ ...BTN.rowPrimary, width: '100%' }}
+                      onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
+                    >{q.contract?.signing_method === 'PAPER' ? '계약서 스캔본' : '서명본'}</button>,
+                  )
+                  {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
+                  if (salesAssign) row.push(
+                    <button key="sales" style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>,
+                  )
+                  if (makerAssign) row.push(
+                    <button key="maker" style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>,
+                  )
+                  if (row.length === 0) return null
+
+                  // 앞의 것들은 한 칸씩, 마지막이 남는 칸을 전부 가져간다
+                  return row.map((el, i) => {
+                    const span = i === row.length - 1 ? 3 - i : 1
+                    return (
+                      <div key={(el as { key?: string }).key ?? i} style={{ gridColumn: `span ${span}`, display: 'grid' }}>
+                        {el}
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             </div>
             )
           })}
+          </div>
+          ))}
         </div>
       ) : (
         // ── 데스크톱: 표 ──
@@ -1204,8 +1261,17 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
                 <th style={qt.th}>액션</th>
               </tr>
             </thead>
-            <tbody>
-              {shown.map(q => {
+            {groups.map(([date, rows]) => (
+            <tbody key={date}>
+              {/* 날짜 머리 — 누르면 그 날짜만 접힌다(영업 「내 견적」과 같은 방식) */}
+              <tr style={qt.groupRow} onClick={() => toggle(date)}>
+                <td colSpan={9} style={qt.groupCell}>
+                  <span style={qt.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
+                  <span style={qt.groupDate}>{date}</span>
+                  <span style={qt.groupCount}>{rows.length}건</span>
+                </td>
+              </tr>
+              {isOpen(date) && rows.map(q => {
                 return (
                 <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
                   <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
@@ -1266,6 +1332,7 @@ function QuotesTab({ onlyAssign = false }: { onlyAssign?: boolean }) {
                 )
               })}
             </tbody>
+            ))}
           </table>
         </div>
       )}
@@ -1364,7 +1431,12 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
       {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>조회 전용 — 상태 변경은 배정 특장사만 가능합니다.</div>}
-      <OrderStepsBoard orders={orders} onCardClick={setSelectedOrderId} />
+      {/*
+        수락 대기 · 진행 중 · 완료 — **특장사 화면과 같은 것을 본다.**
+        예전에는 여기만 구획 없이 전부 한 덩어리였다. 같은 주문을 두고 두 사람이
+        서로 다른 그림을 들고 이야기하게 된다.
+      */}
+      <OrderSections orders={orders} onOpen={setSelectedOrderId} />
     </div>
   )
 }
@@ -1564,6 +1636,16 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
+  /** 날짜 머리(표) — 누르는 줄이라 커서를 바꾼다. 색은 목록 배경보다 반 단계만 진하게 */
+  groupRow: { cursor: 'pointer', background: 'var(--track)' },
+  groupCell: {
+    padding: 'var(--sp-2) var(--sp-3)', borderBottom: 'var(--hairline)',
+    fontSize: 'var(--fs-label)', color: 'var(--dark)',
+  },
+  groupArrow: { color: 'var(--muted)', marginRight: 'var(--sp-2)' },
+  groupDate: { fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+  groupCount: { marginLeft: 'var(--sp-2)', color: 'var(--muted)', fontSize: 'var(--fs-caption)' },
+
   /** 보기 전환 줄 — 왼쪽 토글, **오른쪽 끝**에 「배정 필요건만」 */
   viewRow: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1626,6 +1708,18 @@ const qt: Record<string, React.CSSProperties> = {
 
 // 모바일 견적 카드 스타일
 const qtMob: Record<string, React.CSSProperties> = {
+  /**
+   * 날짜 머리(카드) — 카드 사이에 끼어 「여기부터 이 날짜」를 말한다.
+   * 카드 자체는 손대지 않았다. 좁은 화면에서는 카드가 표보다 읽기 좋다(제보).
+   */
+  groupHead: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
+    background: 'none', border: 'none', width: '100%', textAlign: 'left',
+    padding: 'var(--sp-2) 0', cursor: 'pointer',
+  },
+  groupArrow: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', width: 10 },
+  groupDate: { fontWeight: 700, fontSize: 'var(--fs-label)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
+  groupCount: { color: 'var(--muted)', fontSize: 'var(--fs-caption)' },
   card: { border: '0.5px solid var(--line)', borderRadius: 12, padding: '14px 16px', background: '#fff', display: 'flex', flexDirection: 'column', gap: 10 },
   // 공개 창구 문의 — 표의 라임 강조를 카드에도 똑같이(왼쪽 띠 + 옅은 라임)
   cardPublic: {

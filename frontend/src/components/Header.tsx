@@ -53,10 +53,20 @@ export function Header({ customer }: Props) {
       */}
       <div style={styles.brand}>
         <img src={logoUrl} alt="EV&Solution" style={styles.logo} />
-        <span style={styles.brandLine} aria-hidden />
-        <span style={styles.wordmark}>Buildup-EV</span>
+        {/*
+          워드마크는 **좁은 화면에서 접는다.** 로고만으로도 어느 서비스인지 알 수 있고,
+          이 줄에서 자리를 다투는 것은 전환 토글이다 — 토글이 눌리면 못 쓰는 버튼이 되지만
+          워드마크는 없어도 아무것도 잃지 않는다.
+        */}
+        {!isMobile && (
+          <>
+            <span style={styles.brandLine} aria-hidden />
+            <span style={styles.wordmark}>Buildup-EV</span>
+          </>
+        )}
       </div>
       {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
+      {/* 밀개 — 남는 폭을 먹어 오른쪽 것들을 끝으로 민다 */}
       <div style={{ flex: 1 }} />
 
       {/*
@@ -66,22 +76,21 @@ export function Header({ customer }: Props) {
       */}
       {mySurfaces.length > 1 && (
         /*
-         * 휴대폰에서는 **제 줄을 하나 차지한다.**
+         * 휴대폰에서도 **한 줄 안에** 둔다.
          *
-         * 한 줄에 로고·토글·이름·로그아웃을 다 욱여넣었더니 토글이 70px 로 눌려
-         * 칸마다 35px 밖에 안 됐고, 이름과 맞붙어 어디까지가 버튼인지 알 수 없었다
-         * (사진 제보 — 역할 셋을 가진 마스터 계정에서 특히 심하다).
+         * 한때 제 줄을 통째로 내줬더니 헤더가 60 → 116px 이 되어 화면을 너무 먹었다
+         * (제보: 「공간 차지가 너무 심하다」). 대신 이 줄에서 **없어도 되는 것을 접는다** —
+         * 워드마크와 계정 이름이다. 그러면 토글이 제 크기로 설 자리가 난다.
          *
-         * `order: 1` 로 뒤로 보내고 `flexBasis: 100%` 를 주면 줄바꿈이 일어나
-         * 첫 줄은 로고·이름·로그아웃, 둘째 줄은 토글이 된다. 폭이 넉넉해지니
-         * 글자를 줄이는 `size="sm"` 도 필요 없다 — 손가락이 닿는 크기를 그대로 쓴다.
+         * ⚠️ 남는 폭을 **채우게 하지 않는다**(`fullWidth` 금지). 그렇게 했더니 칸 하나가
+         *    화면 절반을 먹었다(제보: 「토글버튼 자체가 너무 큼」). 글자 몇 자를 고르는
+         *    버튼은 글자만큼만 크면 된다 — 넓힐 이유도, 줄일 이유도 없다.
          */
-        <div style={isMobile ? { order: 1, flexBasis: '100%' } : { flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           <Segmented
             items={mySurfaces.map(s => ({ value: s.path, label: s.label }))}
             value={mySurfaces.find(s => s.path === location.pathname)?.path ?? mySurfaces[0]!.path}
             onChange={p => navigate(p)}
-            fullWidth={isMobile}
           />
         </div>
       )}
@@ -94,7 +103,12 @@ export function Header({ customer }: Props) {
       {custLabel && !isNarrow && <span style={styles.custChip} title={custLabel}>{custLabel}</span>}
 
       {/* 로그인 사용자 표시 */}
-      {user && (
+      {/*
+        계정 이름 — **좁은 화면에서는 접는다.** 누구로 로그인했는지는 마이페이지에서
+        확인할 수 있고, 이 줄에서는 「어느 화면으로 갈까」가 훨씬 자주 필요한 정보다.
+        역할이 하나뿐이라 토글이 없을 때는 자리가 남으므로 그대로 둔다.
+      */}
+      {user && !(isMobile && mySurfaces.length > 1) && (
         <div style={styles.userInfo}>
           <span style={styles.userName}>{user.name}</span>
           {!isMobile && <span style={styles.userOrg}>{org?.name ?? user.org_code}</span>}

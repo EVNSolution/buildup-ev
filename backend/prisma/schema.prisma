@@ -587,7 +587,10 @@ model OrderFile {
   kind          String   @db.VarChar(30)
   /// 릴리스 슬롯 밖(/opt/buildup-ev/shared/uploads) — 슬롯 안에 두면 다음 배포에 사라진다
   path          String   @db.VarChar(300)
+  /// 올린 사람의 기기에 있던 이름 — **그대로 남긴다**(IMG_4821.jpg). 지우지 않는다.
   original_name String?  @db.VarChar(200)
+  /// 화면·내려받기에 쓰는 이름 — 단계 기준으로 서버가 짓는다(특장장착.jpg). 옛 파일은 null.
+  display_name  String?  @db.VarChar(200)
   mime          String?  @db.VarChar(60)
   size_bytes    Int?
   /// 원본을 지킨 파일인지(서류) 줄인 것인지(사진)

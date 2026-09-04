@@ -1,0 +1,148 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { evidenceFileName, isExtraEvidence, STEP_BY_CODE, stepMapFor } from '@buildup-ev/shared/process';
+
+/**
+ * **같은 일을 하는 화면은 같게 보인다.**
+ *
+ * 특장사 주문 목록과 관리자 「주문 진행」은 하는 일이 같은데 생김새가 달랐다 —
+ * 한쪽은 수락 대기/진행 중으로 나뉘고, 다른 쪽은 전부 한 덩어리였다.
+ * 같은 주문을 두고 두 사람이 서로 다른 그림을 들고 이야기하게 된다.
+ */
+const ROOT = path.resolve(__dirname, '../../..');
+const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
+const ADMIN = read('frontend/src/pages/AdminPage.tsx');
+const MAKER = read('frontend/src/pages/MakerPage.tsx');
+const SECTIONS = read('frontend/src/components/OrderSections.tsx');
+const PANEL = read('frontend/src/components/OrderStepsPanel.tsx');
+
+describe('주문 목록', () => {
+  it('🔴 특장사와 관리자가 같은 것을 쓴다', () => {
+    expect(MAKER).toContain('<OrderSections');
+    expect(ADMIN).toContain('<OrderSections');
+    // 각자 보드를 직접 그리면 다시 갈라진다
+    expect(MAKER).not.toContain('<OrderStepsBoard');
+    expect(ADMIN).not.toContain('<OrderStepsBoard');
+  });
+
+  it('🔴 끝난 주문은 단계로 판정한다 — 견적 상태만 믿지 않는다', () => {
+    /*
+     * 15/15 단계를 다 끝내고 인도까지 찍힌 주문이 견적 상태는 `confirmed` 로 남아
+     * 진행 중에 계속 떠 있었다(실측). 카드에는 「모든 단계 완료」라고 적혀 있는데
+     * 구획은 진행 중이라, 화면이 스스로 모순됐다.
+     */
+    expect(SECTIONS).toMatch(/o\.steps\.done >= o\.steps\.total/);
+    expect(SECTIONS).toMatch(/o\.quote\.status === 'completed'/);
+  });
+
+  it('세 구획 모두 접고 편다', () => {
+    expect(SECTIONS).toContain('aria-expanded');
+    for (const t of ['수락 대기', '진행 중', '완료']) expect(SECTIONS).toContain(t);
+  });
+
+  it('어디에도 안 걸리는 상태는 사라지지 않는다', () => {
+    // 진행 중이 「나머지 전부」여야 예상 밖의 상태도 목록에 남는다
+    expect(SECTIONS).toMatch(/const active\s*=\s*orders\.filter\(o => o\.quote\.status !== 'assigned' && !finished\(o\)\)/);
+  });
+});
+
+describe('관리자 견적 목록', () => {
+  it('🔴 기간 필터 줄을 없애고 날짜별 접기로 간다', () => {
+    /*
+     * 상태·시작일·종료일·이름·조회 다섯이 한 줄에 있어 좁은 화면에서 서로를 밀어내
+     * 글자가 잘렸다(사진 제보). 날짜 묶음이 「오늘 것만 보기」를 한 번의 누름으로 만든다.
+     */
+    expect(ADMIN).not.toMatch(/filterFrom/);
+    expect(ADMIN).not.toMatch(/filterTo/);
+    expect(ADMIN).toContain('useDateGroups');
+  });
+
+  it('영업 목록과 같은 훅을 쓴다 — 규칙이 갈라지지 않게', () => {
+    expect(read('frontend/src/lib/dateGroups.ts')).toContain('export function useDateGroups');
+  });
+
+  it('🔴 좁은 화면 카드 모양은 그대로 둔다', () => {
+    // 카드가 표보다 읽기 좋다(제보). 바꾼 것은 묶는 방식뿐이다.
+    expect(ADMIN).toContain('qtMob.card');
+    expect(ADMIN).toContain('qtMob.groupHead');
+  });
+
+  it('🔴 이미 담당 영업이 있는 공개 문의는 「배정 필요」가 아니다', () => {
+    /*
+     * `source === 'public'` 만 보면 지정이 끝난 건까지 영원히 강조된 채 남는다(제보).
+     */
+    expect(ADMIN).toMatch(/q\.source === 'public' && !q\.sales_user_id\) \|\| q\.status === 'contracted'/);
+  });
+});
+
+describe('단계 줄', () => {
+  it('🔴 오른쪽 여백이 0 이면 안 된다', () => {
+    /*
+     * 줄 끝의 「대화」·업로드 버튼이 칸 끝에 딱 붙어 있었다(실측 여백 0px).
+     * `zoom: 0.88` 아래에서는 붙어 있는 테두리가 반올림에 깎여 잘린 것처럼 보인다
+     * — 같은 제보가 세 번 나왔다.
+     */
+    for (const name of ['row', 'rowNow', 'rowNowLate']) {
+      const i = PANEL.indexOf(`\n  ${name}: {`);
+      expect(i, `${name} 스타일이 없다`).toBeGreaterThan(0);
+      const decl = PANEL.slice(i, i + 200);
+      expect(decl, `${name} 의 오른쪽 여백이 0 이다`).not.toMatch(/padding: 'var\(--sp-2\) 0'/);
+      expect(decl).toMatch(/padding: 'var\(--sp-2\) var\(--sp-2\)/);
+    }
+  });
+
+  it('🔴 완료 날짜는 아랫줄(첨부파일 자리)에 둔다', () => {
+    // 머리 줄에 두면 이름·태그·완료취소·날짜·버튼이 한 줄을 다투어 「대화」가 밀려난다
+    const head = PANEL.slice(PANEL.indexOf('<span style={s.spacer} />'), PANEL.indexOf('{phase === \'later\' && ('));
+    expect(head, '날짜가 머리 줄에 남아 있다').not.toContain('s.doneMeta');
+    const sub = PANEL.slice(PANEL.indexOf('<div style={s.doneFiles}>'));
+    expect(sub.slice(0, 600)).toContain('s.doneMeta');
+  });
+});
+
+describe('올린 파일의 이름', () => {
+  const mounted = stepMapFor(false)['mounted']!;
+
+  it('단계 이름으로 짓는다 — 「IMG_4821.jpg」로는 아무것도 못 찾는다', () => {
+    expect(evidenceFileName({ stepLabel: '특장 장착', extra: false, seq: 1, ext: '.jpg' }))
+      .toBe('특장장착.jpg');
+  });
+
+  it('선택 증빙은 번호를 붙여 갈라 둔다', () => {
+    expect(evidenceFileName({ stepLabel: '특장 장착', extra: true, seq: 1, ext: '.jpg' }))
+      .toBe('특장장착_증빙_1.jpg');
+    expect(evidenceFileName({ stepLabel: '특장 장착', extra: true, seq: 3, ext: '.jpg' }))
+      .toBe('특장장착_증빙_3.jpg');
+  });
+
+  it('첫 장에는 번호를 붙이지 않고, 둘째부터 붙인다', () => {
+    expect(evidenceFileName({ stepLabel: '안전검사 완료', extra: false, seq: 1, ext: '.pdf' }))
+      .toBe('안전검사완료.pdf');
+    expect(evidenceFileName({ stepLabel: '안전검사 완료', extra: false, seq: 2, ext: '.pdf' }))
+      .toBe('안전검사완료_2.pdf');
+  });
+
+  it('같은 종류라도 단계가 요구한 것이면 덧증빙이 아니다', () => {
+    // 검수 사진은 어디에나 붙지만, 그것을 요구하는 단계에서는 그 단계의 본증빙이다
+    expect(isExtraEvidence(mounted, 'inspection_photo')).toBe(true);
+    const withPhoto = { ...mounted, evidence: ['inspection_photo' as const] };
+    expect(isExtraEvidence(withPhoto, 'inspection_photo')).toBe(false);
+  });
+
+  it('🔴 올린 사람 기기의 이름은 지우지 않는다', () => {
+    const steps = read('backend/src/routes/steps.ts');
+    expect(steps).toContain('original_name: safeDisplayName(file.originalname');
+    expect(steps).toContain('display_name: displayName');
+    // 화면·내려받기는 새 이름을 쓰되, 옛 파일은 예전 이름으로 돌아간다
+    expect(steps).toContain('f.display_name ?? f.original_name');
+  });
+
+  it('모든 단계 이름이 파일명으로 쓸 수 있다 — 경로 구분자가 없다', () => {
+    for (const def of Object.values(STEP_BY_CODE)) {
+      const name = evidenceFileName({ stepLabel: def.label, extra: false, seq: 1, ext: '.jpg' });
+      expect(name, `${def.label} 이 파일명으로 위험하다`).not.toMatch(/[/\\:*?"<>|]/);
+      expect(name).not.toMatch(/\s/);
+    }
+  });
+});

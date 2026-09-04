@@ -266,13 +266,6 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
 
                     <span style={s.spacer} />
 
-                    {phase === 'done' && (
-                      <span style={s.doneMeta}>
-                        {st.done_at?.slice(0, 10)}
-                        {st.planned_at ? ` · ${def.dateLabel} ${st.planned_at}` : ''}
-                      </span>
-                    )}
-
                     {phase === 'later' && (
                       <span style={s.laterWhy}>
                         {def.requires.filter(q => !doneCodes.has(q)).map(q => defByCode[q]?.label ?? q).join(' · ')} 뒤
@@ -376,8 +369,18 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     여기 섞여 보이면 올리지 않은 증빙을 올린 것으로 읽는다.
                     (대화 사진을 증빙으로 쓰려면 대화창에서 「증빙으로 등록」을 누른다)
                   */}
-                  {phase === 'done' && st.files.some(f => f.kind !== 'chat') && (
+                  {phase === 'done' && (
                     <div style={s.doneFiles}>
+                      {/*
+                        날짜는 **아랫줄 왼쪽**, 첨부파일과 같은 자리에 선다.
+                        머리 줄에 두었더니 이름·태그·완료취소·날짜·버튼이 한 줄을 다투어
+                        좁은 화면에서 「대화」 버튼이 다음 줄로 밀렸다(사진 제보).
+                        날짜는 눌러서 하는 일이 아니라 **읽는 값**이라, 버튼과 자리를 다툴 이유가 없다.
+                      */}
+                      <span style={s.doneMeta}>
+                        {st.done_at?.slice(0, 10)}
+                        {st.planned_at ? ` · ${def.dateLabel} ${st.planned_at}` : ''}
+                      </span>
                       {st.files.filter(f => f.kind !== 'chat').map(f => (
                         <DocLink key={f.id} href={stepFileUrl(orderId, f.id)} name={f.name ?? `파일_${f.id}`} style={s.fileName}>
                           {f.name || `파일 ${f.id}`}
@@ -541,9 +544,17 @@ const s: Record<string, React.CSSProperties> = {
   trackCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
   trackCountLate: { fontSize: 'var(--fs-caption)', color: 'var(--req)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
 
-  row: { padding: 'var(--sp-2) 0', borderTop: 'var(--hairline)' },
-  rowNow: { padding: 'var(--sp-2) 0 var(--sp-3) var(--sp-3)', borderTop: 'var(--hairline)', boxShadow: 'inset 3px 0 0 0 var(--lime)' },
-  rowNowLate: { padding: 'var(--sp-2) 0 var(--sp-3) var(--sp-3)', borderTop: 'var(--hairline)', boxShadow: 'inset 3px 0 0 0 var(--req)' },
+  /*
+   * ⚠️ **오른쪽 여백을 0 으로 두지 말 것.**
+   *
+   * 예전에는 좌우가 0 이라 줄 끝의 「대화」·업로드 버튼이 칸 끝에 **딱 붙었다**(실측 여백 0px).
+   * 손가락 기기는 `#root` 에 `zoom: 0.88` 이 걸려 있어, 붙어 있는 테두리는 소수점이
+   * 반올림되며 한 줄이 깎인다 — 화면에서는 **오른쪽이 미세하게 잘린 것**으로 보인다
+   * (같은 제보가 세 번 나왔다). 손가락 하나만큼 띄워 두면 반올림이 먹을 자리가 생긴다.
+   */
+  row: { padding: 'var(--sp-2) var(--sp-2) var(--sp-2) 0', borderTop: 'var(--hairline)' },
+  rowNow: { padding: 'var(--sp-2) var(--sp-2) var(--sp-3) var(--sp-3)', borderTop: 'var(--hairline)', boxShadow: 'inset 3px 0 0 0 var(--lime)' },
+  rowNowLate: { padding: 'var(--sp-2) var(--sp-2) var(--sp-3) var(--sp-3)', borderTop: 'var(--hairline)', boxShadow: 'inset 3px 0 0 0 var(--req)' },
   rowHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   markDone: { color: 'var(--lime-ink)', fontSize: 'var(--fs-caption)', width: 12 },
   markNow: { color: 'var(--dark)', fontSize: 9, width: 12 },
