@@ -1,6 +1,6 @@
 import type { ApiOrder } from '@shared/types/index'
 import { dueLabel } from '../lib/dueLabel'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import { STEPS } from '@shared/process/steps'
 import { dueInfo } from '@shared/process/due'
 
@@ -67,7 +67,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
           <button key={o.id} style={late ? s.rowLate : s.row} onClick={() => onCardClick(o.id)}>
             <div style={s.main}>
               <div style={s.line1}>
-                <span style={s.no}>주문 #{o.id}</span>
+                <span style={s.no}>{tf('주문 #{0}', o.id)}</span>
                 <span style={s.name}>{o.quote.customer?.name ?? t('고객 미상')}</span>
                 <span style={s.model}>{o.quote.model_code}</span>
                 {/*
@@ -81,11 +81,11 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
               {/* 끝낸 것만 적는다 — 「✓」 로 완료라는 뜻을 눈에도 못박는다 */}
               <div style={s.line2}>
                 {mode === 'pending'
-                  ? <span style={s.orderedAt}>발주 {(o.assigned_at ?? o.created_at ?? '').slice(0, 10)}</span>
+                  ? <span style={s.orderedAt}>{tf('발주 {0}', (o.assigned_at ?? o.created_at ?? '').slice(0, 10))}</span>
                   : done > 0 && done === total
                   ? <span style={s.doneAll}>{t('✓ 모든 단계 완료')}</span>
                   : st?.last_done
-                    ? <span style={s.doneStep}>✓ {st.last_done}<span style={s.doneCount}> · {done}/{total} 완료</span></span>
+                    ? <span style={s.doneStep}>✓ {t(st.last_done)}<span style={s.doneCount}>{tf(' · {0}/{1} 완료', done, total)}</span></span>
                     : <span style={s.muted}>{t('아직 완료된 단계가 없습니다')}</span>}
               </div>
               {/*
@@ -97,7 +97,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
               {mode !== 'pending' && o.delivery_due && (
                 <div style={s.line2}>
                   <span style={due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
-                    납기 {o.delivery_due.slice(0, 10)}
+                    {tf('납기 {0}', o.delivery_due.slice(0, 10))}
                   </span>
                   {/*
                     「n일 전」·「n일 경과」는 날짜 **옆**에 붙인다 — 날짜만으로는
@@ -116,7 +116,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                   수락 전에는 진척이 없다. 그 자리에 **며칠 지났는지**를 둔다 —
                   괜찮으면 초록, 늦으면 빨강. 둘 다 굵게 적어 눈에 먼저 들어오게 한다.
                 */
-                <span style={late ? s.sinceLate : s.since}>발주 후 {info?.days ?? 0}일째</span>
+                <span style={late ? s.sinceLate : s.since}>{tf('발주 후 {0}일째', info?.days ?? 0)}</span>
               ) : (
                 <>
                   <span style={s.progress}>

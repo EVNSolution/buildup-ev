@@ -84,6 +84,27 @@ describe('영문화', () => {
     expect(bad, `t() 로 값을 비교한 자리:\n  ${bad.join('\n  ')}`).toEqual([]);
   });
 
+  it('🔴 번역문을 저장하지 않는다 — 화면만 영어, 저장은 한국어', () => {
+    /*
+     * 같은 발주서를 특장사는 한국어로, 해외 담당자는 영어로 본다. **내용은 하나**다.
+     * 그러려면 DB 에는 늘 한국어가 들어가고 바뀌는 것은 그리는 순간뿐이어야 한다.
+     *
+     * `save({ memo: t('메모') })` 처럼 번역 결과가 서버로 나가면, 영어로 켜 둔 사람이
+     * 저장하는 순간 그 값이 영어로 굳어 한국어 화면에서도 영어로 보인다 — 되돌릴 수 없다.
+     */
+    const bad: string[] = [];
+    for (const [rel, src] of files) {
+      // api 호출·상태 저장에 t() 결과를 실어 보내는 꼴
+      for (const m of src.matchAll(/(?:body|payload|data)\s*[:=]\s*\{[^}]*\bt[cf]?\(/g)) {
+        bad.push(`${rel}:${src.slice(0, m.index!).split('\n').length}`);
+      }
+      for (const m of src.matchAll(/\b(?:save|create|update|patch|post|put)\w*\([^)]*\bt[cf]?\('/gi)) {
+        bad.push(`${rel}:${src.slice(0, m.index!).split('\n').length}`);
+      }
+    }
+    expect(bad, `번역문이 서버로 나간다:\n  ${bad.join('\n  ')}`).toEqual([]);
+  });
+
   it('🔴 `t` 라는 이름을 다른 데 쓰지 않는다', () => {
     /*
      * 파일 위에서 `import { t }` 를 해 놓고 함수 안에 `const t = setTimeout(...)` 이 있으면,

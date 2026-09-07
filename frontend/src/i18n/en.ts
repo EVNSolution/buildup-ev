@@ -1093,6 +1093,11 @@ export const EN_FMT: Record<string, string> = {
   '선행 단계가 완료되지 않았습니다 — {0}': 'Earlier steps are not complete — {0}',
   '증빙 등록 후 완료할 수 있습니다 — {0}': 'Upload the required evidence first — {0}',
   '후속 단계를 먼저 취소하십시오 — {0}': 'Undo the later steps first — {0}',
+  '주문 #{0}': 'Order #{0}',
+  '납기 {0}': 'Due {0}',
+  '발주 후 {0}일째': 'Day {0} since order',
+  ' · {0}/{1} 완료': ' · {0}/{1} done',
+  '발주 {0}': 'Ordered {0}',
 }
 
 /**
