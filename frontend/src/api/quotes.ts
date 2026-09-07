@@ -134,13 +134,6 @@ export async function assignQuote(
   }
 }
 
-export async function deleteQuote(id: number): Promise<void> {
-  const res = await fetch(`/api/v1/quotes/${id}`, { method: 'DELETE', credentials: 'include' })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(body.error?.message ?? `삭제 실패: ${res.status}`)
-  }
-}
 
 // ── 총견적서(확정 팝업·재출력) ────────────────────────────────────────────
 
@@ -361,16 +354,3 @@ export async function assignSalesQuote(quoteId: number, salesUserId: string): Pr
   return body.data!
 }
 
-/** 견적 숨기기 / 다시 보이기 — 지우지 않고 화면에서만 감춘다(임시저장만 가능). */
-export async function setQuoteHidden(id: number, hidden: boolean): Promise<void> {
-  const res = await fetch(`/api/v1/quotes/${id}/hidden`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hidden }),
-  })
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(b?.error?.message ?? `숨김 처리 실패: ${res.status}`)
-  }
-}

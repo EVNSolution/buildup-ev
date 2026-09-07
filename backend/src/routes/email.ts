@@ -6,6 +6,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { assertQuoteOwner } from '../lib/quote-access.js';
 import { sendQuoteDocsEmail, EmailConfigError, EmailError } from '../services/email.js';
 import { ContractError } from '../services/contract.js';
 import { QuotePdfError } from '../services/quote-pdf.js';
@@ -22,6 +23,7 @@ export const emailRouter = Router();
 emailRouter.get('/:id/email-log', rbac('ADMIN', 'SALES'), requirePermission('doc.send.email'), async (req: Request, res: Response): Promise<void> => {
   const id = Number(req.params['id']);
   if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
   try {
     const rows = await prisma?.quoteEmailLog.findMany({
       where: { quote_id: id },
@@ -46,6 +48,7 @@ emailRouter.get('/:id/email-log', rbac('ADMIN', 'SALES'), requirePermission('doc
 emailRouter.post('/:id/email', rbac('ADMIN', 'SALES'), requirePermission('doc.send.email'), async (req: Request, res: Response): Promise<void> => {
   const id = Number(req.params['id']);
   if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
 
   const { to, cc, subject, message, include_contract } = req.body as {
     to?: string; cc?: string; subject?: string; message?: string; include_contract?: boolean;

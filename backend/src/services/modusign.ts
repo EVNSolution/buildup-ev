@@ -17,6 +17,18 @@ export type SigningMethod = 'EMAIL' | 'KAKAO';
 const BASE_URL = process.env['MODUSIGN_BASE_URL'] || 'https://api.modusign.co.kr';
 
 /**
+ * 모두싸인 응답을 기다리는 한도.
+ *
+ * ⚠️ Node 의 `fetch` 는 **기본 타임아웃이 없다.** 이게 없어서, 모두싸인이 응답하지 않으면
+ *    계약서 발송 요청이 무한정 매달리고 상태 동기화 루프(`syncOpenContracts`)까지 멈춘다.
+ *    WARP 연동은 처음부터 한도를 두고 있었는데 이쪽만 비어 있었다.
+ *
+ * 발송·조회는 15초, 서명본 내려받기는 파일이라 더 넉넉히 준다.
+ */
+const TIMEOUT_MS = 15_000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+
+/**
  * 실발송 차단 스위치 — **기본 true**. 서명요청 1건마다 과금되므로 개발 중 실수 발송을 막는다.
  * 실제로 보내려면 서버 .env 에 MODUSIGN_DRY_RUN=false 를 명시해야 한다.
  */
@@ -39,6 +51,7 @@ async function req(method: string, path_: string, body?: unknown): Promise<unkno
       'Accept': 'application/json',
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -218,7 +231,7 @@ export async function downloadSignedPdf(documentId: string): Promise<Buffer> {
     throw new ModusignApiError('서명본 다운로드 주소(file.downloadUrl)가 응답에 없습니다');
   }
   // 이 주소는 서명된 URL 이라 인증 헤더를 붙이지 않는다(붙이면 오히려 거부될 수 있다).
-  const f = await fetch(url);
+  const f = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
   if (!f.ok) {
     throw new ModusignApiError(`서명본 다운로드 실패 (${f.status})`, f.status);
   }

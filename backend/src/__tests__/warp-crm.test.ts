@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
-import { authCookie } from './helpers.js';
+import { authCookie, authFixtureReady } from './helpers.js';
 import {
   digitsOnly, isWarpConfigured, lookupWarpCustomer,
   toAutofillHit, toBirthRegno, toBizRegno, type WarpCustomerDto,
@@ -38,6 +38,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
+
+const AUTH_OK = await authFixtureReady('sales1@evnsolution.com');
 
 describe('변환 (toBirthRegno / toBizRegno / toAutofillHit)', () => {
   it('생년월일은 숫자 8자리일 때만 YYYY-MM-DD, 아니면 버린다', () => {
@@ -128,7 +130,7 @@ describe('lookupWarpCustomer — 실패는 전부 null (견적 입력을 막지 
   });
 });
 
-describe('GET /api/v1/customers/warp-lookup', () => {
+describe.skipIf(!AUTH_OK)('GET /api/v1/customers/warp-lookup', () => {
   const app = createApp();
 
   it('미로그인 → 403 / MAKER → 403 (rbac SALES·ADMIN)', async () => {

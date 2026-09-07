@@ -1,6 +1,11 @@
 /**
  * 구매계약 전자서명 라우트 — /api/v1/quotes/:id/contract*
  * 계약은 견적(확정 시점)에 연결. 발송·조회 = ADMIN/SALES. API KEY 는 서버 env 에만.
+ *
+ * ⚠️ **모든 경로가 `assertQuoteOwner` 를 지난다.** 예전에는 역할(ADMIN·SALES)만 보고
+ *    담당 여부를 보지 않아, 영업 아무나 **남의 계약서를 고객에게 발송·취소**할 수 있었고
+ *    서명본까지 열렸다. 역할은 「이 일을 할 수 있는 사람인가」고,
+ *    담당은 「이 건을 다룰 사람인가」다 — 둘 다 물어야 한다.
  */
 import { Router } from 'express';
 import { noStore } from '../lib/doc-headers.js';
@@ -9,6 +14,7 @@ import { existsSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
 import { rbac, requirePermission } from '../middleware/rbac.js';
+import { assertQuoteOwner } from '../lib/quote-access.js';
 import {
   sendContract, getLatestContract, ContractError, refreshContractStatus, ensureSignedPdf,
   registerPaperContract, PAPER_METHOD, PAPER_SCAN_MIME, cancelContract,
@@ -28,6 +34,7 @@ function quoteId(req: Request): number | null {
 contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
 
   const method = (req.body as { signing_method?: string }).signing_method;
   if (method !== 'EMAIL' && method !== 'KAKAO') {
@@ -64,6 +71,7 @@ contractsRouter.post('/:id/contract/send', rbac('ADMIN', 'SALES'), requirePermis
 contractsRouter.post('/:id/contract/cancel', rbac('ADMIN', 'SALES'), requirePermission('doc.send.sign'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
   const reason = (req.body as { reason?: string } | undefined)?.reason;
   try {
     const { contract, remote_canceled } = await cancelContract(id, reason);
@@ -85,6 +93,7 @@ contractsRouter.post('/:id/contract/cancel', rbac('ADMIN', 'SALES'), requirePerm
 contractsRouter.post('/:id/contract/refresh', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
   try {
     const c = await refreshContractStatus(id);
     res.json({ data: c ? { id: c.id, status: c.status, completed_at: c.completed_at } : null });
@@ -105,6 +114,7 @@ contractsRouter.post('/:id/contract/refresh', rbac('ADMIN', 'SALES'), async (req
 contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
   try {
     const c = await getLatestContract(id);
     if (!c) { res.json({ data: null }); return; }
@@ -125,6 +135,7 @@ contractsRouter.get('/:id/contract', rbac('ADMIN', 'SALES'), async (req: Request
 contractsRouter.get('/:id/contract/signed', rbac('ADMIN', 'SALES'), async (req: Request, res: Response): Promise<void> => {
   const id = quoteId(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
   try {
     // 저장돼 있지 않으면 지금 받아서 저장한다 — 열람이 곧 복구 기회다
     const filePath = await ensureSignedPdf(id);
@@ -173,6 +184,7 @@ contractsRouter.post('/:id/contract/paper',
   async (req: Request, res: Response): Promise<void> => {
     const id = quoteId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } }); return; }
+    if (!(await assertQuoteOwner(req, res, id))) return;
 
     const file = req.file;
     if (!file) {

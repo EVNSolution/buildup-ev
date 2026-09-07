@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { rbac, ownOrgOnly } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { assertOrderQuoteOwner } from '../lib/quote-access.js';
 import { generateContractDoc, ContractDocError } from '../services/contract-docgen.js';
 import {
   generateLoadCalcDoc,
@@ -130,6 +131,12 @@ docsRouter.get('/:id/docs/spec-table', rbac('ADMIN', 'MAKER'), async (req: Reque
 const contractHandler = async (req: Request, res: Response): Promise<void> => {
   const order = await loadOrderScoped(req, res);
   if (!order) return;
+  /*
+   * ⚠️ `loadOrderScoped` 는 **특장사의 조직 범위**만 본다(`ownOrgOnly`). 영업은 그대로 통과해,
+   *    영업 아무나 남의 건 계약서를 만들고 열어 볼 수 있었다. 계약서에는 고객 개인정보가
+   *    그대로 들어간다 — 담당 여부를 여기서 한 번 더 묻는다.
+   */
+  if (!(await assertOrderQuoteOwner(req, res, order.id))) return;
 
   try {
     const result = await generateContractDoc(order.id);

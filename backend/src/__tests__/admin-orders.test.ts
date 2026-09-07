@@ -10,9 +10,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
-import { authCookie } from './helpers.js';
+import { authCookie, authFixtureReady } from './helpers.js';
 
 const shouldSkip = !process.env['DATABASE_URL'];
+/* seed 계정이 없으면 로그인부터 막혀 beforeAll 이 통째로 실패한다 — 준비의 문제다 */
+const AUTH_OK = await authFixtureReady('sales1@evnsolution.com', 'admin@evnsolution.com');
 
 const ADMIN     = 'admin@evnsolution.com';
 const SALES     = 'sales1@evnsolution.com';
@@ -29,7 +31,7 @@ const REEFER_SELECTIONS = {
 };
 const CUSTOMER = { name: '홍길동', biz_type: 'individual', is_sosang: true, region: '경기 남양주시' };
 
-describe.skipIf(shouldSkip)('관리자 관제 — 확정·배정·주문·조회', () => {
+describe.skipIf(shouldSkip || !AUTH_OK)('관리자 관제 — 확정·배정·주문·조회', () => {
   const app = createApp();
   let quoteId: number;
   let orderId: number;
