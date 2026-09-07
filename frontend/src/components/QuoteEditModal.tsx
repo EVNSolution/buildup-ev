@@ -19,6 +19,7 @@ import { customerEditValues, mapBizType, isBodyOnly } from '../lib/quoteCustomer
 import { fetchRegions } from '../api/quotes'
 import { BTN } from '../styles/buttons'
 import { usePermission } from './PermGate'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 견적 수정 — 옵션 · 고객정보 · 할부 를 **탭으로 나눠** 고친다.
@@ -67,6 +68,8 @@ interface Props {
 }
 
 export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   // 고정된 견적은 고칠 수 없다 — 열자마자 볼 수 있는 것(이력)을 띄운다
   const [tab, setTab] = useState<TabKey>(() => (quote.docs_frozen_at ? 'history' : 'options'))
   const [busy, setBusy] = useState(false)

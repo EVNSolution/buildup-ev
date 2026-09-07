@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { BTN } from '../styles/buttons'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 종이로 체결한 계약의 **서명본을 올려** 계약완료로 만든다 — 그래야 제작 배정이 열린다.
@@ -19,6 +20,8 @@ export function PaperContractModal({ label, loading, error, onSubmit, onClose }:
   onSubmit: (file: File) => void
   onClose: () => void
 }) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [file, setFile] = useState<File | null>(null)
   return (
     <div style={s.overlay} onClick={onClose}>

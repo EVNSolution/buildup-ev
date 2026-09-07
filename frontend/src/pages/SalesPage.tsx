@@ -46,6 +46,7 @@ import { useIsCompact } from '../hooks/useIsCompact'
 import { useIsPhone } from '../hooks/useIsPhone'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
+import { useEscapeClose } from '../lib/escClose'
 
 
 // option_rule 해석(감춤·잠금·정리)은 lib/optionRules.ts 로 옮겼다 — 수정 팝업과 공용.
@@ -198,6 +199,8 @@ function MyListView() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+  /* 계약 창의 닫기는 ✕ 버튼뿐이었다 — 건반만 쓰면 창에 갇힌다. 닫을 때 목록을 다시 읽는 것도 같다 */
+  useEscapeClose(() => { setContractQuote(null); load() }, !!contractQuote)
   // 앱으로 돌아오면 저절로 다시 불러온다 + 헤더 새로고침 버튼이 이걸 부른다
   useScreenRefresh(load)
 
@@ -492,18 +495,28 @@ function MyListView() {
                   날짜 머리 — 누르면 그 날짜만 접힌다.
                   건수만 붙인다. 금액 합계는 마이페이지가 따로 집계하므로 여기선 중복이다.
                 */}
-                <tr
-                  style={lv.groupRow}
-                  onClick={() => setCollapsed(prev => {
-                    const next = new Set(prev)
-                    next.has(date) ? next.delete(date) : next.add(date)
-                    return next
-                  })}
-                >
+                {/*
+                  ⚠️ 누르는 것은 **칸 안의 버튼**이지 줄이 아니다. 예전에는 `<tr onClick>` 이라
+                     마우스로만 접을 수 있었고, 표의 줄에 `role="button"` 을 붙이면 이번엔
+                     표 구조가 깨져 낭독기가 몇 행짜리 표인지 알 수 없게 된다.
+                     줄은 줄로 두고, 누를 것을 칸 안에 넣는다.
+                */}
+                <tr style={lv.groupRow}>
                   <td colSpan={9} style={lv.groupCell}>
+                   <button
+                     type="button"
+                     style={lv.groupBtn}
+                     aria-expanded={isOpen}
+                     onClick={() => setCollapsed(prev => {
+                       const next = new Set(prev)
+                       next.has(date) ? next.delete(date) : next.add(date)
+                       return next
+                     })}
+                   >
                     <span style={lv.groupArrow}>{isOpen ? '▾' : '▸'}</span>
                     <span style={lv.groupDate}>{date}</span>
                     <span style={lv.groupCount}>{rows.length}건</span>
+                   </button>
                   </td>
                 </tr>
                 {isOpen && rows.map(q => {
@@ -1284,7 +1297,13 @@ const lv: Record<string, React.CSSProperties> = {
   /*
    * 날짜 머리 — **칸을 채우지 않는다**. 위쪽 헤어라인 하나로 묶음을 나눈다.
    */
-  groupRow: { cursor: 'pointer' },
+  groupRow: {},
+  /** 날짜를 접는 버튼 — 칸을 가득 채워 줄 전체가 눌리는 것처럼 보인다 */
+  groupBtn: {
+    display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',
+    width: '100%', background: 'none', border: 'none', padding: 0,
+    font: 'inherit', textAlign: 'left' as const, cursor: 'pointer',
+  },
   groupCell: {
     padding: 'var(--sp-3) var(--sp-3) var(--sp-2)', borderTop: 'var(--hairline)',
     display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',

@@ -247,11 +247,34 @@ describe('날짜 머리와 발주서 크기', () => {
   });
 
   it('영업 「내 견적」과 같은 모양을 쓴다', () => {
-    // 두 목록의 날짜 줄이 다르게 생기면, 같은 것을 보고도 다른 화면이라고 느낀다
+    /*
+     * 두 목록의 날짜 줄이 다르게 생기면, 같은 것을 보고도 다른 화면이라고 느낀다.
+     *
+     * 예전에는 `groupRow: { cursor: 'pointer' }` 한 줄이 같은지만 봤다. 접기 손잡이가
+     * 줄(<tr onClick>)에서 줄 안의 버튼으로 옮겨 가면서 그 줄은 빈 값이 됐고, 글자만
+     * 맞추던 검사는 「모양이 같은가」를 더는 지키지 못했다. 그래서 **날짜 머리 묶음
+     * 전체**(groupRow~groupCount)를 통째로 견준다 — 한쪽만 손대면 여기서 갈린다.
+     */
     const sales = read('frontend/src/pages/SalesPage.tsx');
-    const decl = "groupRow: { cursor: 'pointer' }";
-    expect(sales).toContain(decl);
-    expect(ADMIN).toContain(decl);
+    const block = (src: string) => {
+      const i = src.indexOf('\n  groupRow: {');
+      const j = src.indexOf('groupCount:', i);
+      expect(i, '날짜 머리 묶음을 못 찾았다').toBeGreaterThan(0);
+      expect(j, 'groupCount 가 사라졌다').toBeGreaterThan(i);
+      return src.slice(i, src.indexOf('\n', j)).replace(/\s+/g, ' ').trim();
+    };
+    expect(block(sales), '두 목록의 날짜 머리가 갈라졌다').toBe(block(ADMIN));
+  });
+
+  it('🔴 날짜 접기는 건반으로도 닿는 버튼이다', () => {
+    // <tr onClick> 은 Tab 으로 닿지 않는다 — 줄 안의 버튼이 손잡이고, 접힘 상태를 읽을 수 있어야 한다
+    for (const src of [read('frontend/src/pages/SalesPage.tsx'), ADMIN]) {
+      const i = src.indexOf('groupRow}');
+      expect(i).toBeGreaterThan(0);
+      const strip = src.slice(i, i + 400);
+      expect(strip, '날짜 머리에 버튼이 없다').toMatch(/<button[^>]*type="button"/);
+      expect(strip, '접힘 상태를 낭독기가 읽을 수 없다').toContain('aria-expanded');
+    }
   });
 
   it('🔴 발주서는 기준 폭보다 커지지 않는다', () => {

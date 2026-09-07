@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DownPaymentFields } from './DownPaymentFields'
 import { BTN } from '../styles/buttons'
 import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, fetchTotalQuote, type InstallmentRateOption } from '../api/quotes'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 견적서 생성 팝업 — **캐피탈 관련 입력만** 받는다 (선수금 비율 · 할부 개월수).
@@ -50,6 +51,8 @@ function PlainField({ label, children }: { label: string; children: React.ReactN
 }
 
 export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs, bodyOnly = false, onClose, onDone }: Props) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const init = initialInputs ?? {}
   const isConfirmed = status !== 'draft'
 

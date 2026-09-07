@@ -5,6 +5,8 @@ import { priceBarView } from '@shared/pricing/core'
 import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
 import { useIsPortrait } from '../hooks/useIsPortrait'
 import { useIsTouch } from '../hooks/useIsTouch'
+import { pressable } from '../lib/pressable'
+import { useEscapeClose } from '../lib/escClose'
 
 interface Props {
   /** 지원여부 판정용(내장탑 미정 등) */
@@ -215,7 +217,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {/* ③ 보조금 — 클릭하면 산정 입력(지역·소상공인·화물운송·경유차)을 그 자리에서 고친다 */}
         <div
           style={{ ...styles.block, ...(bodyOnly ? null : styles.clickable), ...row, ...sep, ...(stack ? null : styles.blockWide) }}
-          onClick={bodyOnly ? undefined : () => setShowSubsidy(v => !v)}
+          aria-expanded={bodyOnly ? undefined : showSubsidy}
+          {...pressable(bodyOnly ? undefined : () => setShowSubsidy(v => !v))}
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>{sign('−')}보조금{bodyOnly ? '' : ' ▸'}</div>
           <div style={stack ? styles.stackRight : undefined}>
@@ -261,7 +264,8 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {/* ⑥ 등록·기타 — 흐름 밖 별도 표시(클릭 → 상세) */}
         <div
           style={{ ...styles.block, ...styles.clickable, ...(stack ? { ...styles.rowCell, ...styles.asideStack } : compact ? { ...styles.aside, ...styles.cellFixed } : touch ? styles.aside : { ...styles.aside, ...styles.cellTall }) }}
-          onClick={() => ok && setShowReg(v => !v)}
+          aria-expanded={showReg}
+          {...pressable(() => { if (ok) setShowReg(v => !v) })}
         >
           <div style={{ ...styles.blockLabel, ...lbl }}>기타 ▸ <span style={styles.asideNote}>별도</span></div>
           <div style={stack ? styles.stackRight : undefined}>
@@ -312,7 +316,7 @@ function Tile({ label, text, tone, arrow, onClick, popup, rowHeight }: {
         ...(rowHeight ? { height: ROW_H } : null),
         ...(onClick ? styles.clickable : null),
       }}
-      onClick={onClick}
+      {...pressable(onClick)}
     >
       <span style={styles.tileLabel}>{label}{arrow ? ' ▸' : ''}</span>
       <span style={{ ...styles.tileValue, ...(tone === 'neg' ? styles.negVal : tone === 'muted' ? styles.mutedVal : null) }}>{text}</span>
@@ -352,6 +356,8 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
   /** 좁은 화면 — 칸에 붙이지 않고 화면에 고정해 띄운다(안 그러면 잘린다) */
   sheet?: boolean
 }) {
+  // 덮개를 눌러 닫는 길은 마우스에만 있다 — 건반만 쓰는 사람에게는 Esc 가 그 자리다
+  useEscapeClose(onClose)
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
@@ -388,6 +394,7 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
 
 /** 견적서 PDF 의 ⑥ 차량 등록/부대 · ⑩ 특장 등록/부대 와 동일 항목 */
 function RegPopup({ ok, onClose, sheet }: { ok: QuoteResult; onClose: () => void; sheet?: boolean }) {
+  useEscapeClose(onClose)
   return (
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />

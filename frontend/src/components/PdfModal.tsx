@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useEscapeClose } from '../lib/escClose'
 
 interface Props {
   /** iframe 미리보기 URL */
@@ -12,6 +13,8 @@ interface Props {
 
 /** PDF 미리보기 모달 — 견적서·구조변경 서류 공통. 생성이 느릴 수 있어 로딩 표시 포함. */
 export function PdfModal({ previewUrl, downloadUrl, title, subtitle, onClose }: Props) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [loading, setLoading] = useState(true)
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {

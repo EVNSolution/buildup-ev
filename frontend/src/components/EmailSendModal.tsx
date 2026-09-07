@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BTN } from '../styles/buttons'
 import { sendQuoteEmail, fetchEmailLog, type EmailLogRow } from '../api/email'
 import { EmailLog } from './EmailLog'
+import { useEscapeClose } from '../lib/escClose'
 
 /** 견적서(+계약서) 이메일 발송 모달. to 비우면 등록된 고객 이메일로 발송. */
 export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noContract}: {
@@ -13,6 +14,8 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
   /** 차량만 견적 — 계약서가 없어 첨부 선택칸을 띄우지 않는다 */
   noContract?: boolean
 }) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [to, setTo] = useState(defaultTo ?? '')
   // 기본은 견적서만 — 계약서는 필요할 때만 체크해서 보낸다
   const [includeContract, setIncludeContract] = useState(false)

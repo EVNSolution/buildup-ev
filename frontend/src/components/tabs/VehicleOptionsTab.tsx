@@ -6,6 +6,7 @@ import { fmtWonVat } from '../OptionRow'
 // 트림 카드 사진 — 컨피규레이터 3D 자리에 쓰는 것과 같은 이미지.
 // 트림은 사양 차이지 겉모습 차이가 아니라 두 카드 모두 같은 사진이면 된다.
 import trimImg from '../../assets/stego-k-side.jpg'
+import { pressable } from '../../lib/pressable'
 
 interface Props {
   groups: ApiOptionGroup[]
@@ -109,7 +110,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
                     tabIndex={0}
                     aria-pressed={selected}
                     style={selected ? styles.cardOn : styles.card}
-                    onClick={() => onSelect(group.code, v.code)}
+                    {...pressable(() => onSelect(group.code, v.code))}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(group.code, v.code) } }}
                   >
                     <div style={styles.cardImg}>

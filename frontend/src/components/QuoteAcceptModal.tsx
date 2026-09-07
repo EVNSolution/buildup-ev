@@ -3,6 +3,7 @@ import type { ApiPricingBundle, ApiQuote } from '@shared/types/index'
 import { fetchPricingBundle } from '../api/models'
 import { customerViewGroups } from './CustomerViewModal'
 import { BTN } from '../styles/buttons'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 배정된 공개 문의 — **받기 전에 무엇을 받는지 본다.**
@@ -23,6 +24,8 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
   onAccept: (() => void) | null
   onClose: () => void
 }) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [bundle, setBundle] = useState<ApiPricingBundle | null>(null)
   const [bundleErr, setBundleErr] = useState('')
 

@@ -1,5 +1,6 @@
 import type { ApiQuote } from '@shared/types/index'
 import { EmailLogFor } from './EmailLog'
+import { useEscapeClose } from '../lib/escClose'
 
 // ── 고객정보 조회 (읽기 전용) ─────────────────────────────────────────────
 //
@@ -70,6 +71,8 @@ export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
 }
 
 export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose: () => void }) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const groups = customerViewGroups(quote)
   return (
     <div style={modal.overlay} onClick={onClose}>
