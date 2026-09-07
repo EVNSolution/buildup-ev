@@ -339,7 +339,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
             ))}
           </table>
           {data.rows.length === 0 && <div style={s.empty}>{t('표시할 행이 없습니다.')}</div>}
-          <div style={s.count}>{data.rows.length}행</div>
+          <div style={s.count}>{tf('{0}행', data.rows.length)}</div>
         </div>
       )}
 

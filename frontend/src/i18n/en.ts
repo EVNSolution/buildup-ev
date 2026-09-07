@@ -992,6 +992,7 @@ export const EN: Record<string, string> = {
   '주문 전환·배정': 'Convert & assign order',
   '주문 상태 변경': 'Change order status',
   '주문 치우기(관리자)': 'Clear order (admin)',
+  '(미지정)': '(unassigned)',
 }
 
 /**
@@ -1131,6 +1132,7 @@ export const EN_FMT: Record<string, string> = {
   '공급가 {0}': 'Net of VAT {0}',
   '{0}행 저장 · {1}개 필드 변경(이력 기록됨)': 'Saved {0} rows · {1} fields changed (recorded in history)',
   '옵션 {0}건 변경 · 실구매가 ₩{1}': '{0} option(s) changed · net price ₩{1}',
+  '{0}행': '{0} rows',
 }
 
 /**

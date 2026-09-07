@@ -90,7 +90,8 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
         {showUserFilter && (
           <select style={s.select} value={user} onChange={e => setUser(e.target.value)}>
             <option value="">{t('전체')}</option>
-            {userOptions.map(u => <option key={u} value={u}>{u}</option>)}
+            {/* value 는 서버로 되돌아가는 값이라 원문 그대로, 보이는 글자만 옮긴다 */}
+            {userOptions.map(u => <option key={u} value={u}>{t(u)}</option>)}
           </select>
         )}
         <button style={BTN.barPrimary} onClick={load}>{t('조회')}</button>

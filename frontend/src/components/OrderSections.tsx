@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import type { ApiOrder } from '@shared/types/index'
 import { OrderStepsBoard } from './OrderStepsBoard'
 import { daysSince, isAcceptOverdue } from '@shared/schedule/businessDays'
@@ -107,7 +107,7 @@ function Section({ title, rows, open, onToggle, children }: {
       <button type="button" style={s.head} onClick={onToggle} aria-expanded={open}>
         <span style={s.arrow}>{open ? '▾' : '▸'}</span>
         <span style={s.title}>{title}</span>
-        <span style={s.count}>{rows.length}건</span>
+        <span style={s.count}>{tf('{0}건', rows.length)}</span>
       </button>
       {open && (rows.length > 0 ? children : <div style={s.empty}>{t('해당하는 주문이 없습니다.')}</div>)}
     </>
