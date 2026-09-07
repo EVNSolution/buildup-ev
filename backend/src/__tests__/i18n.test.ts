@@ -43,21 +43,30 @@ describe('영문화', () => {
     expect(files.length).toBeGreaterThan(60);
   });
 
-  it('🔴 값으로 비교되는 문자열은 사전에 없다', () => {
+  it('🔴 값으로 비교되는 자리는 한국어 원문 그대로다', () => {
     /*
-     * 이 다섯은 화면 글자가 아니라 **데이터**다.
-     *   원          → 옵션DB 의 unit 값과 비교(OptionDbTab)
-     *   없음·추가없음 → 옵션 그룹의 off 값 이름과 비교(OptionToggle)
-     *   서울특별시    → 지역 코드가 한글 그대로 DB 에 있다(liveQuote)
-     *   일반인       → 면세구분 값과 비교(liveQuote)
-     * 사전에 올려 두면 누군가 「영문화 마저 하자」며 비교문까지 바꾼다.
-     * 그러면 서울 취득세 감면이 조용히 빠진다 — 오류도 안 난다.
+     * **구조는 한국어, 화면만 영어**가 이 영문화의 규칙이다. 그러니 이 다섯도
+     * 사전에 번역이 있어야 한다(화면에 「없음」이 아니라 None 이 떠야 하니까).
+     *
+     * 위험한 것은 표시가 아니라 **비교**다. 아래 자리들이 t() 를 타는 순간
+     * 영어일 때만 거짓이 되어, 서울 취득세 감면이나 토글형 옵션이 조용히 틀어진다.
+     * 오류도 안 나고 한국어로 쓰면 멀쩡하다.
      */
-    const en = block('EN:') + block('EN_FMT');
-    for (const data of ['원', '없음', '추가없음', '서울특별시', '일반인']) {
-      expect(en, `'${data}' 은 데이터 값이라 사전에 있으면 안 된다`).not.toMatch(
-        new RegExp(`^ {2}'${data}':`, 'm'),
-      );
+    const must: [string, string][] = [
+      ['components/OptionDbTab.tsx', "=== '원'"],
+      ['components/OptionToggle.tsx', "=== '없음'"],
+      ['components/OptionToggle.tsx', "=== '추가없음'"],
+      ['lib/liveQuote.ts', "=== '일반인'"],
+      ['lib/liveQuote.ts', "=== '서울특별시'"],
+    ];
+    for (const [rel, cmp] of must) {
+      const src = readFileSync(path.join(SRC, rel), 'utf8');
+      expect(src, `${rel} 의 ${cmp} 비교가 사라졌다 — t() 로 바뀌지 않았는지 보라`).toContain(cmp);
+    }
+    // 화면 쪽은 반대로 **번역이 있어야** 한다
+    const en = block('EN:');
+    for (const data of ['원', '없음', '서울특별시', '일반인']) {
+      expect(en, `'${data}' 의 화면 번역이 없다`).toMatch(new RegExp(`^ {2}'${data}':`, 'm'));
     }
   });
 

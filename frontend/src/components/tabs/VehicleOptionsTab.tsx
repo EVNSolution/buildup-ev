@@ -96,7 +96,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
         const opened = values.find(v => v.code === openSpec)
         return (
           <div key={group.code} style={styles.row}>
-            <label style={styles.label}>{group.name}</label>
+            <label style={styles.label}>{t(group.name)}</label>
             <div style={styles.cardGrid}>
               {values.map(v => {
                 const selected = selections[group.code] === v.code
@@ -115,9 +115,9 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(group.code, v.code) } }}
                   >
                     <div style={styles.cardImg}>
-                      <img src={trimImg} alt={v.name} style={styles.cardImgPic} />
+                      <img src={trimImg} alt={t(v.name)} style={styles.cardImgPic} />
                     </div>
-                    <div style={styles.cardName}>{v.name}</div>
+                    <div style={styles.cardName}>{t(v.name)}</div>
                     <div style={styles.cardDelta}>{fmtWonVat(valueUnitPrice(group.code, v.code, selections, price))}</div>
                     {/* 사양이 정의된 트림만 — 카드 선택과 섞이지 않게 클릭을 여기서 멈춘다 */}
                     {spec && (
@@ -126,7 +126,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
                         style={isOpen ? styles.specBtnOn : styles.specBtn}
                         onClick={e => { e.stopPropagation(); setOpenSpec(isOpen ? null : v.code) }}
                       >
-                        사양 보기 {isOpen ? '▴' : '▾'}
+                        {t('사양 보기')} {isOpen ? '▴' : '▾'}
                       </button>
                     )}
                   </div>

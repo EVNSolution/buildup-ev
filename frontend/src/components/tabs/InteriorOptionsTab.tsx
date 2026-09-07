@@ -1,4 +1,5 @@
 import type { ApiOptionGroup } from '@shared/types/index'
+import { t } from '../../i18n'
 import { valueUnitPrice } from '@shared/pricing/core'
 import { offValueCode } from '../OptionToggle'
 import { OptRow, PriceBtn } from '../OptionRow'
@@ -43,7 +44,7 @@ export function InteriorOptionsTab({
         if (positives.length === 0) return null
 
         return (
-          <OptRow key={group.code} label={group.name} required={group.required}>
+          <OptRow key={group.code} label={t(group.name)} required={group.required}>
             {positives.map(v => {
               const selected = selections[group.code] === v.code
               // 종류가 하나면 '추가'(온도·스포일러), 여럿이면 종류명(그물망·이동식)

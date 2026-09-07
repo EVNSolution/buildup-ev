@@ -288,7 +288,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         <button style={styles.summaryBar} onClick={() => setOpenFlow(v => !v)}>
           <span style={styles.summaryLabel}>{t('실구매가')}</span>
           <span style={styles.summaryValue}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</span>
-          <span style={styles.summaryMore}>내역 {openFlow ? '▾' : '▴'}</span>
+          <span style={styles.summaryMore}>{t('내역')} {openFlow ? '▾' : '▴'}</span>
         </button>
       )}
     </div>

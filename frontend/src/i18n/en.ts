@@ -1,13 +1,13 @@
 /**
  * 한국어 원문 → 영어. **원문이 곧 키다.**
  *
- * 키를 따로 짓지 않는다. 961개에 이름을 붙이면 그 이름이 또 하나의 사전이 되고,
- * 빠뜨린 자리에는 `admin.tab.quotes` 같은 날글자가 뜬다. 원문을 키로 쓰면
- * **못 찾았을 때 한국어가 그대로 보인다** — 최악이 「원래 화면」이다.
+ * 구조는 한국어 그대로 둔다 — DB 값도, 코드의 비교문도 건드리지 않는다.
+ * 바뀌는 것은 **그리는 순간**뿐이다. 그래서 DB 에서 온 값(옵션 이름·트림 이름)도
+ * 화면에 내보낼 때 t() 를 태우면 그만이고, 스키마에 영문 컬럼을 더할 이유가 없다.
  *
- * ⚠️ 데이터 값 5개(원·없음·추가없음·서울특별시·일반인)는 **일부러 뺐다.**
- *    화면 글자가 아니라 코드가 값으로 비교하는 문자열이다. 사전에 있으면 누군가
- *    비교문까지 함께 바꾼다 — 그러면 보조금·취득세 계산이 조용히 틀린다.
+ * ⚠️ 위험한 것은 표시가 아니라 **비교**다. `t('필수') === row.tag` 는 영어일 때만 거짓이 된다.
+ *    비교는 늘 한국어 원문으로 한다 — i18n.test.ts 의 「t() 를 값 비교에 쓰지 않는다」가 지킨다.
+ *    원·없음·서울특별시·일반인처럼 코드가 값으로 비교하는 말도 여기 **번역은 있다**(화면용).
  */
 export const EN: Record<string, string> = {
   '# · 특장사': '# · Upfitter',
@@ -475,6 +475,7 @@ export const EN: Record<string, string> = {
   '서명요청': 'Signature requested',
   '서명중': 'Signing',
   '서명취소': 'Signature canceled',
+  '서울특별시': 'Seoul',
   '선수금 금액 (원)': 'Down payment amount (KRW)',
   '선수금 비율': 'Down payment ratio',
   '선수금 비율 (%)': 'Down payment ratio (%)',
@@ -535,6 +536,7 @@ export const EN: Record<string, string> = {
   '양문미닫이': 'Bi-fold doors',
   '어느 단계에 대한 대화인지 고르고 남기면 상대에게 알림이 갑니다.': 'Choose the step your message is about — the other party is notified when you post.',
   '업로드': 'Upload',
+  '없음': 'None',
   '에 반영됩니다.': 'takes effect from then on.',
   '여닫이': 'Swing doors',
   '역할': 'Role',
@@ -586,6 +588,7 @@ export const EN: Record<string, string> = {
   '완료 취소': 'Undo completion',
   '완료 취소에 실패했습니다': 'Could not undo the completion',
   '우리 쪽 계약은 취소되어': 'Our side of the contract was canceled, so',
+  '원': 'KRW',
   '월': 'Mon',
   '위 내용을 확인하였으며, 개인정보 수집·이용에 동의합니다.': 'I have read the above and consent to the collection and use of my personal data.',
   '위임장 필요': 'Power of attorney required',
@@ -626,6 +629,7 @@ export const EN: Record<string, string> = {
   '인도완료': 'Delivered',
   '일': 'Sun',
   '일반구매자': 'General buyer',
+  '일반인': 'Individual',
   '일시': 'Date & time',
   '일시불': 'Lump sum',
   '임시 비밀번호 (1회만 표시)': 'Temporary password (shown once)',
@@ -777,6 +781,7 @@ export const EN: Record<string, string> = {
   '최초등록일 (예: 2025-01-15)': 'First registration date (e.g. 2025-01-15)',
   '추가': 'Add',
   '추가 옵션': 'Additional option',
+  '추가없음': 'None',
   '취소': 'Cancel',
   '취소 사유': 'Reason for cancellation',
   '취소 중…': 'Canceling…',
@@ -878,14 +883,12 @@ export const EN: Record<string, string> = {
   '후측방 충돌 경고/보조, 후방교차 충돌방지 보조, 안전 하차 경고': 'Blind-Spot Collision Warning / Collision-Avoidance Assist, Rear Cross-Traffic Collision-Avoidance Assist, Safe Exit Warning',
   '휴대전화번호': 'Mobile number',
   '휴대폰': 'Mobile',
-  '계정': 'Account',
-  '언어': 'Language',
-  '이 기기에 저장됩니다. 다른 기기에서는 다시 골라 주세요.': 'Saved on this device. Choose again on other devices.',
+  '사양 보기': 'View specs',
+  '내역': 'Breakdown',
 }
 
 /**
  * 값이 끼어드는 문장. 자리표시자는 **번호**다 — 영어는 어순이 달라 값의 순서가 바뀐다.
- * 예) `'{0} 의 견적 {1}건'` → `'{1} quote(s) for {0}'`. 번호가 없으면 이걸 표현할 수 없다.
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
@@ -977,12 +980,12 @@ export const EN_FMT: Record<string, string> = {
   '파일_{-1}': 'file_{-1}',
   '표본 {-1}건': 'Sample of {-1}',
   '확정 실패: {-1}': 'Could not confirm: {-1}',
+  '{0} 확인 필요': '{0} needs review',
 }
 
 /**
  * 문장이 토막 나 있어 **낱말로 옮기면 영어가 깨지는** 자리들.
- * 한국어는 서술어가 끝에 와서 강조를 가운데 끼워도 말이 되지만, 영어는 어순이 달라
- * 조각의 경계 자체가 달라진다. t() 로 덮지 말고 **JSX 를 다시 짜야 한다.**
+ * t() 로 덮지 말고 JSX 를 다시 짜야 한다.
  */
 export const NEEDS_RESTRUCTURE: readonly string[] = [
   '· 임시 비밀번호는',

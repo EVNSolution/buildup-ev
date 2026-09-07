@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { t } from '../i18n'
+import { t, tf } from '../i18n'
 import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk, CustomOptionDraft } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
@@ -163,7 +163,7 @@ export function OptionPanel({
     : isUnsupported
     ? '내장탑 미정 — 확정 불가'
     : unseen.length
-    ? `${unseen.map((t) => t.label).join('·')} 확인 필요`
+    ? tf('{0} 확인 필요', unseen.map((tab) => t(tab.label)).join('·'))
     : '견적 저장'
 
   // 저장 완료 상태에서는 버튼이 '새 견적 작성' 이 된다 — 잠그면 다음 견적을 못 짠다.
