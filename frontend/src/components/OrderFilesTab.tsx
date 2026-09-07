@@ -134,7 +134,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                 key={k}
                 style={filter === k ? s.chipOn : s.chip}
                 onClick={() => setFilter(k)}
-              >{k === 'all' ? t('전체') : GROUP_LABEL[k]} {counts[k]}</button>
+              >{k === 'all' ? t('전체') : t(GROUP_LABEL[k])} {counts[k]}</button>
             ))}
           </div>
 

@@ -60,7 +60,7 @@ export function PhoneInput({ value, onChange, boxStyle, disabled }: Props) {
             inputMode="numeric"
             maxLength={LENGTHS[i]}
             disabled={disabled}
-            aria-label={[t('국번 앞자리'), t('가운데 자리'), '뒷자리'][i]}
+            aria-label={[t('국번 앞자리'), t('가운데 자리'), t('뒷자리')][i]}
           />
         </div>
       ))}

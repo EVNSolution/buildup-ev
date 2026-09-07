@@ -114,8 +114,8 @@ export function PurchaseOrderSheet({
           </tr>
           {options.map(o => (
             <tr key={o.group_code}>
-              <td style={s.tdLabel}>{o.group_name}</td>
-              <td style={s.tdValue}>{o.value_name}</td>
+              <td style={s.tdLabel}>{t(o.group_name)}</td>
+              <td style={s.tdValue}>{t(o.value_name)}</td>
             </tr>
           ))}
         </tbody>

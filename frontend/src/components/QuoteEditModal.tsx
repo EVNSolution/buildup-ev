@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { customOptionError } from '../lib/customOptionError'
 import { t } from '../i18n'
 import { DownPaymentFields } from './DownPaymentFields'
 import type { ApiPricingBundle, ApiQuote } from '@shared/types/index'
@@ -194,7 +195,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
   async function save() {
     // 반쪽만 적힌 줄은 **여기서도** 막는다 — 서버와 같은 함수로 판정한다
     const custom = checkCustomOptions(customOptions)
-    if (!custom.ok) { onFail(new Error(custom.message)); return }
+    if (!custom.ok) { onFail(new Error(customOptionError(custom))); return }
     setBusy(true)
     try {
       /*

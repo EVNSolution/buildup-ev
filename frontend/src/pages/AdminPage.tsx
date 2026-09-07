@@ -329,7 +329,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
           </div>
           <div>
             <label style={acc.label}>이름<span style={acc.req}> · 필수</span></label>
-            <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} style={acc.input} placeholder="홍길동" disabled={loading} />
+            <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} style={acc.input} placeholder={t('홍길동')} disabled={loading} />
           </div>
           <div>
             <label style={acc.label}>역할<span style={acc.req}> · 필수</span></label>
@@ -543,7 +543,7 @@ function AccountsTab() {
             const hasOverride = userOverride !== undefined
             return (
               <div key={mod.code} style={acc.moduleItem}>
-                <div style={acc.modName}>{mod.name}</div>
+                <div style={acc.modName}>{t(mod.name)}</div>
                 <div style={acc.modCode}>{mod.code}</div>
                 <div style={acc.modMeta}>
                   {hasOverride
@@ -1621,7 +1621,7 @@ export function AdminPage() {
                     <thead>
                       <tr>
                         <th style={styles.thModule}>{t('모듈')}</th>
-                        <th style={styles.thRole}>{t(ROLE_KO[role])} 기본값</th>
+                        <th style={styles.thRole}>{tf('{0} 기본값', t(ROLE_KO[role]))}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1633,10 +1633,10 @@ export function AdminPage() {
                             <td style={styles.tdModule}>
                               {MODULE_DESC[mod.code] ? (
                                 <Tooltip text={MODULE_DESC[mod.code]!} placement="below">
-                                  <div style={styles.modName}>{mod.name}</div>
+                                  <div style={styles.modName}>{t(mod.name)}</div>
                                 </Tooltip>
                               ) : (
-                                <div style={styles.modName}>{mod.name}</div>
+                                <div style={styles.modName}>{t(mod.name)}</div>
                               )}
                               <div style={styles.modCode}>{mod.code}</div>
                             </td>

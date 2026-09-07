@@ -46,7 +46,7 @@ export interface ConsentSituation {
 export interface ConsentRow { key: string; tag?: '필수' | '선택'; value: string }
 
 export function consentRows(sit: ConsentSituation): ConsentRow[] {
-  const required = [t('성명'), t('휴대전화번호'), '전자우편주소']
+  const required = [t('성명'), t('휴대전화번호'), t('전자우편주소')]
   // 보조금 조건 — 특장만 견적에는 이 칸들이 아예 없다
   if (!sit.bodyOnly) {
     required.push(t('사업자 구분'))

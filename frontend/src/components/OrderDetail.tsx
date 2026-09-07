@@ -291,14 +291,14 @@ function DocsTab({
         <div style={det.cardTitle}>{t('차량정보 입력 (서류 바인딩)')}</div>
         <div style={det.infoGrid}>
           {([
-            [t('제원관리번호'), '제원관리번호'],
-            [t('등록번호'),     '등록번호'],
-            [t('차대번호'),     '차대번호'],
-            [t('형식코드'),     '형식코드'],
-            [t('모델연도'),     '모델연도'],
-            [t('소유자성명'),   '소유자성명'],
-            [t('소유자주소'),   '소유자주소'],
-            [t('최초등록일'),   '최초등록일 (예: 2025-01-15)'],
+            ['제원관리번호', t('제원관리번호')],
+            ['등록번호',     t('등록번호')],
+            ['차대번호',     t('차대번호')],
+            ['형식코드',     t('형식코드')],
+            ['모델연도',     t('모델연도')],
+            ['소유자성명',   t('소유자성명')],
+            ['소유자주소',   t('소유자주소')],
+            ['최초등록일',   t('최초등록일 (예: 2025-01-15)')],
           ] as [keyof OrderVehicleInfo, string][]).map(([k, placeholder]) => (
             <Fragment key={k}>
               <label style={det.infoLabel}>{k}</label>
@@ -611,8 +611,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {detail.options.map((opt, i) => (
                 <div key={i} style={detMob.row}>
-                  <span style={detMob.label}>{opt.group_name}</span>
-                  <span style={detMob.value}>{opt.value_name}</span>
+                  <span style={detMob.label}>{t(opt.group_name)}</span>
+                  <span style={detMob.value}>{t(opt.value_name)}</span>
                 </div>
               ))}
             </div>
@@ -627,8 +627,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
               <tbody>
                 {detail.options.map((opt, i) => (
                   <tr key={i}>
-                    <td style={det.tdLabel}>{opt.group_name}</td>
-                    <td style={det.tdValue}>{opt.value_name}</td>
+                    <td style={det.tdLabel}>{t(opt.group_name)}</td>
+                    <td style={det.tdValue}>{t(opt.value_name)}</td>
                   </tr>
                 ))}
               </tbody>

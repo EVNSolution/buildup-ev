@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { customOptionError } from '../lib/customOptionError'
 import { t , tc, tf} from '../i18n'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
@@ -928,7 +929,7 @@ export function SalesPage() {
      * 판정은 서버와 **같은 함수**로 한다 — 두 곳이 다르면 화면은 통과시키고 서버가 막는다.
      */
     const custom = checkCustomOptions(customOptions)
-    if (!custom.ok) { setSaveError(custom.message); return }
+    if (!custom.ok) { setSaveError(customOptionError(custom)); return }
 
     setIsSaving(true)
     setSaveError('')

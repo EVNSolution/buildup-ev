@@ -36,7 +36,7 @@ export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
       rows: [
         [isCorp ? t('상호') : t('성명'), quote.customer?.name ?? ''],
         ...(isCorp ? [[t('대표이사'), val('ceo_name')] as [string, string]] : []),
-        [t('사업자 구분'), BIZ_KO[val('biz_type')] ?? val('biz_type')],
+        [t('사업자 구분'), t(BIZ_KO[val('biz_type')] ?? val('biz_type'))],
         [t('연락처'), quote.customer?.phone ?? ''],
         [t('이메일'), quote.customer?.email ?? ''],
         [t('세부주소'), quote.customer?.address ?? ''],

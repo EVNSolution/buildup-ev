@@ -1098,6 +1098,12 @@ export const EN_FMT: Record<string, string> = {
   '발주 후 {0}일째': 'Day {0} since order',
   ' · {0}/{1} 완료': ' · {0}/{1} done',
   '발주 {0}': 'Ordered {0}',
+  '{0} 기본값': '{0} default',
+  '추가 옵션은 {0}줄까지 넣을 수 있습니다.': 'You can add at most {0} extra option rows.',
+  '추가 옵션 {0}번째 줄 — 옵션명과 금액을 모두 적어 주세요.': 'Extra option row {0} — enter both a name and an amount.',
+  '추가 옵션 {0}번째 줄 — 옵션명은 {1}자까지 넣을 수 있습니다.': 'Extra option row {0} — the name can be at most {1} characters.',
+  '추가 옵션 {0}번째 줄 — 금액은 0원 이상이어야 합니다.': 'Extra option row {0} — the amount cannot be negative.',
+  '추가 옵션 {0}번째 줄 — 금액이 너무 큽니다. 다시 확인해 주세요.': 'Extra option row {0} — the amount is too large. Please check it.',
 }
 
 /**
