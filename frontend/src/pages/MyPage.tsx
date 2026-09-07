@@ -1,8 +1,10 @@
-import { useNavigate } from 'react-router-dom'
-import { Header } from '../components/Header'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Segmented } from '../components/ui/Segmented'
 import { BTN } from '../styles/buttons'
+import { safeTop, safeLeft, safeRight } from '../styles/safeArea'
+import { homeFor } from '../lib/surfaces'
+import logoUrl from '../assets/logo.png'
 import { rolesOf } from '@shared/types/index'
 import { useLang, setLang, t } from '../i18n'
 
@@ -15,17 +17,38 @@ import { useLang, setLang, t } from '../i18n'
  * 자주 쓰는 쪽이 밀린다.
  *
  * 들어오는 길은 최상단바의 **계정 이름**이다 — 버튼을 새로 더하지 않았다.
+ *
+ * ⚠️ 영업·관리·특장 화면과 **떼어 놓는다.** 공용 최상단바를 그대로 쓰면 역할 전환 토글이
+ *    같이 뜨는데, `/me` 는 그 셋 중 어디도 아니라서 **아무 데도 아닌 곳에서 「영업」이 켜진 것처럼**
+ *    보였다. 여기는 설정 화면이지 넷째 업무 화면이 아니다 — 표지와 돌아가는 길만 둔다.
  */
 export function MyPage() {
-  const { session } = useAuth()
+  const { session, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const lang = useLang()
   const user = session?.user
   const org = session?.org
 
+  /*
+   * 돌아갈 곳 — 온 자리로 되돌린다. 주소를 직접 쳐서 들어와 되돌아갈 기록이 없으면
+   * 그 계정의 첫 화면으로 보낸다(막다른 길을 만들지 않는다).
+   */
+  const back = () => {
+    const from = (location.state as { from?: string } | null)?.from
+    if (from) navigate(from)
+    else if (window.history.length > 1) navigate(-1)
+    else navigate(user ? homeFor(user.role) : '/')
+  }
+
   return (
     <div style={s.page}>
-      <Header />
+      {/* 설정 화면 전용 표지 — 역할 전환도, 화면 탭도 없다 */}
+      <header style={s.bar}>
+        <img src={logoUrl} alt="EV&Solution" style={s.logo} />
+        <div style={{ flex: 1 }} />
+        <button style={BTN.secondary} onClick={back}>{t('뒤로')}</button>
+      </header>
       <div style={s.body}>
         <h1 style={s.title}>{t('마이페이지')}</h1>
 
@@ -59,6 +82,23 @@ export function MyPage() {
             {t('비밀번호 변경')}
           </button>
         </section>
+
+        {/*
+          로그아웃 — 예전엔 최상단바에 있었다. 하루에 한 번 누를까 말까 한 동작이 늘 자리를
+          차지했고, 휴대폰에서는 그 폭이 화면 전환 토글을 눌렀다.
+
+          ⚠️ 로그아웃하면 **홈(공개 컨피규레이터)** 으로 보낸다. 로그인 화면으로 되돌리면
+             "나가려는데 다시 들어오라"는 화면이 뜨는 셈이다.
+             (세션이 만료돼 튕기는 경우는 RequireAuth 가 로그인 화면으로 보낸다 — 그건 하던 일이 있는 경우다)
+        */}
+        <section style={s.card}>
+          <button
+            style={{ ...BTN.secondary, color: 'var(--muted)' }}
+            onClick={async () => { await logout(); navigate('/', { replace: true }) }}
+          >
+            {t('로그아웃')}
+          </button>
+        </section>
       </div>
     </div>
   )
@@ -75,6 +115,13 @@ function Row({ k, v }: { k: string; v: string }) {
 
 const s: Record<string, React.CSSProperties> = {
   page: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
+  bar: {
+    flexShrink: 0, display: 'flex', alignItems: 'center', gap: 'var(--sp-4)',
+    height: safeTop('60px'), paddingTop: 'env(safe-area-inset-top, 0px)', boxSizing: 'border-box',
+    paddingLeft: safeLeft('var(--sp-5)'), paddingRight: safeRight('var(--sp-5)'),
+    borderBottom: 'var(--hairline)', background: '#fff', overflow: 'hidden',
+  },
+  logo: { height: 28, width: 'auto', display: 'block', flexShrink: 0 },
   // 설정은 읽고 고르는 화면이라 한 단 좁게 둔다 — 넓으면 라벨과 값이 멀어져 눈이 오간다
   body: { flex: 1, overflowY: 'auto', padding: 'var(--sp-5)', maxWidth: 560, width: '100%' },
   title: {

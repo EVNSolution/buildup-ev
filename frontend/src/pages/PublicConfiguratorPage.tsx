@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../i18n'
 import { Link } from 'react-router-dom'
 import type { ApiPricingBundle } from '@shared/types/index'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
@@ -123,7 +124,7 @@ export function PublicConfiguratorPage() {
           <span style={s.wordmark}>Buildup-EV</span>
         </div>
         <div style={{ flex: 1 }} />
-        <Link to="/login" style={{ ...BTN.secondary, textDecoration: 'none' }}>로그인</Link>
+        <Link to="/login" style={{ ...BTN.secondary, textDecoration: 'none' }}>{t('로그인')}</Link>
       </header>
 
       <div style={compact ? s.bodyCompact : s.body}>

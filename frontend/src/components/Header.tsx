@@ -4,7 +4,6 @@ import { useIsMobile } from '../hooks/useIsMobile'
 import { Segmented } from './ui/Segmented'
 import { surfacesFor } from '../lib/surfaces'
 import { useLang, t } from '../i18n'
-import { BTN } from '../styles/buttons'
 import logoUrl from '../assets/logo.png'
 import { safeTop, safeLeft, safeRight } from '../styles/safeArea'
 import type { CustomerInfo, Role } from '@shared/types/index'
@@ -21,7 +20,7 @@ interface Props {
 }
 
 export function Header({ customer }: Props) {
-  const { session, logout } = useAuth()
+  const { session } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const isMobile = useIsMobile()
@@ -121,7 +120,8 @@ export function Header({ customer }: Props) {
         <button
           type="button"
           style={styles.userInfo}
-          onClick={() => navigate('/me')}
+          // 온 자리를 실어 보낸다 — 마이페이지의 「뒤로」가 여기로 되돌린다
+          onClick={() => navigate('/me', { state: { from: location.pathname } })}
           title={t('마이페이지')}
         >
           <span style={styles.userName}>{user.name}</span>
@@ -130,16 +130,11 @@ export function Header({ customer }: Props) {
       )}
 
       {/*
-        로그아웃하면 **홈(공개 컨피규레이터)** 으로 보낸다.
-        로그인 화면으로 되돌리면 "나가려는데 다시 들어오라"는 화면이 뜨는 셈이다.
-        (세션이 만료돼 튕기는 경우는 RequireAuth 가 로그인 화면으로 보낸다 — 그건 하던 일이 있는 경우다)
+        로그아웃은 **마이페이지로 옮겼다**(계정 이름 → 마이페이지).
+        하루에 한 번 누를까 말까 한 동작이 이 줄에서 늘 자리를 차지하고 있었고,
+        휴대폰에서는 그 폭이 화면 전환 토글을 눌렀다. 계정에 딸린 동작은 계정 화면에 둔다 —
+        메일·채팅 앱들이 계정 메뉴 안에 로그아웃을 두는 것과 같다.
       */}
-      <button
-        style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0 }}
-        onClick={async () => { await logout(); navigate('/', { replace: true }) }}
-      >
-        {t('로그아웃')}
-      </button>
     </header>
   )
 }

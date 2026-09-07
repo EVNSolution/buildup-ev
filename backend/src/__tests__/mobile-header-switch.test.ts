@@ -57,8 +57,26 @@ describe('휴대폰 화면 전환 토글', () => {
   });
 
   it('🔴 마이페이지로 가는 길이 있다', () => {
-    // 언어·비밀번호는 마이페이지에만 있다 — 길이 끊기면 설정을 아예 못 바꾼다
-    expect(HEADER, '계정 이름이 마이페이지로 가지 않는다').toMatch(/navigate\('\/me'\)/);
+    // 언어·비밀번호·로그아웃이 전부 마이페이지에만 있다 — 길이 끊기면 로그아웃도 못 한다
+    expect(HEADER, '계정 이름이 마이페이지로 가지 않는다').toMatch(/navigate\('\/me'/);
+    // 온 자리를 실어 보내야 마이페이지의 「뒤로」가 제자리로 되돌린다
+    expect(HEADER, '어디서 왔는지를 넘기지 않는다').toMatch(/state: \{ from: location\.pathname \}/);
+  });
+
+  it('🔴 로그아웃은 최상단바가 아니라 마이페이지에 있다', () => {
+    /*
+     * 하루에 한 번 누를까 말까 한 동작이 이 줄에서 늘 자리를 차지했고, 휴대폰에서는
+     * 그 폭이 화면 전환 토글을 눌렀다(이 파일 맨 위 사고 기록 1번이 바로 그것이다).
+     * 계정에 딸린 동작은 계정 화면에 둔다.
+     *
+     * 375px 실측: 헤더 한 줄 66px · 새어 나감 0 · 전환 토글 123px 로 회복.
+     */
+    expect(HEADER, '로그아웃이 최상단바로 돌아왔다').not.toMatch(/logout\(\)/);
+    const my = readFileSync(
+      path.resolve(__dirname, '../../../frontend/src/pages/MyPage.tsx'), 'utf8',
+    );
+    expect(my, '마이페이지에 로그아웃이 없다 — 나갈 길이 사라진다').toMatch(/await logout\(\)/);
+    expect(my, '로그아웃 뒤 홈으로 보내지 않는다').toMatch(/navigate\('\/', \{ replace: true \}\)/);
   });
 
   it('역할이 하나면 토글 자체가 없다', () => {
