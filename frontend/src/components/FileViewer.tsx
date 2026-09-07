@@ -1,4 +1,5 @@
 import { BackIcon } from './icons/ChatIcons'
+import { t } from '../i18n'
 import { useBackClose } from '../lib/backClose'
 import { safeTop, safeBottom } from '../styles/safeArea'
 
@@ -29,7 +30,7 @@ export function FileViewer({ url, name, onClose }: {
   return (
     <div style={s.wrap} role="dialog" aria-modal="true" aria-label={name}>
       <div style={s.bar}>
-        <button style={s.icon} onClick={onClose} aria-label="뒤로">
+        <button style={s.icon} onClick={onClose} aria-label={t('뒤로')}>
           <BackIcon />
         </button>
         {/* 무엇을 보고 있는지 — 파일이 여러 개일 때 이 줄이 유일한 단서다 */}
@@ -42,8 +43,8 @@ export function FileViewer({ url, name, onClose }: {
           style={s.icon}
           href={`${url}${url.includes('?') ? '&' : '?'}dl=1`}
           download={name}
-          aria-label="내려받기"
-          title="내려받기"
+          aria-label={t('내려받기')}
+          title={t('내려받기')}
         >
           <DownloadIcon />
         </a>

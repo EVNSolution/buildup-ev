@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { FileViewer } from './FileViewer'
 
 /**
@@ -39,7 +40,7 @@ export function DocLink({ href, name, children, style }: {
         }}
       >{children}</a>
       {open && (
-        <FileViewer url={href} name={name ?? '서류'} onClose={() => setOpen(false)} />
+        <FileViewer url={href} name={name ?? t('서류')} onClose={() => setOpen(false)} />
       )}
     </>
   )

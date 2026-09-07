@@ -1,4 +1,5 @@
 import type { PricingOk, QuoteResult, CustomOption } from '@shared/pricing/core'
+import { t } from '../i18n'
 import type { QuotePriceExtras } from '@shared/pricing/quote-request'
 import type { ApiQuote } from '@shared/types/index'
 
@@ -59,7 +60,7 @@ export async function saveQuote(req: SaveQuoteRequest): Promise<{ quote_id: numb
   })
   if (res.status === 422) {
     const body = await res.json() as { error?: { message?: string } }
-    throw new Error(body.error?.message ?? '내장탑 가격 미정(TBD)')
+    throw new Error(body.error?.message ?? t('내장탑 가격 미정(TBD)'))
   }
   if (!res.ok) throw new Error(`견적 저장 실패: ${res.status}`)
   const body = await res.json() as { data: { quote_id: number; pricing: PricingOk } }
@@ -109,7 +110,7 @@ export async function fetchOrderPreview(quoteId: number): Promise<{
   options: { id: number; group_code: string; group_name: string; value_code: string; value_name: string }[]
 }> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/order-preview`, { credentials: 'include' })
-  if (!res.ok) throw new Error('발주 내용을 불러오지 못했습니다')
+  if (!res.ok) throw new Error(t('발주 내용을 불러오지 못했습니다'))
   const b = await res.json() as { data: {
     model_code: string; customer_name: string; sales_memo: string
     options: { id: number; group_code: string; group_name: string; value_code: string; value_name: string }[]

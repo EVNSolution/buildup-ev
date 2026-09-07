@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, Fragment } from 'react'
+import { t } from '../i18n'
 import { openPdf } from '../lib/openPdf'
 import type { ApiOrderMakerDetail, OrderVehicleInfo } from '@shared/types/index'
 import { calcBom } from '@buildup-ev/shared/bom'
@@ -47,7 +48,7 @@ function LoadCalcTab({
   useEffect(() => {
     fetchModelSpec(modelCode)
       .then(setSpec)
-      .catch(e => setSpecErr(e instanceof Error ? e.message : '제원 로드 실패'))
+      .catch(e => setSpecErr(e instanceof Error ? e.message : t('제원 로드 실패')))
   }, [modelCode])
 
   // 옵션 → selections
@@ -84,24 +85,24 @@ function LoadCalcTab({
     : true
 
   if (specErr) return <div style={lc.err}>{specErr}</div>
-  if (!spec)   return <div style={lc.muted}>제원 로딩 중…</div>
-  if (!bom)    return <div style={lc.muted}>탑 옵션(BODYTYPE·TOP·DOORTYPE)을 선택하면 자동 계산됩니다.</div>
+  if (!spec)   return <div style={lc.muted}>{t('제원 로딩 중…')}</div>
+  if (!bom)    return <div style={lc.muted}>{t('탑 옵션(BODYTYPE·TOP·DOORTYPE)을 선택하면 자동 계산됩니다.')}</div>
 
   return (
     <div style={lc.root}>
       {/* BOM 항목 */}
       <div style={lc.card}>
-        <div style={lc.cardTitle}>탈거 / 설치 항목 (BOM 자동 산출)</div>
+        <div style={lc.cardTitle}>{t('탈거 / 설치 항목 (BOM 자동 산출)')}</div>
         <table style={lc.table}>
           <thead>
             <tr>
-              <th style={{ ...lc.th, textAlign: 'left' }}>항목</th>
-              <th style={lc.thR}>중량 (kg)</th>
-              <th style={lc.thR}>CG_x 전축기준 (mm)</th>
+              <th style={{ ...lc.th, textAlign: 'left' }}>{t('항목')}</th>
+              <th style={lc.thR}>{t('중량 (kg)')}</th>
+              <th style={lc.thR}>{t('CG_x 전축기준 (mm)')}</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: 'var(--card)' }}>탈거</td></tr>
+            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: 'var(--card)' }}>{t('탈거')}</td></tr>
             {bom.remove_items.map((i, idx) => (
               <tr key={`r${idx}`}>
                 <td style={lc.td}>{i.label}</td>
@@ -109,7 +110,7 @@ function LoadCalcTab({
                 <td style={lc.tdR}>{i.cg_x_mm}</td>
               </tr>
             ))}
-            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: 'var(--card)' }}>설치</td></tr>
+            <tr><td colSpan={3} style={{ ...lc.td, fontWeight: 700, background: 'var(--card)' }}>{t('설치')}</td></tr>
             {bom.install_items.map((i, idx) => (
               <tr key={`i${idx}`}>
                 <td style={lc.td}>{i.label}</td>
@@ -125,9 +126,9 @@ function LoadCalcTab({
           </div>
         )}
         <div style={{ ...lc.specGrid, marginTop: 10, fontSize: 12 }}>
-          <span style={lc.specLabel}>차량중량 후</span>
+          <span style={lc.specLabel}>{t('차량중량 후')}</span>
           <span style={lc.specVal}>{Math.round(bom.curb_weight_after_kg * 10) / 10} kg</span>
-          <span style={lc.specLabel}>최대적재량 후</span>
+          <span style={lc.specLabel}>{t('최대적재량 후')}</span>
           <span style={lc.specVal}>{bom.max_payload_kg} kg</span>
         </div>
       </div>
@@ -136,43 +137,43 @@ function LoadCalcTab({
         <>
           {/* 계산 결과 */}
           <div style={lc.card}>
-            <div style={lc.cardTitle}>하중 분포 계산 결과</div>
+            <div style={lc.cardTitle}>{t('하중 분포 계산 결과')}</div>
             <table style={lc.table}>
               <thead>
                 <tr>
                   <th style={lc.th}></th>
-                  <th style={lc.thR}>공차</th>
-                  <th style={lc.thR}>적차</th>
+                  <th style={lc.thR}>{t('공차')}</th>
+                  <th style={lc.thR}>{t('적차')}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style={lc.td}>전축 하중</td>
+                  <td style={lc.td}>{t('전축 하중')}</td>
                   <td style={lc.tdR}>{fmtKg(result.curb.front_kg)}</td>
                   <td style={lc.tdR}>{fmtKg(result.loaded.front_kg)}</td>
                 </tr>
                 <tr>
-                  <td style={lc.td}>후축 하중</td>
+                  <td style={lc.td}>{t('후축 하중')}</td>
                   <td style={lc.tdR}>{fmtKg(result.curb.rear_kg)}</td>
                   <td style={lc.tdR}>{fmtKg(result.loaded.rear_kg)}</td>
                 </tr>
                 <tr>
-                  <td style={lc.td}>총중량</td>
+                  <td style={lc.td}>{t('총중량')}</td>
                   <td style={lc.tdR}>{fmtKg(result.curb.front_kg + result.curb.rear_kg)}</td>
                   <td style={{ ...lc.tdR, fontWeight: 700 }}>{fmtKg(result.gvw_kg)}</td>
                 </tr>
                 <tr>
-                  <td style={lc.td}>전축 타이어 부하율</td>
+                  <td style={lc.td}>{t('전축 타이어 부하율')}</td>
                   <td style={lc.tdR}>{fmtPct(result.tire_load_rate.curb_front_pct)}</td>
                   <td style={lc.tdR}>{fmtPct(result.tire_load_rate.loaded_front_pct)}</td>
                 </tr>
                 <tr>
-                  <td style={lc.td}>후축 타이어 부하율</td>
+                  <td style={lc.td}>{t('후축 타이어 부하율')}</td>
                   <td style={lc.tdR}>{fmtPct(result.tire_load_rate.curb_rear_pct)}</td>
                   <td style={lc.tdR}>{fmtPct(result.tire_load_rate.loaded_rear_pct)}</td>
                 </tr>
                 <tr>
-                  <td style={lc.td}>조향륜 하중분포율</td>
+                  <td style={lc.td}>{t('조향륜 하중분포율')}</td>
                   <td style={lc.tdR}>—</td>
                   <td style={lc.tdR}>{fmtPct(result.steering_axle_ratio_pct)}</td>
                 </tr>
@@ -182,33 +183,33 @@ function LoadCalcTab({
 
           {/* 법규 검토 */}
           <div style={lc.card}>
-            <div style={lc.cardTitle}>법규 검토 (하중 기준)</div>
+            <div style={lc.cardTitle}>{t('법규 검토 (하중 기준)')}</div>
             <div style={lc.legalGrid}>
               <div style={lc.legalRow}>
-                <span style={lc.legalLabel}>① 총중량</span>
+                <span style={lc.legalLabel}>{t('① 총중량')}</span>
                 <span style={lc.legalDetail}>
                   {fmtKg(result.gvw_kg)}
                   {spec.gvw_limit_kg != null ? ` ≤ ${fmtKg(spec.gvw_limit_kg)}` : ''}
                 </span>
                 {spec.gvw_limit_kg != null ? (
                   <span style={result.legal.within_gvw ? lc.badgeOk : lc.badgeNg}>
-                    {result.legal.within_gvw ? '적합 ✓' : '부적합 ✗'}
+                    {result.legal.within_gvw ? t('적합 ✓') : t('부적합 ✗')}
                   </span>
-                ) : <span style={lc.badgeGray}>확인 불가</span>}
+                ) : <span style={lc.badgeGray}>{t('확인 불가')}</span>}
               </div>
               <div style={lc.legalRow}>
-                <span style={lc.legalLabel}>② 타이어 부하율</span>
+                <span style={lc.legalLabel}>{t('② 타이어 부하율')}</span>
                 <span style={lc.legalDetail}>
                   전 {fmtPct(result.tire_load_rate.loaded_front_pct)} / 후 {fmtPct(result.tire_load_rate.loaded_rear_pct)} (≤ 100 %)
                 </span>
                 <span style={tireOk ? lc.badgeOk : lc.badgeNg}>
-                  {tireOk ? '적합 ✓' : '부적합 ✗'}
+                  {tireOk ? t('적합 ✓') : t('부적합 ✗')}
                 </span>
               </div>
               <div style={lc.legalRow}>
-                <span style={lc.legalLabel}>③ 최대허용제원</span>
-                <span style={{ ...lc.legalDetail, color: 'var(--muted)' }}>VIVAR 치수 연동 후 추가 예정</span>
-                <span style={lc.badgeGray}>연동 전</span>
+                <span style={lc.legalLabel}>{t('③ 최대허용제원')}</span>
+                <span style={{ ...lc.legalDetail, color: 'var(--muted)' }}>{t('VIVAR 치수 연동 후 추가 예정')}</span>
+                <span style={lc.badgeGray}>{t('연동 전')}</span>
               </div>
             </div>
           </div>
@@ -258,9 +259,9 @@ function DocsTab({
     setSaving(true); setSaveMsg('')
     try {
       await saveVehicleInfo(orderId, info)
-      setSaveMsg('저장됨 ✓')
+      setSaveMsg(t('저장됨 ✓'))
     } catch (e) {
-      setSaveMsg(e instanceof Error ? e.message : '저장 실패')
+      setSaveMsg(e instanceof Error ? e.message : t('저장 실패'))
     } finally {
       setSaving(false)
     }
@@ -273,12 +274,12 @@ function DocsTab({
       {/* 서류 상태 */}
       {documents.length > 0 && (
         <div style={det.card}>
-          <div style={det.cardTitle}>서류 상태</div>
+          <div style={det.cardTitle}>{t('서류 상태')}</div>
           {documents.map(doc => (
             <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid var(--line)' }}>
               <span style={{ fontSize: 13 }}>{doc.name}</span>
               <span style={{ ...det.docBadge, ...DOC_STATUS_STYLE[doc.status] }}>
-                {DOC_STATUS_LABEL[doc.status] ?? doc.status}
+                {t(DOC_STATUS_LABEL[doc.status] ?? doc.status)}
               </span>
             </div>
           ))}
@@ -287,17 +288,17 @@ function DocsTab({
 
       {/* 차량정보 입력 */}
       <div style={det.card}>
-        <div style={det.cardTitle}>차량정보 입력 (서류 바인딩)</div>
+        <div style={det.cardTitle}>{t('차량정보 입력 (서류 바인딩)')}</div>
         <div style={det.infoGrid}>
           {([
-            ['제원관리번호', '제원관리번호'],
-            ['등록번호',     '등록번호'],
-            ['차대번호',     '차대번호'],
-            ['형식코드',     '형식코드'],
-            ['모델연도',     '모델연도'],
-            ['소유자성명',   '소유자성명'],
-            ['소유자주소',   '소유자주소'],
-            ['최초등록일',   '최초등록일 (예: 2025-01-15)'],
+            ['제원관리번호', t('제원관리번호')],
+            ['등록번호',     t('등록번호')],
+            ['차대번호',     t('차대번호')],
+            ['형식코드',     t('형식코드')],
+            ['모델연도',     t('모델연도')],
+            ['소유자성명',   t('소유자성명')],
+            ['소유자주소',   t('소유자주소')],
+            ['최초등록일',   t('최초등록일 (예: 2025-01-15)')],
           ] as [keyof OrderVehicleInfo, string][]).map(([k, placeholder]) => (
             <Fragment key={k}>
               <label style={det.infoLabel}>{k}</label>
@@ -313,7 +314,7 @@ function DocsTab({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
           <button style={det.saveBtn} onClick={handleSave} disabled={saving}>
-            {saving ? '저장 중…' : '차량정보 저장'}
+            {saving ? t('저장 중…') : t('차량정보 저장')}
           </button>
           {saveMsg && (
             <span style={{ fontSize: 12, color: saveMsg.includes('✓') ? 'var(--dark)' : 'var(--warn)' }}>
@@ -325,19 +326,18 @@ function DocsTab({
 
       {/* PDF 생성 버튼 */}
       <div style={det.card}>
-        <div style={det.cardTitle}>서류 자동 생성 (PDF)</div>
+        <div style={det.cardTitle}>{t('서류 자동 생성 (PDF)')}</div>
         {canViewStructDocs && !bomOk && (
           <div style={det.bomWarn}>
-            차체형식(탑 종류·높이·도어)이 선택되지 않아 서류를 생성할 수 없습니다.
-            영업 화면에서 BODYTYPE·TOP·DOORTYPE 옵션을 모두 선택한 뒤 다시 시도해 주세요.
+            {t('차체형식(탑 종류·높이·도어)이 선택되지 않아 서류를 생성할 수 없습니다. 영업 화면에서 BODYTYPE·TOP·DOORTYPE 옵션을 모두 선택한 뒤 다시 시도해 주세요.')}
           </div>
         )}
         {canViewStructDocs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: bomOk ? 1 : 0.4, pointerEvents: bomOk ? 'auto' : 'none' }}>
           {[
-            { label: '주요제원대비표',  type: 'spec-table',  desc: '별지 제33호의2서식 — 튜닝 전·후 제원 비교', ready: true },
-            { label: '하중계산서',      type: 'load-calc',   desc: '탈거/설치 BOM · 하중분포 · 법규판정', ready: true },
-            { label: '작업지시서',      type: 'work-order',  desc: '선택 사양 · 작업 내역 (특장사 수령용)', ready: false },
+            { label: t('주요제원대비표'),  type: 'spec-table',  desc: t('별지 제33호의2서식 — 튜닝 전·후 제원 비교'), ready: true },
+            { label: t('하중계산서'),      type: 'load-calc',   desc: t('탈거/설치 BOM · 하중분포 · 법규판정'), ready: true },
+            { label: t('작업지시서'),      type: 'work-order',  desc: t('선택 사양 · 작업 내역 (특장사 수령용)'), ready: false },
           ].map(({ label, type, desc, ready }) => (
             <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
               {ready ? (
@@ -360,7 +360,7 @@ function DocsTab({
         )}
         {canViewStructDocs && (
         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 10 }}>
-          ※ 차량정보(등록번호 등)를 먼저 저장하면 서류에 자동 반영됩니다.
+          {t('※ 차량정보(등록번호 등)를 먼저 저장하면 서류에 자동 반영됩니다.')}
         </div>
         )}
 
@@ -369,12 +369,12 @@ function DocsTab({
           <div style={{ borderTop: canViewStructDocs ? 'var(--hairline)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
             <button
               type="button"
-              onClick={() => openPdf(pdfUrl('contract'), '계약서.pdf')}
+              onClick={() => openPdf(pdfUrl('contract'), t('계약서.pdf'))}
               style={det.pdfBtn}
             >
-              특장 매매계약서 미리보기
+              {t('특장 매매계약서 미리보기')}
             </button>
-            <span style={{ fontSize: 11, color: 'var(--muted)' }}>계약정보·매수인·특장사양·금액 자동 기입 (서명란은 수기)</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t('계약정보·매수인·특장사양·금액 자동 기입 (서명란은 수기)')}</span>
           </div>
         )}
       </div>
@@ -413,7 +413,7 @@ interface Props {
   initialChatStep?: string
 }
 
-export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false, onRemove, initialTab, initialChatStep }: Props) {
+export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'), makerView = false, onRemove, initialTab, initialChatStep }: Props) {
   // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
@@ -485,11 +485,11 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
     setLoading(true); setErr('')
     fetchOrderDetail(orderId)
       .then(setDetail)
-      .catch(e => setErr(e instanceof Error ? e.message : '주문 상세 로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('주문 상세 로드 실패')))
       .finally(() => setLoading(false))
   }, [orderId])
 
-  if (loading) return <div style={det.loading}>로딩 중…</div>
+  if (loading) return <div style={det.loading}>{t('로딩 중…')}</div>
   if (err)     return <div style={det.err}>{err}</div>
   if (!detail) return null
 
@@ -509,7 +509,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             바로 지우지 않는다: 눌러도 팝업이 먼저 뜨고 사유를 적어야 지워진다.
           */}
           {onRemove && (
-            <button style={det.removeBtn} onClick={() => setRemoving(true)}>주문 삭제</button>
+            <button style={det.removeBtn} onClick={() => setRemoving(true)}>{t('주문 삭제')}</button>
           )}
         </div>
         <div style={det.metaRow}>
@@ -535,10 +535,10 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
           알기 위해서다. 사양·서류·하중은 그 다음에 찾아보는 배경 정보다.
         */}
         <button style={tab === 'steps' ? det.tabActive : det.tabBtn} onClick={() => setTab('steps')}>
-          단계
+          {t('단계')}
         </button>
         <button style={tab === 'spec' ? det.tabActive : det.tabBtn} onClick={() => setTab('spec')}>
-          사양
+          {t('사양')}
         </button>
         {canViewDocsTab && (
           <>
@@ -547,7 +547,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             </button>
             {canViewLoadDocs && (
               <button style={tab === 'load' ? det.tabActive : det.tabBtn} onClick={() => setTab('load')}>
-                하중·법규
+                {t('하중·법규')}
               </button>
             )}
           </>
@@ -563,9 +563,9 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             : det.tabBtn
           }
           onClick={() => setTab('chat')}
-          aria-label={unreadChat > 0 ? '대화 — 안 읽은 글 있음' : '대화'}
+          aria-label={unreadChat > 0 ? t('대화 — 안 읽은 글 있음') : t('대화')}
         >
-          대화
+          {t('대화')}
         </button>
       </div>
 
@@ -606,13 +606,13 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
       {tab === 'spec' && (
         <div style={det.section}>
           {detail.options.length === 0 ? (
-            <div style={det.empty}>옵션 정보 없음</div>
+            <div style={det.empty}>{t('옵션 정보 없음')}</div>
           ) : isMobile ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {detail.options.map((opt, i) => (
                 <div key={i} style={detMob.row}>
-                  <span style={detMob.label}>{opt.group_name}</span>
-                  <span style={detMob.value}>{opt.value_name}</span>
+                  <span style={detMob.label}>{t(opt.group_name)}</span>
+                  <span style={detMob.value}>{t(opt.value_name)}</span>
                 </div>
               ))}
             </div>
@@ -620,15 +620,15 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             <table style={det.table}>
               <thead>
                 <tr>
-                  <th style={det.th}>항목</th>
-                  <th style={det.th}>선택</th>
+                  <th style={det.th}>{t('항목')}</th>
+                  <th style={det.th}>{t('선택')}</th>
                 </tr>
               </thead>
               <tbody>
                 {detail.options.map((opt, i) => (
                   <tr key={i}>
-                    <td style={det.tdLabel}>{opt.group_name}</td>
-                    <td style={det.tdValue}>{opt.value_name}</td>
+                    <td style={det.tdLabel}>{t(opt.group_name)}</td>
+                    <td style={det.tdValue}>{t(opt.value_name)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -640,10 +640,10 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             무엇을 만들지 다 읽은 뒤에 「단, 이 건은」을 읽는 순서가 맞다.
             줄바꿈·띄어쓰기는 적은 그대로 보여준다.
           */}
-          <div style={det.remarkHead}>비고</div>
+          <div style={det.remarkHead}>{t('비고')}</div>
           {detail.remark?.trim()
             ? <div style={det.remarkBody}>{detail.remark}</div>
-            : <div style={det.remarkNone}>특별 요청사항 없음</div>}
+            : <div style={det.remarkNone}>{t('특별 요청사항 없음')}</div>}
         </div>
       )}
 
@@ -654,7 +654,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             발주서 — **수락하고 나면 다시 볼 방법이 없었다**(수락 팝업에서만 보였다).
             납기·비고를 나중에 확인할 일이 잦으므로 서류 탭 맨 위에 그대로 둔다.
           */}
-          <div style={det.poHead}>발주서</div>
+          <div style={det.poHead}>{t('발주서')}</div>
           <PurchaseOrderSheet
             orderId={detail.id}
             orderedAt={new Date(detail.assigned_at ?? detail.created_at)}

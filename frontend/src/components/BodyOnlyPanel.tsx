@@ -1,4 +1,5 @@
 import { BTN } from '../styles/buttons'
+import { t } from '../i18n'
 import { CAR_TRIM_LABEL_MAX } from '@shared/pricing/core'
 
 /**
@@ -31,8 +32,8 @@ export const OWNED_MODELS = [
  * 우리가 파는 차(기본·플러스)는 모두 V2L 이 있어 확인할 것이 없다.
  * **고객 차에 장착할 때만** 물어야 한다.
  */
-export const V2L_NOTICE = '냉동 사양은 차량에서 전원을 받습니다 — 고객 차량에 사용 가능한 V2L 포트가 있어야 설치할 수 있습니다.'
-export const V2L_CONFIRM = 'V2L 모듈이 있어야 냉동기 설치가 가능합니다. 고객 차량에 사용 가능한 V2L 포트가 있음을 확인했습니다.'
+export const V2L_NOTICE = t('냉동 사양은 차량에서 전원을 받습니다 — 고객 차량에 사용 가능한 V2L 포트가 있어야 설치할 수 있습니다.')
+export const V2L_CONFIRM = t('V2L 모듈이 있어야 냉동기 설치가 가능합니다. 고객 차량에 사용 가능한 V2L 포트가 있음을 확인했습니다.')
 
 /**
  * 「특장만」을 고르는 카드 — 트림 카드 아래에 둔다.
@@ -51,7 +52,7 @@ export function BodyOnlyToggle({ on, onToggle, disabled }: {
         : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
       disabled={disabled}
       onClick={() => onToggle(!on)}
-    >{on ? '✓ 특장만 견적' : '특장만 견적'}</button>
+    >{on ? `✓ ${t('특장만 견적')}` : t('특장만 견적')}</button>
   )
 }
 
@@ -72,7 +73,7 @@ export function VehicleOnlyToggle({ on, onToggle, disabled }: {
         : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
       disabled={disabled}
       onClick={() => onToggle(!on)}
-    >{on ? '✓ 차량만 견적' : '차량만 견적'}</button>
+    >{on ? t('✓ 차량만 견적') : t('차량만 견적')}</button>
   )
 }
 
@@ -168,9 +169,9 @@ export function CarPriceOverrideBlock({ value, onChange, trimLabel, onTrimLabelC
         style={disabled ? { ...BTN.rowDisabled, width: '100%' }
           : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
         disabled={disabled}
-        title={disabled ? '특장만 견적에는 차량 가격이 없습니다' : undefined}
+        title={disabled ? t('특장만 견적에는 차량 가격이 없습니다') : undefined}
         onClick={() => { onChange(on ? null : (trimPrice ?? 0)); if (on) onTrimLabelChange('') }}
-      >{on ? '✓ 차량 가격 직접 입력' : '차량 가격 직접 입력'}</button>
+      >{on ? t('✓ 차량 가격 직접 입력') : t('차량 가격 직접 입력')}</button>
 
       {on && !disabled && (
         <div style={s.box}>
@@ -197,12 +198,12 @@ export function CarPriceOverrideBlock({ value, onChange, trimLabel, onTrimLabelC
             「플러스(Plus)」가 그대로 나가면 서류가 실제와 다른 차를 가리킨다.
           */}
           <label style={s.field}>
-            <span style={s.fieldLabel}>트림명 <span style={s.optional}>· 견적서에 그대로 나갑니다</span></span>
+            <span style={s.fieldLabel}>{t('트림명')} <span style={s.optional}>{t('· 견적서에 그대로 나갑니다')}</span></span>
             <input
               style={s.input}
               type="text"
               maxLength={CAR_TRIM_LABEL_MAX}
-              placeholder={trimName ? `비우면 「${trimName}」` : '예) 플러스 롱레인지 특판'}
+              placeholder={trimName ? `비우면 「${trimName}」` : t('예) 플러스 롱레인지 특판')}
               value={trimLabel}
               onChange={e => onTrimLabelChange(e.target.value)}
             />

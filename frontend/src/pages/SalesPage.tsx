@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { customOptionError } from '../lib/customOptionError'
+import { t , tc, tf} from '../i18n'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
@@ -75,8 +77,8 @@ function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; co
   if (!c) return <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
   const when = c.completed_at ?? c.sent_at
   return (
-    <Tooltip text={`${CONTRACT_LABEL[c.status] ?? c.status}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
-      <Badge tone={CONTRACT_TONE[c.status] ?? 'progress'}>{CONTRACT_LABEL[c.status] ?? c.status}</Badge>
+    <Tooltip text={`${t(CONTRACT_LABEL[c.status] ?? c.status)}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
+      <Badge tone={CONTRACT_TONE[c.status] ?? 'progress'}>{t(CONTRACT_LABEL[c.status] ?? c.status)}</Badge>
     </Tooltip>
   )
 }
@@ -106,8 +108,8 @@ function MyListWithFolders() {
       <div style={lv.viewSwitch}>
         <Segmented
           items={[
-            { value: 'list' as const, label: '견적·주문' },
-            { value: 'folders' as const, label: '고객 서류함' },
+            { value: 'list' as const, label: t('견적·주문') },
+            { value: 'folders' as const, label: t('고객 서류함') },
           ]}
           value={view}
           onChange={setView}
@@ -173,7 +175,7 @@ function MyListView() {
   async function handleDuplicate(q: ApiQuote) {
     if (!window.confirm(
       `${q.quote_no ?? `#${q.id}`} 의 옵션·고객정보·할부 조건을 그대로 복사해\n`
-      + '새 견적(임시저장)을 만듭니다. 진행할까요?',
+      + t('새 견적(임시저장)을 만듭니다. 진행할까요?'),
     )) return
     setDupBusy(q.id); setErr('')
     try {
@@ -181,7 +183,7 @@ function MyListView() {
       load()
       window.alert(`새 견적 ${r.quote_no ?? `#${r.id}`} 을(를) 만들었습니다. 「수정」에서 조건을 고친 뒤 견적서를 생성하세요.`)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '견적 복제 실패')
+      setErr(e instanceof Error ? e.message : t('견적 복제 실패'))
     } finally { setDupBusy(null) }
   }
 
@@ -195,7 +197,7 @@ function MyListView() {
      */
     Promise.all([fetchQuotes({ scope: 'mine' }), fetchOrders({ scope: 'mine' })])
       .then(([q, o]) => { setQuotes(q); setOrders(o) })
-      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('로드 실패')))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
@@ -221,7 +223,7 @@ function MyListView() {
       setPaperFor(null)
       load()
     } catch (e) {
-      setPaperErr(e instanceof Error ? e.message : '서명본 등록 실패')
+      setPaperErr(e instanceof Error ? e.message : t('서명본 등록 실패'))
     } finally {
       setPaperBusy(false)
     }
@@ -246,7 +248,7 @@ function MyListView() {
       setAcceptView(null)
       load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '수락 실패')
+      setErr(e instanceof Error ? e.message : t('수락 실패'))
     } finally { setAcceptBusy(null) }
   }
 
@@ -283,7 +285,7 @@ function MyListView() {
    *    통째로 사라졌다 다시 열려** 저장 메시지가 보이지 않고 화면이 깜빡였다.
    *    이미 한 번 받아 둔 목록이 있으면 그대로 두고 조용히 갱신한다.
    */
-  if (loading && quotes.length === 0) return <div style={lv.empty}>로딩 중…</div>
+  if (loading && quotes.length === 0) return <div style={lv.empty}>{t('로딩 중…')}</div>
   /*
    * ⚠️ 오류가 났다고 **목록을 통째로 갈아치우지 않는다.**
    *    예전에는 여기서 오류 문구만 남기고 return 했다. 그래서 목록을 다 받아 둔 뒤의
@@ -397,7 +399,7 @@ function MyListView() {
             }
           } catch (e) {
             closeReservedTab(pdfTab)
-            setPrepErr(e instanceof Error ? e.message : '저장 실패')
+            setPrepErr(e instanceof Error ? e.message : t('저장 실패'))
           } finally { setPrepSaving(false) }
         }}
       />
@@ -435,11 +437,11 @@ function MyListView() {
     <div style={lv.root}>
       {err && <div style={lv.errBar}>{err}</div>}
       <InboxPanel
-        title="배정된 문의"
+        title={t('배정된 문의')}
         items={pendingAccept.map(q => ({
           id: q.id,
           no: q.quote_no ?? `#${q.id}`,
-          title: q.customer?.name ?? '고객 미상',
+          title: q.customer?.name ?? t('고객 미상'),
           sub: `${q.model_code} · ${fmtPrice(q.final_price)}`,
           meta: fmtDate(q.created_at),
         }))}
@@ -450,20 +452,20 @@ function MyListView() {
       />
       <div style={lv.section}>
         <div style={lv.listHead}>
-          <div style={lv.sectionTitle}>내 견적 ({shownQuotes.length}{nameQuery.trim() && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
+          <div style={lv.sectionTitle}>{t('내 견적')} ({shownQuotes.length}{nameQuery.trim() && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
           {/* 이름을 치면 바로 좁아진다 — 다시 조회할 필요가 없다 */}
           <input
             type="text"
             value={nameQuery}
             onChange={e => setNameQuery(e.target.value)}
-            placeholder="고객 이름"
-            aria-label="고객 이름으로 좁히기"
+            placeholder={t('고객 이름')}
+            aria-label={t('고객 이름으로 좁히기')}
             style={lv.search}
           />
         </div>
         {quotes.length === 0 ? (
           <EmptyState
-            title="아직 저장된 견적이 없습니다"
+            title={t('아직 저장된 견적이 없습니다')}
             description="컨피규레이터에서 옵션을 고르고 견적을 저장하면 여기에 쌓입니다."
           />
         ) : shownQuotes.length === 0 ? (
@@ -477,13 +479,13 @@ function MyListView() {
               <thead>
                 <tr>
                   <th style={lv.th}>#</th>
-                  <th style={lv.th}>고객</th>
-                  <th style={lv.th}>실구매가(기타 포함)</th>
-                  <th style={lv.th}>상태</th>
-                  <th style={lv.th}>전자서명</th>
-                  <th style={lv.th}>주문 현황</th>
-                  <th style={lv.th}>특장사</th>
-                  <th style={lv.th}>날짜</th>
+                  <th style={lv.th}>{t('고객')}</th>
+                  <th style={lv.th}>{t('실구매가(기타 포함)')}</th>
+                  <th style={lv.th}>{t('상태')}</th>
+                  <th style={lv.th}>{t('전자서명')}</th>
+                  <th style={lv.th}>{t('주문 현황')}</th>
+                  <th style={lv.th}>{t('특장사')}</th>
+                  <th style={lv.th}>{t('날짜')}</th>
                   <th style={lv.th}></th>
                 </tr>
               </thead>
@@ -515,7 +517,7 @@ function MyListView() {
                    >
                     <span style={lv.groupArrow}>{isOpen ? '▾' : '▸'}</span>
                     <span style={lv.groupDate}>{date}</span>
-                    <span style={lv.groupCount}>{rows.length}건</span>
+                    <span style={lv.groupCount}>{tf('{0}건', rows.length)}</span>
                    </button>
                   </td>
                 </tr>
@@ -527,7 +529,7 @@ function MyListView() {
                    * 버튼은 자리를 지키되 누르지 못하게 둔다 — 사라지면 「계약서가 어디 갔지」가 된다.
                    */
                   const noContract = isVehicleOnly(q)
-                  const noContractWhy = '차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다'
+                  const noContractWhy = t('차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다')
                   return (
                     <tr key={q.id}>
                       <td style={lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
@@ -536,7 +538,7 @@ function MyListView() {
                       <td style={lv.td}>
                         <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                           <Badge tone={q.status === 'draft' ? 'wait' : (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered') ? 'progress' : 'done'}>
-                            {QUOTE_STATUS_KO[q.status] ?? q.status}
+                            {t(QUOTE_STATUS_KO[q.status] ?? q.status)}
                           </Badge>
                         </Tooltip>
                       </td>
@@ -556,12 +558,12 @@ function MyListView() {
                             <Tooltip
                               text={order.steps.done_labels.length
                                 ? `완료 · ${order.steps.done_labels.join(' · ')}`
-                                : '아직 완료된 단계가 없습니다'}
+                                : t('아직 완료된 단계가 없습니다')}
                               placement="below"
                             >
                               <span style={order.steps.stalled ? lv.progLate : lv.prog}>
                                 {order.steps.done}/{order.steps.total}
-                                {order.steps.stalled ? ' 지연' : ''}
+                                {order.steps.stalled ? t(' 지연') : ''}
                               </span>
                             </Tooltip>
                           )
@@ -578,31 +580,31 @@ function MyListView() {
                             style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.docs_frozen_at
                               ? `전자서명 발송(${fmtDate(q.docs_frozen_at)})으로 서류가 고정되었습니다 — 이력만 볼 수 있습니다. 조건을 바꾸려면 「복제」로 새 견적을 만드세요.`
-                              : '옵션 · 고객정보 · 할부 수정 및 수정 이력 (전자서명 발송 전까지 가능)'}
+                              : t('옵션 · 고객정보 · 할부 수정 및 수정 이력 (전자서명 발송 전까지 가능)')}
                             onClick={() => setEditQuote(q)}
-                          >{q.docs_frozen_at || !canEdit ? '이력' : '수정'}</button>
+                          >{q.docs_frozen_at || !canEdit ? t('이력') : t('수정')}</button>
                           {/* 전자서명을 보낸 견적은 고칠 수 없다 — 조건을 바꿔 다시 낼 땐 복제한다 */}
                           {canEdit && (
                           <button
                             style={dupBusy === q.id ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             disabled={dupBusy === q.id}
-                            title="같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)"
+                            title={t('같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)')}
                             onClick={() => void handleDuplicate(q)}
-                          >{dupBusy === q.id ? '…' : '복제'}</button>
+                          >{dupBusy === q.id ? '…' : t('복제')}</button>
                           )}
                           {/* 「고객정보」는 조회 전용 — 고치는 곳은 「수정」 한 군데로 모았다 */}
                           <button
                             style={lv.pdfBtn}
-                            title="고객·계약 정보 조회 (수정 불가)"
+                            title={t('고객·계약 정보 조회 (수정 불가)')}
                             onClick={() => setViewQuote(q)}
-                          >고객정보</button>
+                          >{tc('고객정보', 'btn')}</button>
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
-                            title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
+                            title={q.status === 'draft' ? t('선수금·할부·면세 등 입력 후 견적서 생성') : t('견적서 열람·다운로드')}
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
-                          >{q.status === 'draft' ? '견적 생성' : '견적서'}</button>
+                          >{q.status === 'draft' ? tc('견적 생성', 'btn') : tc('견적서', 'btn')}</button>
                           {/*
                             계약서는 **견적서 다음 단계**다. 견적서가 나오기 전에는 만들 수 없고,
                             누르면 계약서에만 필요한 값(생년월일·주소·세부주소)을 확인하는 팝업이 먼저 뜬다.
@@ -612,17 +614,17 @@ function MyListView() {
                             style={(q.status === 'draft' || noContract) ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
                             disabled={q.status === 'draft' || noContract}
                             title={noContract ? noContractWhy : q.status === 'draft'
-                              ? '견적서를 먼저 만들어야 계약서를 만들 수 있습니다'
-                              : '계약 정보를 확인하고 특장 매매계약서를 만듭니다'}
+                              ? t('견적서를 먼저 만들어야 계약서를 만들 수 있습니다')
+                              : t('계약 정보를 확인하고 특장 매매계약서를 만듭니다')}
                             onClick={() => { setPrepErr(''); setContractPrep({ quote: q, next: 'pdf' }) }}
-                          >{q.status === 'draft' ? '계약서' : '계약서 생성'}</button>
+                          >{q.status === 'draft' ? t('계약서') : t('계약서 생성')}</button>
                           {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본을 시스템에 보관한다 */}
                           {q.contract?.status === 'COMPLETED' && (
                             <button
                               style={lv.confirmBtn}
-                              title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
+                              title={t('고객이 서명·날인한 계약서 정본 (시스템 보관본)')}
                               onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                            >서명본</button>
+                            >{t('서명본')}</button>
                           )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           {/*
@@ -633,8 +635,8 @@ function MyListView() {
                             <button
                               style={lv.pdfBtn}
                               title={noContract
-                                ? '참고용 — 견적서 PDF 를 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)'
-                                : '참고용 — 견적서·계약서 PDF 를 메일로 전달합니다 (서명 요청 아님)'}
+                                ? t('참고용 — 견적서 PDF 를 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)')
+                                : t('참고용 — 견적서·계약서 PDF 를 메일로 전달합니다 (서명 요청 아님)')}
                               onClick={() => setEmailQuote({
                                 id: q.id,
                                 customerName: q.customer?.name ?? undefined,
@@ -642,13 +644,13 @@ function MyListView() {
                                 defaultTo: q.customer?.email ?? undefined,
                                 noContract,
                               })}
-                            >메일 전달</button>
+                            >{tc('메일 전달', 'btn')}</button>
                           )}
                           {canSign && (
                           <button
                             style={(q.status === 'draft' || noContract) ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft' || noContract}
-                            title={noContract ? noContractWhy : q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
+                            title={noContract ? noContractWhy : q.status === 'draft' ? t('견적서 생성 후 서명을 요청할 수 있습니다') : t('고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다')}
                             onClick={() => {
                               setPrepErr('')
                               // 계약서에 필요한 값이 비어 있으면 확인 팝업부터 — 서명은 그 계약서를 보내는 일이다
@@ -663,7 +665,7 @@ function MyListView() {
                                 })
                               }
                             }}
-                          >서명 요청</button>
+                          >{tc('서명 요청', 'btn')}</button>
                           )}
                           {/*
                             종이로 받은 계약서를 올린다 — 전자서명을 건너뛰고 계약완료가 된다.
@@ -673,9 +675,9 @@ function MyListView() {
                             <button
                               style={noContract ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                               disabled={noContract}
-                              title={noContract ? noContractWhy : '종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다'}
+                              title={noContract ? noContractWhy : t('종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다')}
                               onClick={() => { setPaperErr(''); setPaperFor(q) }}
-                            >서명본 등록</button>
+                            >{t('서명본 등록')}</button>
                           )}
                         </div>
                       </td>
@@ -791,7 +793,7 @@ export function SalesPage() {
         }
         setSelections(sanitizeSelections(defaults, data))
       })
-      .catch(e => console.error('pricing-bundle 로드 실패', e))
+      .catch(e => console.error(t('pricing-bundle 로드 실패'), e))
       .finally(() => setBundleLoading(false))
   }, [session])
 
@@ -918,7 +920,7 @@ export function SalesPage() {
      * **설치 자체가 불가능하다** — 확인 없이 견적이 나가면 되돌릴 수 없다.
      */
     if (bodyOnly && selections['BODYTYPE'] === 'BODY_REEFER' && !v2lConfirmed) {
-      setSaveError('냉동 사양은 차량의 V2L 포트 확인이 필요합니다. 「차량 트림」에서 확인란을 체크해 주세요.')
+      setSaveError(t('냉동 사양은 차량의 V2L 포트 확인이 필요합니다. 「차량 트림」에서 확인란을 체크해 주세요.'))
       return
     }
     /*
@@ -927,7 +929,7 @@ export function SalesPage() {
      * 판정은 서버와 **같은 함수**로 한다 — 두 곳이 다르면 화면은 통과시키고 서버가 막는다.
      */
     const custom = checkCustomOptions(customOptions)
-    if (!custom.ok) { setSaveError(custom.message); return }
+    if (!custom.ok) { setSaveError(customOptionError(custom)); return }
 
     setIsSaving(true)
     setSaveError('')
@@ -992,7 +994,7 @@ export function SalesPage() {
       })
       setShowSaveModal(false)
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : '저장 실패')
+      setSaveError(e instanceof Error ? e.message : t('저장 실패'))
     } finally {
       setIsSaving(false)
     }
@@ -1001,8 +1003,8 @@ export function SalesPage() {
   const isUnsupported = liveCalc?.status === 'unsupported'
   const displayCalc = savedQuote ? { ...savedQuote.pricing, status: 'ok' as const } : liveCalc
 
-  if (bundleLoading) return <div style={styles.loading}>로딩 중…</div>
-  if (!bundle) return <div style={styles.loading}>옵션 데이터 로드 실패</div>
+  if (bundleLoading) return <div style={styles.loading}>{t('로딩 중…')}</div>
+  if (!bundle) return <div style={styles.loading}>{t('옵션 데이터 로드 실패')}</div>
 
   return (
     <div style={styles.root}>
@@ -1025,9 +1027,9 @@ export function SalesPage() {
       <div style={styles.tabBar}>
         <Tabs
           items={[
-            { key: 'config' as const, label: '컨피규레이터' },
-            { key: 'list' as const, label: '견적·주문' },
-            ...(canSeeStats ? [{ key: 'me' as const, label: '마이페이지' }] : []),
+            { key: 'config' as const, label: t('컨피규레이터') },
+            { key: 'list' as const, label: t('견적·주문') },
+            ...(canSeeStats ? [{ key: 'me' as const, label: t('마이페이지') }] : []),
           ]}
           value={salesTab}
           onChange={setSalesTab}
@@ -1069,9 +1071,9 @@ export function SalesPage() {
              프레임에 딱 맞는다. 3D 연동이 붙으면 이 자리에 iframe 이 들어간다.
            */}
            <div style={styles.frame}>
-             <img src={stegoSide} alt="STEGO-K 측면" style={styles.stageImg} />
+             <img src={stegoSide} alt={t('STEGO-K 측면')} style={styles.stageImg} />
            </div>
-           <div style={styles.stageNote}>3D 미리보기 연동 예정</div>
+           <div style={styles.stageNote}>{t('3D 미리보기 연동 예정')}</div>
           </div>
 
           {!compact && (

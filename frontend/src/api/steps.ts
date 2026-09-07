@@ -1,4 +1,5 @@
 import type { EvidenceKind, StepStatus, Track } from '@shared/process/steps'
+import { t } from '../i18n'
 
 /** 단계 한 건 — 서버가 카탈로그 순서로 내려준다(화면이 다시 정렬하지 않는다). */
 export interface ApiStep {
@@ -60,7 +61,7 @@ export interface ApiStepsResponse {
 
 export async function fetchSteps(orderId: number): Promise<ApiStepsResponse> {
   const res = await fetch(`/api/v1/orders/${orderId}/steps`, { credentials: 'include' })
-  return await jsonOrThrow(res, '단계 조회') as ApiStepsResponse
+  return await jsonOrThrow(res, t('단계 조회')) as ApiStepsResponse
 }
 
 /** 단계 완료. 날짜를 받는 단계(납기·검사예정일·인도일)는 plannedAt 을 함께 보낸다. */
@@ -71,7 +72,7 @@ export async function completeStep(orderId: number, code: string, plannedAt?: st
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(plannedAt ? { planned_at: plannedAt } : {}),
   })
-  await jsonOrThrow(res, '단계 완료')
+  await jsonOrThrow(res, t('단계 완료'))
 }
 
 /** 완료를 되돌린다. 뒤 단계가 이미 끝났으면 서버가 막는다. */
@@ -79,7 +80,7 @@ export async function undoStep(orderId: number, code: string): Promise<void> {
   const res = await fetch(`/api/v1/orders/${orderId}/steps/${code}/undo`, {
     method: 'PATCH', credentials: 'include',
   })
-  await jsonOrThrow(res, '되돌리기')
+  await jsonOrThrow(res, t('되돌리기'))
 }
 
 export async function uploadStepFile(
@@ -91,7 +92,7 @@ export async function uploadStepFile(
   const res = await fetch(`/api/v1/orders/${orderId}/steps/${code}/files`, {
     method: 'POST', credentials: 'include', body: form,
   })
-  const body = await jsonOrThrow(res, '파일 올리기') as { data: ApiStepFile }
+  const body = await jsonOrThrow(res, t('파일 올리기')) as { data: ApiStepFile }
   return body.data
 }
 
@@ -99,7 +100,7 @@ export async function deleteStepFile(orderId: number, fileId: number): Promise<v
   const res = await fetch(`/api/v1/orders/${orderId}/files/${fileId}`, {
     method: 'DELETE', credentials: 'include',
   })
-  await jsonOrThrow(res, '파일 삭제')
+  await jsonOrThrow(res, t('파일 삭제'))
 }
 
 export const stepFileUrl = (orderId: number, fileId: number) =>

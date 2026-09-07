@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t , tf} from '../i18n'
 import type { ApiOrder } from '@shared/types/index'
 import { OrderStepsBoard } from './OrderStepsBoard'
 import { daysSince, isAcceptOverdue } from '@shared/schedule/businessDays'
@@ -57,11 +58,11 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
   const done    = orders.filter(finished)
   const active  = orders.filter(o => o.quote.status !== 'assigned' && !finished(o))
 
-  if (orders.length === 0) return <div style={s.empty}>배정된 주문이 없습니다.</div>
+  if (orders.length === 0) return <div style={s.empty}>{t('배정된 주문이 없습니다.')}</div>
 
   return (
     <>
-      <Section title="수락 대기" open={!closed.has('수락 대기')} onToggle={() => toggle('수락 대기')} rows={pending}>
+      <Section title={t('수락 대기')} open={!closed.has('수락 대기')} onToggle={() => toggle(t('수락 대기'))} rows={pending}>
         <OrderStepsBoard
           orders={pending}
           mode="pending"
@@ -73,11 +74,11 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
         />
       </Section>
 
-      <Section title="진행 중" open={!closed.has('진행 중')} onToggle={() => toggle('진행 중')} rows={active}>
+      <Section title={t('진행 중')} open={!closed.has('진행 중')} onToggle={() => toggle(t('진행 중'))} rows={active}>
         <OrderStepsBoard orders={active} onCardClick={onOpen} />
       </Section>
 
-      <Section title="완료" open={!closed.has('완료')} onToggle={() => toggle('완료')} rows={done}>
+      <Section title={t('완료')} open={!closed.has('완료')} onToggle={() => toggle(t('완료'))} rows={done}>
         <OrderStepsBoard orders={done} onCardClick={onOpen} />
       </Section>
     </>
@@ -106,9 +107,9 @@ function Section({ title, rows, open, onToggle, children }: {
       <button type="button" style={s.head} onClick={onToggle} aria-expanded={open}>
         <span style={s.arrow}>{open ? '▾' : '▸'}</span>
         <span style={s.title}>{title}</span>
-        <span style={s.count}>{rows.length}건</span>
+        <span style={s.count}>{tf('{0}건', rows.length)}</span>
       </button>
-      {open && (rows.length > 0 ? children : <div style={s.empty}>해당하는 주문이 없습니다.</div>)}
+      {open && (rows.length > 0 ? children : <div style={s.empty}>{t('해당하는 주문이 없습니다.')}</div>)}
     </>
   )
 }

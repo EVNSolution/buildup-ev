@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { homeFor } from '../lib/surfaces'
@@ -29,13 +30,13 @@ export function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !password) { setError('이메일과 비밀번호를 입력해 주세요.'); return }
+    if (!email.trim() || !password) { setError(t('이메일과 비밀번호를 입력해 주세요.')); return }
     setSubmitting(true)
     setError('')
     try {
       await login(email.trim(), password)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '로그인 실패')
+      setError(err instanceof Error ? err.message : t('로그인 실패'))
     } finally {
       setSubmitting(false)
     }
@@ -51,7 +52,7 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} style={s.form}>
           <div>
-            <label style={s.label} htmlFor="login-email">이메일</label>
+            <label style={s.label} htmlFor="login-email">{t('이메일')}</label>
             <input
               id="login-email"
               type="email"
@@ -64,7 +65,7 @@ export function LoginPage() {
             />
           </div>
           <div>
-            <label style={s.label} htmlFor="login-pw">비밀번호</label>
+            <label style={s.label} htmlFor="login-pw">{t('비밀번호')}</label>
             <input
               id="login-pw"
               type="password"
@@ -78,7 +79,7 @@ export function LoginPage() {
           {error && <div style={s.error}>{error}</div>}
 
           <button type="submit" style={{ ...BTN.primary, width: '100%' }} disabled={submitting}>
-            {submitting ? '로그인 중…' : '로그인'}
+            {submitting ? t('로그인 중…') : t('로그인')}
           </button>
         </form>
       </div>
@@ -87,7 +88,7 @@ export function LoginPage() {
         되돌아갈 길 — 고객이 「로그인」을 잘못 눌러 들어왔을 때 여기서 막히면 안 된다.
         카드 밖에 두어 로그인 폼의 일부로 읽히지 않게 한다.
       */}
-      <Link to="/" style={s.back}>← 로그인 없이 견적 보기</Link>
+      <Link to="/" style={s.back}>{t('← 로그인 없이 견적 보기')}</Link>
     </div>
   )
 }

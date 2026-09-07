@@ -1,4 +1,6 @@
 import type { ApiOrder } from '@shared/types/index'
+import { dueLabel } from '../lib/dueLabel'
+import { t , tf} from '../i18n'
 import { STEPS } from '@shared/process/steps'
 import { dueInfo } from '@shared/process/due'
 
@@ -29,7 +31,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
   lateInfo?: (o: ApiOrder) => { days: number; late: boolean }
 }) {
   if (orders.length === 0) {
-    return <div style={s.empty}>{mode === 'pending' ? '수락 대기 중인 주문이 없습니다.' : '진행 중인 주문이 없습니다.'}</div>
+    return <div style={s.empty}>{mode === 'pending' ? t('수락 대기 중인 주문이 없습니다.') : t('진행 중인 주문이 없습니다.')}</div>
   }
 
   /*
@@ -65,26 +67,26 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
           <button key={o.id} style={late ? s.rowLate : s.row} onClick={() => onCardClick(o.id)}>
             <div style={s.main}>
               <div style={s.line1}>
-                <span style={s.no}>주문 #{o.id}</span>
-                <span style={s.name}>{o.quote.customer?.name ?? '고객 미상'}</span>
+                <span style={s.no}>{tf('주문 #{0}', o.id)}</span>
+                <span style={s.name}>{o.quote.customer?.name ?? t('고객 미상')}</span>
                 <span style={s.model}>{o.quote.model_code}</span>
                 {/*
                   비고가 적힌 주문 = **이 건만의 요청이 있다.** 목록에서 바로 보여야
                   「열어 봐야 아는」 일이 안 생긴다.
                 */}
                 {/* 배지는 **관리자가 배정할 때 정한 값**만 따른다 — 비고 유무로 추측하지 않는다 */}
-                {o.custom_badge && <span style={s.custom}>커스텀</span>}
-                {late && mode !== 'pending' && <span style={s.lateTag}>지연</span>}
+                {o.custom_badge && <span style={s.custom}>{t('커스텀')}</span>}
+                {late && mode !== 'pending' && <span style={s.lateTag}>{t('지연')}</span>}
               </div>
               {/* 끝낸 것만 적는다 — 「✓」 로 완료라는 뜻을 눈에도 못박는다 */}
               <div style={s.line2}>
                 {mode === 'pending'
-                  ? <span style={s.orderedAt}>발주 {(o.assigned_at ?? o.created_at ?? '').slice(0, 10)}</span>
+                  ? <span style={s.orderedAt}>{tf('발주 {0}', (o.assigned_at ?? o.created_at ?? '').slice(0, 10))}</span>
                   : done > 0 && done === total
-                  ? <span style={s.doneAll}>✓ 모든 단계 완료</span>
+                  ? <span style={s.doneAll}>{t('✓ 모든 단계 완료')}</span>
                   : st?.last_done
-                    ? <span style={s.doneStep}>✓ {st.last_done}<span style={s.doneCount}> · {done}/{total} 완료</span></span>
-                    : <span style={s.muted}>아직 완료된 단계가 없습니다</span>}
+                    ? <span style={s.doneStep}>✓ {t(st.last_done)}<span style={s.doneCount}>{tf(' · {0}/{1} 완료', done, total)}</span></span>
+                    : <span style={s.muted}>{t('아직 완료된 단계가 없습니다')}</span>}
               </div>
               {/*
                 납기는 **왼쪽 줄로** 둔다.
@@ -95,14 +97,14 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
               {mode !== 'pending' && o.delivery_due && (
                 <div style={s.line2}>
                   <span style={due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
-                    납기 {o.delivery_due.slice(0, 10)}
+                    {tf('납기 {0}', o.delivery_due.slice(0, 10))}
                   </span>
                   {/*
                     「n일 전」·「n일 경과」는 날짜 **옆**에 붙인다 — 날짜만으로는
                     오늘이 며칠인지 세어 봐야 급한지 알 수 있다.
                   */}
-                  {due.label && (
-                    <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{due.label}</span>
+                  {dueLabel(due) && (
+                    <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{dueLabel(due)}</span>
                   )}
                 </div>
               )}
@@ -114,7 +116,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                   수락 전에는 진척이 없다. 그 자리에 **며칠 지났는지**를 둔다 —
                   괜찮으면 초록, 늦으면 빨강. 둘 다 굵게 적어 눈에 먼저 들어오게 한다.
                 */
-                <span style={late ? s.sinceLate : s.since}>발주 후 {info?.days ?? 0}일째</span>
+                <span style={late ? s.sinceLate : s.since}>{tf('발주 후 {0}일째', info?.days ?? 0)}</span>
               ) : (
                 <>
                   <span style={s.progress}>

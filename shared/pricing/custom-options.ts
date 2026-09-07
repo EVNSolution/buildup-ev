@@ -58,6 +58,15 @@ export interface CustomOptionsCheck {
   message: string;
   /** 저장할 줄만 추린 것(`empty` 는 버린다) */
   options: CustomOption[];
+  /**
+   * 화면이 **다시 조립**하려고 덧붙인 것 — `message` 는 줄 번호·한도가 이미 박힌
+   * 한국어 완성문이라 사전에서 찾을 수 없다. `message` 는 서버 응답이 쓰므로 그대로 둔다.
+   */
+  code?: 'too_many' | 'partial' | 'name_long' | 'negative' | 'too_big';
+  /** 몇 번째 줄인가(1부터). 줄과 무관한 오류에는 없다 */
+  row?: number;
+  /** 한도 값 — 줄 수·글자 수 */
+  limit?: number;
 }
 
 /**
@@ -65,10 +74,14 @@ export interface CustomOptionsCheck {
  * 화면에서만 막으면 예전 화면·직접 호출로 반쪽짜리가 들어온다.
  */
 export function checkCustomOptions(rows: readonly CustomOptionDraft[]): CustomOptionsCheck {
-  const fail = (message: string): CustomOptionsCheck => ({ ok: false, message, options: [] });
+  const fail = (
+    message: string,
+    code: CustomOptionsCheck['code'],
+    extra: { row?: number; limit?: number } = {},
+  ): CustomOptionsCheck => ({ ok: false, message, options: [], code, ...extra });
 
   if (rows.length > CUSTOM_OPTION_MAX_ROWS) {
-    return fail(`추가 옵션은 ${CUSTOM_OPTION_MAX_ROWS}줄까지 넣을 수 있습니다.`);
+    return fail(`추가 옵션은 ${CUSTOM_OPTION_MAX_ROWS}줄까지 넣을 수 있습니다.`, 'too_many', { limit: CUSTOM_OPTION_MAX_ROWS });
   }
 
   const options: CustomOption[] = [];
@@ -76,17 +89,17 @@ export function checkCustomOptions(rows: readonly CustomOptionDraft[]): CustomOp
     const state = rowState(row);
     if (state === 'empty') continue;   // + 만 누르고 안 적은 줄 — 없는 것과 같다
     if (state === 'partial') {
-      return fail(`추가 옵션 ${i + 1}번째 줄 — 옵션명과 금액을 모두 적어 주세요.`);
+      return fail(`추가 옵션 ${i + 1}번째 줄 — 옵션명과 금액을 모두 적어 주세요.`, 'partial', { row: i + 1 });
     }
     const name = row.name.trim();
     const price = Math.round(row.price as number);
     if (name.length > CUSTOM_OPTION_NAME_MAX) {
-      return fail(`추가 옵션 ${i + 1}번째 줄 — 옵션명은 ${CUSTOM_OPTION_NAME_MAX}자까지 넣을 수 있습니다.`);
+      return fail(`추가 옵션 ${i + 1}번째 줄 — 옵션명은 ${CUSTOM_OPTION_NAME_MAX}자까지 넣을 수 있습니다.`, 'name_long', { row: i + 1, limit: CUSTOM_OPTION_NAME_MAX });
     }
     // 음수는 할인이 아니다 — 할인은 프로모션 칸이 따로 있다
-    if (price < 0) return fail(`추가 옵션 ${i + 1}번째 줄 — 금액은 0원 이상이어야 합니다.`);
+    if (price < 0) return fail(`추가 옵션 ${i + 1}번째 줄 — 금액은 0원 이상이어야 합니다.`, 'negative', { row: i + 1 });
     if (price > CUSTOM_OPTION_PRICE_MAX) {
-      return fail(`추가 옵션 ${i + 1}번째 줄 — 금액이 너무 큽니다. 다시 확인해 주세요.`);
+      return fail(`추가 옵션 ${i + 1}번째 줄 — 금액이 너무 큽니다. 다시 확인해 주세요.`, 'too_big', { row: i + 1 });
     }
     options.push({ name, price });
   }

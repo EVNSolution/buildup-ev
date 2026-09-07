@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 import type { ApiOrderOption } from '@shared/types/index'
 import { toDateInput } from '@shared/schedule/businessDays'
 import { DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
@@ -93,7 +94,7 @@ export function PurchaseOrderSheet({
     <div ref={wrapRef} style={s.frame}>
       <div style={{ ...s.sheet, transform: `scale(${scale})` }}>
       <div ref={contentRef} style={{ ...s.content, transform: `scale(${fit})` }}>
-      <div style={s.title}>발 주 서</div>
+      <div style={s.title}>{t('발 주 서')}</div>
 
       <div style={s.metaRow}>
         <Meta label="문서번호" value={`주문 #${orderId}`} />
@@ -104,17 +105,17 @@ export function PurchaseOrderSheet({
         <Meta label="공급사" value={makerOrgName} />
       </div>
 
-      <div style={s.section}>사양</div>
+      <div style={s.section}>{t('사양')}</div>
       <table style={s.table}>
         <tbody>
           <tr>
-            <td style={s.tdLabel}>차종</td>
+            <td style={s.tdLabel}>{t('차종')}</td>
             <td style={s.tdValue}>{modelCode}</td>
           </tr>
           {options.map(o => (
             <tr key={o.group_code}>
-              <td style={s.tdLabel}>{o.group_name}</td>
-              <td style={s.tdValue}>{o.value_name}</td>
+              <td style={s.tdLabel}>{t(o.group_name)}</td>
+              <td style={s.tdValue}>{t(o.value_name)}</td>
             </tr>
           ))}
         </tbody>
@@ -126,22 +127,22 @@ export function PurchaseOrderSheet({
         줄로 뜻을 나눈 글이 한 줄로 붙으면 다른 말이 된다.
         쓰는 자리(배정 팝업)에서 4줄로 잘라 두므로 여기서 양식이 깨질 일은 없다.
       */}
-      <div style={s.section}>비고</div>
+      <div style={s.section}>{t('비고')}</div>
       {editable
         ? editable
         : remark?.trim()
           ? <div style={s.remark}>{remark}</div>
-          : <div style={s.remarkEmpty}>특별 요청사항 없음</div>}
+          : <div style={s.remarkEmpty}>{t('특별 요청사항 없음')}</div>}
 
-      <div style={s.section}>특이사항</div>
+      <div style={s.section}>{t('특이사항')}</div>
       <ol style={s.notes}>
-        <li>본 발주서는 공급사의 견적서 수령 이후 발주사·공급사 간 기 협의한 사항에 따릅니다.</li>
+        <li>{t('본 발주서는 공급사의 견적서 수령 이후 발주사·공급사 간 기 협의한 사항에 따릅니다.')}</li>
         <li>
           납기일자: 발주일로부터 {DELIVERY_DUE_BUSINESS_DAYS}일 이내 (영업일 기준)
           {deliveryDue && <b style={s.due}> — {deliveryDue} 로 지정</b>}
         </li>
-        <li>납품장소 및 검사방법: 당사 지정 장소 및 당사 검사기준에 의함. 사전 협의하여 진행함.</li>
-        <li>기타: 상기 사항 외에 발주사·공급사 간 협의에 따라 진행함.</li>
+        <li>{t('납품장소 및 검사방법: 당사 지정 장소 및 당사 검사기준에 의함. 사전 협의하여 진행함.')}</li>
+        <li>{t('기타: 상기 사항 외에 발주사·공급사 간 협의에 따라 진행함.')}</li>
       </ol>
       </div>
       </div>

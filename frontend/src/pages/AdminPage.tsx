@@ -7,7 +7,7 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview } from '../api/quotes'
 import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
-import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
+import { clampMemo, MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS } from '@shared/docs/memo'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
@@ -34,6 +34,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
+import { t , tc, tf} from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useEscapeClose } from '../lib/escClose'
@@ -125,7 +126,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
     let alive = true
     fetchOrderPreview(quoteId)
       .then(d => { if (alive) setPreview(d) })
-      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : '발주 내용을 불러오지 못했습니다') })
+      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [quoteId])
 
@@ -143,9 +144,9 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
         <div style={modal.title}>견적 #{quoteId} — 제작 배정</div>
 
         <div style={modal.scroll}>
-          <label style={modal.label}>특장사<span style={modal.req}> · 필수</span></label>
+          <label style={modal.label}>{t('특장사')}<span style={modal.req}> {t('· 필수')}</span></label>
           <select value={selected} onChange={e => setSelected(e.target.value)} style={modal.select}>
-            <option value="">선택하세요</option>
+            <option value="">{t('선택하세요')}</option>
             {makerOrgs.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
           </select>
 
@@ -155,26 +156,26 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
           */}
           {preview?.sales_memo.trim() && (
             <>
-              <label style={modal.label}>영업 메모 <span style={modal.readonly}>· 읽기 전용</span></label>
+              <label style={modal.label}>{t('영업 메모')} <span style={modal.readonly}>{t('· 읽기 전용')}</span></label>
               <div style={modal.memo}>{preview.sales_memo}</div>
             </>
           )}
 
           <label style={modal.checkRow}>
             <input type="checkbox" checked={customBadge} onChange={e => setCustomBadge(e.target.checked)} />
-            <span>「커스텀」 표시</span>
-            <span style={modal.readonly}>· 특장사 주문 목록에 배지로 뜹니다</span>
+            <span>{t('「커스텀」 표시')}</span>
+            <span style={modal.readonly}>{t('· 특장사 주문 목록에 배지로 뜹니다')}</span>
           </label>
 
           {loadErr && <div style={modal.error}>{loadErr}</div>}
 
           {preview && (
             <>
-              <label style={modal.label}>발주서 <span style={modal.readonly}>· 특장사가 보는 그대로</span></label>
+              <label style={modal.label}>{t('발주서')} <span style={modal.readonly}>{t('· 특장사가 보는 그대로')}</span></label>
               <PurchaseOrderSheet
                 orderId={0}
                 orderedAt={new Date()}
-                makerOrgName={makerName || '(특장사 선택 전)'}
+                makerOrgName={makerName || t('(특장사 선택 전)')}
                 modelCode={preview.model_code}
                 options={preview.options}
                 deliveryDue=""
@@ -183,7 +184,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
                   <textarea
                     style={modal.remarkInput}
                     rows={MEMO_MAX_LINES}
-                    placeholder={`이 주문만의 요청사항 (${MEMO_LIMIT_HINT})`}
+                    placeholder={tf('이 주문만의 요청사항 ({0})', tf('최대 {0}줄 · 한 줄 {1}자', MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS))}
                     value={remark}
                     onChange={e => setRemark(clampMemo(e.target.value))}
                   />
@@ -195,12 +196,12 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
 
         {error && <div style={modal.error}>{error}</div>}
         <div style={modal.actions}>
-          <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
+          <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>{t('취소')}</button>
           <button
             style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn}
             disabled={!selected || loading}
             onClick={() => onConfirm(selected, remark, customBadge)}
-          >{loading ? '처리 중…' : '제작 배정'}</button>
+          >{loading ? t('처리 중…') : t('제작 배정')}</button>
         </div>
       </div>
     </div>
@@ -257,7 +258,7 @@ function AssignSalesModal({ quoteId, users, loading, error, onConfirm, onClose }
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
           <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
-            {loading ? '처리 중…' : '영업 배정'}
+            {loading ? t('처리 중…') : t('영업 배정')}
           </button>
         </div>
       </div>
@@ -286,13 +287,13 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.email || !form.name || !form.role || !form.org_code) { setError('모든 항목을 입력해 주세요.'); return }
+    if (!form.email || !form.name || !form.role || !form.org_code) { setError(t('모든 항목을 입력해 주세요.')); return }
     setLoading(true); setError('')
     try {
       const res = await createUser({ ...form, extra_roles: extraRoles.filter(r => r !== form.role) })
       setResult(res)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '계정 발급 실패')
+      setError(err instanceof Error ? err.message : t('계정 발급 실패'))
     } finally {
       setLoading(false)
     }
@@ -328,12 +329,12 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
           </div>
           <div>
             <label style={acc.label}>이름<span style={acc.req}> · 필수</span></label>
-            <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} style={acc.input} placeholder="홍길동" disabled={loading} />
+            <input type="text" value={form.name} onChange={e => setField('name', e.target.value)} style={acc.input} placeholder={t('홍길동')} disabled={loading} />
           </div>
           <div>
             <label style={acc.label}>역할<span style={acc.req}> · 필수</span></label>
             <select value={form.role} onChange={e => setField('role', e.target.value)} style={acc.input} disabled={loading}>
-              {ROLES.map(r => <option key={r} value={r}>{ROLE_KO[r]} ({r})</option>)}
+              {ROLES.map(r => <option key={r} value={r}>{t(ROLE_KO[r])} ({r})</option>)}
             </select>
           </div>
           <div>
@@ -349,7 +350,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
                     onClick={() => setExtraRoles(prev => on ? prev.filter(x => x !== r) : [...prev, r])}
                     disabled={loading}
                   >
-                    {ROLE_KO[r]}
+                    {t(ROLE_KO[r])}
                   </button>
                 )
               })}
@@ -365,7 +366,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
           {error && <div style={modal.error}>{error}</div>}
           <div style={modal.actions}>
             <button type="button" style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
-            <button type="submit" style={loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={loading}>{loading ? '발급 중…' : '발급'}</button>
+            <button type="submit" style={loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={loading}>{loading ? t('발급 중…') : t('발급')}</button>
           </div>
         </form>
       </div>
@@ -403,7 +404,7 @@ function AccountsTab() {
     setLoading(true); setErr('')
     Promise.all([fetchUsers(), fetchOrgs(), fetchFeatureModules(), fetchAccessControl()])
       .then(([u, o, m, a]) => { setUsers(u); setOrgs(o); setModules(m); setAc(a) })
-      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('로드 실패')))
       .finally(() => setLoading(false))
   }
 
@@ -423,7 +424,7 @@ function AccountsTab() {
       const res = await resetUserPassword(email)
       setResetResult({ email, temp_password: res.temp_password })
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '비밀번호 재설정 실패')
+      setErr(e instanceof Error ? e.message : t('비밀번호 재설정 실패'))
     } finally {
       setResetting(null)
     }
@@ -436,21 +437,21 @@ function AccountsTab() {
       await updateUser(user.email, { status: newStatus })
       setUsers(prev => prev.map(u => u.email === user.email ? { ...u, status: newStatus } : u))
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '상태 변경 실패')
+      setErr(e instanceof Error ? e.message : t('상태 변경 실패'))
     } finally {
       setTogglingStatus(null)
     }
   }
 
   async function handleDelete(email: string) {
-    if (!window.confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return
+    if (!window.confirm(t('정말 삭제하시겠습니까? 되돌릴 수 없습니다.'))) return
     setDeleting(email)
     setErr('')
     try {
       await deleteUser(email)
       setUsers(prev => prev.filter(u => u.email !== email))
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '삭제 실패')
+      setErr(e instanceof Error ? e.message : t('삭제 실패'))
     } finally {
       setDeleting(null)
     }
@@ -471,7 +472,7 @@ function AccountsTab() {
       const saved = await updateUser(user.email, { extra_roles: next })
       setUsers(prev => prev.map(u => u.email === user.email ? { ...u, extra_roles: saved.extra_roles ?? next } : u))
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '역할 변경 실패')
+      setErr(e instanceof Error ? e.message : t('역할 변경 실패'))
     } finally {
       setRoleSaving(null)
     }
@@ -487,11 +488,11 @@ function AccountsTab() {
         return [...prev, entry]
       })
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '모듈 토글 실패')
+      setErr(e instanceof Error ? e.message : t('모듈 토글 실패'))
     }
   }
 
-  const STATUS_LABEL: Record<string, string> = { active: '활성', invited: '초대됨', suspended: '정지' }
+  const STATUS_LABEL: Record<string, string> = { active: t('활성'), invited: t('초대됨'), suspended: t('정지') }
   const STATUS_STYLE: Record<string, React.CSSProperties> = {
     active: { background: 'var(--lime)', color: 'var(--dark)' },
     invited: { background: 'var(--card)', color: 'var(--dark)' },
@@ -510,7 +511,7 @@ function AccountsTab() {
         */}
         {!user.is_master && (
           <>
-            <div style={acc.expandHeader}>역할 — 주 역할 + 겸직 (여러 화면을 한 계정으로)</div>
+            <div style={acc.expandHeader}>{t('역할 — 주 역할 + 겸직 (여러 화면을 한 계정으로)')}</div>
             <div style={acc.roleRow}>
               {ROLES.map(r => {
                 const isPrimary = r === user.role
@@ -521,9 +522,9 @@ function AccountsTab() {
                     style={{ ...(on ? acc.roleChipOn : acc.roleChipOff), ...(isPrimary ? acc.roleChipPrimary : null) }}
                     onClick={() => handleToggleExtraRole(user, r)}
                     disabled={isPrimary || roleSaving === user.email}
-                    title={isPrimary ? '주 역할 — 로그인 후 첫 화면 기준이라 여기서 끄지 않는다' : '겸직 역할 켜기/끄기'}
+                    title={isPrimary ? t('주 역할 — 로그인 후 첫 화면 기준이라 여기서 끄지 않는다') : t('겸직 역할 켜기/끄기')}
                   >
-                    {ROLE_KO[r]}{isPrimary ? ' · 주' : ''}
+                    {t(ROLE_KO[r])}{isPrimary ? t(' · 주') : ''}
                   </button>
                 )
               })}
@@ -531,7 +532,7 @@ function AccountsTab() {
           </>
         )}
         <div style={acc.expandHeader}>
-          {user.is_master ? '마스터 — 전체 모듈' : `계정 모듈 override — ${myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
+          {user.is_master ? t('마스터 — 전체 모듈') : `계정 모듈 override — ${myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
         </div>
         <div style={acc.moduleGrid}>
           {(user.is_master ? modules : getModulesForRoles(modules, myRoles)).map(mod => {
@@ -542,12 +543,12 @@ function AccountsTab() {
             const hasOverride = userOverride !== undefined
             return (
               <div key={mod.code} style={acc.moduleItem}>
-                <div style={acc.modName}>{mod.name}</div>
+                <div style={acc.modName}>{t(mod.name)}</div>
                 <div style={acc.modCode}>{mod.code}</div>
                 <div style={acc.modMeta}>
                   {hasOverride
                     ? <span style={acc.overrideTag}>override</span>
-                    : <span style={acc.roleTag}>역할기본</span>
+                    : <span style={acc.roleTag}>{t('역할기본')}</span>
                   }
                 </div>
                 <button
@@ -574,7 +575,7 @@ function AccountsTab() {
           onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
-          {resetting === user.email ? '…' : '비번재설정'}
+          {resetting === user.email ? '…' : tc('비번재설정', 'btn')}
         </button>
       ) : null
     }
@@ -584,33 +585,33 @@ function AccountsTab() {
           style={{ ...BTN.row }}
           onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
         >
-          {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
+          {expandedEmail === user.email ? t('▲ 모듈') : t('▼ 모듈')}
         </button>
         <button
           style={{ ...BTN.row }}
           onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
-          {resetting === user.email ? '…' : '비번재설정'}
+          {resetting === user.email ? '…' : tc('비번재설정', 'btn')}
         </button>
         <button
           style={{ ...(user.status === 'active' ? BTN.rowDanger : BTN.rowPrimary) }}
           onClick={() => handleToggleStatus(user)}
           disabled={togglingStatus === user.email}
         >
-          {user.status === 'active' ? '정지' : '활성화'}
+          {user.status === 'active' ? t('정지') : t('활성화')}
         </button>
         <button
           style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDanger) }}
           onClick={() => handleDelete(user.email)}
           disabled={isDeleteDisabled(user) || deleting === user.email}
           title={
-            user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
-            (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
-            '계정 삭제'
+            user.email === myEmail ? t('본인 계정은 삭제할 수 없습니다') :
+            (user.role === 'ADMIN' && adminCount <= 1) ? t('마지막 관리자 계정은 삭제할 수 없습니다') :
+            t('계정 삭제')
           }
         >
-          {deleting === user.email ? '…' : '삭제'}
+          {deleting === user.email ? '…' : t('삭제')}
         </button>
         {/*
           「완전삭제」를 없앴다 — 그 영업의 **견적·주문·서류를 통째로** 지웠고, 계약 상태를
@@ -620,7 +621,7 @@ function AccountsTab() {
     )
   }
 
-  if (loading) return <div style={styles.content}><div style={{ color: 'var(--muted)', fontSize: 13 }}>로딩 중…</div></div>
+  if (loading) return <div style={styles.content}><div style={{ color: 'var(--muted)', fontSize: 13 }}>{t('로딩 중…')}</div></div>
 
   return (
     <div style={styles.content}>
@@ -634,17 +635,21 @@ function AccountsTab() {
       {resetConfirm && (
         <div style={modal.overlay} onClick={() => setResetConfirm(null)}>
           <div style={modal.box} onClick={e => e.stopPropagation()}>
-            <div style={modal.title}>비밀번호 재설정 — {resetConfirm.name}</div>
+            <div style={modal.title}>{tf('비밀번호 재설정 — {0}', resetConfirm.name)}</div>
+            {/*
+              강조를 문장 가운데 끼워 세 조각으로 나눠 뒀었다. 한국어는 서술어가 끝에 와서
+              말이 됐지만 영어는 어순이 달라 조각의 경계 자체가 달라진다 — 통째로 옮긴다.
+            */}
             <div style={modal.desc}>
-              <b>{resetConfirm.email}</b> 의 비밀번호를 임시 비밀번호로 바꿉니다.
-              <br />· 지금 쓰던 비밀번호는 <b>즉시 사용할 수 없게</b> 됩니다.
-              <br />· 임시 비밀번호는 <b>이 화면에서 한 번만</b> 보이며 다시 조회할 수 없습니다.
-              <br />· 당사자에게 직접 전달해야 합니다.
+              {tf('{0} 의 비밀번호를 임시 비밀번호로 바꿉니다.', resetConfirm.email)}
+              <br />{t('· 지금 쓰던 비밀번호는 즉시 사용할 수 없게 됩니다.')}
+              <br />{t('· 임시 비밀번호는 이 화면에서 한 번만 보이며 다시 조회할 수 없습니다.')}
+              <br />{t('· 당사자에게 직접 전달해야 합니다.')}
             </div>
             <div style={modal.actions}>
-              <button style={modal.cancelBtn} onClick={() => setResetConfirm(null)}>취소</button>
+              <button style={modal.cancelBtn} onClick={() => setResetConfirm(null)}>{t('취소')}</button>
               <button style={modal.confirmBtn} onClick={() => handleResetPw(resetConfirm.email)}>
-                재설정
+                {t('재설정')}
               </button>
             </div>
           </div>
@@ -655,14 +660,14 @@ function AccountsTab() {
         <div style={acc.resetResultBox}>
           <span style={acc.resetResultLabel}>{resetResult.email} 임시 비밀번호 (1회만 표시):</span>
           <span style={acc.tempPw}>{resetResult.temp_password}</span>
-          <button style={BTN.barPrimary} onClick={() => setResetResult(null)}>확인</button>
+          <button style={BTN.barPrimary} onClick={() => setResetResult(null)}>{t('확인')}</button>
         </div>
       )}
 
       <div style={acc.toolbar}>
-        <span style={acc.count}>{users.length}명</span>
+        <span style={acc.count}>{tf('{0}명', users.length)}</span>
         {/* 높이는 BTN 이 정한다 — 여기서 minHeight 를 덮으면(undefined) 값이 지워져 납작해진다 */}
-        <button style={BTN.barPrimary} onClick={() => setShowCreate(true)}>+ 계정 발급</button>
+        <button style={BTN.barPrimary} onClick={() => setShowCreate(true)}>{t('+ 계정 발급')}</button>
       </div>
 
       {isMobile ? (
@@ -673,11 +678,11 @@ function AccountsTab() {
               <div style={accMob.cardTop}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={accMob.name}>{user.name}</span>
-                  {user.is_master && <span style={acc.masterBadge}>마스터</span>}
+                  {user.is_master && <span style={acc.masterBadge}>{t('마스터')}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   {rolesOf(user).map(r => (
-                    <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{ROLE_KO[r]}</span>
+                    <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{t(ROLE_KO[r])}</span>
                   ))}
                   <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
                     {STATUS_LABEL[user.status] ?? user.status}
@@ -685,11 +690,11 @@ function AccountsTab() {
                 </div>
               </div>
               <div style={accMob.row}>
-                <span style={accMob.label}>이메일</span>
+                <span style={accMob.label}>{t('이메일')}</span>
                 <span style={accMob.value}>{user.email}</span>
               </div>
               <div style={accMob.row}>
-                <span style={accMob.label}>조직</span>
+                <span style={accMob.label}>{t('조직')}</span>
                 <span style={accMob.value}>{user.org_code}</span>
               </div>
               <div style={accMob.actions}>
@@ -705,12 +710,12 @@ function AccountsTab() {
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.thModule}>이메일</th>
-                <th style={styles.thModule}>이름</th>
-                <th style={styles.thRole}>역할</th>
-                <th style={styles.thModule}>조직</th>
-                <th style={styles.thRole}>상태</th>
-                <th style={styles.thModule}>액션</th>
+                <th style={styles.thModule}>{t('이메일')}</th>
+                <th style={styles.thModule}>{t('이름')}</th>
+                <th style={styles.thRole}>{t('역할')}</th>
+                <th style={styles.thModule}>{t('조직')}</th>
+                <th style={styles.thRole}>{t('상태')}</th>
+                <th style={styles.thModule}>{t('액션')}</th>
               </tr>
             </thead>
             <tbody>
@@ -723,9 +728,9 @@ function AccountsTab() {
                     <td style={styles.tdToggle}>
                       {/* 겸직이면 가진 역할을 모두 보여준다 — 하나만 보이면 왜 다른 화면이 열리는지 알 수 없다 */}
                       {rolesOf(user).map(r => (
-                        <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{ROLE_KO[r]}</span>
+                        <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{t(ROLE_KO[r])}</span>
                       ))}
-                      {user.is_master && <span style={acc.masterBadge}>마스터</span>}
+                      {user.is_master && <span style={acc.masterBadge}>{t('마스터')}</span>}
                     </td>
                     <td style={styles.tdModule}>{user.org_code}</td>
                     <td style={styles.tdToggle}>
@@ -788,13 +793,13 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
 
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
-      {chip(mailed, '메일',
-        mailed ? `참고용 메일 발송 ${fmtWhen(quote.docs_emailed_at)}${quote.docs_emailed_to ? ` → ${quote.docs_emailed_to}` : ''}` : '참고용 메일 미발송')}
-      {chip(signSent, '서명요청',
-        signSent ? `전자서명 요청 ${fmtWhen(c?.sent_at)}` : '전자서명 미요청')}
+      {chip(mailed, t('메일'),
+        mailed ? `참고용 메일 발송 ${fmtWhen(quote.docs_emailed_at)}${quote.docs_emailed_to ? ` → ${quote.docs_emailed_to}` : ''}` : t('참고용 메일 미발송'))}
+      {chip(signSent, t('서명요청'),
+        signSent ? `전자서명 요청 ${fmtWhen(c?.sent_at)}` : t('전자서명 미요청'))}
       {signDead
-        ? chip(true, c!.status === 'REJECTED' ? '서명거절' : '서명취소', `전자서명 ${c!.status}`, 'warn')
-        : chip(signDone, '서명완료', signDone ? `전자서명 완료 ${fmtWhen(c?.completed_at)}` : '전자서명 미완료')}
+        ? chip(true, c!.status === 'REJECTED' ? t('서명거절') : t('서명취소'), `전자서명 ${c!.status}`, 'warn')
+        : chip(signDone, t('서명완료'), signDone ? `전자서명 완료 ${fmtWhen(c?.completed_at)}` : t('전자서명 미완료'))}
     </div>
   )
 }
@@ -838,7 +843,7 @@ function CustomersTab() {
     setLoading(true)
     fetchCustomers(view)
       .then(setRows)
-      .catch(e => setErr(e instanceof Error ? e.message : '고객 목록을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('고객 목록을 불러오지 못했습니다')))
       .finally(() => setLoading(false))
   }
   useEffect(load, [view])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -848,17 +853,17 @@ function CustomersTab() {
     const hiding = !c.hidden_at
     // 견적이 함께 숨겨지는 건 놀랄 일이라 미리 알린다
     if (hiding && c._count.quotes > 0) {
-      if (!window.confirm(`${c.name} 고객을 숨깁니다.\n\n이 고객의 견적 ${c._count.quotes}건도 함께 숨겨집니다.\n지우는 것이 아니라 화면에서만 감추며, 언제든 되돌릴 수 있습니다.`)) return
+      if (!window.confirm(tf('{0} 고객을 숨깁니다.\n\n이 고객의 견적 {1}건도 함께 숨겨집니다.\n지우는 것이 아니라 화면에서만 감추며, 언제든 되돌릴 수 있습니다.', c.name, c._count.quotes))) return
     }
     setBusy(c.id); setErr('')
     try {
       const r = await setCustomerHidden(c.id, hiding)
       load()
-      if (hiding && r.quotes_affected > 0) setNote(`${c.name} · 견적 ${r.quotes_affected}건도 함께 숨겼습니다`)
-      else if (!hiding && r.quotes_affected > 0) setNote(`${c.name} · 함께 숨겼던 견적 ${r.quotes_affected}건을 되돌렸습니다`)
+      if (hiding && r.quotes_affected > 0) setNote(tf('{0} · 견적 {1}건도 함께 숨겼습니다', c.name, r.quotes_affected))
+      else if (!hiding && r.quotes_affected > 0) setNote(tf('{0} · 함께 숨겼던 견적 {1}건을 되돌렸습니다', c.name, r.quotes_affected))
       else setNote('')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '처리 실패')
+      setErr(e instanceof Error ? e.message : t('처리 실패'))
     } finally { setBusy(null) }
   }
 
@@ -866,30 +871,30 @@ function CustomersTab() {
     <div>
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
         <Segmented
-          items={[{ value: 'active', label: '사용 중' }, { value: 'hidden', label: '숨김' }]}
+          items={[{ value: 'active', label: t('사용 중') }, { value: 'hidden', label: t('숨김') }]}
           value={view}
           onChange={setView}
           size="sm"
         />
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)' }}>
-          {view === 'hidden' ? `숨긴 고객 ${rows.length}명` : `${rows.length}명`}
+          {view === 'hidden' ? tf('숨긴 고객 {0}명', rows.length) : tf('{0}명', rows.length)}
         </span>
       </div>
       {err && <div style={{ color: 'var(--req)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{err}</div>}
       {note && <div style={{ color: 'var(--muted)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{note}</div>}
-      {loading ? <div style={{ padding: 'var(--sp-5)', color: 'var(--muted)' }}>불러오는 중…</div> : (
+      {loading ? <div style={{ padding: 'var(--sp-5)', color: 'var(--muted)' }}>{t('불러오는 중…')}</div> : (
         <div style={qt.tableWrap}>
           <table style={qt.table}>
             <thead>
               <tr>
-                <th style={qt.th}>고객</th>
-                <th style={qt.th}>연락처</th>
-                <th style={qt.th}>생년월일·사업자</th>
-                <th style={qt.th}>견적</th>
-                <th style={qt.th}>발송</th>
+                <th style={qt.th}>{t('고객')}</th>
+                <th style={qt.th}>{t('연락처')}</th>
+                <th style={qt.th}>{t('생년월일·사업자')}</th>
+                <th style={qt.th}>{t('견적')}</th>
+                <th style={qt.th}>{t('발송')}</th>
                 <th style={qt.th}>WARP</th>
-                <th style={qt.th}>등록</th>
-                <th style={qt.th}>액션</th>
+                <th style={qt.th}>{t('등록')}</th>
+                <th style={qt.th}>{t('액션')}</th>
               </tr>
             </thead>
             <tbody>
@@ -897,20 +902,20 @@ function CustomersTab() {
                 <tr key={c.id} style={c.hidden_at ? { opacity: 0.5 } : undefined}>
                   <td style={qt.td}>
                     {c.name}
-                    {c.hidden_at && <span style={{ color: 'var(--muted)', fontSize: 'var(--fs-caption)' }}> · 숨김</span>}
+                    {c.hidden_at && <span style={{ color: 'var(--muted)', fontSize: 'var(--fs-caption)' }}> {t('· 숨김')}</span>}
                   </td>
                   <td style={qt.td}>{c.phone ?? '—'}</td>
                   <td style={qt.td}>{c.reg_no ?? '—'}</td>
                   <td style={qt.tdNum}>{c._count.quotes}</td>
                   <td style={qt.tdNum}>{c.contract_quotes || '—'}</td>
-                  <td style={qt.td}>{c.warp_customer_id ? '연결됨' : '—'}</td>
+                  <td style={qt.td}>{c.warp_customer_id ? t('연결됨') : '—'}</td>
                   <td style={qt.td}>{c.created_at.slice(0, 10)}</td>
                   <td style={qt.td}>
                     {(() => {
                       // 숨길 수 없는 이유를 버튼 자리에서 바로 알려 준다
                       const blocked = !c.hidden_at
-                        ? (c.warp_customer_id ? 'WARP 에 연결된 고객은 숨길 수 없습니다'
-                          : c.contract_quotes > 0 ? `계약서가 발송된 견적 ${c.contract_quotes}건이 있어 숨길 수 없습니다` : '')
+                        ? (c.warp_customer_id ? t('WARP 에 연결된 고객은 숨길 수 없습니다')
+                          : c.contract_quotes > 0 ? tf('계약서가 발송된 견적 {0}건이 있어 숨길 수 없습니다', c.contract_quotes) : '')
                         : ''
                       const off = busy === c.id || !!blocked
                       return (
@@ -918,10 +923,10 @@ function CustomersTab() {
                           style={off ? BTN.rowDisabled : BTN.row}
                           disabled={off}
                           title={blocked || (c.hidden_at
-                            ? '고객과 함께 숨긴 견적을 되돌립니다'
-                            : '고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다')}
+                            ? t('고객과 함께 숨긴 견적을 되돌립니다')
+                            : t('고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다'))}
                           onClick={() => toggle(c)}
-                        >{busy === c.id ? '…' : (c.hidden_at ? '다시 보이기' : '고객 숨기기')}</button>
+                        >{busy === c.id ? '…' : (c.hidden_at ? tc('다시 보이기', 'btn') : tc('고객 숨기기', 'btn'))}</button>
                       )
                     })()}
                   </td>
@@ -965,8 +970,8 @@ function QuotesWithFolders() {
       <div style={qt.viewRow}>
         <Segmented
           items={[
-            { value: 'list' as const, label: '견적 목록' },
-            { value: 'folders' as const, label: '고객 서류함' },
+            { value: 'list' as const, label: t('견적 목록') },
+            { value: 'folders' as const, label: t('고객 서류함') },
           ]}
           value={view}
           onChange={setView}
@@ -996,7 +1001,7 @@ function OnlyAssignToggle({ checked, onChange }: { checked: boolean; onChange: (
   return (
     <label style={qt.onlyAssign}>
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
-      <span>배정 필요건만</span>
+      <span>{t('배정 필요건만')}</span>
     </label>
   )
 }
@@ -1078,7 +1083,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
       await assignQuote(confirmingId, makerOrgId, remark, customBadge)
       setConfirmingId(null); load()
     } catch (e: unknown) {
-      setConfirmError(e instanceof Error ? e.message : '배정 실패')
+      setConfirmError(e instanceof Error ? e.message : t('배정 실패'))
     } finally {
       setConfirmLoading(false)
     }
@@ -1101,7 +1106,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
       load()
       window.alert(`견적번호 ${r.quote_no} 로 배정했습니다.`)
     } catch (e: unknown) {
-      setAssignSalesErr(e instanceof Error ? e.message : '배정 실패')
+      setAssignSalesErr(e instanceof Error ? e.message : t('배정 실패'))
     } finally { setAssignSalesBusy(false) }
   }
 
@@ -1139,21 +1144,21 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
       */}
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1 } : {}) }}>
-          <option value="">전체 상태</option>
-          <option value="draft">임시저장</option>
-          <option value="confirmed">견적완료</option>
-          <option value="contracted">계약완료</option>
-          <option value="assigned">배정완료</option>
-          <option value="ordered">주문진행</option>
-          <option value="completed">완료</option>
-          <option value="expired">만료</option>
+          <option value="">{t('전체 상태')}</option>
+          <option value="draft">{t('임시저장')}</option>
+          <option value="confirmed">{t('견적완료')}</option>
+          <option value="contracted">{t('계약완료')}</option>
+          <option value="assigned">{t('배정완료')}</option>
+          <option value="ordered">{t('주문진행')}</option>
+          <option value="completed">{t('완료')}</option>
+          <option value="expired">{t('만료')}</option>
         </select>
         <input
           type="text"
           value={nameQuery}
           onChange={e => setNameQuery(e.target.value)}
-          placeholder="고객 이름"
-          aria-label="고객 이름으로 좁히기"
+          placeholder={t('고객 이름')}
+          aria-label={t('고객 이름으로 좁히기')}
           style={{ ...qt.select, ...(isMobile ? { flex: 1 } : { width: 160 }) }}
         />
         {onlyAssignControl}
@@ -1162,11 +1167,11 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
       {err && <div style={qt.errMsg}>{err}</div>}
 
       {loading ? (
-        <div style={qt.loading}>로딩 중…</div>
+        <div style={qt.loading}>{t('로딩 중…')}</div>
       ) : shown.length === 0 ? (
         <EmptyState
-          title={nameQuery.trim() ? `「${nameQuery.trim()}」에 맞는 견적이 없습니다` : '조건에 맞는 견적이 없습니다'}
-          description={nameQuery.trim() ? '이름을 지우면 기간 안의 전체가 보입니다.' : '기간이나 상태 조건을 바꿔 다시 조회해 보세요.'}
+          title={nameQuery.trim() ? `「${nameQuery.trim()}」에 맞는 견적이 없습니다` : t('조건에 맞는 견적이 없습니다')}
+          description={nameQuery.trim() ? t('이름을 지우면 기간 안의 전체가 보입니다.') : t('기간이나 상태 조건을 바꿔 다시 조회해 보세요.')}
         />
       ) : isMobile ? (
         // ── 모바일: 카드 리스트 ──
@@ -1180,7 +1185,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
             <button type="button" style={qtMob.groupHead} onClick={() => toggle(date)} aria-expanded={isOpen(date)}>
               <span style={qtMob.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
               <span style={qtMob.groupDate}>{date}</span>
-              <span style={qtMob.groupCount}>{rows.length}건</span>
+              <span style={qtMob.groupCount}>{tf('{0}건', rows.length)}</span>
             </button>
             {isOpen(date) && rows.map(q => {
             return (
@@ -1188,33 +1193,33 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}<QuoteKindTag quote={q} /></span>
                 <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
-                  <Badge tone={statusTone(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</Badge>
+                  <Badge tone={statusTone(q.status)}>{t(QUOTE_STATUS_LABELS[q.status] ?? q.status)}</Badge>
                 </Tooltip>
               </div>
               <div style={qtMob.rows}>
                 <div style={qtMob.row}>
-                  <span style={qtMob.label}># · 특장사</span>
+                  <span style={qtMob.label}>{t('# · 특장사')}</span>
                   <span>{q.quote_no ?? `#${q.id}`} · {q.order?.maker_org?.name ?? '—'}</span>
                 </div>
                 <div style={qtMob.row}>
-                  <span style={qtMob.label}>영업</span>
+                  <span style={qtMob.label}>{t('영업')}</span>
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                     {q.sales_user_id ?? '—'}
                     {q.source === 'public' && q.sales_user_id && !q.sales_accepted_at && (
-                      <span style={qt.waitAccept}> · 수락 대기</span>
+                      <span style={qt.waitAccept}> {t('· 수락 대기')}</span>
                     )}
                   </span>
                 </div>
                 <div style={qtMob.row}>
-                  <span style={qtMob.label}>실구매가(기타 포함)</span>
+                  <span style={qtMob.label}>{t('실구매가(기타 포함)')}</span>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtPrice(q.final_price)}</span>
                 </div>
                 <div style={qtMob.row}>
-                  <span style={qtMob.label}>일시</span>
+                  <span style={qtMob.label}>{t('일시')}</span>
                   <span>{fmtDate(q.created_at)}</span>
                 </div>
                 <div style={qtMob.row}>
-                  <span style={qtMob.label}>발송현황</span>
+                  <span style={qtMob.label}>{t('발송현황')}</span>
                   <SendStatus quote={q} />
                 </div>
               </div>
@@ -1222,16 +1227,16 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                 <button
                   style={{ ...BTN.row, width: '100%' }}
                   onClick={() => setViewing(q)}
-                >고객정보</button>
+                >{tc('고객정보', 'btn')}</button>
                 <button
                   style={{ ...BTN.row, width: '100%' }}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
-                >견적서</button>
+                >{t('견적서')}</button>
                 <button
                   style={{ ...(q.status === 'draft' ? BTN.rowMuted : BTN.row), width: '100%' }}
                   disabled={q.status === 'draft'}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)}
-                >계약서</button>
+                >{t('계약서')}</button>
                 {/*
                   둘째 줄 — **빈칸을 남기지 않는다.**
 
@@ -1253,14 +1258,14 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                       key="signed"
                       style={{ ...BTN.rowPrimary, width: '100%' }}
                       onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                    >{q.contract?.signing_method === 'PAPER' ? '계약서 스캔본' : '서명본'}</button>,
+                    >{q.contract?.signing_method === 'PAPER' ? t('계약서 스캔본') : t('서명본')}</button>,
                   )
                   {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
                   if (salesAssign) row.push(
-                    <button key="sales" style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>,
+                    <button key="sales" style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>{t('영업 배정')}</button>,
                   )
                   if (makerAssign) row.push(
-                    <button key="maker" style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>,
+                    <button key="maker" style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>{t('제작 배정')}</button>,
                   )
                   if (row.length === 0) return null
 
@@ -1288,14 +1293,14 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
             <thead>
               <tr>
                 <th style={qt.th}>#</th>
-                <th style={qt.th}>고객</th>
-                <th style={qt.th}>영업</th>
-                <th style={qt.th}>실구매가(기타 포함)</th>
-                <th style={qt.th}>상태</th>
-                <th style={qt.th}>특장사</th>
-                <th style={qt.th}>발송현황</th>
-                <th style={qt.th}>일시</th>
-                <th style={qt.th}>액션</th>
+                <th style={qt.th}>{t('고객')}</th>
+                <th style={qt.th}>{t('영업')}</th>
+                <th style={qt.th}>{t('실구매가(기타 포함)')}</th>
+                <th style={qt.th}>{t('상태')}</th>
+                <th style={qt.th}>{t('특장사')}</th>
+                <th style={qt.th}>{t('발송현황')}</th>
+                <th style={qt.th}>{t('일시')}</th>
+                <th style={qt.th}>{t('액션')}</th>
               </tr>
             </thead>
             {groups.map(([date, rows]) => (
@@ -1311,7 +1316,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                   <button type="button" style={qt.groupBtn} aria-expanded={isOpen(date)} onClick={() => toggle(date)}>
                     <span style={qt.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
                     <span style={qt.groupDate}>{date}</span>
-                    <span style={qt.groupCount}>{rows.length}건</span>
+                    <span style={qt.groupCount}>{tf('{0}건', rows.length)}</span>
                   </button>
                 </td>
               </tr>
@@ -1324,14 +1329,14 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                     {q.sales_user_id ?? '—'}
                     {/* 배정만 해 놓고 영업이 아직 받지 않은 건 — 관리자가 되짚어야 하는 상태다 */}
                     {q.source === 'public' && q.sales_user_id && !q.sales_accepted_at && (
-                      <span style={qt.waitAccept}> · 수락 대기</span>
+                      <span style={qt.waitAccept}> {t('· 수락 대기')}</span>
                     )}
                   </td>
                   <td style={qt.tdNum}>{fmtPrice(q.final_price)}</td>
                   <td style={qt.td}>
                     <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                       <Badge tone={statusTone(q.status)}>
-                        {QUOTE_STATUS_LABELS[q.status] ?? q.status}
+                        {t(QUOTE_STATUS_LABELS[q.status] ?? q.status)}
                       </Badge>
                     </Tooltip>
                   </td>
@@ -1342,33 +1347,33 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap' }}>
                       <button
                         style={BTN.row}
-                        title="고객·계약 정보 조회 (수정 불가)"
+                        title={t('고객·계약 정보 조회 (수정 불가)')}
                         onClick={() => setViewing(q)}
-                      >고객정보</button>
+                      >{tc('고객정보', 'btn')}</button>
                       <button
                         style={BTN.row}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
-                      >견적서</button>
+                      >{t('견적서')}</button>
                       {/* 계약서는 견적 확정(생성) 후에만 의미가 있다 — 발송은 영업 업무라 관리자엔 두지 않는다 */}
                       <button
                         style={q.status === 'draft' ? BTN.rowMuted : BTN.row}
                         disabled={q.status === 'draft'}
-                        title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
+                        title={q.status === 'draft' ? t('견적서 생성 후 계약서를 볼 수 있습니다') : t('특장 매매계약서 미리보기')}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)}
-                      >계약서</button>
+                      >{t('계약서')}</button>
                       {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본(시스템 보관본) */}
                       {q.contract?.status === 'COMPLETED' && (
                         <button
                           style={BTN.rowPrimary}
-                          title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
+                          title={t('고객이 서명·날인한 계약서 정본 (시스템 보관본)')}
                           onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                        >{q.contract?.signing_method === 'PAPER' ? '스캔본' : '서명본'}</button>
+                        >{q.contract?.signing_method === 'PAPER' ? t('스캔본') : t('서명본')}</button>
                       )}
                       {q.source === 'public' && !q.sales_user_id && (
-                        <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>영업 배정</button>
+                        <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>{t('영업 배정')}</button>
                       )}
                       {q.status === 'contracted' && (
-                        <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>제작 배정</button>
+                        <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>{t('제작 배정')}</button>
                       )}
                     </div>
                   </td>
@@ -1457,7 +1462,7 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
   useScreenRefresh(load)
 
-  if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>로딩 중…</div>
+  if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>{t('로딩 중…')}</div>
 
   if (selectedOrderId !== null) {
     /*
@@ -1491,7 +1496,7 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   return (
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
-      {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>조회 전용 — 상태 변경은 배정 특장사만 가능합니다.</div>}
+      {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{t('조회 전용 — 상태 변경은 배정 특장사만 가능합니다.')}</div>}
       {/*
         수락 대기 · 진행 중 · 완료 — **특장사 화면과 같은 것을 본다.**
         예전에는 여기만 구획 없이 전부 한 덩어리였다. 같은 주문을 두고 두 사람이
@@ -1565,15 +1570,15 @@ export function AdminPage() {
     basedata: usePermission('basedata.manage'),
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
-    { key: 'quotes',   label: '견적 목록', show: true },
-    { key: 'customers', label: '고객',    show: true },
-    { key: 'perf',     label: '영업 성과', show: perm.stats },
-    { key: 'kanban',   label: '주문 진행', show: perm.orders },
-    { key: 'files',    label: '파일',      show: perm.orders },
-    { key: 'toggles',  label: '기능모듈',  show: perm.accounts },
-    { key: 'accounts', label: '계정 관리', show: perm.accounts },
-    { key: 'weights',  label: '무게상수',  show: perm.basedata },
-    { key: 'optiondb', label: '옵션DB',    show: perm.basedata },
+    { key: 'quotes',   label: t('견적 목록'), show: true },
+    { key: 'customers', label: t('고객'),    show: true },
+    { key: 'perf',     label: t('영업 성과'), show: perm.stats },
+    { key: 'kanban',   label: t('주문 진행'), show: perm.orders },
+    { key: 'files',    label: t('파일'),      show: perm.orders },
+    { key: 'toggles',  label: t('기능모듈'),  show: perm.accounts },
+    { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
+    { key: 'weights',  label: t('무게상수'),  show: perm.basedata },
+    { key: 'optiondb', label: t('옵션DB'),    show: perm.basedata },
   ] as const).filter(t => t.show)
 
   // 보고 있던 탭이 감춰지면(권한이 도중에 꺼지면) 첫 탭으로 되돌린다.
@@ -1615,12 +1620,12 @@ export function AdminPage() {
               const roleMods = getModulesForRole(modules, role)
               return (
                 <div key={role} style={styles.surfaceGroup}>
-                  <div style={styles.surfaceLabel}>{ROLE_KO[role]} ({role})</div>
+                  <div style={styles.surfaceLabel}>{t(ROLE_KO[role])} ({role})</div>
                   <table style={styles.table}>
                     <thead>
                       <tr>
-                        <th style={styles.thModule}>모듈</th>
-                        <th style={styles.thRole}>{ROLE_KO[role]} 기본값</th>
+                        <th style={styles.thModule}>{t('모듈')}</th>
+                        <th style={styles.thRole}>{tf('{0} 기본값', t(ROLE_KO[role]))}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1632,10 +1637,10 @@ export function AdminPage() {
                             <td style={styles.tdModule}>
                               {MODULE_DESC[mod.code] ? (
                                 <Tooltip text={MODULE_DESC[mod.code]!} placement="below">
-                                  <div style={styles.modName}>{mod.name}</div>
+                                  <div style={styles.modName}>{t(mod.name)}</div>
                                 </Tooltip>
                               ) : (
-                                <div style={styles.modName}>{mod.name}</div>
+                                <div style={styles.modName}>{t(mod.name)}</div>
                               )}
                               <div style={styles.modCode}>{mod.code}</div>
                             </td>
@@ -1664,7 +1669,7 @@ export function AdminPage() {
         {activeTab === 'weights' && (
           <OptionDbTab
             only={['weight_constant']}
-            note={<>하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 <b>다음 서류생성부터 재계산</b>에 반영됩니다.</>}
+            note={tf('하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 {0}에 반영됩니다.', t('다음 서류생성부터 재계산'))}
           />
         )}
         {activeTab === 'optiondb' && <OptionDbTab only={['option_price', 'subsidy_local', 'subsidy_national', 'tax_config', 'installment_rate']} />}

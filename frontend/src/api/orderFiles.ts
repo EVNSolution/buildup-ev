@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /**
  * 주문에 딸린 파일 목록 — 관리자 「파일」 화면이 읽는 곳.
  * 서버가 업로드본·자동생성본·서명본을 한 목록으로 펴서 내려준다.
@@ -39,10 +40,10 @@ async function jsonOrThrow(res: Response, what: string) {
 
 export async function fetchFileIndex(): Promise<ApiFileIndexRow[]> {
   const res = await fetch('/api/v1/orders/file-index', { credentials: 'include' })
-  return (await jsonOrThrow(res, '파일 목록 조회') as { data: ApiFileIndexRow[] }).data
+  return (await jsonOrThrow(res, t('파일 목록 조회')) as { data: ApiFileIndexRow[] }).data
 }
 
 export async function fetchOrderFiles(orderId: number): Promise<ApiOrderFile[]> {
   const res = await fetch(`/api/v1/orders/${orderId}/file-index`, { credentials: 'include' })
-  return (await jsonOrThrow(res, '주문 파일 조회') as { data: ApiOrderFile[] }).data
+  return (await jsonOrThrow(res, t('주문 파일 조회')) as { data: ApiOrderFile[] }).data
 }

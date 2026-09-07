@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { Segmented } from './ui/Segmented'
 import { surfacesFor } from '../lib/surfaces'
-import { BTN } from '../styles/buttons'
+import { useLang, t } from '../i18n'
 import logoUrl from '../assets/logo.png'
 import { safeTop, safeLeft, safeRight } from '../styles/safeArea'
 import type { CustomerInfo, Role } from '@shared/types/index'
@@ -20,10 +20,11 @@ interface Props {
 }
 
 export function Header({ customer }: Props) {
-  const { session, logout } = useAuth()
+  const { session } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const isMobile = useIsMobile()
+  useLang()  // 언어가 바뀌면 최상단바 글자도 따라간다
   const user = session?.user
   const org  = session?.org
 
@@ -36,7 +37,7 @@ export function Header({ customer }: Props) {
   // 저장된 고객 표시 전용. 예전엔 눌러서 진입 팝업을 다시 열었지만, 고객정보 입력이
   // 견적 저장 단계로 옮겨가면서 여는 대상이 사라졌다(보조금 조건은 가격바에서 고친다).
   const custLabel = customer
-    ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? '소상공인' : '일반'}`
+    ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? t('소상공인') : t('일반')}`
     : null
 
   return (
@@ -88,7 +89,8 @@ export function Header({ customer }: Props) {
          */
         <div style={{ flexShrink: 0 }}>
           <Segmented
-            items={mySurfaces.map(s => ({ value: s.path, label: s.label }))}
+            // 표의 label 은 한국어 그대로 둔다 — 값 비교에 쓰인다. 그리는 자리에서만 옮긴다
+            items={mySurfaces.map(s => ({ value: s.path, label: t(s.label) }))}
             value={mySurfaces.find(s => s.path === location.pathname)?.path ?? mySurfaces[0]!.path}
             onChange={p => navigate(p)}
           />
@@ -104,28 +106,35 @@ export function Header({ customer }: Props) {
 
       {/* 로그인 사용자 표시 */}
       {/*
-        계정 이름 — **좁은 화면에서는 접는다.** 누구로 로그인했는지는 마이페이지에서
-        확인할 수 있고, 이 줄에서는 「어느 화면으로 갈까」가 훨씬 자주 필요한 정보다.
-        역할이 하나뿐이라 토글이 없을 때는 자리가 남으므로 그대로 둔다.
+        계정 이름 — 한때 좁은 화면에서 **접었다.** 이제는 접지 않고 **줄인다.**
+        마이페이지로 들어가는 유일한 길이라, 접으면 휴대폰에서 설정에 닿을 방법이 사라진다
+        (언어를 여기로 옮기면서 실제로 그렇게 됐다). 고객 칩과 같은 방식으로 —
+        자리가 모자라면 사라지는 게 아니라 '…' 로 줄어든다.
       */}
-      {user && !(isMobile && mySurfaces.length > 1) && (
-        <div style={styles.userInfo}>
+      {user && (
+        /*
+         * 계정 이름이 곧 **마이페이지로 가는 길**이다. 언어·비밀번호 같은 「한 번 정하면 끝」인
+         * 설정을 최상단바에 벌여 놓으면 줄이 두 줄로 밀린다(언어 토글을 넣어 보고 실제로 겪음).
+         * 이 줄에 컨트롤을 더하지 않고, 이미 있는 이름에 길을 붙인다.
+         */
+        <button
+          type="button"
+          style={styles.userInfo}
+          // 온 자리를 실어 보낸다 — 마이페이지의 「뒤로」가 여기로 되돌린다
+          onClick={() => navigate('/me', { state: { from: location.pathname } })}
+          title={t('마이페이지')}
+        >
           <span style={styles.userName}>{user.name}</span>
           {!isMobile && <span style={styles.userOrg}>{org?.name ?? user.org_code}</span>}
-        </div>
+        </button>
       )}
 
       {/*
-        로그아웃하면 **홈(공개 컨피규레이터)** 으로 보낸다.
-        로그인 화면으로 되돌리면 "나가려는데 다시 들어오라"는 화면이 뜨는 셈이다.
-        (세션이 만료돼 튕기는 경우는 RequireAuth 가 로그인 화면으로 보낸다 — 그건 하던 일이 있는 경우다)
+        로그아웃은 **마이페이지로 옮겼다**(계정 이름 → 마이페이지).
+        하루에 한 번 누를까 말까 한 동작이 이 줄에서 늘 자리를 차지하고 있었고,
+        휴대폰에서는 그 폭이 화면 전환 토글을 눌렀다. 계정에 딸린 동작은 계정 화면에 둔다 —
+        메일·채팅 앱들이 계정 메뉴 안에 로그아웃을 두는 것과 같다.
       */}
-      <button
-        style={{ ...BTN.secondary, color: 'var(--muted)', flexShrink: 0 }}
-        onClick={async () => { await logout(); navigate('/', { replace: true }) }}
-      >
-        로그아웃
-      </button>
     </header>
   )
 }
@@ -183,10 +192,17 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '5px var(--sp-3)', background: '#fff', color: 'var(--body)',
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1,
   },
-  userInfo: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 },
+  userInfo: {
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1,
+    // 자리가 모자라면 **사라지는 게 아니라 줄어든다** — 길이 없어지면 안 된다
+    flexShrink: 1, minWidth: 0, overflow: 'hidden',
+    // 버튼으로 바꾸면서 브라우저 기본 모양은 지운다 — 보이던 것과 같아야 한다
+    background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer',
+  },
   userName: {
     fontSize: 'var(--fs-label)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'],
     color: 'var(--dark)', whiteSpace: 'nowrap',
+    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
   },
   userOrg: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' },
 }

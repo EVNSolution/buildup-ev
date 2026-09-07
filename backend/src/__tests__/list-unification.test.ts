@@ -341,6 +341,7 @@ describe('수락 대기 발주서', () => {
     expect(admin, '관리자 화면이 거부를 넘기고 있다').not.toContain('onReject');
   });
 
+  // 영문화로 라벨이 t() 를 타면서 정규식만 넓혔다 — 지키는 뜻(조회 전용이면 「닫기」)은 그대로다
   it('🔴 조회 전용에서는 할 수 없는 일을 아예 그리지 않는다', () => {
     /*
      * 고를 수 있게 두고 서버가 막으면 「눌러 봤는데 안 된다」로 끝난다.
@@ -348,7 +349,7 @@ describe('수락 대기 발주서', () => {
      */
     expect(MODAL).toMatch(/\{readOnly \? null : windowClosed \?/);
     expect(MODAL).toMatch(/\{readOnly \? null : !rejecting \?/);
-    expect(MODAL).toMatch(/readOnly \? '닫기' : '취소'/);
+    expect(MODAL).toMatch(/readOnly \? (?:t\('닫기'\)|'닫기') : (?:t\('취소'\)|'취소')/);
   });
 
   it('특장사 화면은 그대로 수락·거부를 갖는다', () => {

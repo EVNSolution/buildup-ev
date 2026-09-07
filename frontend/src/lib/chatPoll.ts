@@ -43,8 +43,8 @@ export function pollDelay(lastMessageAt: number | null, now = Date.now()): numbe
 export function lastMessageAt(rows: StepComment[] | null): number | null {
   const last = rows?.[rows.length - 1]
   if (!last) return null
-  const t = Date.parse(last.created_at)
-  return Number.isFinite(t) ? t : null
+  const at = Date.parse(last.created_at)
+  return Number.isFinite(at) ? at : null
 }
 
 /**

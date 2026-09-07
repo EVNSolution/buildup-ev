@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import type { Role } from '@shared/types/index'
@@ -30,9 +31,9 @@ export function ChangePasswordPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!current || !next || !confirm) { setError('모든 항목을 입력해 주세요.'); return }
-    if (next !== confirm) { setError('새 비밀번호가 일치하지 않습니다.'); return }
-    if (next.length < 8) { setError('새 비밀번호는 8자 이상이어야 합니다.'); return }
+    if (!current || !next || !confirm) { setError(t('모든 항목을 입력해 주세요.')); return }
+    if (next !== confirm) { setError(t('새 비밀번호가 일치하지 않습니다.')); return }
+    if (next.length < 8) { setError(t('새 비밀번호는 8자 이상이어야 합니다.')); return }
     setLoading(true)
     setError('')
     try {
@@ -41,7 +42,7 @@ export function ChangePasswordPage() {
       const role = session?.user.role ?? 'SALES'
       navigate(homeFor(role as Role), { replace: true })
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '비밀번호 변경 실패')
+      setError(err instanceof Error ? err.message : t('비밀번호 변경 실패'))
     } finally {
       setLoading(false)
     }
@@ -51,16 +52,16 @@ export function ChangePasswordPage() {
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.logo}>EV<b style={styles.logoBold}>&</b>Solution</div>
-        <h2 style={styles.title}>비밀번호 변경</h2>
+        <h2 style={styles.title}>{t('비밀번호 변경')}</h2>
         {isMustChange && (
           <div style={styles.notice}>
-            최초 로그인입니다. 임시 비밀번호를 변경해 주세요.
+            {t('최초 로그인입니다. 임시 비밀번호를 변경해 주세요.')}
           </div>
         )}
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <div style={styles.fieldRow}>
-            <label style={styles.label}>현재 비밀번호</label>
+            <label style={styles.label}>{t('현재 비밀번호')}</label>
             <input
               type="password"
               value={current}
@@ -68,11 +69,11 @@ export function ChangePasswordPage() {
               style={styles.input}
               disabled={loading}
               autoComplete="current-password"
-              placeholder="현재(임시) 비밀번호"
+              placeholder={t('현재(임시) 비밀번호')}
             />
           </div>
           <div style={styles.fieldRow}>
-            <label style={styles.label}>새 비밀번호 (8자 이상)</label>
+            <label style={styles.label}>{t('새 비밀번호 (8자 이상)')}</label>
             <input
               type="password"
               value={next}
@@ -80,11 +81,11 @@ export function ChangePasswordPage() {
               style={styles.input}
               disabled={loading}
               autoComplete="new-password"
-              placeholder="새 비밀번호"
+              placeholder={t('새 비밀번호')}
             />
           </div>
           <div style={styles.fieldRow}>
-            <label style={styles.label}>새 비밀번호 확인</label>
+            <label style={styles.label}>{t('새 비밀번호 확인')}</label>
             <input
               type="password"
               value={confirm}
@@ -92,18 +93,18 @@ export function ChangePasswordPage() {
               style={styles.input}
               disabled={loading}
               autoComplete="new-password"
-              placeholder="새 비밀번호 재입력"
+              placeholder={t('새 비밀번호 재입력')}
             />
           </div>
           {error && <div style={styles.error}>{error}</div>}
           <button type="submit" style={styles.submitBtn} disabled={loading}>
-            {loading ? '변경 중…' : '비밀번호 변경'}
+            {loading ? t('변경 중…') : t('비밀번호 변경')}
           </button>
         </form>
 
         {!isMustChange && (
           <button style={styles.cancelBtn} onClick={() => navigate(-1)} disabled={loading}>
-            취소
+            {t('취소')}
           </button>
         )}
       </div>

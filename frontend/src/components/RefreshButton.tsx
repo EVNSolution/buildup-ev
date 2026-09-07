@@ -1,4 +1,5 @@
 import { useRefreshApi } from '../contexts/RefreshContext'
+import { t } from '../i18n'
 
 /**
  * 새로고침 — **탭 줄 오른쪽 끝**에 붙는 작은 화살표.
@@ -21,8 +22,8 @@ export function RefreshButton() {
       type="button"
       onClick={run}
       disabled={running}
-      title="지금 화면을 다시 불러옵니다"
-      aria-label="새로고침"
+      title={t('지금 화면을 다시 불러옵니다')}
+      aria-label={t('새로고침')}
       style={{ ...s.btn, ...(running ? s.btnBusy : null) }}
     >
       {/*

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import type { ApiPricingBundle, ApiQuote } from '@shared/types/index'
 import { fetchPricingBundle } from '../api/models'
 import { customerViewGroups } from './CustomerViewModal'
@@ -34,7 +35,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
     let alive = true
     fetchPricingBundle(quote.model_code)
       .then(b => { if (alive) setBundle(b) })
-      .catch(() => { if (alive) setBundleErr('옵션 이름을 불러오지 못했습니다 — 코드로 표시합니다') })
+      .catch(() => { if (alive) setBundleErr(t('옵션 이름을 불러오지 못했습니다 — 코드로 표시합니다')) })
     return () => { alive = false }
   }, [quote.model_code])
 
@@ -54,24 +55,24 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
           {quote.quote_no ?? `#${quote.id}`} — 배정된 문의
         </div>
         <div style={m.desc}>
-          고객이 공개 화면에서 직접 접수한 문의입니다. 내용을 확인한 뒤 접수하면 담당자로 지정됩니다.
+          {t('고객이 공개 화면에서 직접 접수한 문의입니다. 내용을 확인한 뒤 접수하면 담당자로 지정됩니다.')}
         </div>
 
         <div style={m.scroll}>
           {/* 금액을 맨 위에 — 받을지 말지를 가장 먼저 가르는 값이다 */}
           <div style={m.moneyRow}>
-            <span style={m.moneyLabel}>실구매가(기타 포함)</span>
+            <span style={m.moneyLabel}>{t('실구매가(기타 포함)')}</span>
             <span style={m.moneyValue}>{won(quote.final_price)}</span>
           </div>
 
-          <div style={m.groupTitle}>선택 사양</div>
+          <div style={m.groupTitle}>{t('선택 사양')}</div>
           {picked.length === 0 ? (
-            <div style={m.empty}>선택한 옵션이 없습니다.</div>
+            <div style={m.empty}>{t('선택한 옵션이 없습니다.')}</div>
           ) : (
             <table style={m.table}>
               <tbody>
                 <tr>
-                  <td style={m.tdLabel}>차종</td>
+                  <td style={m.tdLabel}>{t('차종')}</td>
                   <td style={m.tdValue}>{quote.model_code}</td>
                 </tr>
                 {picked.map(o => (
@@ -93,7 +94,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
                   {g.rows.map(([label, value]) => (
                     <tr key={label}>
                       <td style={m.tdLabel}>{label}</td>
-                      <td style={value ? m.tdValue : m.tdEmpty}>{value || '입력 없음'}</td>
+                      <td style={value ? m.tdValue : m.tdEmpty}>{value || t('입력 없음')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -103,10 +104,10 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
         </div>
 
         <div style={m.actions}>
-          <button style={BTN.secondary} onClick={onClose} disabled={busy}>닫기</button>
+          <button style={BTN.secondary} onClick={onClose} disabled={busy}>{t('닫기')}</button>
           {onAccept && (
             <button style={busy ? BTN.disabled : BTN.primary} disabled={busy} onClick={onAccept}>
-              {busy ? '처리 중' : '접수'}
+              {busy ? t('처리 중') : t('접수')}
             </button>
           )}
         </div>

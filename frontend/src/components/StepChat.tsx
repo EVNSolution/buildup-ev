@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { promoteChatPhoto } from '../api/steps'
 import { PhotoViewer } from './PhotoViewer'
@@ -71,7 +72,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
       setPromoted(prev => new Set(prev).add(fileId))
       onRead()   // 증빙이 늘었으니 바깥 목록도 다시 읽게 한다
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '증빙으로 등록하지 못했습니다')
+      setErr(e instanceof Error ? e.message : t('증빙으로 등록하지 못했습니다'))
     } finally { setPromoting(null) }
   }
 
@@ -93,9 +94,9 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
       setPanelH(Math.max(240, Math.round(visibleHeight() / (zoom || 1))))
     }
     fit()
-    const t = setTimeout(fit, 120)
+    const timer = setTimeout(fit, 120)
     const off = onVisibleHeightChange(fit)
-    return () => { off(); clearTimeout(t) }
+    return () => { off(); clearTimeout(timer) }
   }, [])
 
   useEffect(() => {
@@ -103,7 +104,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
     setRows(null); setErr('')
     fetchComments(orderId, stepCode)
       .then(d => { if (!alive) return; setRows(d.comments); setMe(d.me); onRead() })
-      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
+      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : t('불러오지 못했습니다')) })
     return () => { alive = false }
     // onRead 는 매 렌더 새 함수라 넣으면 무한 루프가 된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +160,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
       setRows(prev => [...(prev ?? []), row])
       setText(''); setImage(null)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '전송하지 못했습니다')
+      setErr(e instanceof Error ? e.message : t('전송하지 못했습니다'))
     } finally { setBusy(false) }
   }
 
@@ -187,15 +188,15 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
             <div style={s.title}>{stepLabel}</div>
             <div style={s.sub}>주문 #{orderId} · 단계별 대화</div>
           </div>
-          <button style={s.close} onClick={onClose} aria-label="닫기">✕</button>
+          <button style={s.close} onClick={onClose} aria-label={t('닫기')}>✕</button>
         </header>
 
         <div ref={listRef} style={s.body}>
-          {rows === null && <div style={s.muted}>불러오는 중…</div>}
+          {rows === null && <div style={s.muted}>{t('불러오는 중…')}</div>}
           {rows?.length === 0 && (
             <div style={s.empty}>
               아직 오간 대화가 없습니다.
-              {canWrite && <><br />이 단계에 대해 남기면 상대에게 알림이 갑니다.</>}
+              {canWrite && <><br />{t('이 단계에 대해 남기면 상대에게 알림이 갑니다.')}</>}
             </div>
           )}
           {rows?.map(c => {
@@ -204,7 +205,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
               <div key={c.id} style={mine ? s.mineWrap : s.themWrap}>
                 <div style={s.meta}>
                   {c.author_name ?? c.author}
-                  <span style={s.role}>{ROLE_LABEL[c.author_role] ?? c.author_role}</span>
+                  <span style={s.role}>{t(ROLE_LABEL[c.author_role] ?? c.author_role)}</span>
                   <span style={s.time}>{stamp(c.created_at)}</span>
                 </div>
                 <div style={mine ? s.mine : s.them}>
@@ -216,9 +217,9 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                     <button
                       style={s.photoBtn}
                       onClick={() => setViewing(c.image_file_id!)}
-                      aria-label="사진 크게 보기"
+                      aria-label={t('사진 크게 보기')}
                     >
-                      <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} />
                     </button>
                   )}
                   {c.body}
@@ -233,11 +234,11 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                     style={mine ? { ...s.promote, alignSelf: 'flex-end' } : s.promote}
                     disabled={promoting === c.image_file_id}
                     onClick={() => void promote(c.image_file_id!)}
-                    title="이 사진을 이 단계의 「검수 사진」으로 등록합니다"
+                    title={t('이 사진을 이 단계의 「검수 사진」으로 등록합니다')}
                   >
-                    {promoted.has(c.image_file_id) ? '✓ 검수 사진으로 등록됨'
-                      : promoting === c.image_file_id ? '등록 중…'
-                      : '검수 사진으로 등록'}
+                    {promoted.has(c.image_file_id) ? t('✓ 검수 사진으로 등록됨')
+                      : promoting === c.image_file_id ? t('등록 중…')
+                      : t('검수 사진으로 등록')}
                   </button>
                 )}
               </div>
@@ -257,7 +258,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
             busy={busy}
           />
         ) : (
-          <div style={s.readonly}>조회만 가능합니다</div>
+          <div style={s.readonly}>{t('조회만 가능합니다')}</div>
         )}
 
       {/* 사진 크게 보기 — 뒤로가기 한 번으로 대화로 돌아온다 */}

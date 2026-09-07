@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /**
  * 올리기 전에 사진을 줄인다 — **브라우저에서.**
  *
@@ -27,7 +28,7 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => { URL.revokeObjectURL(url); resolve(img) };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 읽지 못했습니다')) };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(t('이미지를 읽지 못했습니다'))) };
     img.src = url;
   });
 }

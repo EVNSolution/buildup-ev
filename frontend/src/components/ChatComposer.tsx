@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { safeBottom } from '../styles/safeArea'
 import { PhotoViewer } from './PhotoViewer'
@@ -17,7 +18,7 @@ import { ClipIcon, SendIcon } from './icons/ChatIcons'
  * 가운데 정렬이면 줄이 늘 때마다 버튼이 같이 떠올라 자리가 흔들린다.
  */
 export function ChatComposer({
-  text, onTextChange, image, onImageChange, onSend, busy, placeholder = '내용을 입력하세요', above,
+  text, onTextChange, image, onImageChange, onSend, busy, placeholder = t('내용을 입력하세요'), above,
 }: {
   text: string
   onTextChange: (v: string) => void
@@ -96,11 +97,11 @@ export function ChatComposer({
       {image && (
         <PhotoViewer
           src={preview}
-          alt="보낼 사진"
+          alt={t('보낼 사진')}
           onClose={() => onImageChange(null)}
           action={
             <button style={s.sendTop} onClick={onSend} disabled={busy}>
-              {busy ? '보내는 중…' : '보내기'}
+              {busy ? t('보내는 중…') : t('보내기')}
               <SendIcon size={18} />
             </button>
           }
@@ -116,8 +117,8 @@ export function ChatComposer({
         <button
           style={s.icon}
           onClick={() => fileRef.current?.click()}
-          title="사진 첨부"
-          aria-label="사진 첨부"
+          title={t('사진 첨부')}
+          aria-label={t('사진 첨부')}
         ><ClipIcon /></button>
         <input
           ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
@@ -153,8 +154,8 @@ export function ChatComposer({
           style={busy || empty ? s.iconOff : s.iconSend}
           disabled={busy || empty}
           onClick={onSend}
-          title="보내기"
-          aria-label="보내기"
+          title={t('보내기')}
+          aria-label={t('보내기')}
         ><SendIcon /></button>
       </div>
     </div>

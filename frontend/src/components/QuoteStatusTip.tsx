@@ -6,6 +6,7 @@
  *    같은 것을 두 벌 두면 이런 식으로 조용히 갈린다.
  */
 import { TIP_WIDTH } from './Tooltip'
+import { t } from '../i18n'
 
 export const QUOTE_STATUS_FLOW = [
   { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
@@ -22,7 +23,7 @@ export const QUOTE_TIP_WIDTH = TIP_WIDTH.wide
 export function quoteStatusTip(status: string): React.ReactNode {
   return (
     <div>
-      <div style={s.title}>견적 상태</div>
+      <div style={s.title}>{t('견적 상태')}</div>
       {QUOTE_STATUS_FLOW.map((s2, i) => {
         const on = s2.key === status
         return (
@@ -33,13 +34,13 @@ export function quoteStatusTip(status: string): React.ReactNode {
               「← 현재」는 **이름 바로 뒤**에 붙인다. 줄 끝에 두면 설명글이 접힐 때
               혼자 떨어져 나가, 어느 단계가 지금인지 읽기 어려워진다.
             */}
-            {on && <span style={s.cur}>← 현재</span>}
+            {on && <span style={s.cur}>{t('← 현재')}</span>}
             {/* 접힐 수 있는 것은 설명글 하나뿐이다 — 접혀도 줄이 무너지지 않는다 */}
             <span style={s.desc}>({s2.desc})</span>
           </div>
         )
       })}
-      {status === 'expired' && <div style={s.expired}>만료/취소된 견적입니다</div>}
+      {status === 'expired' && <div style={s.expired}>{t('만료/취소된 견적입니다')}</div>}
     </div>
   )
 }

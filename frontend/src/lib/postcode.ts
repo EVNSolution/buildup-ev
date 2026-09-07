@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /**
  * 주소 검색 — 카카오(다음) 우편번호 서비스.
  *
@@ -38,7 +39,7 @@ function loadScript(): Promise<void> {
     el.src = SCRIPT_SRC
     el.async = true
     el.onload = () => resolve()
-    el.onerror = () => { loading = null; reject(new Error('주소 검색을 불러오지 못했습니다')) }
+    el.onerror = () => { loading = null; reject(new Error(t('주소 검색을 불러오지 못했습니다'))) }
     document.head.appendChild(el)
   })
   return loading
@@ -65,7 +66,7 @@ export function preloadPostcode(): void {
  */
 export async function searchAddress(onPick: (address: string, zonecode: string) => void): Promise<void> {
   const open = () => {
-    if (!window.daum?.Postcode) throw new Error('주소 검색을 불러오지 못했습니다')
+    if (!window.daum?.Postcode) throw new Error(t('주소 검색을 불러오지 못했습니다'))
     new window.daum.Postcode({
       oncomplete: (d) => onPick(format(d), d.zonecode),
     }).open()

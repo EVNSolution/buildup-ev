@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { gateReason } from '../lib/gateReason'
+import { dueLabel } from '../lib/dueLabel'
+import { t , tf} from '../i18n'
 import {
   TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
   stepsFor, stepMapFor, EXTRA_EVIDENCE,
@@ -77,7 +80,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   /** 완료 전에 확인해야 하는 단계에서, 확인을 마친 것들(서명본 내려받기 등) */
   const [acked, setAcked] = useState<Set<string>>(new Set())
   function load() {
-    fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : '단계 정보를 불러오지 못했습니다'))
+    fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : t('단계 정보를 불러오지 못했습니다')))
   }
   useEffect(() => { load() }, [orderId])   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -98,7 +101,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   const doneCodes = useMemo(() => new Set(states.filter(s => s.status === 'done').map(s => s.code)), [states])
 
   if (err && !steps) return <div style={s.err}>{err}</div>
-  if (!steps || !res) return <div style={s.muted}>단계를 불러오는 중입니다.</div>
+  if (!steps || !res) return <div style={s.muted}>{t('단계를 불러오는 중입니다.')}</div>
 
   const byCode = new Map(steps.map(x => [x.code, x]))
   const phaseOf = (d: StepDef): Phase =>
@@ -112,14 +115,14 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
     try {
       await completeStep(orderId, code, def.dateLabel ? dates[code] : undefined)
       load()
-    } catch (e) { setErr(e instanceof Error ? e.message : '완료 처리에 실패했습니다') }
+    } catch (e) { setErr(e instanceof Error ? e.message : t('완료 처리에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
   async function handleUndo(code: string) {
     setBusy(code); setErr('')
     try { await undoStep(orderId, code); load() }
-    catch (e) { setErr(e instanceof Error ? e.message : '완료 취소에 실패했습니다') }
+    catch (e) { setErr(e instanceof Error ? e.message : t('완료 취소에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
@@ -141,7 +144,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
         ok++
       }
     } catch (e) {
-      const why = e instanceof Error ? e.message : '파일 등록에 실패했습니다'
+      const why = e instanceof Error ? e.message : t('파일 등록에 실패했습니다')
       const rest = picked[ok]?.name
       setErr(picked.length > 1 ? `${ok}장 등록 후 실패${rest ? ` (${rest})` : ''} — ${why}` : why)
     } finally {
@@ -153,7 +156,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   async function handleDelete(fileId: number) {
     setBusy('f' + fileId); setErr('')
     try { await deleteStepFile(orderId, fileId); load() }
-    catch (e) { setErr(e instanceof Error ? e.message : '파일 삭제에 실패했습니다') }
+    catch (e) { setErr(e instanceof Error ? e.message : t('파일 삭제에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
@@ -182,11 +185,11 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
       */}
       <div style={s.record}>
         <Rec label="발주" value={res.order.assigned_at?.slice(0, 10) ?? '—'} />
-        <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? '미수락'} />
+        <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? t('미수락')} />
         {/* 납기 옆에 「n일 경과」·「n일 전」을 붙인다 — 날짜만으로는 급한지 세어 봐야 안다 */}
         <Rec
           label="납기"
-          value={res.order.delivery_due ? `${res.order.delivery_due}${due.label ? `  ${due.label}` : ''}` : '—'}
+          value={res.order.delivery_due ? `${res.order.delivery_due}${dueLabel(due) ? `  ${dueLabel(due)}` : ''}` : '—'}
           strong={!!res.order.delivery_due}
           tone={due.state === 'overdue' ? 'late' : undefined}
         />
@@ -201,7 +204,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
         return (
           <section key={track} style={s.track}>
             <div style={s.trackHead}>
-              <span style={s.trackName}>{TRACK_LABEL[track]}</span>
+              <span style={s.trackName}>{t(TRACK_LABEL[track])}</span>
               <span style={s.trackBar}>
                 {list.map(d => {
                   const p = phaseOf(d)
@@ -238,7 +241,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     <span style={phase === 'done' ? s.markDone : phase === 'now' ? s.markNow : s.markLater}>
                       {phase === 'done' ? '✓' : phase === 'now' ? '●' : '○'}
                     </span>
-                    <span style={phase === 'later' ? s.nameLater : s.name}>{def.label}</span>
+                    <span style={phase === 'later' ? s.nameLater : s.name}>{t(def.label)}</span>
 
                     {/*
                       **완료 취소는 단계 이름 바로 옆**에 둔다. 오른쪽 끝에 있으면
@@ -253,7 +256,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                         style={busy === def.code ? s.undoBtnOff : s.undoBtn}
                         disabled={busy === def.code}
                         onClick={() => handleUndo(def.code)}
-                      >{busy === def.code ? '처리 중' : '완료 취소'}</button>
+                      >{busy === def.code ? t('처리 중') : t('완료 취소')}</button>
                     )}
                     {/* 지연은 숫자로 말한다 — 「지연」만으로는 얼마나 늦었는지 모른다 */}
                     {st.stalled && st.overdue_days != null && (
@@ -286,10 +289,10 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                         style={gate.ok && dateOk && ackOk && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
                         disabled={!gate.ok || !dateOk || !ackOk || busy === def.code}
                         onClick={() => handleComplete(def.code)}
-                      >{busy === def.code ? '처리 중' : '완료'}</button>
+                      >{busy === def.code ? t('처리 중') : t('완료')}</button>
                     )}
                     {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
-                      <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
+                      <span style={s.autoTag}>{t(ACTOR_LABEL[def.actor])} 발송 시 처리됩니다</span>
                     )}
 
                     {/*
@@ -300,10 +303,10 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     <button
                       style={s.chatBtn}
                       onClick={() => setChat({ code: def.code, label: def.label })}
-                      title={`${def.label} 대화`}
+                      title={tf('{0} 대화', t(def.label))}
                     >
                       대화
-                      {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label="안 읽은 대화 있음" />}
+                      {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label={t('안 읽은 대화 있음')} />}
                     </button>
                   </div>
 
@@ -312,7 +315,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     <div style={s.body}>
                       {needDate && (
                         <div style={s.dateRow}>
-                          <label style={s.label}>{def.dateLabel}<span style={s.req}> · 필수</span></label>
+                          <label style={s.label}>{def.dateLabel}<span style={s.req}> {t('· 필수')}</span></label>
                           <input type="date" style={s.date} value={dates[def.code] ?? ''}
                             onChange={e => setDates(p => ({ ...p, [def.code]: e.target.value }))} />
                         </div>
@@ -329,12 +332,12 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                             style={acked.has(def.code) ? s.ackDone : BTN.row}
                             onClick={() => {
                               // 앱(PWA)에는 탭이 없다 — openPdf 가 갈라서 처리한다
-                              openPdf(`/api/v1/orders/${orderId}/tuning/signed`, '튜닝신청서_서명본.pdf')
+                              openPdf(`/api/v1/orders/${orderId}/tuning/signed`, t('튜닝신청서_서명본.pdf'))
                               setAcked(p => new Set(p).add(def.code))
                             }}
                           >{acked.has(def.code) ? `✓ ${def.ackLabel}` : def.ackLabel}</button>
                           <span style={s.ackHint}>
-                            {acked.has(def.code) ? '내려받았습니다' : '서명본을 내려받아야 완료 처리할 수 있습니다'}
+                            {acked.has(def.code) ? t('내려받았습니다') : t('서명본을 내려받아야 완료 처리할 수 있습니다')}
                           </span>
                         </div>
                       )}
@@ -358,7 +361,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                       ))}
 
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
-                      {!gate.ok && <div style={s.blocked}>{gate.reason}</div>}
+                      {!gate.ok && <div style={s.blocked}>{gateReason(gate)}</div>}
                       {gate.ok && !dateOk && <div style={s.blocked}>{def.dateLabel}을(를) 선택하십시오</div>}
                     </div>
                   )}
@@ -448,22 +451,22 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
     <div style={s.evidence}>
       <div style={s.evidenceHead}>
         <span style={files.length > 0 ? s.evidenceOk : optional ? s.evidenceOpt : s.evidenceNeed}>
-          {files.length > 0 ? '✓' : '·'} {EVIDENCE_LABEL[kind]}
+          {files.length > 0 ? '✓' : '·'} {t(EVIDENCE_LABEL[kind])}
           {/*
             필수인지 선택인지 **둘 다 적는다.** 예전엔 선택일 때만 「· 선택」을 적었는데,
             아무 표시가 없는 항목이 필수인지 그냥 안 적힌 것인지 알 수 없었다.
             날짜 칸(`· 필수`)과 같은 표기를 쓴다 — 같은 뜻이면 같게 보여야 한다.
           */}
           {optional
-            ? <span style={s.optTag}> · 선택</span>
-            : <span style={s.req}> · 필수</span>}
+            ? <span style={s.optTag}> {t('· 선택')}</span>
+            : <span style={s.req}> {t('· 필수')}</span>}
           {files.length > 1 && <span style={s.optTag}> · {files.length}장</span>}
         </span>
         {/* 등록 버튼은 **대화 버튼과 같은 줄 끝**에 선다 — 오른쪽 끝이 나란해야 눈이 편하다 */}
         <span style={s.spacer} />
         {canEdit && (
           <button style={busy ? BTN.rowDisabled : BTN.row} disabled={busy} onClick={() => ref.current?.click()}>
-            {busy ? '올리는 중' : files.length > 0 ? '추가' : '업로드'}
+            {busy ? t('올리는 중') : files.length > 0 ? t('추가') : t('업로드')}
           </button>
         )}
         {/* 여러 장 고를 수 있다 — 검수 사진은 한 장으로 끝나는 일이 드물다 */}
@@ -477,7 +480,7 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
             {f.name || `파일 ${f.id}`}
           </DocLink>
           <span style={s.fileSize}>{f.size ? fmtBytes(f.size) : ''}</span>
-          {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>삭제</button>}
+          {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>{t('삭제')}</button>}
         </div>
       ))}
     </div>

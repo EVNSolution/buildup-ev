@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t , tf} from '../i18n'
 import { cancelOrder } from '../api/orders'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
@@ -26,32 +27,34 @@ export function OrderRemoveModal({ orderId, onClose, onDone }: {
   async function go() {
     setBusy(true); setErr('')
     try { await cancelOrder(orderId, reason.trim()); onDone() }
-    catch (e) { setErr(e instanceof Error ? e.message : '주문 삭제에 실패했습니다') }
+    catch (e) { setErr(e instanceof Error ? e.message : t('주문 삭제에 실패했습니다')) }
     finally { setBusy(false) }
   }
 
   return (
     <div style={s.overlay} onClick={onClose}>
       <div style={s.box} onClick={e => e.stopPropagation()}>
-        <div style={s.title}>주문 #{orderId} 을(를) 삭제합니다</div>
-        <div style={s.desc}>
-          목록에서 빠집니다. 견적은 <b>계약완료</b>로 돌아가 다시 배정할 수 있고,
-          주문 기록과 그동안의 서류는 <b>지워지지 않습니다.</b>
-        </div>
-        <label style={s.label}>삭제 사유<span style={s.req}> · 필수</span></label>
+        <div style={s.title}>{tf('주문 #{0} 을(를) 삭제합니다', orderId)}</div>
+        {/*
+          한 문장을 강조 둘로 토막 내 두면 영어로 옮길 수 없다 — 어순이 달라 조각의
+          경계가 아예 달라진다. **문장을 통째로** 사전에 넣고 강조는 포기했다.
+          잃는 것은 굵은 글씨 둘, 얻는 것은 말이 되는 영어다.
+        */}
+        <div style={s.desc}>{tf('목록에서 빠집니다. 견적은 {0}로 돌아가 다시 배정할 수 있고, 주문 기록과 그동안의 서류는 지워지지 않습니다.', t('계약완료'))}</div>
+        <label style={s.label}>{t('삭제 사유')}<span style={s.req}> {t('· 필수')}</span></label>
         <textarea
           style={s.input} rows={2} value={reason} maxLength={500}
-          placeholder="예) 중복 배정 / 고객 요청으로 제작 보류"
+          placeholder={t('예) 중복 배정 / 고객 요청으로 제작 보류')}
           onChange={e => setReason(e.target.value)}
         />
         {err && <div style={s.err}>{err}</div>}
         <div style={s.actions}>
-          <button style={BTN.secondary} onClick={onClose} disabled={busy}>취소</button>
+          <button style={BTN.secondary} onClick={onClose} disabled={busy}>{t('취소')}</button>
           <button
             style={reason.trim() && !busy ? s.goBtn : BTN.disabled}
             disabled={!reason.trim() || busy}
             onClick={() => void go()}
-          >{busy ? '처리 중…' : '삭제'}</button>
+          >{busy ? t('처리 중…') : t('삭제')}</button>
         </div>
       </div>
     </div>

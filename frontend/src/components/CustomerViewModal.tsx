@@ -1,4 +1,5 @@
 import type { ApiQuote } from '@shared/types/index'
+import { t } from '../i18n'
 import { EmailLogFor } from './EmailLog'
 import { useEscapeClose } from '../lib/escClose'
 
@@ -24,47 +25,48 @@ export interface ViewGroup { title: string; rows: [string, string][] }
  */
 export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
-  const t = (k: string) => { const v = inp[k]; return v == null || v === '' ? '' : String(v) }
-  const isCorp = t('biz_type') === 'corporate'
-  const yn = (k: string) => (inp[k] === true ? '예' : '아니오')
+  /** 견적 입력값 한 칸 — 빈 값은 빈 글자로. (이름이 `t` 였는데 번역 함수와 겹쳐 바꿨다) */
+  const val = (k: string) => { const v = inp[k]; return v == null || v === '' ? '' : String(v) }
+  const isCorp = val('biz_type') === 'corporate'
+  const yn = (k: string) => (inp[k] === true ? t('예') : t('아니오'))
 
   return [
     {
-      title: '고객',
+      title: t('고객'),
       rows: [
-        [isCorp ? '상호' : '성명', quote.customer?.name ?? ''],
-        ...(isCorp ? [['대표이사', t('ceo_name')] as [string, string]] : []),
-        ['사업자 구분', BIZ_KO[t('biz_type')] ?? t('biz_type')],
-        ['연락처', quote.customer?.phone ?? ''],
-        ['이메일', quote.customer?.email ?? ''],
-        ['세부주소', quote.customer?.address ?? ''],
+        [isCorp ? t('상호') : t('성명'), quote.customer?.name ?? ''],
+        ...(isCorp ? [[t('대표이사'), val('ceo_name')] as [string, string]] : []),
+        [t('사업자 구분'), t(BIZ_KO[val('biz_type')] ?? val('biz_type'))],
+        [t('연락처'), quote.customer?.phone ?? ''],
+        [t('이메일'), quote.customer?.email ?? ''],
+        [t('세부주소'), quote.customer?.address ?? ''],
       ],
     },
     {
-      title: '보조금 조건',
+      title: t('보조금 조건'),
       rows: [
-        ['지역', t('region')],
-        ['소상공인', yn('is_sosang')],
-        ['화물운송 허가', yn('has_transport_license')],
-        ['경유차', DIESEL_KO[t('diesel_status')] ?? t('diesel_status')],
+        [t('지역'), val('region')],
+        [t('소상공인'), yn('is_sosang')],
+        [t('화물운송 허가'), yn('has_transport_license')],
+        [t('경유차'), DIESEL_KO[val('diesel_status')] ?? val('diesel_status')],
       ],
     },
     {
-      title: '계약서 정보',
+      title: t('계약서 정보'),
       rows: [
-        ['계약 당사자', t('contract_party')],
-        [isCorp ? '사업자번호' : '생년월일', t('buyer_regno')],
-        ['유선번호', t('buyer_tel')],
-        ['대리인', t('buyer_agent')],
-        ['관계', t('buyer_relation')],
+        [t('계약 당사자'), val('contract_party')],
+        [isCorp ? t('사업자번호') : t('생년월일'), val('buyer_regno')],
+        [t('유선번호'), val('buyer_tel')],
+        [t('대리인'), val('buyer_agent')],
+        [t('관계'), val('buyer_relation')],
       ],
     },
     {
-      title: '결제 조건',
+      title: t('결제 조건'),
       rows: [
-        ['선수금 비율', t('down_payment_rate') ? `${Math.round(Number(t('down_payment_rate')) * 100)}%` : ''],
-        ['할부 개월', t('installment_months') === '0' ? '일시불' : (t('installment_months') ? `${t('installment_months')}개월` : '')],
-        ['메모', t('memo')],
+        [t('선수금 비율'), val('down_payment_rate') ? `${Math.round(Number(val('down_payment_rate')) * 100)}%` : ''],
+        [t('할부 개월'), val('installment_months') === '0' ? t('일시불') : (val('installment_months') ? `${val('installment_months')}개월` : '')],
+        [t('메모'), val('memo')],
       ],
     },
   ]
@@ -78,7 +80,7 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
     <div style={modal.overlay} onClick={onClose}>
       <div style={{ ...modal.box, width: 520, maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>고객 정보 — {quote.quote_no ?? `#${quote.id}`}</div>
-        <div style={modal.desc}>조회 전용입니다. 값을 고치려면 영업 견적 목록의 「수정」을 이용하세요.</div>
+        <div style={modal.desc}>{t('조회 전용입니다. 값을 고치려면 영업 견적 목록의 「수정」을 이용하세요.')}</div>
         {groups.map(g => (
           <div key={g.title}>
             <div style={cv.groupTitle}>{g.title}</div>
@@ -87,7 +89,7 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
                 {g.rows.map(([label, value]) => (
                   <tr key={label}>
                     <td style={cv.tdLabel}>{label}</td>
-                    <td style={value ? cv.tdValue : cv.tdEmpty}>{value || '입력 없음'}</td>
+                    <td style={value ? cv.tdValue : cv.tdEmpty}>{value || t('입력 없음')}</td>
                   </tr>
                 ))}
               </tbody>
@@ -101,7 +103,7 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
         <EmailLogFor quoteId={quote.id} />
 
         <div style={modal.actions}>
-          <button style={modal.confirmBtn} onClick={onClose}>닫기</button>
+          <button style={modal.confirmBtn} onClick={onClose}>{t('닫기')}</button>
         </div>
       </div>
     </div>

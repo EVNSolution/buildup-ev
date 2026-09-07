@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 
 /**
  * 선수금 입력 — **비율과 금액 중 하나만 고른다.**
@@ -88,7 +89,7 @@ export function DownPaymentFields({ base, rate, amount, disabled, onChange, Fiel
         <input
           style={rateLocked ? lockedStyle : inputStyle}
           inputMode="decimal" value={pct} disabled={rateLocked}
-          placeholder={mode === 'amount' ? '금액에서 계산됨' : ''}
+          placeholder={mode === 'amount' ? t('금액에서 계산됨') : ''}
           onChange={e => editRate(e.target.value)}
         />
       </Field>
@@ -96,13 +97,13 @@ export function DownPaymentFields({ base, rate, amount, disabled, onChange, Fiel
         <input
           style={amountLocked ? lockedStyle : inputStyle}
           inputMode="numeric" value={won} disabled={amountLocked}
-          placeholder={mode === 'rate' ? '비율에서 계산됨' : ''}
+          placeholder={mode === 'rate' ? t('비율에서 계산됨') : ''}
           onChange={e => editAmount(e.target.value)}
         />
       </Field>
       {mode !== null && !disabled && (
         <div style={hint}>
-          {mode === 'rate' ? '비율' : '금액'}로 정했습니다 — 다른 쪽은 자동으로 계산됩니다.
+          {mode === 'rate' ? t('비율') : t('금액')}로 정했습니다 — 다른 쪽은 자동으로 계산됩니다.
           바꾸려면 적어 둔 칸을 비우세요.
         </div>
       )}

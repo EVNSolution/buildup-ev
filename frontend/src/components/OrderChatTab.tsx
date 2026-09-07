@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { PhotoViewer } from './PhotoViewer'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
@@ -77,7 +78,7 @@ export function OrderChatTab(
         const preferred = initialStep && steps.some(x => x.code === initialStep) ? initialStep : ''
         setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || steps[0]?.code || '')
       })
-      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
+      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : t('불러오지 못했습니다')) })
     return () => { alive = false }
   }, [orderId])
 
@@ -140,12 +141,12 @@ export function OrderChatTab(
       setRows(prev => [...(prev ?? []), row])
       setText(''); setImage(null)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '전송하지 못했습니다')
+      setErr(e instanceof Error ? e.message : t('전송하지 못했습니다'))
     } finally { setBusy(false) }
   }
 
   if (err && rows === null) return <div style={s.err}>{err}</div>
-  if (rows === null) return <div style={s.muted}>불러오는 중…</div>
+  if (rows === null) return <div style={s.muted}>{t('불러오는 중…')}</div>
 
   let lastDay = ''
   return (
@@ -157,7 +158,7 @@ export function OrderChatTab(
         {rows.length === 0 && (
           <div style={s.empty}>
             아직 오간 대화가 없습니다.
-            {canWrite && <><br />어느 단계에 대한 대화인지 고르고 남기면 상대에게 알림이 갑니다.</>}
+            {canWrite && <><br />{t('어느 단계에 대한 대화인지 고르고 남기면 상대에게 알림이 갑니다.')}</>}
           </div>
         )}
         {rows.map(c => {
@@ -174,7 +175,7 @@ export function OrderChatTab(
                   {/* 어느 단계 이야기인지 — 이것이 없으면 시간순 나열이 뒤죽박죽으로 읽힌다 */}
                   <span style={s.stepTag}>{label.get(c.step_code) ?? c.step_code}</span>
                   {c.author_name ?? c.author}
-                  <span style={s.role}>{ROLE_LABEL[c.author_role] ?? c.author_role}</span>
+                  <span style={s.role}>{t(ROLE_LABEL[c.author_role] ?? c.author_role)}</span>
                   <span style={s.time}>{stamp(c.created_at).slice(11)}</span>
                 </div>
                 <div style={mine ? s.mine : s.them}>
@@ -186,9 +187,9 @@ export function OrderChatTab(
                     <button
                       style={s.photoBtn}
                       onClick={() => setViewing(c.image_file_id!)}
-                      aria-label="사진 크게 보기"
+                      aria-label={t('사진 크게 보기')}
                     >
-                      <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} />
                     </button>
                   )}
                   {c.body}
@@ -215,13 +216,13 @@ export function OrderChatTab(
             라벨이 앞을 차지하면 칸이 입력줄보다 좁아져 줄이 어긋나 보였다(제보).
           */
           above={
-            <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label="단계 고르기">
+            <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label={t('단계 고르기')}>
               {steps.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
             </select>
           }
         />
       ) : (
-        <div style={s.readonly}>조회만 가능합니다</div>
+        <div style={s.readonly}>{t('조회만 가능합니다')}</div>
       )}
 
       {/* 사진 크게 보기 — 뒤로가기 한 번으로 대화로 돌아온다 */}

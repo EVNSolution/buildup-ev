@@ -32,9 +32,17 @@ describe('납기 강조', () => {
   });
 
   it('🔴 날짜 옆에 「n일 전」·「n일 경과」를 붙인다', () => {
+    /*
+     * 영문화로 문구를 **화면에서 조립**하게 됐다 — shared 의 `due.label` 은 숫자를 이미
+     * 끼워서 돌려주므로 사전에서 찾을 수 없다(`납기 5일 경과`). state·days 로 다시 만든다.
+     * 지키는 뜻(날짜 옆에 남은 날을 붙인다)은 그대로다.
+     */
     const board = read('frontend/src/components/OrderStepsBoard.tsx');
-    expect(board).toMatch(/\{due\.label\}/);
+    expect(board).toMatch(/\{dueLabel\(due\)\}/);
     expect(board).toMatch(/dueTagOver/);
+    const lib = read('frontend/src/lib/dueLabel.ts');
+    expect(lib, '지난 건 문구가 없다').toMatch(/납기 \{0\}일 경과/);
+    expect(lib, '다가온 건 문구가 없다').toMatch(/납기 \{0\}일 전/);
   });
 
   it('🔴 줄 전체를 붉히는 것은 **지난 건만** — 다가온 건은 날짜만', () => {
@@ -81,7 +89,8 @@ describe('처리 필요 견적 — 기본은 접힘', () => {
     expect(perf).toMatch(/setAttentionOpen/);
     expect(perf).toMatch(/aria-expanded=\{attentionOpen\}/);
     // 건수는 접혀 있어도 보인다
-    expect(perf).toMatch(/처리 필요 견적 <span style=\{s\.count\}>\{attention\.length\}/);
+    // 영문화로 라벨이 {t('처리 필요 견적')} 이 됐다 — 옆에 건수가 붙는다는 것이 이 검사의 뜻이다
+    expect(perf).toMatch(/(?:\{t\('처리 필요 견적'\)\}|처리 필요 견적) <span style=\{s\.count\}>\{attention\.length\}/);
   });
 });
 

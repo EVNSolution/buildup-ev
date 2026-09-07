@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import type { ApiOrder } from '@shared/types/index'
 import { fetchOrders, acceptOrder, rejectOrder } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
@@ -39,7 +40,7 @@ export function MakerPage() {
     setLoading(true); setErr('')
     fetchOrders({})
       .then(setOrders)
-      .catch(e => setErr(e instanceof Error ? e.message : '주문 목록 로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('주문 목록 로드 실패')))
       .finally(() => setLoading(false))
   }
 
@@ -54,7 +55,7 @@ export function MakerPage() {
       setAcceptTarget(null)
       load()
     } catch (e: unknown) {
-      setAcceptErr(e instanceof Error ? e.message : '주문 수락 실패')
+      setAcceptErr(e instanceof Error ? e.message : t('주문 수락 실패'))
     } finally {
       setAcceptingId(null)
     }
@@ -71,7 +72,7 @@ export function MakerPage() {
       setAcceptTarget(null)
       load()
     } catch (e: unknown) {
-      setAcceptErr(e instanceof Error ? e.message : '주문 거부 실패')
+      setAcceptErr(e instanceof Error ? e.message : t('주문 거부 실패'))
     } finally {
       setAcceptingId(null)
     }
@@ -127,7 +128,7 @@ export function MakerPage() {
           <>
             {err && <div style={styles.errMsg}>{err}</div>}
             {loading ? (
-              <div style={styles.loading}>로딩 중…</div>
+              <div style={styles.loading}>{t('로딩 중…')}</div>
             ) : (
               /*
                 수락 대기 · 진행 중 · 완료 — **관리자 「주문 진행」과 같은 것을 본다.**

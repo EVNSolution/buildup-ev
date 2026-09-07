@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 
 /**
  * 지역 검색 선택 — 161개 목록이라 입력으로 좁혀서 고른다. **목록에 있는 값만** 선택된다.
@@ -44,7 +45,7 @@ export function RegionPicker({ regions, value, onChange }: {
     <div ref={boxRef} style={rp.wrap}>
       <input
         style={rp.input}
-        placeholder="지역을 검색해 선택하세요"
+        placeholder={t('지역을 검색해 선택하세요')}
         value={open ? query : value}
         onFocus={() => { setOpen(true); setQuery(''); setActive(0) }}
         onChange={e => { setQuery(e.target.value); setOpen(true); setActive(0) }}
@@ -59,7 +60,7 @@ export function RegionPicker({ regions, value, onChange }: {
       {open && (
         <div style={rp.list}>
           {list.length === 0
-            ? <div style={rp.empty}>검색 결과가 없습니다</div>
+            ? <div style={rp.empty}>{t('검색 결과가 없습니다')}</div>
             : list.map((r, i) => (
               <div
                 key={r}

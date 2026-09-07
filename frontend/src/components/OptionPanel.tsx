@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t, tf } from '../i18n'
 import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk, CustomOptionDraft } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
@@ -79,6 +80,10 @@ interface Props {
   onCustomOptionsChange?: (next: CustomOptionDraft[]) => void
 }
 
+/*
+ * ⚠️ label 은 **한국어 그대로 둔다.** 여기서 t() 를 부르면 모듈을 읽는 순간의 언어로 굳어
+ *    언어를 바꿔도 안 따라온다(모듈 최상위는 한 번만 평가된다). 옮기는 것은 그리는 자리에서.
+ */
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'vehicle', label: '차량 트림' },
   { key: 'body', label: '특장' },
@@ -150,16 +155,16 @@ export function OptionPanel({
   const lockedTab = (k: TabKey) => !!vehicleOnly && k !== 'vehicle'
   const unseen = TABS.filter((t) => !visited.has(t.key) && !lockedTab(t.key))
   const btnLabel = isSaving
-    ? '저장 중…'
+    ? t('저장 중…')
     : saveLabel && !unseen.length && !isUnsupported
     ? saveLabel
     : savedQuote
-    ? '새 견적 작성'
+    ? t('새 견적 작성')
     : isUnsupported
-    ? '내장탑 미정 — 확정 불가'
+    ? t('내장탑 미정 — 확정 불가')
     : unseen.length
-    ? `${unseen.map((t) => t.label).join('·')} 확인 필요`
-    : '견적 저장'
+    ? tf('{0} 확인 필요', unseen.map((tab) => t(tab.label)).join('·'))
+    : t('견적 저장')
 
   // 저장 완료 상태에서는 버튼이 '새 견적 작성' 이 된다 — 잠그면 다음 견적을 못 짠다.
   const btnDisabled = isSaving || (!savedQuote && (isUnsupported || unseen.length > 0))
@@ -188,13 +193,13 @@ export function OptionPanel({
             aria-disabled={lockedTab(tab.key)}
             style={tab.key === activeTab ? styles.tabOn
               : lockedTab(tab.key) ? styles.tabOff : styles.tab}
-            title={lockedTab(tab.key) ? '차량만 견적이라 특장 옵션을 고르지 않습니다' : undefined}
+            title={lockedTab(tab.key) ? t('차량만 견적이라 특장 옵션을 고르지 않습니다') : undefined}
             onClick={() => {
               if (lockedTab(tab.key)) return
               setActiveTab(tab.key); setVisited((v) => new Set(v).add(tab.key))
             }}
           >
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </div>

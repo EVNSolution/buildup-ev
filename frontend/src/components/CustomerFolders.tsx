@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t , tf} from '../i18n'
 import {
   fetchFolders, fetchFolder, folderFileUrl,
   type ApiFolderRow, type ApiFolder, type ApiFolderQuote, type ApiFolderDoc,
@@ -36,7 +37,7 @@ export function CustomerFolders({ mine }: {
   useEffect(() => {
     fetchFolders(mine)
       .then(setRows)
-      .catch(e => setErr(e instanceof Error ? e.message : '서류함을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('서류함을 불러오지 못했습니다')))
   }, [mine])
 
   // 사람들이 실제로 기억하는 것들 — 이름·연락처·생년월일(사업자번호)
@@ -60,7 +61,7 @@ export function CustomerFolders({ mine }: {
           value={q}
           onChange={e => setQ(e.target.value)}
         />
-        <span style={s.count}>{shown.length}명</span>
+        <span style={s.count}>{tf('{0}명', shown.length)}</span>
       </div>
 
       {shown.length === 0 && <div style={s.muted}>해당하는 고객이 없습니다.</div>}
@@ -82,7 +83,7 @@ export function CustomerFolders({ mine }: {
                     {r.merged > 1 && <span style={s.mergedTag}> · {r.merged}건 합침</span>}
                   </span>
                   <span style={s.cardSub}>
-                    {r.reg_no ?? r.phone ?? '연락처 없음'} · 견적 {r.quotes}건
+                    {r.reg_no ?? r.phone ?? t('연락처 없음')} · 견적 {r.quotes}건
                   </span>
                 </span>
                 <span style={s.cardAt}>{fmtWhen(r.last_activity)}</span>
@@ -104,7 +105,7 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
     setRes(null); setErr('')
     fetchFolder(folderKey, mine)
       .then(setRes)
-      .catch(e => setErr(e instanceof Error ? e.message : '서류를 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('서류를 불러오지 못했습니다')))
   }, [folderKey, mine])
 
   if (err) return <div style={s.body}><div style={s.err}>{err}</div></div>
@@ -125,7 +126,7 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
 
       {top && (
         <section style={s.topBox}>
-          <div style={s.topTag}>{top.frozenAt ? '최종본 · 서명 요청 시점' : '최근 견적'}</div>
+          <div style={s.topTag}>{top.frozenAt ? t('최종본 · 서명 요청 시점') : t('최근 견적')}</div>
           <QuoteCard q={top} folderKey={folderKey} mine={mine} />
         </section>
       )}
@@ -142,7 +143,7 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
       {res.orphanDocs.length > 0 && (
         <section style={s.histBox}>
           {/* 견적번호로 이을 수 없는 서류 — 버리지 않고 여기 모은다 */}
-          <div style={s.histTitle}>견적에 묶이지 않은 서류</div>
+          <div style={s.histTitle}>{t('견적에 묶이지 않은 서류')}</div>
           <div style={s.docs}>
             {withVersions(res.orphanDocs).map(({ d, ver, total }, i) => (
               <DocRow key={`${d.id}-${i}`} d={d} ver={ver} total={total} folderKey={folderKey} mine={mine} />
@@ -163,8 +164,8 @@ function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: numbe
       <div style={s.qHead}>
         <span style={s.qNo}>{q.quoteNo ?? `#${q.id}`}</span>
         {/* 특장만·차량만은 여기서 바로 갈린다 — 견적서를 열어 볼 필요가 없다 */}
-        {KIND_LABEL[q.kind] && <span style={q.kind === 'body' ? s.kindBody : s.kindVehicle}>{KIND_LABEL[q.kind]}</span>}
-        <span style={s.qStatus}>{STATUS_KO[q.status] ?? q.status}</span>
+        {KIND_LABEL[q.kind] && <span style={q.kind === 'body' ? s.kindBody : s.kindVehicle}>{t(KIND_LABEL[q.kind] ?? '')}</span>}
+        <span style={s.qStatus}>{t(STATUS_KO[q.status] ?? q.status)}</span>
         <span style={s.spacer} />
         {q.finalPrice != null && <span style={s.qPrice}>{fmtPrice(q.finalPrice)}</span>}
         <span style={s.qDate}>{q.createdAt.slice(0, 10)}</span>
@@ -183,7 +184,7 @@ function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: numbe
               <DocRow key={`${d.id}-${i}`} d={d} ver={ver} total={total} folderKey={folderKey} mine={mine} />
             ))}
           </div>
-        : <div style={s.noDocs}>아직 만들어진 서류가 없습니다.</div>}
+        : <div style={s.noDocs}>{t('아직 만들어진 서류가 없습니다.')}</div>}
     </div>
   )
 }
@@ -222,9 +223,9 @@ function DocRow({ d, ver, total, folderKey, mine }: { d: ApiFolderDoc; ver: numb
         href={folderFileUrl(folderKey, d.id, false, mine)}
         name={`${d.kind}${d.quoteNo ? `_${d.quoteNo}` : ''}.pdf`}
         style={s.link}
-      >열기</DocLink>
+      >{t('열기')}</DocLink>
       {/* 확인과 챙김은 다른 행동이라 따로 둔다 */}
-      <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>받기</a>
+      <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>{t('받기')}</a>
     </div>
   )
 }

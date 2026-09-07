@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../i18n'
 import { BackIcon } from './icons/ChatIcons'
 import { useBackClose } from '../lib/backClose'
 import { safeTop, safeBottom } from '../styles/safeArea'
@@ -12,7 +13,7 @@ import { safeTop, safeBottom } from '../styles/safeArea'
  *
  * 보내기 전 미리보기로도 쓴다 — 찍은 사진을 크게 확인하고 오른쪽 위에서 보낸다.
  */
-export function PhotoViewer({ src, alt = '사진', onClose, action }: {
+export function PhotoViewer({ src, alt = t('사진'), onClose, action }: {
   src: string
   alt?: string
   onClose: () => void
@@ -25,7 +26,7 @@ export function PhotoViewer({ src, alt = '사진', onClose, action }: {
   return (
     <div style={s.wrap} role="dialog" aria-modal="true" aria-label={alt}>
       <div style={s.bar}>
-        <button style={s.back} onClick={onClose} aria-label="뒤로">
+        <button style={s.back} onClick={onClose} aria-label={t('뒤로')}>
           <BackIcon />
         </button>
         {action}

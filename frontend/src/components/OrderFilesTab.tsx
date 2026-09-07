@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t , tf} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchFileIndex, fetchOrderFiles,
@@ -34,7 +35,7 @@ export function OrderFilesTab() {
   function load() {
     fetchFileIndex()
       .then(setRows)
-      .catch(e => setErr(e instanceof Error ? e.message : '파일 목록을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('파일 목록을 불러오지 못했습니다')))
   }
   useEffect(load, [])   // eslint-disable-line react-hooks/exhaustive-deps
   useScreenRefresh(load)
@@ -49,7 +50,7 @@ export function OrderFilesTab() {
   }, [rows, q])
 
   if (err) return <div style={s.err}>{err}</div>
-  if (!rows) return <div style={s.muted}>불러오는 중입니다.</div>
+  if (!rows) return <div style={s.muted}>{t('불러오는 중입니다.')}</div>
 
   if (picked) return <OrderFilePanel row={picked} onBack={() => setPicked(null)} />
 
@@ -59,29 +60,29 @@ export function OrderFilesTab() {
         <input
           style={s.search}
           type="search"
-          placeholder="고객명 · 견적번호 · 특장사로 찾기"
+          placeholder={t('고객명 · 견적번호 · 특장사로 찾기')}
           value={q}
           onChange={e => setQ(e.target.value)}
         />
-        <span style={s.count}>{shown.length}건</span>
+        <span style={s.count}>{tf('{0}건', shown.length)}</span>
       </div>
 
-      {shown.length === 0 && <div style={s.muted}>해당하는 주문이 없습니다.</div>}
+      {shown.length === 0 && <div style={s.muted}>{t('해당하는 주문이 없습니다.')}</div>}
 
       <div style={s.list}>
         {shown.map(r => (
           <button key={r.order_id} style={s.card} onClick={() => setPicked(r)}>
             <span style={s.cardMain}>
-              <span style={s.cardName}>{r.customer_name ?? '고객 미지정'}</span>
+              <span style={s.cardName}>{r.customer_name ?? t('고객 미지정')}</span>
               <span style={s.cardSub}>
-                {r.quote_no ?? `주문 ${r.order_id}`}
+                {r.quote_no ?? tf('주문 {0}', r.order_id)}
                 {r.maker_org ? ` · ${r.maker_org}` : ''}
               </span>
             </span>
             <span style={s.cardNums}>
               {/* 사진이 안 올라온 건을 눈으로 찾을 수 있게 — 0 도 숨기지 않는다 */}
-              <span style={r.uploads > 0 ? s.pill : s.pillZero}>업로드 {r.uploads}</span>
-              <span style={s.pillMuted}>자동생성 {r.generated}</span>
+              <span style={r.uploads > 0 ? s.pill : s.pillZero}>{tf('업로드 {0}', r.uploads)}</span>
+              <span style={s.pillMuted}>{tf('자동생성 {0}', r.generated)}</span>
             </span>
           </button>
         ))}
@@ -99,7 +100,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
     setFiles(null)
     fetchOrderFiles(row.order_id)
       .then(setFiles)
-      .catch(e => setErr(e instanceof Error ? e.message : '파일을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('파일을 불러오지 못했습니다')))
   }, [row.order_id])
 
   const counts = useMemo(() => {
@@ -112,18 +113,18 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
 
   return (
     <div>
-      <button style={s.back} onClick={onBack}>← 파일</button>
+      <button style={s.back} onClick={onBack}>{t('← 파일')}</button>
 
       <div style={s.head}>
-        <span style={s.headName}>{row.customer_name ?? '고객 미지정'}</span>
+        <span style={s.headName}>{row.customer_name ?? t('고객 미지정')}</span>
         <span style={s.headSub}>
-          {row.quote_no ?? `주문 ${row.order_id}`}
+          {row.quote_no ?? tf('주문 {0}', row.order_id)}
           {row.maker_org ? ` · ${row.maker_org}` : ''}
         </span>
       </div>
 
       {err && <div style={s.err}>{err}</div>}
-      {!files && !err && <div style={s.muted}>불러오는 중입니다.</div>}
+      {!files && !err && <div style={s.muted}>{t('불러오는 중입니다.')}</div>}
 
       {files && (
         <>
@@ -133,22 +134,22 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                 key={k}
                 style={filter === k ? s.chipOn : s.chip}
                 onClick={() => setFilter(k)}
-              >{k === 'all' ? '전체' : GROUP_LABEL[k]} {counts[k]}</button>
+              >{k === 'all' ? t('전체') : t(GROUP_LABEL[k])} {counts[k]}</button>
             ))}
           </div>
 
-          {shown.length === 0 && <div style={s.muted}>해당하는 파일이 없습니다.</div>}
+          {shown.length === 0 && <div style={s.muted}>{t('해당하는 파일이 없습니다.')}</div>}
 
           <div style={s.scroller}>
             <table style={s.table}>
               <thead>
                 <tr>
-                  <th style={s.th}>구분</th>
-                  <th style={s.th}>내용</th>
-                  <th style={s.th}>파일</th>
-                  <th style={s.th}>크기</th>
-                  <th style={s.th}>등록자</th>
-                  <th style={s.th}>등록일</th>
+                  <th style={s.th}>{t('구분')}</th>
+                  <th style={s.th}>{t('내용')}</th>
+                  <th style={s.th}>{t('파일')}</th>
+                  <th style={s.th}>{t('크기')}</th>
+                  <th style={s.th}>{t('등록자')}</th>
+                  <th style={s.th}>{t('등록일')}</th>
                   <th style={s.th}></th>
                 </tr>
               </thead>
@@ -156,23 +157,23 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                 {shown.map((f, i) => (
                   <tr key={`${f.url}-${i}`}>
                     <td style={s.td}>
-                      <span style={f.group === 'upload' ? s.tagUp : s.tagGen}>{GROUP_LABEL[f.group]}</span>
+                      <span style={f.group === 'upload' ? s.tagUp : s.tagGen}>{t(GROUP_LABEL[f.group])}</span>
                     </td>
                     <td style={s.td}>{f.label}</td>
                     <td style={s.td}>
                       <DocLink href={f.url} name={f.name ?? `${f.label}.pdf`} style={s.link}>
-                        {f.name || '열기'}
+                        {f.name || t('열기')}
                       </DocLink>
                     </td>
                     <td style={s.tdNum}>{f.size ? fmtBytes(f.size) : '—'}</td>
-                    <td style={s.tdMuted}>{f.by ?? '자동'}</td>
+                    <td style={s.tdMuted}>{f.by ?? t('자동')}</td>
                     <td style={s.tdNum}>{f.at.slice(0, 10)}</td>
                     <td style={s.tdNum}>
                       {/*
                         내려받기는 **열기와 따로** 둔다. 사진은 눌러서 확인하는 일이 잦고,
                         관청·특장사에 넘길 때는 받아 두어야 한다 — 둘은 다른 행동이다.
                       */}
-                      <a href={f.download_url} style={s.dl}>받기</a>
+                      <a href={f.download_url} style={s.dl}>{t('받기')}</a>
                     </td>
                   </tr>
                 ))}

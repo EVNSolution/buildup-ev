@@ -1,4 +1,5 @@
 import type { BusinessType, DieselStatusCode } from '@shared/types/index'
+import { t } from '../i18n'
 import { RegionPicker } from './RegionPicker'
 
 /**
@@ -89,13 +90,13 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       */}
       {!hideBusinessType && (
         <div style={s}>
-          <label style={{ ...f.label, ...d }}>사업자 구분{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}</label>
+          <label style={{ ...f.label, ...d }}>{t('사업자 구분')}{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> {t('· 필수')}</span>}</label>
           <select
             style={{ ...f.field, ...dh }}
             value={value.business_type}
             onChange={e => set('business_type', e.target.value as BusinessType)}
           >
-            {BUSINESS_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {BUSINESS_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
           </select>
         </div>
       )}
@@ -106,7 +107,7 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       */}
       {!isCorporate && (
         <div style={s}>
-          <label style={{ ...f.label, ...d }}>지역{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}<span style={{ ...f.hint, ...d }}> · 지방보조금 조회 기준</span></label>
+          <label style={{ ...f.label, ...d }}>{t('지역')}{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> {t('· 필수')}</span>}<span style={{ ...f.hint, ...d }}> {t('· 지방보조금 조회 기준')}</span></label>
           <RegionPicker regions={regions} value={value.region_code} onChange={v => set('region_code', v)} />
         </div>
       )}
@@ -114,26 +115,26 @@ export function SubsidyForm({ value, onChange, regions, compact, hideBusinessTyp
       {afterRegion}
 
       <div style={s}>
-        <label style={{ ...f.label, ...d }}>경유차 폐차여부{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}</label>
+        <label style={{ ...f.label, ...d }}>{t('경유차 폐차여부')}{hideRequired ? null : <span style={{ ...f.needTag, ...d }}> {t('· 필수')}</span>}</label>
         <select
           style={{ ...f.field, ...dh }}
           value={value.diesel_status}
           onChange={e => set('diesel_status', e.target.value as DieselStatusCode)}
         >
           {/* 기본값을 '경유차없음' 으로 두면 물어보지도 않고 답한 셈이 된다 */}
-          <option value="">선택하세요</option>
+          <option value="">{t('선택하세요')}</option>
           {DIESEL_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}{o.note ? ` (${o.note})` : ''}</option>
+            <option key={o.value} value={o.value}>{t(o.label)}{o.note ? ` (${t(o.note)})` : ''}</option>
           ))}
         </select>
       </div>
 
       <YesNo
-        label="소상공인" hint="국고 30% 추가" tight={!!compact} hideRequired={!!hideRequired} dense={dense}
+        label={t('소상공인')} hint={t('국고 30% 추가')} tight={!!compact} hideRequired={!!hideRequired} dense={dense}
         value={value.is_small_business} onChange={v => set('is_small_business', v)}
       />
       <YesNo
-        label="화물자동차 운송사업허가증" hint="개인사업자 국고 10% 추가" tight={!!compact} hideRequired={!!hideRequired} dense={dense}
+        label={t('화물자동차 운송사업허가증')} hint={t('개인사업자 국고 10% 추가')} tight={!!compact} hideRequired={!!hideRequired} dense={dense}
         value={value.has_transport_license} onChange={v => set('has_transport_license', v)}
       />
     </>
@@ -162,11 +163,11 @@ function YesNo({ label, hint, value, onChange, tight, hideRequired, dense }: {
         {label}
         {hint ? <span style={{ ...f.hint, ...d }}> · {hint}</span> : null}
         {/* 필수는 늘 빨강 — 채웠다고 회색으로 가라앉히면 「필수 / 아님」 두 갈래가 세 갈래가 된다 */}
-        {hideRequired ? null : <span style={{ ...f.needTag, ...d }}> · 필수</span>}
+        {hideRequired ? null : <span style={{ ...f.needTag, ...d }}> {t('· 필수')}</span>}
       </label>
       <div style={f.yesNo}>
-        <button type="button" style={{ ...(value === true ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(true)}>예</button>
-        <button type="button" style={{ ...(value === false ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(false)}>아니오</button>
+        <button type="button" style={{ ...(value === true ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(true)}>{t('예')}</button>
+        <button type="button" style={{ ...(value === false ? f.ynOn : f.ynOff), ...dh }} onClick={() => onChange(false)}>{t('아니오')}</button>
       </div>
     </div>
   )

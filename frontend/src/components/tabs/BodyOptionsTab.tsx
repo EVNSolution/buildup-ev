@@ -1,4 +1,5 @@
 import type { ApiOptionGroup } from '@shared/types/index'
+import { t } from '../../i18n'
 import { valueUnitPrice, doorAddUnitPrice } from '@shared/pricing/core'
 import { OptRow, PriceBtn } from '../OptionRow'
 import { V2lConfirm } from '../BodyOnlyPanel'
@@ -43,13 +44,13 @@ export function BodyOptionsTab({
           const currentDoor = selections['DOORTYPE'] ?? ''
           const added = selections['DOORADD'] === 'ADD_DRIVER'
           return (
-            <OptRow key="DOORADD" label={group.name} required={group.required}>
+            <OptRow key="DOORADD" label={t(group.name)} required={group.required}>
               {doorTypes.map(dt => {
                 const isCurrent = dt.code === currentDoor
                 return (
                   <PriceBtn
                     key={dt.code}
-                    label={dt.name}
+                    label={t(dt.name)}
                     price={doorAddUnitPrice(dt.code, selections, price)}
                     selected={added && isCurrent}
                     disabled={disabled || !isCurrent}
@@ -71,11 +72,11 @@ export function BodyOptionsTab({
         const askV2l = group.code === 'BODYTYPE' && v2lNeeded && selections['BODYTYPE'] === 'BODY_REEFER'
         return (
           <div key={group.code}>
-            <OptRow label={group.name} required={group.required}>
+            <OptRow label={t(group.name)} required={group.required}>
               {values.map(v => (
                 <PriceBtn
                   key={v.code}
-                  label={v.name}
+                  label={t(v.name)}
                   price={showPrice ? valueUnitPrice(group.code, v.code, selections, price) : undefined}
                   selected={selections[group.code] === v.code}
                   disabled={disabled}
