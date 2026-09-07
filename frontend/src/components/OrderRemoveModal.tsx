@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { cancelOrder } from '../api/orders'
 import { BTN } from '../styles/buttons'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 주문 삭제 — **목록에서 뺀다. 행은 지워지지 않는다.**
@@ -16,6 +17,8 @@ export function OrderRemoveModal({ orderId, onClose, onDone }: {
   onClose: () => void
   onDone: () => void
 }) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')

@@ -36,6 +36,7 @@ import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useEscapeClose } from '../lib/escClose'
 
 const ROLES: Role[] = ['SALES', 'ADMIN', 'MAKER']
 const ROLE_KO: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAKER: '특장사' }
@@ -106,6 +107,8 @@ interface ConfirmModalProps {
   onConfirm: (makerOrgId: string, remark: string, customBadge: boolean) => void; onClose: () => void
 }
 function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }: ConfirmModalProps) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const isMobile = useIsMobile()
   const [selected, setSelected] = useState('')
   const [remark, setRemark] = useState('')
@@ -235,6 +238,8 @@ interface AssignSalesModalProps {
   onConfirm: (email: string) => void; onClose: () => void
 }
 function AssignSalesModal({ quoteId, users, loading, error, onConfirm, onClose }: AssignSalesModalProps) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [selected, setSelected] = useState('')
   // 영업 역할이 있는 활성 계정만 — 특장사 계정에 배정하면 열지도 못한다(서버도 막는다)
   const candidates = users.filter(u => u.status === 'active' && u.active && rolesOf(u).includes('SALES'))
@@ -266,6 +271,8 @@ interface CreateUserModalProps {
   onClose: () => void
 }
 function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [form, setForm] = useState<CreateUserInput>({ email: '', name: '', role: 'SALES', org_code: '' })
   /** 겸직 — 발급할 때부터 여러 화면을 쓰는 계정이 있다(관리자가 영업까지 등) */
   const [extraRoles, setExtraRoles] = useState<Role[]>([])
@@ -384,6 +391,9 @@ function AccountsTab() {
   const [resetting, setResetting] = useState<string | null>(null)
   /** 재설정 확인을 기다리는 계정(눌렀지만 아직 실행 전) */
   const [resetConfirm, setResetConfirm] = useState<User | null>(null)
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(() => setResetConfirm(null))
+
   const [resetResult, setResetResult] = useState<{ email: string; temp_password: string } | null>(null)
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -1291,11 +1301,18 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
             {groups.map(([date, rows]) => (
             <tbody key={date}>
               {/* 날짜 머리 — 누르면 그 날짜만 접힌다(영업 「내 견적」과 같은 방식) */}
-              <tr style={qt.groupRow} onClick={() => toggle(date)}>
+              {/*
+                ⚠️ 누르는 것은 **칸 안의 버튼**이지 줄이 아니다. `<tr onClick>` 은 마우스로만
+                   닿고, 줄에 `role="button"` 을 붙이면 표 구조가 깨져 낭독기가 몇 행짜리
+                   표인지 알 수 없게 된다. 줄은 줄로 두고, 누를 것을 칸 안에 넣는다.
+              */}
+              <tr style={qt.groupRow}>
                 <td colSpan={9} style={qt.groupCell}>
-                  <span style={qt.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
-                  <span style={qt.groupDate}>{date}</span>
-                  <span style={qt.groupCount}>{rows.length}건</span>
+                  <button type="button" style={qt.groupBtn} aria-expanded={isOpen(date)} onClick={() => toggle(date)}>
+                    <span style={qt.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
+                    <span style={qt.groupDate}>{date}</span>
+                    <span style={qt.groupCount}>{rows.length}건</span>
+                  </button>
                 </td>
               </tr>
               {isOpen(date) && rows.map(q => {
@@ -1703,7 +1720,13 @@ const qt: Record<string, React.CSSProperties> = {
    *    회색 줄이 생겨 「무슨 일이냐」는 제보가 나왔다. 날짜 줄은 **구분자**지 강조가 아니다 —
    *    윗줄과 가르는 것은 가는 선 하나면 충분하다.
    */
-  groupRow: { cursor: 'pointer' },
+  groupRow: {},
+  /** 날짜를 접는 버튼 — 칸을 가득 채워 줄 전체가 눌리는 것처럼 보인다 */
+  groupBtn: {
+    display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',
+    width: '100%', background: 'none', border: 'none', padding: 0,
+    font: 'inherit', textAlign: 'left' as const, cursor: 'pointer',
+  },
   groupCell: {
     padding: 'var(--sp-3) var(--sp-3) var(--sp-2)', borderTop: 'var(--hairline)',
     display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',

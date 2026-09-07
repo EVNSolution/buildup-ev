@@ -13,6 +13,7 @@ import { useIsCompact } from '../hooks/useIsCompact'
 import { BTN } from '../styles/buttons'
 import logoUrl from '../assets/logo.png'
 import truckImg from '../assets/stego-k-side.jpg'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 공개 컨피규레이터 — `/` (로그인 없이 누구나)
@@ -53,6 +54,9 @@ export function PublicConfiguratorPage() {
   const [subsidyLocal, setSubsidyLocal] = useState(0)
   const [showInquiry, setShowInquiry] = useState(false)
   const [doneId, setDoneId] = useState<number | null>(null)
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(() => setDoneId(null))
+
 
   useEffect(() => {
     fetchPublicPricingBundle(MODEL_CODE)

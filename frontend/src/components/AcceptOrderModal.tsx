@@ -5,6 +5,7 @@ import { fetchOrderDetail } from '../api/orders'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 주문 수락 — **발주서 확인 · 납기 지정 · 수락을 한 자리에서.**
@@ -38,6 +39,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
    */
   readOnly?: boolean
 }) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const base = useMemo(() => {
     const d = new Date(orderedAt)
     return new Date(d.getFullYear(), d.getMonth(), d.getDate())

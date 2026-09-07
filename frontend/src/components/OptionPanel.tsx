@@ -166,18 +166,28 @@ export function OptionPanel({
 
   return (
     <aside style={{ ...styles.panel, ...(compact ? styles.panelCompact : null) }}>
-      <div style={styles.tabs}>
+      <div style={styles.tabs} role="tablist">
         {/*
           차량만 견적이면 **특장·옵션 탭을 잠근다.** 특장을 장착하지 않는데 고를 수 있게 두면
           고른 것이 금액에 안 잡혀 「왜 반영이 안 되냐」가 된다. 아예 못 누르게 막는다.
         */}
         {TABS.map(tab => (
-          <div
+          /*
+           * ⚠️ 예전에는 `<div>` 였다 — 「disabled 가 없어서」가 이유였는데, 그 대가로
+           *    **키보드로는 탭을 아예 바꿀 수 없었다.** 마우스가 없으면 특장·옵션에 닿지 못한다.
+           *
+           *    잠근 탭도 `disabled` 대신 `aria-disabled` 로 둔다 — `disabled` 는 초점이
+           *    가지 않아 **왜 못 쓰는지(title)를 읽을 방법이 사라진다.** 눌러도 아무 일이
+           *    없게 하는 것은 그대로다.
+           */
+          <button
             key={tab.key}
-            // 탭은 <div> 라 disabled 가 없다 — 눌러도 아무 일이 없게 만들고 모양으로 알린다
+            type="button"
+            role="tab"
+            aria-selected={tab.key === activeTab}
+            aria-disabled={lockedTab(tab.key)}
             style={tab.key === activeTab ? styles.tabOn
               : lockedTab(tab.key) ? styles.tabOff : styles.tab}
-            aria-disabled={lockedTab(tab.key)}
             title={lockedTab(tab.key) ? '차량만 견적이라 특장 옵션을 고르지 않습니다' : undefined}
             onClick={() => {
               if (lockedTab(tab.key)) return
@@ -185,7 +195,7 @@ export function OptionPanel({
             }}
           >
             {tab.label}
-          </div>
+          </button>
         ))}
       </div>
 
@@ -315,7 +325,16 @@ const btnBase = {
 
 const styles = {
   /** 잠긴 탭 — 자리는 지키되 누를 수 없다. 사라지면 무엇이 잠겼는지 알 수 없다 */
-  tabOff: { opacity: 0.4, cursor: 'not-allowed' } as React.CSSProperties,
+  tabOff: {
+    flex: 1,
+    background: 'none', border: 'none', borderRadius: 0, font: 'inherit',
+    textAlign: 'center' as const,
+    fontSize: 'var(--fs-body)',
+    padding: 'var(--sp-3) var(--sp-1)',
+    color: 'var(--muted)',
+    borderBottom: '2px solid transparent',
+    opacity: 0.4, cursor: 'not-allowed',
+  } as React.CSSProperties,
   savedNote: {
     background: 'var(--lime-bg)', border: '0.5px solid var(--lime)', color: 'var(--dark)',
     fontSize: 13, padding: '9px 11px', borderRadius: 8, marginBottom: 8, lineHeight: 1.5,
@@ -338,6 +357,8 @@ const styles = {
   tabs: { flexShrink: 0, display: 'flex' },
   tab: {
     flex: 1,
+    // 버튼으로 바꾸면서 브라우저 기본 모양은 지운다 — 보이는 것은 예전 그대로다
+    background: 'none', border: 'none', borderRadius: 0, font: 'inherit',
     textAlign: 'center' as const,
     fontSize: 'var(--fs-body)',
     padding: 'var(--sp-3) var(--sp-1)',
@@ -347,6 +368,7 @@ const styles = {
   },
   tabOn: {
     flex: 1,
+    background: 'none', border: 'none', borderRadius: 0, font: 'inherit',
     textAlign: 'center' as const,
     fontSize: 'var(--fs-body)',
     padding: 'var(--sp-3) var(--sp-1)',

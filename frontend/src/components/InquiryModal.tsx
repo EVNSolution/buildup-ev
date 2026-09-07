@@ -5,6 +5,7 @@ import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
 import { submitInquiry } from '../api/public'
 import { mapBizType } from '../lib/quoteCustomer'
 import { BTN } from '../styles/buttons'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 상담 신청 — 공개 화면(비로그인)에서 **고객 본인이** 자기 정보를 넣는 자리.
@@ -83,6 +84,8 @@ interface Props {
 }
 
 export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, regions, onClose, onDone, bodyOnly = false, ownedModel = '' }: Props) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')

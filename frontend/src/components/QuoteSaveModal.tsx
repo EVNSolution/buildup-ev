@@ -4,6 +4,7 @@ import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './Subsid
 import { lookupCustomer, lookupWarpCustomer, type WarpVehicleInfo } from '../api/quotes'
 import { preloadPostcode, searchAddress } from '../lib/postcode'
 import type { BusinessType, CustomerInfo } from '@shared/types/index'
+import { useEscapeClose } from '../lib/escClose'
 
 /**
  * 견적 저장 모달 — **견적서·계약서에 필요한 고객 정보를 전부 여기서** 받는다.
@@ -547,6 +548,8 @@ export function missingForContract(v: QuoteSaveValues, bodyOnly = false): string
 export const missingRequired = missingForQuote
 
 export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClose, mode = 'create', bodyOnly = false }: Props) {
+  // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
+  useEscapeClose(onClose)
   const [v, setV] = useState<QuoteSaveValues>(initial)
   const isEdit = mode === 'edit'
   // 계약서 단계에서는 사람을 특정하는 값(생년월일·주소)까지 있어야 한다
