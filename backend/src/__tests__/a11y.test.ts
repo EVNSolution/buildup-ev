@@ -94,6 +94,23 @@ describe('키보드로 쓸 수 있는가', () => {
     }
   });
 
+  it('🔴 날짜 접기 버튼이 칸의 여백까지 덮는다', () => {
+    /*
+     * `<tr onClick>` 을 칸 안의 버튼으로 바꿀 때, 여백을 칸(groupCell)에 남겨 두면
+     * 버튼이 글자 크기로만 줄어든다. 글자 위치는 그대로라 **눈으로는 아무 차이가 없는데**
+     * 예전에 눌리던 글자 둘레 12px 가 죽는다(옛 커밋과 나란히 재 보고 알았다).
+     *
+     * 여백은 버튼이 갖고, 칸은 0 이어야 누르는 자리가 예전만큼 넓다.
+     */
+    for (const f of ['frontend/src/pages/SalesPage.tsx', 'frontend/src/pages/AdminPage.tsx']) {
+      const src = readFileSync(path.join(ROOT, f), 'utf8');
+      const btn = src.slice(src.indexOf('groupBtn: {'), src.indexOf('groupCell: {'));
+      const cell = src.slice(src.indexOf('groupCell: {'), src.indexOf('groupCell: {') + 200);
+      expect(btn, `${f}: 여백이 버튼에 없다`).toMatch(/padding: 'var\(--sp-3\) var\(--sp-3\) var\(--sp-2\)'/);
+      expect(cell, `${f}: 칸이 여백을 도로 가져갔다`).toMatch(/padding: 0/);
+    }
+  });
+
   it('아이콘만 있는 버튼에는 이름이 있다', () => {
     const bad: string[] = [];
     for (const [rel, src] of files) {
