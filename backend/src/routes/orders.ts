@@ -411,10 +411,12 @@ ordersRouter.patch('/:id/cancel', rbac('ADMIN'), requirePermission('order.remove
     if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
     if (order.canceled_at) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 치운 주문입니다' } }); return; }
 
-    await prisma.order.update({
-      where: { id },
+    /* 같은 이유로 조건을 쓰는 순간에 함께 건다 — 두 번 치우면 이력이 두 번 남는다 */
+    const wonCancel = await prisma.order.updateMany({
+      where: { id, canceled_at: null },
       data: { canceled_at: new Date(), canceled_by: req.auth?.email ?? 'unknown', cancel_reason: reason },
     });
+    if (wonCancel.count === 0) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 치운 주문입니다' } }); return; }
 
     /*
      * 견적 상태는 **배정을 무르는 경우에만** 되돌린다.
@@ -485,8 +487,20 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
       return;
     }
 
+    /*
+     * ⚠️ **읽고 나서 쓰면 둘 다 통과한다.** 위 `quote.status !== 'assigned'` 검사와 이 쓰기
+     *    사이에 다른 요청이 끼어들면 둘 다 수락한다 — 동시에 10번 눌러 보니 **10번 다 성공**했다.
+     *    그러면 마지막 사람이 고른 납기일이 앞사람 것을 덮어쓰고 수락 시각도 흔들린다.
+     */
     const now = new Date();
-    await prisma.order.update({ where: { id }, data: { delivery_due: toDbDate(due), accepted_at: now } });
+    const won = await prisma.order.updateMany({
+      where: { id, accepted_at: null },
+      data: { delivery_due: toDbDate(due), accepted_at: now },
+    });
+    if (won.count === 0) {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락된 주문입니다' } });
+      return;
+    }
     await setQuoteStatus(order.quote.id, 'ordered', req.auth?.email ?? 'unknown');
     const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
     res.json({ data: { quote: updated, delivery_due: toDateInput(due) } });
