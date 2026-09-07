@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
 import { PhotoViewer } from './PhotoViewer'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
@@ -145,7 +146,7 @@ export function OrderChatTab(
   }
 
   if (err && rows === null) return <div style={s.err}>{err}</div>
-  if (rows === null) return <div style={s.muted}>불러오는 중…</div>
+  if (rows === null) return <div style={s.muted}>{t('불러오는 중…')}</div>
 
   let lastDay = ''
   return (
@@ -157,7 +158,7 @@ export function OrderChatTab(
         {rows.length === 0 && (
           <div style={s.empty}>
             아직 오간 대화가 없습니다.
-            {canWrite && <><br />어느 단계에 대한 대화인지 고르고 남기면 상대에게 알림이 갑니다.</>}
+            {canWrite && <><br />{t('어느 단계에 대한 대화인지 고르고 남기면 상대에게 알림이 갑니다.')}</>}
           </div>
         )}
         {rows.map(c => {
@@ -186,9 +187,9 @@ export function OrderChatTab(
                     <button
                       style={s.photoBtn}
                       onClick={() => setViewing(c.image_file_id!)}
-                      aria-label="사진 크게 보기"
+                      aria-label={t('사진 크게 보기')}
                     >
-                      <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} />
                     </button>
                   )}
                   {c.body}
@@ -215,13 +216,13 @@ export function OrderChatTab(
             라벨이 앞을 차지하면 칸이 입력줄보다 좁아져 줄이 어긋나 보였다(제보).
           */
           above={
-            <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label="단계 고르기">
+            <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label={t('단계 고르기')}>
               {steps.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
             </select>
           }
         />
       ) : (
-        <div style={s.readonly}>조회만 가능합니다</div>
+        <div style={s.readonly}>{t('조회만 가능합니다')}</div>
       )}
 
       {/* 사진 크게 보기 — 뒤로가기 한 번으로 대화로 돌아온다 */}

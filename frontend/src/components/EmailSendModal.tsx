@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { BTN } from '../styles/buttons'
 import { sendQuoteEmail, fetchEmailLog, type EmailLogRow } from '../api/email'
 import { EmailLog } from './EmailLog'
@@ -70,7 +71,7 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
           <div>
             <div style={s.ok}>✓ {done}</div>
             <EmailLog rows={log} />
-            <button style={s.primary} onClick={onClose}>닫기</button>
+            <button style={s.primary} onClick={onClose}>{t('닫기')}</button>
           </div>
         ) : (
           <div style={s.form}>
@@ -79,23 +80,23 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
               없으면 빈칸으로 열려 **여기서 바로 적어** 보낼 수 있다.
               견적서는 메일 없이도 만들어지므로, 메일이 없다고 발송 자체를 막지 않는다.
             */}
-            <label style={s.label}>받는 사람</label>
+            <label style={s.label}>{t('받는 사람')}</label>
             <input
               style={s.input} value={to} type="email"
-              placeholder="고객 이메일을 입력하세요"
+              placeholder={t('고객 이메일을 입력하세요')}
               onChange={(e) => setTo(e.target.value)}
             />
-            {!defaultTo && <div style={s.hint}>고객정보에 등록된 이메일이 없습니다 — 여기에 적으면 그대로 발송됩니다.</div>}
+            {!defaultTo && <div style={s.hint}>{t('고객정보에 등록된 이메일이 없습니다 — 여기에 적으면 그대로 발송됩니다.')}</div>}
 
             {canAttachContract && (
             <label style={s.check}>
               <input type="checkbox" checked={includeContract} onChange={(e) => setIncludeContract(e.target.checked)} />
-              계약서도 함께 첨부 (미체크 시 견적서만)
+              {t('계약서도 함께 첨부 (미체크 시 견적서만)')}
             </label>
             )}
 
-            <label style={s.label}>메시지</label>
-            <textarea style={s.textarea} rows={4} value={message} placeholder="비우면 기본 안내문으로 발송" onChange={(e) => setMessage(e.target.value)} />
+            <label style={s.label}>{t('메시지')}</label>
+            <textarea style={s.textarea} rows={4} value={message} placeholder={t('비우면 기본 안내문으로 발송')} onChange={(e) => setMessage(e.target.value)} />
 
             <div style={s.note}>※ 견적서{attachContract ? '·계약서' : ''} PDF 가 첨부됩니다.{canAttachContract ? ' 전자서명은 별도(계약발송).' : ' 차량만 견적이라 계약서는 없습니다.'}</div>
             {err && <div style={s.err}>{err}</div>}

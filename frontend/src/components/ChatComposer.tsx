@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { safeBottom } from '../styles/safeArea'
 import { PhotoViewer } from './PhotoViewer'
@@ -96,7 +97,7 @@ export function ChatComposer({
       {image && (
         <PhotoViewer
           src={preview}
-          alt="보낼 사진"
+          alt={t('보낼 사진')}
           onClose={() => onImageChange(null)}
           action={
             <button style={s.sendTop} onClick={onSend} disabled={busy}>
@@ -116,8 +117,8 @@ export function ChatComposer({
         <button
           style={s.icon}
           onClick={() => fileRef.current?.click()}
-          title="사진 첨부"
-          aria-label="사진 첨부"
+          title={t('사진 첨부')}
+          aria-label={t('사진 첨부')}
         ><ClipIcon /></button>
         <input
           ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
@@ -153,8 +154,8 @@ export function ChatComposer({
           style={busy || empty ? s.iconOff : s.iconSend}
           disabled={busy || empty}
           onClick={onSend}
-          title="보내기"
-          aria-label="보내기"
+          title={t('보내기')}
+          aria-label={t('보내기')}
         ><SendIcon /></button>
       </div>
     </div>

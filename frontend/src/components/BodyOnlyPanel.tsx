@@ -1,4 +1,5 @@
 import { BTN } from '../styles/buttons'
+import { t } from '../i18n'
 import { CAR_TRIM_LABEL_MAX } from '@shared/pricing/core'
 
 /**
@@ -197,7 +198,7 @@ export function CarPriceOverrideBlock({ value, onChange, trimLabel, onTrimLabelC
             「플러스(Plus)」가 그대로 나가면 서류가 실제와 다른 차를 가리킨다.
           */}
           <label style={s.field}>
-            <span style={s.fieldLabel}>트림명 <span style={s.optional}>· 견적서에 그대로 나갑니다</span></span>
+            <span style={s.fieldLabel}>{t('트림명')} <span style={s.optional}>{t('· 견적서에 그대로 나갑니다')}</span></span>
             <input
               style={s.input}
               type="text"

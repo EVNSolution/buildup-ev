@@ -1,4 +1,5 @@
 import type { ApiQuote } from '@shared/types/index'
+import { t } from '../i18n'
 import { EmailLogFor } from './EmailLog'
 import { useEscapeClose } from '../lib/escClose'
 
@@ -79,7 +80,7 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
     <div style={modal.overlay} onClick={onClose}>
       <div style={{ ...modal.box, width: 520, maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={modal.title}>고객 정보 — {quote.quote_no ?? `#${quote.id}`}</div>
-        <div style={modal.desc}>조회 전용입니다. 값을 고치려면 영업 견적 목록의 「수정」을 이용하세요.</div>
+        <div style={modal.desc}>{t('조회 전용입니다. 값을 고치려면 영업 견적 목록의 「수정」을 이용하세요.')}</div>
         {groups.map(g => (
           <div key={g.title}>
             <div style={cv.groupTitle}>{g.title}</div>
@@ -102,7 +103,7 @@ export function CustomerViewModal({ quote, onClose }: { quote: ApiQuote; onClose
         <EmailLogFor quoteId={quote.id} />
 
         <div style={modal.actions}>
-          <button style={modal.confirmBtn} onClick={onClose}>닫기</button>
+          <button style={modal.confirmBtn} onClick={onClose}>{t('닫기')}</button>
         </div>
       </div>
     </div>

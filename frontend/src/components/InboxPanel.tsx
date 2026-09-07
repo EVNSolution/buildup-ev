@@ -1,4 +1,5 @@
 import { BTN } from '../styles/buttons'
+import { t } from '../i18n'
 
 /**
  * 「받을 것」 목록 — **영업의 배정 문의**와 **특장사의 주문**이 같은 화면을 쓴다.
@@ -64,7 +65,7 @@ export function InboxPanel({ title, items, acceptLabel, busyId, onView, onAccept
             <div style={s.sub}>{it.sub}</div>
           </div>
           <div style={s.actions}>
-            {onView && <button style={BTN.row} onClick={() => onView(it.id)}>상세 보기</button>}
+            {onView && <button style={BTN.row} onClick={() => onView(it.id)}>{t('상세 보기')}</button>}
             <button
               style={busyId === it.id ? BTN.rowDisabled : BTN.rowPrimary}
               disabled={busyId === it.id}

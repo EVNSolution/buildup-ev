@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { useEscapeClose } from '../lib/escClose'
 
 interface Props {
@@ -30,7 +31,7 @@ export function PdfModal({ previewUrl, downloadUrl, title, subtitle, onClose }: 
             {subtitle ? <span style={s.titleSub}> — {subtitle}</span> : null}
           </span>
           <div style={s.actions}>
-            <a href={downloadUrl} download style={s.downloadBtn}>다운로드</a>
+            <a href={downloadUrl} download style={s.downloadBtn}>{t('다운로드')}</a>
             <button style={s.closeBtn} onClick={onClose}>✕</button>
           </div>
         </div>
@@ -38,7 +39,7 @@ export function PdfModal({ previewUrl, downloadUrl, title, subtitle, onClose }: 
           {loading && (
             <div style={s.loading}>
               <div style={s.spinner} />
-              <div>서류 생성 중…</div>
+              <div>{t('서류 생성 중…')}</div>
             </div>
           )}
           <iframe

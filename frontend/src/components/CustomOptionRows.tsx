@@ -1,4 +1,5 @@
 import { rowState, CUSTOM_OPTION_NAME_MAX, type CustomOptionDraft } from '@shared/pricing/core'
+import { t } from '../i18n'
 import { BTN } from '../styles/buttons'
 
 /**
@@ -23,8 +24,8 @@ export function CustomOptionRows({ rows, onChange, disabled = false }: {
   return (
     <div style={s.wrap}>
       <div style={s.head}>
-        <span style={s.label}>추가 옵션</span>
-        <span style={s.hint}>단가표에 없는 사양을 직접 적습니다</span>
+        <span style={s.label}>{t('추가 옵션')}</span>
+        <span style={s.hint}>{t('단가표에 없는 사양을 직접 적습니다')}</span>
       </div>
 
       {rows.map((row, i) => {
@@ -39,7 +40,7 @@ export function CustomOptionRows({ rows, onChange, disabled = false }: {
               value={row.name}
               maxLength={CUSTOM_OPTION_NAME_MAX}
               onChange={e => patch(i, { name: e.target.value })}
-              placeholder="옵션명"
+              placeholder={t('옵션명')}
               disabled={disabled}
               style={{ ...s.name, ...(bad && !row.name.trim() ? s.bad : null) }}
             />
@@ -53,7 +54,7 @@ export function CustomOptionRows({ rows, onChange, disabled = false }: {
                 const digits = e.target.value.replace(/[^\d]/g, '')
                 patch(i, { price: digits === '' ? null : Number(digits) })
               }}
-              placeholder="금액 (VAT 포함)"
+              placeholder={t('금액 (VAT 포함)')}
               disabled={disabled}
               style={{ ...s.price, ...(bad && row.price == null ? s.bad : null) }}
             />
@@ -71,7 +72,7 @@ export function CustomOptionRows({ rows, onChange, disabled = false }: {
       })}
 
       {rows.some(r => rowState(r) === 'partial') && (
-        <div style={s.warn}>옵션명과 금액을 모두 적어야 저장됩니다.</div>
+        <div style={s.warn}>{t('옵션명과 금액을 모두 적어야 저장됩니다.')}</div>
       )}
 
       {/* + 는 늘 목록 **아래**, 왼쪽 정렬 — 누르면 이 버튼 위로 줄이 늘어난다 */}

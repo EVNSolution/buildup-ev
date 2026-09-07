@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import type { ApiOrder } from '@shared/types/index'
 import { fetchOrders, acceptOrder, rejectOrder } from '../api/orders'
 import { useAuth } from '../contexts/AuthContext'
@@ -127,7 +128,7 @@ export function MakerPage() {
           <>
             {err && <div style={styles.errMsg}>{err}</div>}
             {loading ? (
-              <div style={styles.loading}>로딩 중…</div>
+              <div style={styles.loading}>{t('로딩 중…')}</div>
             ) : (
               /*
                 수락 대기 · 진행 중 · 완료 — **관리자 「주문 진행」과 같은 것을 본다.**

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../../i18n'
 import { cardStates } from '../../styles/optionCard'
 import type { ApiOptionGroup } from '@shared/types/index'
 import { valueUnitPrice } from '@shared/pricing/core'
@@ -71,7 +72,7 @@ function SpecPanel({ spec }: { spec: { title: string; lines: Seg[][] } }) {
           </li>
         ))}
       </ul>
-      <div style={tip.foot}>주요 옵션만 표기하였습니다</div>
+      <div style={tip.foot}>{t('주요 옵션만 표기하였습니다')}</div>
     </div>
   )
 }
@@ -84,7 +85,7 @@ export function VehicleOptionsTab({ groups, selections, onSelect, hiddenValueCod
   return (
     <div>
       <div style={styles.row}>
-        <label style={styles.label}>차종</label>
+        <label style={styles.label}>{t('차종')}</label>
         <select>
           <option>STEGO-K</option>
         </select>

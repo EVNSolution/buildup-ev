@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../i18n'
 import { BackIcon } from './icons/ChatIcons'
 import { useBackClose } from '../lib/backClose'
 import { safeTop, safeBottom } from '../styles/safeArea'
@@ -25,7 +26,7 @@ export function PhotoViewer({ src, alt = '사진', onClose, action }: {
   return (
     <div style={s.wrap} role="dialog" aria-modal="true" aria-label={alt}>
       <div style={s.bar}>
-        <button style={s.back} onClick={onClose} aria-label="뒤로">
+        <button style={s.back} onClick={onClose} aria-label={t('뒤로')}>
           <BackIcon />
         </button>
         {action}

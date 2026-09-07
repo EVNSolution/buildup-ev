@@ -1,4 +1,5 @@
 import { OPTION_CARD } from '../styles/optionCard'
+import { t } from '../i18n'
 import type { ReactNode } from 'react'
 
 /** 부가세 별도 단가 → 부가세 포함(×1.1) 표기 */
@@ -19,7 +20,7 @@ export function OptRow({ label, required, children }: { label: string; required:
     <div style={styles.row}>
       <div style={styles.head}>
         <span style={styles.label}>{label}</span>
-        {required && <span style={styles.req}>· 필수</span>}
+        {required && <span style={styles.req}>{t('· 필수')}</span>}
       </div>
       <div style={styles.btns}>{children}</div>
     </div>

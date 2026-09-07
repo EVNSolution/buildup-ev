@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { homeFor } from '../lib/surfaces'
@@ -51,7 +52,7 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} style={s.form}>
           <div>
-            <label style={s.label} htmlFor="login-email">이메일</label>
+            <label style={s.label} htmlFor="login-email">{t('이메일')}</label>
             <input
               id="login-email"
               type="email"
@@ -64,7 +65,7 @@ export function LoginPage() {
             />
           </div>
           <div>
-            <label style={s.label} htmlFor="login-pw">비밀번호</label>
+            <label style={s.label} htmlFor="login-pw">{t('비밀번호')}</label>
             <input
               id="login-pw"
               type="password"
@@ -87,7 +88,7 @@ export function LoginPage() {
         되돌아갈 길 — 고객이 「로그인」을 잘못 눌러 들어왔을 때 여기서 막히면 안 된다.
         카드 밖에 두어 로그인 폼의 일부로 읽히지 않게 한다.
       */}
-      <Link to="/" style={s.back}>← 로그인 없이 견적 보기</Link>
+      <Link to="/" style={s.back}>{t('← 로그인 없이 견적 보기')}</Link>
     </div>
   )
 }

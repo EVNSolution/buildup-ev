@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
 
@@ -28,20 +29,20 @@ export function PaperContractModal({ label, loading, error, onSubmit, onClose }:
       <div style={s.box} onClick={e => e.stopPropagation()}>
         <div style={s.title}>{label} — 서명본 등록</div>
         <div style={s.desc}>
-          종이로 체결한 계약서를 올립니다. 등록하면 전자서명 없이 <b>계약완료</b>가 되어 제작 배정을 할 수 있습니다.
+          종이로 체결한 계약서를 올립니다. 등록하면 전자서명 없이 <b>{t('계약완료')}</b>가 되어 제작 배정을 할 수 있습니다.
           견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.
         </div>
-        <label style={s.label}>계약서 스캔본<span style={s.req}> · 필수</span></label>
+        <label style={s.label}>{t('계약서 스캔본')}<span style={s.req}> {t('· 필수')}</span></label>
         <input
           type="file"
           accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
           style={s.file}
           onChange={e => setFile(e.target.files?.[0] ?? null)}
         />
-        <div style={s.hint}>PDF 또는 사진 · 20MB 이하 · 고객이 서명·날인한 계약서 전체</div>
+        <div style={s.hint}>{t('PDF 또는 사진 · 20MB 이하 · 고객이 서명·날인한 계약서 전체')}</div>
         {error && <div style={s.error}>{error}</div>}
         <div style={s.actions}>
-          <button style={s.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
+          <button style={s.cancelBtn} onClick={onClose} disabled={loading}>{t('취소')}</button>
           <button
             style={!file || loading ? s.confirmBtnDisabled : s.confirmBtn}
             disabled={!file || loading}

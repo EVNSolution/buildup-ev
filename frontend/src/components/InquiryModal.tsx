@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { Link } from 'react-router-dom'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, type SubsidyInputs } from './SubsidyInputs'
@@ -188,7 +189,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
         */}
         {!bodyOnly && (
           <>
-            <div style={s.section}>보조금 조건</div>
+            <div style={s.section}>{t('보조금 조건')}</div>
             {/*
               여기서는 「· 필수」를 감추지 않는다 — 신청 전에 **채워야 하는 목록**이기 때문이다.
               (가격바 팝업만 감춘다. 거기는 지금 값을 바꿔 보는 자리다)
@@ -205,7 +206,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
         />
 
         <div style={s.consentBox}>
-          <div style={s.consentTitle}>개인정보 수집·이용 동의 <span style={s.req}>· 필수</span></div>
+          <div style={s.consentTitle}>{t('개인정보 수집·이용 동의')} <span style={s.req}>{t('· 필수')}</span></div>
           <dl style={s.consentList}>
             {consentRows({ bodyOnly, corporate: subsidy.business_type === 'corporate' }).map(r => (
               <div key={r.key + (r.tag ?? '')} style={s.consentRow}>
@@ -223,7 +224,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           </label>
           <div style={s.consentNote}>
             {CONSENT_REFUSAL} {CONSENT_AGE}{' '}
-            <Link to="/privacy" target="_blank" style={s.link}>개인정보 처리방침</Link>
+            <Link to="/privacy" target="_blank" style={s.link}>{t('개인정보 처리방침')}</Link>
           </div>
         </div>
 
@@ -234,7 +235,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
           <button style={{ ...BTN.primary, flex: 1, ...(canSubmit ? null : s.btnOff) }} disabled={!canSubmit} onClick={submit}>
             {busy ? '보내는 중…' : '상담 신청'}
           </button>
-          <button style={{ ...BTN.secondary, flex: 1 }} onClick={onClose} disabled={busy}>취소</button>
+          <button style={{ ...BTN.secondary, flex: 1 }} onClick={onClose} disabled={busy}>{t('취소')}</button>
         </div>
       </div>
     </div>

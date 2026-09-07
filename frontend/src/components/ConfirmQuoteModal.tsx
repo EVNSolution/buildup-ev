@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { DownPaymentFields } from './DownPaymentFields'
 import { BTN } from '../styles/buttons'
 import { fetchInstallmentRates, saveQuoteInputs, confirmQuote, fetchTotalQuote, type InstallmentRateOption } from '../api/quotes'
@@ -117,8 +118,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
         <div style={s.form}>
           {bodyOnly ? (
             <div style={s.ok}>
-              특장만 견적입니다 — 할부(캐피탈)는 차량에 딸린 값이라 적용되지 않습니다.
-              그대로 생성하시면 됩니다.
+              {t('특장만 견적입니다 — 할부(캐피탈)는 차량에 딸린 값이라 적용되지 않습니다. 그대로 생성하시면 됩니다.')}
             </div>
           ) : (
             <>
@@ -129,10 +129,10 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
                 inputStyle={s.input}
               />
 
-              <label style={s.label}>할부 개월수 <span style={s.unit}>(개월 · 이율)</span></label>
+              <label style={s.label}>{t('할부 개월수')} <span style={s.unit}>{t('(개월 · 이율)')}</span></label>
               <select style={s.input} value={months} onChange={(e) => setMonths(Number(e.target.value))}>
                 {rates.length === 0
-                  ? <option value={0}>일시불</option>
+                  ? <option value={0}>{t('일시불')}</option>
                   : rates.map((r) => (
                     <option key={r.months} value={r.months}>
                       {r.label ?? (r.months === 0 ? '일시불' : `${r.months}개월`)}{r.months > 0 ? ` · ${(r.rate * 100).toFixed(1)}%` : ''}

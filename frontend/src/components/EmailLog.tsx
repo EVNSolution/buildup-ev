@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { fetchEmailLog, type EmailLogRow } from '../api/email'
 
 /**
@@ -10,10 +11,10 @@ import { fetchEmailLog, type EmailLogRow } from '../api/email'
  */
 export function EmailLog({ rows }: { rows: EmailLogRow[] | null }) {
   if (rows === null) return null
-  if (rows.length === 0) return <div style={e.logEmpty}>아직 보낸 적이 없습니다.</div>
+  if (rows.length === 0) return <div style={e.logEmpty}>{t('아직 보낸 적이 없습니다.')}</div>
   return (
     <div style={e.logBox}>
-      <div style={e.logTitle}>보낸 기록</div>
+      <div style={e.logTitle}>{t('보낸 기록')}</div>
       {rows.map(r => (
         <div key={r.id} style={e.logRow}>
           <span style={r.withContract ? e.tagBoth : e.tagQuote}>

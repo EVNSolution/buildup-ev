@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { onVisibleHeightChange, visibleHeight } from '../lib/viewport'
 import { promoteChatPhoto } from '../api/steps'
 import { PhotoViewer } from './PhotoViewer'
@@ -187,15 +188,15 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
             <div style={s.title}>{stepLabel}</div>
             <div style={s.sub}>주문 #{orderId} · 단계별 대화</div>
           </div>
-          <button style={s.close} onClick={onClose} aria-label="닫기">✕</button>
+          <button style={s.close} onClick={onClose} aria-label={t('닫기')}>✕</button>
         </header>
 
         <div ref={listRef} style={s.body}>
-          {rows === null && <div style={s.muted}>불러오는 중…</div>}
+          {rows === null && <div style={s.muted}>{t('불러오는 중…')}</div>}
           {rows?.length === 0 && (
             <div style={s.empty}>
               아직 오간 대화가 없습니다.
-              {canWrite && <><br />이 단계에 대해 남기면 상대에게 알림이 갑니다.</>}
+              {canWrite && <><br />{t('이 단계에 대해 남기면 상대에게 알림이 갑니다.')}</>}
             </div>
           )}
           {rows?.map(c => {
@@ -216,9 +217,9 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                     <button
                       style={s.photoBtn}
                       onClick={() => setViewing(c.image_file_id!)}
-                      aria-label="사진 크게 보기"
+                      aria-label={t('사진 크게 보기')}
                     >
-                      <img src={commentImageUrl(orderId, c.image_file_id)} alt="첨부 사진" style={s.photo} />
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} />
                     </button>
                   )}
                   {c.body}
@@ -233,7 +234,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                     style={mine ? { ...s.promote, alignSelf: 'flex-end' } : s.promote}
                     disabled={promoting === c.image_file_id}
                     onClick={() => void promote(c.image_file_id!)}
-                    title="이 사진을 이 단계의 「검수 사진」으로 등록합니다"
+                    title={t('이 사진을 이 단계의 「검수 사진」으로 등록합니다')}
                   >
                     {promoted.has(c.image_file_id) ? '✓ 검수 사진으로 등록됨'
                       : promoting === c.image_file_id ? '등록 중…'
@@ -257,7 +258,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
             busy={busy}
           />
         ) : (
-          <div style={s.readonly}>조회만 가능합니다</div>
+          <div style={s.readonly}>{t('조회만 가능합니다')}</div>
         )}
 
       {/* 사진 크게 보기 — 뒤로가기 한 번으로 대화로 돌아온다 */}

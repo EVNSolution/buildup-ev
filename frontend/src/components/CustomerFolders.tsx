@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../i18n'
 import {
   fetchFolders, fetchFolder, folderFileUrl,
   type ApiFolderRow, type ApiFolder, type ApiFolderQuote, type ApiFolderDoc,
@@ -142,7 +143,7 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
       {res.orphanDocs.length > 0 && (
         <section style={s.histBox}>
           {/* 견적번호로 이을 수 없는 서류 — 버리지 않고 여기 모은다 */}
-          <div style={s.histTitle}>견적에 묶이지 않은 서류</div>
+          <div style={s.histTitle}>{t('견적에 묶이지 않은 서류')}</div>
           <div style={s.docs}>
             {withVersions(res.orphanDocs).map(({ d, ver, total }, i) => (
               <DocRow key={`${d.id}-${i}`} d={d} ver={ver} total={total} folderKey={folderKey} mine={mine} />
@@ -183,7 +184,7 @@ function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: numbe
               <DocRow key={`${d.id}-${i}`} d={d} ver={ver} total={total} folderKey={folderKey} mine={mine} />
             ))}
           </div>
-        : <div style={s.noDocs}>아직 만들어진 서류가 없습니다.</div>}
+        : <div style={s.noDocs}>{t('아직 만들어진 서류가 없습니다.')}</div>}
     </div>
   )
 }
@@ -222,9 +223,9 @@ function DocRow({ d, ver, total, folderKey, mine }: { d: ApiFolderDoc; ver: numb
         href={folderFileUrl(folderKey, d.id, false, mine)}
         name={`${d.kind}${d.quoteNo ? `_${d.quoteNo}` : ''}.pdf`}
         style={s.link}
-      >열기</DocLink>
+      >{t('열기')}</DocLink>
       {/* 확인과 챙김은 다른 행동이라 따로 둔다 */}
-      <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>받기</a>
+      <a href={folderFileUrl(folderKey, d.id, true, mine)} style={s.link}>{t('받기')}</a>
     </div>
   )
 }

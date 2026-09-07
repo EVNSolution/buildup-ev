@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchFileIndex, fetchOrderFiles,
@@ -49,7 +50,7 @@ export function OrderFilesTab() {
   }, [rows, q])
 
   if (err) return <div style={s.err}>{err}</div>
-  if (!rows) return <div style={s.muted}>불러오는 중입니다.</div>
+  if (!rows) return <div style={s.muted}>{t('불러오는 중입니다.')}</div>
 
   if (picked) return <OrderFilePanel row={picked} onBack={() => setPicked(null)} />
 
@@ -59,14 +60,14 @@ export function OrderFilesTab() {
         <input
           style={s.search}
           type="search"
-          placeholder="고객명 · 견적번호 · 특장사로 찾기"
+          placeholder={t('고객명 · 견적번호 · 특장사로 찾기')}
           value={q}
           onChange={e => setQ(e.target.value)}
         />
         <span style={s.count}>{shown.length}건</span>
       </div>
 
-      {shown.length === 0 && <div style={s.muted}>해당하는 주문이 없습니다.</div>}
+      {shown.length === 0 && <div style={s.muted}>{t('해당하는 주문이 없습니다.')}</div>}
 
       <div style={s.list}>
         {shown.map(r => (
@@ -112,7 +113,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
 
   return (
     <div>
-      <button style={s.back} onClick={onBack}>← 파일</button>
+      <button style={s.back} onClick={onBack}>{t('← 파일')}</button>
 
       <div style={s.head}>
         <span style={s.headName}>{row.customer_name ?? '고객 미지정'}</span>
@@ -123,7 +124,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
       </div>
 
       {err && <div style={s.err}>{err}</div>}
-      {!files && !err && <div style={s.muted}>불러오는 중입니다.</div>}
+      {!files && !err && <div style={s.muted}>{t('불러오는 중입니다.')}</div>}
 
       {files && (
         <>
@@ -137,18 +138,18 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
             ))}
           </div>
 
-          {shown.length === 0 && <div style={s.muted}>해당하는 파일이 없습니다.</div>}
+          {shown.length === 0 && <div style={s.muted}>{t('해당하는 파일이 없습니다.')}</div>}
 
           <div style={s.scroller}>
             <table style={s.table}>
               <thead>
                 <tr>
-                  <th style={s.th}>구분</th>
-                  <th style={s.th}>내용</th>
-                  <th style={s.th}>파일</th>
-                  <th style={s.th}>크기</th>
-                  <th style={s.th}>등록자</th>
-                  <th style={s.th}>등록일</th>
+                  <th style={s.th}>{t('구분')}</th>
+                  <th style={s.th}>{t('내용')}</th>
+                  <th style={s.th}>{t('파일')}</th>
+                  <th style={s.th}>{t('크기')}</th>
+                  <th style={s.th}>{t('등록자')}</th>
+                  <th style={s.th}>{t('등록일')}</th>
                   <th style={s.th}></th>
                 </tr>
               </thead>
@@ -172,7 +173,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                         내려받기는 **열기와 따로** 둔다. 사진은 눌러서 확인하는 일이 잦고,
                         관청·특장사에 넘길 때는 받아 두어야 한다 — 둘은 다른 행동이다.
                       */}
-                      <a href={f.download_url} style={s.dl}>받기</a>
+                      <a href={f.download_url} style={s.dl}>{t('받기')}</a>
                     </td>
                   </tr>
                 ))}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../i18n'
 import { DownPaymentFields } from './DownPaymentFields'
 import type { ApiPricingBundle, ApiQuote } from '@shared/types/index'
 import { fetchPricingBundle } from '../api/models'
@@ -91,7 +92,7 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
           <span style={s.title}>
             {canEdit ? '견적 수정' : '견적 조회'} — {quote.quote_no ?? `#${quote.id}`} · {quote.customer?.name ?? '고객 미지정'}
           </span>
-          <button style={BTN.bar} onClick={onClose}>닫기</button>
+          <button style={BTN.bar} onClick={onClose}>{t('닫기')}</button>
         </div>
 
         {frozen && (
@@ -253,7 +254,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         />
 
         {/* 컨피규레이터와 **같은 조각** — 한쪽에만 칸을 두면 다른 쪽에서 못 고치는 값이 생긴다 */}
-        <div style={s.section}>차량 가격</div>
+        <div style={s.section}>{t('차량 가격')}</div>
         <div style={s.extras}>
           <CarPriceOverrideBlock
             value={carPrice}
@@ -269,7 +270,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
           />
         </div>
 
-        <div style={s.section}>메모 · 할인</div>
+        <div style={s.section}>{t('메모 · 할인')}</div>
         <div style={s.extras}>
           <QuoteExtras
             bundle={bundle}
@@ -395,7 +396,7 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
           />
           <Field label="할부 개월수">
             <select style={s.field} value={months} onChange={e => setMonths(Number(e.target.value))}>
-              <option value={0}>일시불</option>
+              <option value={0}>{t('일시불')}</option>
               {rates.map(r => <option key={r.months} value={r.months}>{r.label ?? `${r.months}개월`}</option>)}
             </select>
           </Field>
@@ -416,16 +417,16 @@ function HistoryTab({ quoteId }: { quoteId: number }) {
   }, [quoteId])
 
   if (err) return <div style={s.err}>{err}</div>
-  if (!rows) return <div style={s.loading}>이력을 불러오는 중…</div>
-  if (!rows.length) return <div style={s.loading}>아직 수정한 기록이 없습니다.</div>
+  if (!rows) return <div style={s.loading}>{t('이력을 불러오는 중…')}</div>
+  if (!rows.length) return <div style={s.loading}>{t('아직 수정한 기록이 없습니다.')}</div>
 
   return (
     <div style={s.scroll}>
       <table style={s.table}>
         <thead>
           <tr>
-            <th style={s.th}>일시</th><th style={s.th}>구분</th><th style={s.th}>항목</th>
-            <th style={s.th}>이전</th><th style={s.th}>변경</th><th style={s.th}>수정자</th>
+            <th style={s.th}>{t('일시')}</th><th style={s.th}>{t('구분')}</th><th style={s.th}>{t('항목')}</th>
+            <th style={s.th}>{t('이전')}</th><th style={s.th}>{t('변경')}</th><th style={s.th}>{t('수정자')}</th>
           </tr>
         </thead>
         <tbody>

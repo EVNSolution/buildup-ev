@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { safeBottom } from '../styles/safeArea'
 import type { PricingResult, QuoteResult } from '@shared/pricing/core'
 import { priceBarView } from '@shared/pricing/core'
@@ -186,7 +187,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
             />
             <span style={styles.resultRight}>
               <span style={styles.resultMain}>
-                <span style={styles.heroLabelWide}>실구매가</span>
+                <span style={styles.heroLabelWide}>{t('실구매가')}</span>
                 <span style={styles.heroValueWide}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</span>
               </span>
               {/* 별도까지 더한 값은 결론 **바로 아래**에 — 같은 숫자 계열이라 붙여 둔다 */}
@@ -255,7 +256,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
         {/* 휴대폰 요약 모드에서는 아래 고정 줄이 이 자리를 대신한다(같은 숫자를 두 번 두지 않는다) */}
         {!summary && (
           <div style={{ ...styles.hero, ...(stack ? styles.rowCell : compact ? styles.cellFixed : touch ? null : styles.cellTall) }}>
-            <div style={{ ...styles.heroLabel, ...lbl }}>실구매가</div>
+            <div style={{ ...styles.heroLabel, ...lbl }}>{t('실구매가')}</div>
             <FitValue text={tbd ? '미정' : ok ? fmt(netPrice) : '—'} max={30} min={13} active={!stack}
               style={{ ...styles.heroValue, ...(stack ? styles.stackHero : null) }} />
           </div>
@@ -267,7 +268,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
           aria-expanded={showReg}
           {...pressable(() => { if (ok) setShowReg(v => !v) })}
         >
-          <div style={{ ...styles.blockLabel, ...lbl }}>기타 ▸ <span style={styles.asideNote}>별도</span></div>
+          <div style={{ ...styles.blockLabel, ...lbl }}>{t('기타 ▸')} <span style={styles.asideNote}>{t('별도')}</span></div>
           <div style={stack ? styles.stackRight : undefined}>
             <FitValue text={ok ? fmt(regEtc) : '—'} max={24} active={!stack}
               style={{ ...styles.blockValue, ...big }} />
@@ -285,7 +286,7 @@ export function PriceBar({ calc, total, hasCustomer, subsidy, onSubsidyChange, r
       */}
       {summary && (
         <button style={styles.summaryBar} onClick={() => setOpenFlow(v => !v)}>
-          <span style={styles.summaryLabel}>실구매가</span>
+          <span style={styles.summaryLabel}>{t('실구매가')}</span>
           <span style={styles.summaryValue}>{tbd ? '미정' : ok ? fmt(netPrice) : '—'}</span>
           <span style={styles.summaryMore}>내역 {openFlow ? '▾' : '▴'}</span>
         </button>
@@ -366,7 +367,7 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
         style={{ ...styles.popup, ...styles.popupLeft, ...(sheet ? styles.popupSheet : null) }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={styles.popTitle}>보조금 산정 조건</div>
+        <div style={styles.popTitle}>{t('보조금 산정 조건')}</div>
         <SubsidyForm value={value} onChange={onChange} regions={regions} compact hideRequired dense={sheet} />
         {/*
           내역은 여기에 둔다 — 화면 칸에 네 줄로 박아 두면 그 칸만 키가 커지고 글자도 작아
@@ -374,7 +375,7 @@ function SubsidyPopup({ value, onChange, regions, onClose, ok, sheet }: {
         */}
         {ok && (
           <div style={{ marginTop: 10 }}>
-            <div style={styles.popTitle}>산정 결과</div>
+            <div style={styles.popTitle}>{t('산정 결과')}</div>
             <Line k="국고보조금" v={fmt(ok.subsidy_national)} />
             <Line k="지방보조금" v={fmt(ok.subsidy_local)} />
             <Line k="소상공인" v={fmt(ok.subsidy_sosang)} />
@@ -399,7 +400,7 @@ function RegPopup({ ok, onClose, sheet }: { ok: QuoteResult; onClose: () => void
     <>
       <div style={styles.popOverlay} onClick={e => { e.stopPropagation(); onClose() }} />
       <div style={{ ...styles.popup, ...(sheet ? styles.popupSheet : null) }} onClick={e => e.stopPropagation()}>
-        <div style={styles.popTitle}>차량 등록/부대비용 ⑥</div>
+        <div style={styles.popTitle}>{t('차량 등록/부대비용 ⑥')}</div>
         <Line k="차량 취득세 (감면 후)" v={fmt(ok.car_acq_tax)} />
         <Line k="공채할인액" v={fmt(ok.bond_discount)} />
         <Line k="번호판금액" v={fmt(ok.plate)} />
@@ -408,7 +409,7 @@ function RegPopup({ ok, onClose, sheet }: { ok: QuoteResult; onClose: () => void
         <Line k="등록대행료" v={fmt(ok.reg_agency)} />
         <Line k="차량 등록/부대비용 ⑥" v={fmt(ok.car_reg_cost)} bold />
         <div style={{ height: 8 }} />
-        <div style={styles.popTitle}>특장 등록/부대비용 ⑩</div>
+        <div style={styles.popTitle}>{t('특장 등록/부대비용 ⑩')}</div>
         <Line k="특장 취득세 (2.0%)" v={fmt(ok.body_acq_tax)} />
         <Line k="등록부가수수료" v={fmt(ok.etc_fee)} />
         <Line k="구조변경 비용" v={fmt(ok.structure_change_fee)} />

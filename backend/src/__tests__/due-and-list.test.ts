@@ -81,7 +81,8 @@ describe('처리 필요 견적 — 기본은 접힘', () => {
     expect(perf).toMatch(/setAttentionOpen/);
     expect(perf).toMatch(/aria-expanded=\{attentionOpen\}/);
     // 건수는 접혀 있어도 보인다
-    expect(perf).toMatch(/처리 필요 견적 <span style=\{s\.count\}>\{attention\.length\}/);
+    // 영문화로 라벨이 {t('처리 필요 견적')} 이 됐다 — 옆에 건수가 붙는다는 것이 이 검사의 뜻이다
+    expect(perf).toMatch(/(?:\{t\('처리 필요 견적'\)\}|처리 필요 견적) <span style=\{s\.count\}>\{attention\.length\}/);
   });
 });
 

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
 import type { ApiPricingBundle } from '@shared/types/index'
 import { optionBreakdown } from '@shared/pricing/core'
@@ -89,7 +90,7 @@ export function QuoteExtras({
   return (
     <>
       <label style={s.label}>
-        메모 / 안내문 <span style={s.limit}>{MEMO_LIMIT_HINT}</span>
+        {t('메모 / 안내문')} <span style={s.limit}>{MEMO_LIMIT_HINT}</span>
       </label>
       {/*
         줄바꿈은 견적서·계약서에 **그대로 찍힌다.** 그래서 넘치는 것을 잘라 내면
@@ -106,7 +107,7 @@ export function QuoteExtras({
           type="checkbox" checked={localSubsidyOff} disabled={disabled} style={s.cbox}
           onChange={e => onToggleLocalSubsidy(e.target.checked)}
         />
-        지방보조금 소진
+        {t('지방보조금 소진')}
       </label>
 
       {/*
@@ -128,7 +129,7 @@ export function QuoteExtras({
             }
           }}
         />
-        프로모션{vehicleOnly && <span style={s.offNote}> · 특장 견적에만</span>}
+        프로모션{vehicleOnly && <span style={s.offNote}> {t('· 특장 견적에만')}</span>}
       </label>
       {showPromo && !vehicleOnly && (
         <div style={s.list}>
@@ -138,7 +139,7 @@ export function QuoteExtras({
             아래 무상제공은 「이 옵션은 안 받는다」라 옵션 단가만 0원이 된다(견적서에 항목 없음).
           */}
           <div style={s.amountRow}>
-            <span style={s.amountLabel}>금액 할인</span>
+            <span style={s.amountLabel}>{t('금액 할인')}</span>
             <input
               style={s.amount}
               type="text"
@@ -155,9 +156,9 @@ export function QuoteExtras({
             <span style={s.won}>원</span>
           </div>
 
-          <div style={s.sub}>옵션 무상제공</div>
+          <div style={s.sub}>{t('옵션 무상제공')}</div>
           {zeroable.length === 0
-            ? <div style={s.empty}>할인 가능한 옵션이 없습니다.</div>
+            ? <div style={s.empty}>{t('할인 가능한 옵션이 없습니다.')}</div>
             : zeroable.map(z => (
               <label key={z.group} style={s.item}>
                 <input

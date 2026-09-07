@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { t } from '../i18n'
 import {
   TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
   stepsFor, stepMapFor, EXTRA_EVIDENCE,
@@ -98,7 +99,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   const doneCodes = useMemo(() => new Set(states.filter(s => s.status === 'done').map(s => s.code)), [states])
 
   if (err && !steps) return <div style={s.err}>{err}</div>
-  if (!steps || !res) return <div style={s.muted}>단계를 불러오는 중입니다.</div>
+  if (!steps || !res) return <div style={s.muted}>{t('단계를 불러오는 중입니다.')}</div>
 
   const byCode = new Map(steps.map(x => [x.code, x]))
   const phaseOf = (d: StepDef): Phase =>
@@ -303,7 +304,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                       title={`${def.label} 대화`}
                     >
                       대화
-                      {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label="안 읽은 대화 있음" />}
+                      {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label={t('안 읽은 대화 있음')} />}
                     </button>
                   </div>
 
@@ -312,7 +313,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     <div style={s.body}>
                       {needDate && (
                         <div style={s.dateRow}>
-                          <label style={s.label}>{def.dateLabel}<span style={s.req}> · 필수</span></label>
+                          <label style={s.label}>{def.dateLabel}<span style={s.req}> {t('· 필수')}</span></label>
                           <input type="date" style={s.date} value={dates[def.code] ?? ''}
                             onChange={e => setDates(p => ({ ...p, [def.code]: e.target.value }))} />
                         </div>
@@ -455,8 +456,8 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
             날짜 칸(`· 필수`)과 같은 표기를 쓴다 — 같은 뜻이면 같게 보여야 한다.
           */}
           {optional
-            ? <span style={s.optTag}> · 선택</span>
-            : <span style={s.req}> · 필수</span>}
+            ? <span style={s.optTag}> {t('· 선택')}</span>
+            : <span style={s.req}> {t('· 필수')}</span>}
           {files.length > 1 && <span style={s.optTag}> · {files.length}장</span>}
         </span>
         {/* 등록 버튼은 **대화 버튼과 같은 줄 끝**에 선다 — 오른쪽 끝이 나란해야 눈이 편하다 */}
@@ -477,7 +478,7 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
             {f.name || `파일 ${f.id}`}
           </DocLink>
           <span style={s.fileSize}>{f.size ? fmtBytes(f.size) : ''}</span>
-          {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>삭제</button>}
+          {canEdit && <button style={s.fileDel} onClick={() => onDelete(f.id)}>{t('삭제')}</button>}
         </div>
       ))}
     </div>

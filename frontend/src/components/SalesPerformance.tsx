@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchSalesStats, fetchAttention, FUNNEL,
@@ -110,10 +111,10 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
             aria-expanded={attentionOpen}
           >
             <span style={s.caret}>{attentionOpen ? '▾' : '▸'}</span>
-            처리 필요 견적 <span style={s.count}>{attention.length}</span>
+            {t('처리 필요 견적')} <span style={s.count}>{attention.length}</span>
           </button>
           {!attentionOpen ? null : attention.length === 0 ? (
-            <div style={s.ok}>처리가 필요한 견적이 없습니다.</div>
+            <div style={s.ok}>{t('처리가 필요한 견적이 없습니다.')}</div>
           ) : isMobile ? (
             /*
               휴대폰 — 표를 옆으로 밀어 보게 하지 않는다.
@@ -143,9 +144,9 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <table style={s.table}>
                 <thead>
                   <tr>
-                    <th style={s.th}>사유</th><th style={s.th}>경과일</th><th style={s.th}>견적번호</th>
-                    <th style={s.th}>고객</th><th style={s.th}>실구매가(기타 포함)</th>
-                    {showUserFilter && <th style={s.th}>담당</th>}
+                    <th style={s.th}>{t('사유')}</th><th style={s.th}>{t('경과일')}</th><th style={s.th}>{t('견적번호')}</th>
+                    <th style={s.th}>{t('고객')}</th><th style={s.th}>{t('실구매가(기타 포함)')}</th>
+                    {showUserFilter && <th style={s.th}>{t('담당')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -173,10 +174,10 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
         <>
           {total && stats.length > 1 && (
             <section style={s.section}>
-              <div style={s.h}>전체 집계</div>
+              <div style={s.h}>{t('전체 집계')}</div>
               <Funnel reached={total.reached} />
               <div style={s.groups}>
-                <MetricGroup title="금액">
+                <MetricGroup title={t('금액')}>
                   <Metric label="견적완료" value={won(total.amount.confirmed)} />
                   <Metric label="계약완료" value={won(total.amount.contracted)} />
                   <Metric label="인도완료" value={won(total.amount.completed)} strong />
@@ -185,7 +186,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
             </section>
           )}
 
-          {stats.length === 0 && <div style={s.empty}>해당 기간에 생성된 견적이 없습니다.</div>}
+          {stats.length === 0 && <div style={s.empty}>{t('해당 기간에 생성된 견적이 없습니다.')}</div>}
 
           {stats.map(st => (
             <section key={st.sales_user_id} style={s.section}>
@@ -193,13 +194,13 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <Funnel reached={st.reached} />
 
               <div style={s.groups}>
-                <MetricGroup title="금액">
+                <MetricGroup title={t('금액')}>
                   <Metric label="견적완료" value={won(st.amount.confirmed)} />
                   <Metric label="계약완료" value={won(st.amount.contracted)} />
                   <Metric label="인도완료" value={won(st.amount.completed)} strong />
                 </MetricGroup>
 
-                <MetricGroup title="활동">
+                <MetricGroup title={t('활동')}>
                   <Metric label="메일 발송" value={`${st.activity.emailed}건`} />
                   <Metric label="서명 요청" value={`${st.activity.sign_requested}건`} />
                   <Metric
@@ -213,7 +214,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
                   />
                 </MetricGroup>
 
-                <MetricGroup title="소요">
+                <MetricGroup title={t('소요')}>
                   <Lead label="견적완료" v={st.lead.to_confirmed} />
                   <Lead label="계약완료" v={st.lead.to_contracted} />
                   <Lead label="인도완료" v={st.lead.to_completed} />

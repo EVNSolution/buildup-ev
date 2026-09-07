@@ -1,4 +1,5 @@
 import type { ApiOrder } from '@shared/types/index'
+import { t } from '../i18n'
 import { STEPS } from '@shared/process/steps'
 import { dueInfo } from '@shared/process/due'
 
@@ -73,18 +74,18 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                   「열어 봐야 아는」 일이 안 생긴다.
                 */}
                 {/* 배지는 **관리자가 배정할 때 정한 값**만 따른다 — 비고 유무로 추측하지 않는다 */}
-                {o.custom_badge && <span style={s.custom}>커스텀</span>}
-                {late && mode !== 'pending' && <span style={s.lateTag}>지연</span>}
+                {o.custom_badge && <span style={s.custom}>{t('커스텀')}</span>}
+                {late && mode !== 'pending' && <span style={s.lateTag}>{t('지연')}</span>}
               </div>
               {/* 끝낸 것만 적는다 — 「✓」 로 완료라는 뜻을 눈에도 못박는다 */}
               <div style={s.line2}>
                 {mode === 'pending'
                   ? <span style={s.orderedAt}>발주 {(o.assigned_at ?? o.created_at ?? '').slice(0, 10)}</span>
                   : done > 0 && done === total
-                  ? <span style={s.doneAll}>✓ 모든 단계 완료</span>
+                  ? <span style={s.doneAll}>{t('✓ 모든 단계 완료')}</span>
                   : st?.last_done
                     ? <span style={s.doneStep}>✓ {st.last_done}<span style={s.doneCount}> · {done}/{total} 완료</span></span>
-                    : <span style={s.muted}>아직 완료된 단계가 없습니다</span>}
+                    : <span style={s.muted}>{t('아직 완료된 단계가 없습니다')}</span>}
               </div>
               {/*
                 납기는 **왼쪽 줄로** 둔다.

@@ -112,7 +112,7 @@ export function PublicConfiguratorPage() {
   }
 
   if (loadErr) return <div style={s.center}>{loadErr}</div>
-  if (!bundle) return <div style={s.center}>불러오는 중…</div>
+  if (!bundle) return <div style={s.center}>{t('불러오는 중…')}</div>
 
   return (
     <div style={s.root}>
@@ -131,7 +131,7 @@ export function PublicConfiguratorPage() {
         {!compact && (
           <section style={s.viewer}>
             <img src={truckImg} alt="STEGO-K" style={s.truck} />
-            <div style={s.viewerNote}>3D 미리보기 연동 예정</div>
+            <div style={s.viewerNote}>{t('3D 미리보기 연동 예정')}</div>
           </section>
         )}
 
@@ -195,12 +195,12 @@ export function PublicConfiguratorPage() {
       {doneId !== null && (
         <div style={s.overlay} onClick={() => setDoneId(null)}>
           <div style={s.doneBox} onClick={e => e.stopPropagation()}>
-            <div style={s.doneTitle}>상담 신청이 접수되었습니다</div>
+            <div style={s.doneTitle}>{t('상담 신청이 접수되었습니다')}</div>
             <div style={s.doneNo}>접수번호 {doneId}</div>
             <p style={s.doneDesc}>
-              담당 영업사원이 확인 후 연락드립니다. 접수번호는 문의하실 때 알려 주시면 빠르게 확인할 수 있습니다.
+              {t('담당 영업사원이 확인 후 연락드립니다. 접수번호는 문의하실 때 알려 주시면 빠르게 확인할 수 있습니다.')}
             </p>
-            <button style={{ ...BTN.primary, width: '100%' }} onClick={() => setDoneId(null)}>확인</button>
+            <button style={{ ...BTN.primary, width: '100%' }} onClick={() => setDoneId(null)}>{t('확인')}</button>
           </div>
         </div>
       )}

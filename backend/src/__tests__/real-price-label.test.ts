@@ -35,7 +35,8 @@ describe('실구매가 라벨', () => {
       const src = read(f);
       if (!src.includes('final_price')) continue;
       checked++;
-      for (const m of src.matchAll(/>실구매가</g)) {
+      // 영문화 후에는 {t('실구매가')} 로 감싸인다 — 라벨이 무엇인지는 그대로다
+      for (const m of src.matchAll(/>\{t\('실구매가'\)\}<|>실구매가</g)) {
         bare.push(`${f} — …${src.slice(Math.max(0, m.index! - 40), m.index! + 10).replace(/\s+/g, ' ')}`);
       }
     }
@@ -45,7 +46,7 @@ describe('실구매가 라벨', () => {
 
   it('🔴 가격바는 그대로 「실구매가」다 — 등록·부대를 뺀 금액이고 견적서와 같은 값이다', () => {
     const bar = read('frontend/src/components/PriceBar.tsx');
-    expect(bar).toMatch(/>실구매가</);
+    expect(bar).toMatch(/>\{t\('실구매가'\)\}<|>실구매가</);
     // 별도 비용은 따로 적어 준다 — 이 줄이 사라지면 다시 헷갈린다
     expect(bar).toMatch(/기타 비용 포함/);
   });

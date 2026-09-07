@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { EVIDENCE_LABEL, STEP_BY_CODE, TRACK_LABEL, type EvidenceKind } from '@shared/process/steps'
 import { fetchSteps, stepFileUrl, type ApiStepFile } from '../api/steps'
 import { fmtBytes } from '../lib/imageResize'
@@ -33,22 +34,22 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
   }, [orderId])
 
   if (err) return <div style={s.err}>{err}</div>
-  if (!files) return <div style={s.muted}>불러오는 중입니다.</div>
-  if (files.length === 0) return <div style={s.muted}>등록된 증빙이 없습니다.</div>
+  if (!files) return <div style={s.muted}>{t('불러오는 중입니다.')}</div>
+  if (files.length === 0) return <div style={s.muted}>{t('등록된 증빙이 없습니다.')}</div>
 
   return (
     <div>
-      <div style={s.head}>등록된 증빙 <span style={s.count}>{files.length}</span></div>
+      <div style={s.head}>{t('등록된 증빙')} <span style={s.count}>{files.length}</span></div>
       <div style={s.scroller}>
         <table style={s.table}>
           <thead>
             <tr>
-              <th style={s.th}>단계</th>
-              <th style={s.th}>종류</th>
-              <th style={s.th}>파일</th>
-              <th style={s.th}>크기</th>
-              <th style={s.th}>등록자</th>
-              <th style={s.th}>등록일</th>
+              <th style={s.th}>{t('단계')}</th>
+              <th style={s.th}>{t('종류')}</th>
+              <th style={s.th}>{t('파일')}</th>
+              <th style={s.th}>{t('크기')}</th>
+              <th style={s.th}>{t('등록자')}</th>
+              <th style={s.th}>{t('등록일')}</th>
             </tr>
           </thead>
           <tbody>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../i18n'
 import type { ApiOrderOption } from '@shared/types/index'
 import { checkDeliveryDue, deliveryDueLimit, fromDateInput, toDateInput, DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
 import { fetchOrderDetail } from '../api/orders'
@@ -82,7 +83,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
         {/* 제목은 「수락」이 아니라 주문 번호만 — 이 팝업은 보고 나서 수락·거부를 고르는 자리다 */}
         <div style={m.title}>
           주문 #{orderId}
-          {readOnly && <span style={m.viewTag}> · 조회 전용</span>}
+          {readOnly && <span style={m.viewTag}> {t('· 조회 전용')}</span>}
         </div>
 
         <div style={m.scroll}>
@@ -102,7 +103,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
 
           <div style={m.dueBlock}>
             <div style={m.dueHead}>
-              <span style={m.dueLabel}>납기일{!readOnly && <span style={m.req}> · 필수</span>}</span>
+              <span style={m.dueLabel}>납기일{!readOnly && <span style={m.req}> {t('· 필수')}</span>}</span>
               <span style={m.dueHint}>
                 {DELIVERY_DUE_BUSINESS_DAYS}영업일 · <b>{toDateInput(limit)}</b>까지
               </span>
@@ -119,7 +120,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
             {readOnly ? null : windowClosed ? (
               <div style={m.closed}>
                 <b>납기 한도({toDateInput(limit)})가 이미 지났습니다.</b><br />
-                이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 <b>재배정</b>을 요청하시면
+                이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 <b>{t('재배정')}</b>을 요청하시면
                 발주일이 새로 지정되어 수락할 수 있습니다.
               </div>
             ) : (
@@ -127,7 +128,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
                 {/* 고를 수 있는 날짜만 그린다 — 눌러 보고 나서 안 된다는 걸 알게 하지 않는다 */}
                 <DueDatePicker orderedAt={base} value={due} onChange={setDue} />
                 <div style={m.picked}>
-                  {due ? <>납기일 <b>{due}</b></> : '납기일을 선택하십시오'}
+                  {due ? <>{t('납기일')} <b>{due}</b></> : '납기일을 선택하십시오'}
                 </div>
               </>
             )}
@@ -143,11 +144,11 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
         */}
         {rejecting && (
           <div style={m.rejectBox}>
-            <div style={m.rejectTitle}>이 주문을 거부합니다</div>
-            <label style={m.rejectLabel}>거부 사유<span style={m.req}> · 필수</span></label>
+            <div style={m.rejectTitle}>{t('이 주문을 거부합니다')}</div>
+            <label style={m.rejectLabel}>{t('거부 사유')}<span style={m.req}> {t('· 필수')}</span></label>
             <textarea
               style={m.rejectInput} rows={3} value={reason} maxLength={500}
-              placeholder="예) 요청 납기 내 제작이 어렵습니다 / 해당 사양은 제작 불가합니다"
+              placeholder={t('예) 요청 납기 내 제작이 어렵습니다 / 해당 사양은 제작 불가합니다')}
               onChange={e => setReason(e.target.value)}
             />
           </div>
@@ -159,7 +160,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
           <button style={BTN.secondary} onClick={onClose} disabled={busy}>{readOnly ? '닫기' : '취소'}</button>
           {readOnly ? null : !rejecting ? (
             <>
-              <button style={m.rejectBtn} onClick={() => setRejecting(true)} disabled={busy}>거부</button>
+              <button style={m.rejectBtn} onClick={() => setRejecting(true)} disabled={busy}>{t('거부')}</button>
               <button
                 style={canAccept ? BTN.primary : BTN.disabled}
                 disabled={!canAccept}
