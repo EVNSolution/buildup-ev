@@ -635,11 +635,15 @@ function AccountsTab() {
       {resetConfirm && (
         <div style={modal.overlay} onClick={() => setResetConfirm(null)}>
           <div style={modal.box} onClick={e => e.stopPropagation()}>
-            <div style={modal.title}>비밀번호 재설정 — {resetConfirm.name}</div>
+            <div style={modal.title}>{tf('비밀번호 재설정 — {0}', resetConfirm.name)}</div>
+            {/*
+              강조를 문장 가운데 끼워 세 조각으로 나눠 뒀었다. 한국어는 서술어가 끝에 와서
+              말이 됐지만 영어는 어순이 달라 조각의 경계 자체가 달라진다 — 통째로 옮긴다.
+            */}
             <div style={modal.desc}>
-              <b>{resetConfirm.email}</b> 의 비밀번호를 임시 비밀번호로 바꿉니다.
-              <br />· 지금 쓰던 비밀번호는 <b>즉시 사용할 수 없게</b> 됩니다.
-              <br />· 임시 비밀번호는 <b>이 화면에서 한 번만</b> 보이며 다시 조회할 수 없습니다.
+              {tf('{0} 의 비밀번호를 임시 비밀번호로 바꿉니다.', resetConfirm.email)}
+              <br />{t('· 지금 쓰던 비밀번호는 즉시 사용할 수 없게 됩니다.')}
+              <br />{t('· 임시 비밀번호는 이 화면에서 한 번만 보이며 다시 조회할 수 없습니다.')}
               <br />{t('· 당사자에게 직접 전달해야 합니다.')}
             </div>
             <div style={modal.actions}>
@@ -1665,7 +1669,7 @@ export function AdminPage() {
         {activeTab === 'weights' && (
           <OptionDbTab
             only={['weight_constant']}
-            note={<>하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 <b>{t('다음 서류생성부터 재계산')}</b>에 반영됩니다.</>}
+            note={tf('하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 {0}에 반영됩니다.', t('다음 서류생성부터 재계산'))}
           />
         )}
         {activeTab === 'optiondb' && <OptionDbTab only={['option_price', 'subsidy_local', 'subsidy_national', 'tax_config', 'installment_rate']} />}

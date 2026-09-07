@@ -981,6 +981,14 @@ export const EN: Record<string, string> = {
   '부대비': 'Incidental cost',
   '슬라이딩 가산/도어': 'Sliding surcharge per door',
   '납기 오늘': 'Due today',
+  '고객이 받은 링크가 무효가 되고, 재발송할 수 있게 됩니다. 이미 보낸 기록은 지워지지 않습니다.': 'The link the customer received is invalidated and you can send it again. The record of what was already sent is not deleted.',
+  '우리 쪽 계약은 취소되어 재발송할 수 있습니다. 다만 모두싸인에서 문서를 취소하지 못했습니다 —': 'Our side of the contract was cancelled and can be resent, but the document could not be cancelled in Modusign —',
+  '되돌릴 시점을 고르세요. 고른 수정 직전 상태로 값이 복원되며, 그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.': 'Choose a point to revert to. Values are restored to the state just before that edit, and every edit after it is undone. The revert is recorded too, so it can be reverted in turn.',
+  '납기일은 배정된 특장사가 수락하면서 정합니다.': 'The delivery date is set by the assigned upfitter when they accept.',
+  '· 지금 쓰던 비밀번호는 즉시 사용할 수 없게 됩니다.': '· The current password stops working immediately.',
+  '· 임시 비밀번호는 이 화면에서 한 번만 보이며 다시 조회할 수 없습니다.': '· The temporary password is shown only once, on this screen, and cannot be retrieved again.',
+  '※ 견적서·계약서 PDF 가 첨부됩니다.': '※ The quotation and contract PDFs are attached.',
+  '※ 견적서 PDF 가 첨부됩니다.': '※ The quotation PDF is attached.',
 }
 
 /**
@@ -1104,6 +1112,15 @@ export const EN_FMT: Record<string, string> = {
   '추가 옵션 {0}번째 줄 — 옵션명은 {1}자까지 넣을 수 있습니다.': 'Extra option row {0} — the name can be at most {1} characters.',
   '추가 옵션 {0}번째 줄 — 금액은 0원 이상이어야 합니다.': 'Extra option row {0} — the amount cannot be negative.',
   '추가 옵션 {0}번째 줄 — 금액이 너무 큽니다. 다시 확인해 주세요.': 'Extra option row {0} — the amount is too large. Please check it.',
+  '주문 #{0} 을(를) 삭제합니다': 'Delete order #{0}',
+  '목록에서 빠집니다. 견적은 {0}로 돌아가 다시 배정할 수 있고, 주문 기록과 그동안의 서류는 지워지지 않습니다.': 'It leaves the list. The quote returns to {0} so it can be assigned again, and the order record and the documents so far are not deleted.',
+  '종이로 체결한 계약서를 올립니다. 등록하면 전자서명 없이 {0}가 되어 제작 배정을 할 수 있습니다. 견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.': 'Upload a contract signed on paper. Once registered it becomes {0} without an e-signature, and production can be assigned. The quotation and contract are frozen as they are at this point and can no longer be edited.',
+  '지난 견적의 고객정보에서 {0} 을(를) 불러와 빈 칸을 채웠습니다. 다르면 고쳐 주세요.': 'Filled the blanks from a previous quote: {0}. Correct anything that differs.',
+  '비밀번호 재설정 — {0}': 'Reset password — {0}',
+  '{0} 의 비밀번호를 임시 비밀번호로 바꿉니다.': "{0}'s password will be replaced with a temporary one.",
+  '납기 한도({0})가 이미 지났습니다.': 'The delivery deadline ({0}) has already passed.',
+  '이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 {0}을 요청하시면 발주일이 새로 지정되어 수락할 수 있습니다.': 'This purchase order cannot carry a delivery date. Ask an admin to {0} — a new order date is set and you can then accept.',
+  '하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 {0}에 반영됩니다.': 'Constants used to auto-generate the weight distribution calculation and the specification comparison table. Changes take effect {0}.',
 }
 
 /**
@@ -1111,37 +1128,4 @@ export const EN_FMT: Record<string, string> = {
  * t() 로 덮지 말고 JSX 를 다시 짜야 한다.
  */
 export const NEEDS_RESTRUCTURE: readonly string[] = [
-  '· 임시 비밀번호는',
-  '· 지금 쓰던 비밀번호는',
-  '·계약서',
-  '가 되어 제작 배정을 할 수 있습니다. 견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.',
-  '고객이 받은 링크가 무효가 되고,',
-  '까지',
-  '납기일은',
-  '다만 모두싸인에서 문서를 취소하지 못했습니다 —',
-  '되돌릴 시점을 고르세요. 고른',
-  '됩니다.',
-  '됩니다. 이미 보낸 기록은 지워지지 않습니다.',
-  '로 돌아가 다시 배정할 수 있고, 주문 기록과 그동안의 서류는',
-  '목록에서 빠집니다. 견적은',
-  '배정된 특장사가 수락하면서',
-  '보이며 다시 조회할 수 없습니다.',
-  '상태로 값이 복원되며, 그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.',
-  '수정 직전',
-  '에 반영됩니다.',
-  '우리 쪽 계약은 취소되어',
-  '을 요청하시면 발주일이 새로 지정되어 수락할 수 있습니다.',
-  '을(를) 불러와 빈 칸을 채웠습니다. 다르면 고쳐 주세요.',
-  '의 비밀번호를 임시 비밀번호로 바꿉니다.',
-  '이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게',
-  '이 직전으로',
-  '이 화면에서 한 번만',
-  '재발송할 수 있게',
-  '재발송할 수 있습니다.',
-  '정합니다.',
-  '종이로 체결한 계약서를 올립니다. 등록하면 전자서명 없이',
-  '즉시 사용할 수 없게',
-  '지난 견적의 고객정보에서',
-  '지워지지 않습니다.',
-  '하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면',
 ]

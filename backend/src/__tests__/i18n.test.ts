@@ -138,10 +138,13 @@ describe('영문화', () => {
     /*
      * 토막 난 문장은 낱말로 옮기면 영어가 무너진다(동사가 강조 앞으로 가야 하는 등).
      * JSX 를 다시 짜기 전에 t() 로 덮으면 「영어처럼 보이는 비문」이 배포된다.
-     * 다시 짠 문장은 이 목록에서 빼면 된다.
+     *
+     * 33개로 시작했고 **전부 다시 짰다** — 문장을 통째로 사전에 넣고, 값이 끼는 자리는
+     * tf() 로 뺐다. 대가는 문장 가운데 있던 굵은 글씨 몇 개다(말이 되는 영어와 맞바꿨다).
      */
     const frags = keysOf(block('NEEDS_RESTRUCTURE')).map(s => s.replace(/\\'/g, "'"));
-    expect(frags.length).toBeGreaterThan(0);
+    // 33개로 시작해 **전부 다시 짰다.** 목록이 비는 것이 끝난 상태다.
+    // 새 조각이 생기면(강조를 문장 가운데 끼우면) 여기 적고, 다시 짜기 전에는 t() 로 덮지 않는다.
     const wrapped: string[] = [];
     for (const [rel, src] of files) {
       for (const f of frags) {

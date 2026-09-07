@@ -351,8 +351,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
               <button style={BTN.bar} onClick={() => setPoints(null)}>✕</button>
             </div>
             <div style={s.note}>
-              되돌릴 시점을 고르세요. 고른 <b>수정 직전</b> 상태로 값이 복원되며,
-              그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.
+              {t('되돌릴 시점을 고르세요. 고른 수정 직전 상태로 값이 복원되며, 그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.')}
             </div>
             <div style={s.logWrap}>
               {points.length === 0 ? <div style={s.empty}>{t('되돌릴 수 있는 수정 기록이 없습니다.')}</div> : (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import type { ApiOrderOption } from '@shared/types/index'
 import { checkDeliveryDue, deliveryDueLimit, fromDateInput, toDateInput, DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
 import { fetchOrderDetail } from '../api/orders'
@@ -114,14 +114,13 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
             */}
             {readOnly && (
               <div style={m.viewNote}>
-                납기일은 <b>배정된 특장사가 수락하면서</b> 정합니다.
+                {t('납기일은 배정된 특장사가 수락하면서 정합니다.')}
               </div>
             )}
             {readOnly ? null : windowClosed ? (
               <div style={m.closed}>
-                <b>납기 한도({toDateInput(limit)})가 이미 지났습니다.</b><br />
-                이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 <b>{t('재배정')}</b>을 요청하시면
-                발주일이 새로 지정되어 수락할 수 있습니다.
+                <b>{tf('납기 한도({0})가 이미 지났습니다.', toDateInput(limit))}</b><br />
+                {tf('이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 {0}을 요청하시면 발주일이 새로 지정되어 수락할 수 있습니다.', t('재배정'))}
               </div>
             ) : (
               <>

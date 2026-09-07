@@ -136,10 +136,8 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
           ) : (
             <div style={s.cancelBox}>
               <div style={s.cancelTitle}>{t('이 서명 요청을 취소합니다')}</div>
-              <div style={s.muted}>
-                고객이 받은 링크가 무효가 되고, <b>재발송할 수 있게</b> 됩니다.
-                이미 보낸 기록은 지워지지 않습니다.
-              </div>
+              {/* 강조를 문장 가운데 끼우면 영어로 옮길 수 없다 — 문장을 통째로 둔다 */}
+              <div style={s.muted}>{t('고객이 받은 링크가 무효가 되고, 재발송할 수 있게 됩니다. 이미 보낸 기록은 지워지지 않습니다.')}</div>
               <label style={s.cancelLabel}>{t('취소 사유')}<span style={s.opt}> {t('· 고객에게 보입니다')}</span></label>
               <input
                 style={s.cancelInput}
@@ -165,8 +163,8 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
       */}
       {linkMaybeAlive && (
         <div style={s.warn}>
-          우리 쪽 계약은 취소되어 <b>재발송할 수 있습니다.</b> 다만 모두싸인에서 문서를 취소하지 못했습니다 —
-          <b>{t('고객이 받은 이전 링크가 아직 살아 있을 수 있습니다.')}</b>
+          {t('우리 쪽 계약은 취소되어 재발송할 수 있습니다. 다만 모두싸인에서 문서를 취소하지 못했습니다 —')}{' '}
+          <b>{t('고객이 받은 이전 링크가 아직 살아 있을 수 있습니다.')}</b>{' '}
           {t('모두싸인에서 그 문서를 직접 취소해 주세요.')}
         </div>
       )}

@@ -98,7 +98,11 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
             <label style={s.label}>{t('메시지')}</label>
             <textarea style={s.textarea} rows={4} value={message} placeholder={t('비우면 기본 안내문으로 발송')} onChange={(e) => setMessage(e.target.value)} />
 
-            <div style={s.note}>※ 견적서{attachContract ? '·계약서' : ''} PDF 가 첨부됩니다.{canAttachContract ? t(' 전자서명은 별도(계약발송).') : t(' 차량만 견적이라 계약서는 없습니다.')}</div>
+            {/* 「견적서」와 「·계약서」를 이어 붙이던 자리 — 영어는 목록 표기가 달라 문장을 통째로 둔다 */}
+            <div style={s.note}>
+              {attachContract ? t('※ 견적서·계약서 PDF 가 첨부됩니다.') : t('※ 견적서 PDF 가 첨부됩니다.')}
+              {canAttachContract ? t(' 전자서명은 별도(계약발송).') : t(' 차량만 견적이라 계약서는 없습니다.')}
+            </div>
             {err && <div style={s.err}>{err}</div>}
             <button style={s.primary} onClick={handleSend} disabled={sending || !to.trim()}>{sending ? t('발송 중…') : t('발송')}</button>
 

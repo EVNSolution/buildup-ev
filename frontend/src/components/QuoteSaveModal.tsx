@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
 import { lookupCustomer, lookupWarpCustomer, type WarpVehicleInfo } from '../api/quotes'
@@ -374,8 +374,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
 
         {autofilled.length > 0 && (
           <div style={s.autofill}>
-            지난 견적의 고객정보에서 <b>{autofilled.join(', ')}</b> 을(를) 불러와 빈 칸을 채웠습니다.
-            다르면 고쳐 주세요.
+            {tf('지난 견적의 고객정보에서 {0} 을(를) 불러와 빈 칸을 채웠습니다. 다르면 고쳐 주세요.', autofilled.join(', '))}
           </div>
         )}
 
