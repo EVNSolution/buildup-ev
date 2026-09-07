@@ -34,6 +34,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
+import { t } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useEscapeClose } from '../lib/escClose'
@@ -1188,7 +1189,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
               <div style={qtMob.cardTop}>
                 <span style={qtMob.name}>{q.customer?.name ?? '—'}<QuoteKindTag quote={q} /></span>
                 <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
-                  <Badge tone={statusTone(q.status)}>{QUOTE_STATUS_LABELS[q.status] ?? q.status}</Badge>
+                  <Badge tone={statusTone(q.status)}>{t(QUOTE_STATUS_LABELS[q.status] ?? q.status)}</Badge>
                 </Tooltip>
               </div>
               <div style={qtMob.rows}>
@@ -1331,7 +1332,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                   <td style={qt.td}>
                     <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                       <Badge tone={statusTone(q.status)}>
-                        {QUOTE_STATUS_LABELS[q.status] ?? q.status}
+                        {t(QUOTE_STATUS_LABELS[q.status] ?? q.status)}
                       </Badge>
                     </Tooltip>
                   </td>

@@ -72,16 +72,16 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
   const { trim_price, option_sum } = assembleOptionSum(
     selections, price, [...promotionZeroed], liveCustomOptions(args.customOptions),
   )
-  const t = bundle.tax_all ?? {}
+  const tax = bundle.tax_all ?? {}
   const biz = mapBizType(subsidyInputs.business_type)
   const params = {
     car_price: resolveCarPrice(trim_price, carPriceOverride),
-    delivery_fee: t['delivery_fee'] ?? bundle.tax.delivery_fee,
-    commercial_discount: t['commercial_discount'] ?? 0,
-    partnership_rate: t['partnership_rate'] ?? 0.01,
+    delivery_fee: tax['delivery_fee'] ?? bundle.tax.delivery_fee,
+    commercial_discount: tax['commercial_discount'] ?? 0,
+    partnership_rate: tax['partnership_rate'] ?? 0.01,
     subsidy_national: bundle.subsidy_national?.amount ?? 0,
     diesel_conversion: subsidyInputs.diesel_status === 'keep',   // 엑셀 D15 — 「유지」만 −50만
-    diesel_deduction: t['diesel_deduction'] ?? 500_000,
+    diesel_deduction: tax['diesel_deduction'] ?? 500_000,
     subsidy_local: subsidyReady ? subsidyLocal : 0,
     is_corporation: biz === 'corporation',
     local_subsidy_off: localSubsidyOff,
@@ -94,26 +94,26 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
     body_price: Math.round(option_sum * 1.1),
     // I18 — 서버(quote-calc)와 같은 규칙: 음수·특장가격 초과를 막는다
     promotion: Math.min(promotionDiscount, Math.round(option_sum * 1.1)),
-    car_deposit: t['car_deposit'] ?? 100_000,
-    body_deposit: t['body_deposit'] ?? 400_000,
+    car_deposit: tax['car_deposit'] ?? 100_000,
+    body_deposit: tax['body_deposit'] ?? 400_000,
     down_payment_rate: 0,     // 선수금·할부는 견적서 생성 단계 입력
     installment_months: 0,
     installment_rate: 0,
     has_biz_plate: !!customer?.has_biz_plate,
-    acq_tax_rate_biz: t['acq_tax_rate_biz'] ?? 0.04,
-    acq_tax_rate_normal: t['acq_tax_rate'] ?? bundle.tax.acq_tax_rate,
-    acq_tax_relief: t['acq_tax_relief_cap'] ?? bundle.tax.acq_tax_relief_cap,
-    special_acq_tax_rate: t['special_acq_tax_rate'] ?? bundle.tax.special_acq_tax_rate,
+    acq_tax_rate_biz: tax['acq_tax_rate_biz'] ?? 0.04,
+    acq_tax_rate_normal: tax['acq_tax_rate'] ?? bundle.tax.acq_tax_rate,
+    acq_tax_relief: tax['acq_tax_relief_cap'] ?? bundle.tax.acq_tax_relief_cap,
+    special_acq_tax_rate: tax['special_acq_tax_rate'] ?? bundle.tax.special_acq_tax_rate,
     is_seoul_normal: (customer?.tax_exempt_type ?? DEFAULT_TAX_EXEMPT_TYPE) === '일반인' && subsidyInputs.region_code === '서울특별시',
-    bond_discount: t['bond_discount'] ?? 0,
-    plate: t['plate'] ?? bundle.tax.plate,
-    stamp: t['stamp'] ?? bundle.tax.stamp,
-    insurance: t['insurance'] ?? 2_800,
-    reg_agency: t['reg_agency'] ?? bundle.tax.reg_agency,
-    etc_fee: t['etc_fee'] ?? bundle.tax.etc_fee,
+    bond_discount: tax['bond_discount'] ?? 0,
+    plate: tax['plate'] ?? bundle.tax.plate,
+    stamp: tax['stamp'] ?? bundle.tax.stamp,
+    insurance: tax['insurance'] ?? 2_800,
+    reg_agency: tax['reg_agency'] ?? bundle.tax.reg_agency,
+    etc_fee: tax['etc_fee'] ?? bundle.tax.etc_fee,
     // 구조변경 비용 — tax_config 값. 백엔드(buildQuoteParams)와 같은 기본값을 써야
     // 화면 가격과 견적서 PDF 가 어긋나지 않는다.
-    structure_change_fee: t['structure_change_fee'] ?? 400_000,
+    structure_change_fee: tax['structure_change_fee'] ?? 400_000,
   }
   /*
    * 특장만이면 차량에 딸린 입력을 통째로 0으로 만든다 — **백엔드와 같은 함수**를 쓴다.

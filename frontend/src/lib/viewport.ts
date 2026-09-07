@@ -81,9 +81,9 @@ export function useAppHeight(): void {
     }
     set()
     // 글꼴·주소창이 자리 잡은 뒤 한 번 더 — 첫 계산이 어긋나는 경우가 있다
-    const t = setTimeout(set, 120)
+    const timer = setTimeout(set, 120)
     const off = onVisibleHeightChange(set)
-    return () => { off(); clearTimeout(t) }
+    return () => { off(); clearTimeout(timer) }
   }, [])
 }
 

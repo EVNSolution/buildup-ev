@@ -5,10 +5,12 @@ import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { HomeGate } from './components/HomeGate'
+import { useLang } from './i18n'
 import { RefreshProvider } from './contexts/RefreshContext'
 import { SalesPage } from './pages/SalesPage'
 import { AdminPage } from './pages/AdminPage'
 import { MakerPage } from './pages/MakerPage'
+import { MyPage } from './pages/MyPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 
 export function App() {
@@ -16,6 +18,18 @@ export function App() {
   useAppHeight()
   // 손가락으로 화면을 확대하지 못하게 한다 — 확대되면 레이아웃이 화면 밖으로 밀린다
   useNoPinchZoom()
+  /*
+   * 언어를 **여기 한 곳에서만** 구독한다.
+   *
+   * t() 는 모듈 변수를 읽으므로, 구독하지 않은 컴포넌트는 언어를 바꿔도 옛 글자를 든 채
+   * 남는다. 컴포넌트마다 useLang() 을 부르게 하면 반드시 빠뜨리는 자리가 생기고,
+   * 그 자리만 한국어로 남는다 — 눈에 잘 안 띈다.
+   *
+   * 이 앱에는 React.memo 가 한 곳도 없어서, 최상위가 다시 그려지면 아래가 전부 따라 그려진다.
+   * key 를 바꿔 통째로 다시 마운트하는 방법도 있지만 그러면 **입력 중이던 값이 날아간다.**
+   * 다시 그리기만 하면 상태는 그대로 남는다.
+   */
+  useLang()
 
   return (
     <AuthProvider>
@@ -45,6 +59,11 @@ export function App() {
           } />
           <Route path="/maker" element={
             <RequireAuth><MakerPage /></RequireAuth>
+          } />
+
+          {/* 마이페이지 — 역할과 무관하게 로그인한 사람 누구나. 최상단바의 계정 이름으로 들어온다 */}
+          <Route path="/me" element={
+            <RequireAuth><MyPage /></RequireAuth>
           } />
 
           <Route path="/conversion" element={<Navigate to="/maker" replace />} />

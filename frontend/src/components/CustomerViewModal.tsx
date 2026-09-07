@@ -24,8 +24,9 @@ export interface ViewGroup { title: string; rows: [string, string][] }
  */
 export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
   const inp = (quote.inputs ?? {}) as Record<string, unknown>
-  const t = (k: string) => { const v = inp[k]; return v == null || v === '' ? '' : String(v) }
-  const isCorp = t('biz_type') === 'corporate'
+  /** 견적 입력값 한 칸 — 빈 값은 빈 글자로. (이름이 `t` 였는데 번역 함수와 겹쳐 바꿨다) */
+  const val = (k: string) => { const v = inp[k]; return v == null || v === '' ? '' : String(v) }
+  const isCorp = val('biz_type') === 'corporate'
   const yn = (k: string) => (inp[k] === true ? '예' : '아니오')
 
   return [
@@ -33,8 +34,8 @@ export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
       title: '고객',
       rows: [
         [isCorp ? '상호' : '성명', quote.customer?.name ?? ''],
-        ...(isCorp ? [['대표이사', t('ceo_name')] as [string, string]] : []),
-        ['사업자 구분', BIZ_KO[t('biz_type')] ?? t('biz_type')],
+        ...(isCorp ? [['대표이사', val('ceo_name')] as [string, string]] : []),
+        ['사업자 구분', BIZ_KO[val('biz_type')] ?? val('biz_type')],
         ['연락처', quote.customer?.phone ?? ''],
         ['이메일', quote.customer?.email ?? ''],
         ['세부주소', quote.customer?.address ?? ''],
@@ -43,28 +44,28 @@ export function customerViewGroups(quote: ApiQuote): ViewGroup[] {
     {
       title: '보조금 조건',
       rows: [
-        ['지역', t('region')],
+        ['지역', val('region')],
         ['소상공인', yn('is_sosang')],
         ['화물운송 허가', yn('has_transport_license')],
-        ['경유차', DIESEL_KO[t('diesel_status')] ?? t('diesel_status')],
+        ['경유차', DIESEL_KO[val('diesel_status')] ?? val('diesel_status')],
       ],
     },
     {
       title: '계약서 정보',
       rows: [
-        ['계약 당사자', t('contract_party')],
-        [isCorp ? '사업자번호' : '생년월일', t('buyer_regno')],
-        ['유선번호', t('buyer_tel')],
-        ['대리인', t('buyer_agent')],
-        ['관계', t('buyer_relation')],
+        ['계약 당사자', val('contract_party')],
+        [isCorp ? '사업자번호' : '생년월일', val('buyer_regno')],
+        ['유선번호', val('buyer_tel')],
+        ['대리인', val('buyer_agent')],
+        ['관계', val('buyer_relation')],
       ],
     },
     {
       title: '결제 조건',
       rows: [
-        ['선수금 비율', t('down_payment_rate') ? `${Math.round(Number(t('down_payment_rate')) * 100)}%` : ''],
-        ['할부 개월', t('installment_months') === '0' ? '일시불' : (t('installment_months') ? `${t('installment_months')}개월` : '')],
-        ['메모', t('memo')],
+        ['선수금 비율', val('down_payment_rate') ? `${Math.round(Number(val('down_payment_rate')) * 100)}%` : ''],
+        ['할부 개월', val('installment_months') === '0' ? '일시불' : (val('installment_months') ? `${val('installment_months')}개월` : '')],
+        ['메모', val('memo')],
       ],
     },
   ]

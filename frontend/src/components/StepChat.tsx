@@ -93,9 +93,9 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
       setPanelH(Math.max(240, Math.round(visibleHeight() / (zoom || 1))))
     }
     fit()
-    const t = setTimeout(fit, 120)
+    const timer = setTimeout(fit, 120)
     const off = onVisibleHeightChange(fit)
-    return () => { off(); clearTimeout(t) }
+    return () => { off(); clearTimeout(timer) }
   }, [])
 
   useEffect(() => {

@@ -13,10 +13,10 @@ function norm(v: string): string {
 }
 
 export function matchesCustomer(q: ApiQuote, term: string): boolean {
-  const t = norm(term)
-  if (!t) return true            // 안 적었으면 전부 보여 준다
+  const term$ = norm(term)
+  if (!term$) return true            // 안 적었으면 전부 보여 준다
   const name = norm(q.customer?.name ?? '')
-  return name.includes(t)
+  return name.includes(term$)
 }
 
 /** 이름으로 좁힌 목록. 빈 검색어면 원본 그대로(불필요한 새 배열을 만들지 않는다) */

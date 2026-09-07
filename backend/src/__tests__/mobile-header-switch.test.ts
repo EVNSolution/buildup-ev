@@ -33,9 +33,32 @@ describe('휴대폰 화면 전환 토글', () => {
     expect(HEADER).not.toMatch(/size=\{isMobile \? 'sm' : undefined\}/);
   });
 
-  it('자리를 내주려고 워드마크와 계정 이름을 접는다', () => {
+  it('자리를 내주려고 워드마크를 접는다', () => {
     expect(HEADER, '워드마크를 접지 않는다').toMatch(/\{!isMobile && \(/);
-    expect(HEADER, '계정 이름을 접지 않는다').toMatch(/!\(isMobile && mySurfaces\.length > 1\)/);
+  });
+
+  it('🔴 계정 이름은 접지 말고 줄인다', () => {
+    /*
+     * 예전엔 휴대폰 + 겸직 계정일 때 계정 이름을 **아예 감췄다**(`!(isMobile && mySurfaces.length > 1)`).
+     * 자리를 내주려던 것인데, 이름이 **마이페이지로 들어가는 유일한 길**이 되면서
+     * 휴대폰에서 언어·비밀번호 설정에 닿을 방법이 사라졌다.
+     *
+     * 지켜야 할 것은 「감춘다」가 아니라 **헤더가 한 줄로 남는다** 였다. 그래서 고객 칩과
+     * 같은 방식으로 바꿨다 — 자리가 모자라면 사라지는 게 아니라 '…' 로 줄어든다.
+     * 375px 실측: 헤더 66px 한 줄, 가로로 새어 나가는 것 0.
+     */
+    expect(HEADER, '이름을 도로 감췄다 — 휴대폰에서 마이페이지에 닿을 수 없게 된다')
+      .not.toMatch(/!\(isMobile && mySurfaces\.length > 1\)/);
+    const i = HEADER.indexOf('userInfo: {');
+    expect(i, 'userInfo 스타일이 사라졌다').toBeGreaterThan(0);
+    const style = HEADER.slice(i, i + 400);
+    expect(style, '줄어들지 못하면 헤더를 밀어 두 줄로 만든다').toMatch(/flexShrink: 1/);
+    expect(style).toMatch(/minWidth: 0/);
+  });
+
+  it('🔴 마이페이지로 가는 길이 있다', () => {
+    // 언어·비밀번호는 마이페이지에만 있다 — 길이 끊기면 설정을 아예 못 바꾼다
+    expect(HEADER, '계정 이름이 마이페이지로 가지 않는다').toMatch(/navigate\('\/me'\)/);
   });
 
   it('역할이 하나면 토글 자체가 없다', () => {
