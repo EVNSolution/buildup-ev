@@ -115,7 +115,7 @@ export function QuoteExtras({
         칸을 없애지 않고 회색으로 남긴다: 사라지면 「프로모션이 어디 갔지」가 된다.
       */}
       <label style={vehicleOnly ? { ...s.toggle, ...s.toggleOff } : s.toggle}
-        title={vehicleOnly ? '차량만 견적에는 특장 프로모션이 적용되지 않습니다' : undefined}>
+        title={vehicleOnly ? t('차량만 견적에는 특장 프로모션이 적용되지 않습니다') : undefined}>
         <input
           type="checkbox" checked={vehicleOnly ? false : showPromo} style={s.cbox}
           disabled={vehicleOnly}
@@ -167,7 +167,7 @@ export function QuoteExtras({
                 />
                 <span style={s.name}>{z.label}{z.value ? ` · ${z.value}` : ''}</span>
                 <span style={promotionZeroed.has(z.group) ? s.zeroed : s.price}>
-                  {promotionZeroed.has(z.group) ? '0원' : wonVat(z.supply)}
+                  {promotionZeroed.has(z.group) ? t('0원') : wonVat(z.supply)}
                 </span>
               </label>
             ))

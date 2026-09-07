@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /**
  * 웹 푸시 켜기/끄기 — **못 하는 환경이 많다는 전제로 짠다.**
  *
@@ -27,12 +28,12 @@ export async function pushState(): Promise<PushState> {
     return {
       kind: 'unsupported',
       why: isIOS() && !isInstalled()
-        ? '아이폰은 홈 화면에 설치한 뒤에만 알림을 받을 수 있습니다'
-        : '이 브라우저는 알림을 지원하지 않습니다',
+        ? t('아이폰은 홈 화면에 설치한 뒤에만 알림을 받을 수 있습니다')
+        : t('이 브라우저는 알림을 지원하지 않습니다'),
     }
   }
   if (Notification.permission === 'denied') {
-    return { kind: 'denied', why: '브라우저에서 알림이 차단돼 있습니다. 사이트 설정에서 허용으로 바꿔 주세요' }
+    return { kind: 'denied', why: t('브라우저에서 알림이 차단돼 있습니다. 사이트 설정에서 허용으로 바꿔 주세요') }
   }
   const reg = await navigator.serviceWorker.getRegistration()
   const sub = await reg?.pushManager.getSubscription()
@@ -59,7 +60,7 @@ export async function enablePush(publicKey: string): Promise<void> {
   const reg = await navigator.serviceWorker.register('/sw.js')
   await navigator.serviceWorker.ready
   const perm = await Notification.requestPermission()
-  if (perm !== 'granted') throw new Error('알림 권한이 필요합니다')
+  if (perm !== 'granted') throw new Error(t('알림 권한이 필요합니다'))
 
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,     // 규격상 필수 — 안 보이는 알림은 금지
@@ -70,7 +71,7 @@ export async function enablePush(publicKey: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(sub.toJSON()),
   })
-  if (!res.ok) throw new Error('알림 등록에 실패했습니다')
+  if (!res.ok) throw new Error(t('알림 등록에 실패했습니다'))
 }
 
 export async function disablePush(): Promise<void> {

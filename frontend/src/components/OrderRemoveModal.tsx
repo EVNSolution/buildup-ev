@@ -27,7 +27,7 @@ export function OrderRemoveModal({ orderId, onClose, onDone }: {
   async function go() {
     setBusy(true); setErr('')
     try { await cancelOrder(orderId, reason.trim()); onDone() }
-    catch (e) { setErr(e instanceof Error ? e.message : '주문 삭제에 실패했습니다') }
+    catch (e) { setErr(e instanceof Error ? e.message : t('주문 삭제에 실패했습니다')) }
     finally { setBusy(false) }
   }
 
@@ -52,7 +52,7 @@ export function OrderRemoveModal({ orderId, onClose, onDone }: {
             style={reason.trim() && !busy ? s.goBtn : BTN.disabled}
             disabled={!reason.trim() || busy}
             onClick={() => void go()}
-          >{busy ? '처리 중…' : '삭제'}</button>
+          >{busy ? t('처리 중…') : t('삭제')}</button>
         </div>
       </div>
     </div>

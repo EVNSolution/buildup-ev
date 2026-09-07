@@ -61,7 +61,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
       fetchAttention(user || undefined),
     ])
       .then(([s, a]) => { setStats(s); setAttention(a) })
-      .catch(e => setErr(e instanceof Error ? e.message : '조회 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('조회 실패')))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -297,7 +297,7 @@ function Lead({ label, v }: { label: string; v: { days: number | null; n: number
     <Metric
       label={label}
       value={v.days === null ? '—' : `${v.days}일`}
-      note={v.n ? `표본 ${v.n}건` : '산출 불가'}
+      note={v.n ? `표본 ${v.n}건` : t('산출 불가')}
     />
   )
 }

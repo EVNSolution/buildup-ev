@@ -52,7 +52,7 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
       setDone(`${r.to} 로 발송됨 (${r.attachments.join(', ')})`)
       loadLog()   // 방금 보낸 것이 이력에 바로 보이게
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '발송 실패')
+      setErr(e instanceof Error ? e.message : t('발송 실패'))
     } finally {
       setSending(false)
     }
@@ -98,9 +98,9 @@ export function EmailSendModal({ quoteId, customerName, defaultTo, onClose, noCo
             <label style={s.label}>{t('메시지')}</label>
             <textarea style={s.textarea} rows={4} value={message} placeholder={t('비우면 기본 안내문으로 발송')} onChange={(e) => setMessage(e.target.value)} />
 
-            <div style={s.note}>※ 견적서{attachContract ? '·계약서' : ''} PDF 가 첨부됩니다.{canAttachContract ? ' 전자서명은 별도(계약발송).' : ' 차량만 견적이라 계약서는 없습니다.'}</div>
+            <div style={s.note}>※ 견적서{attachContract ? '·계약서' : ''} PDF 가 첨부됩니다.{canAttachContract ? t(' 전자서명은 별도(계약발송).') : t(' 차량만 견적이라 계약서는 없습니다.')}</div>
             {err && <div style={s.err}>{err}</div>}
-            <button style={s.primary} onClick={handleSend} disabled={sending || !to.trim()}>{sending ? '발송 중…' : '발송'}</button>
+            <button style={s.primary} onClick={handleSend} disabled={sending || !to.trim()}>{sending ? t('발송 중…') : t('발송')}</button>
 
             <EmailLog rows={log} />
           </div>

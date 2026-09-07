@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function OptionDbTab({ only, note }: Props = {}) {
-  const TABS = only ? OPTION_DB_TABLES.filter((t) => only.includes(t.name)) : OPTION_DB_TABLES
+  const TABS = only ? OPTION_DB_TABLES.filter((tb) => only.includes(tb.name)) : OPTION_DB_TABLES
   const [table, setTable] = useState<string>(TABS[0]?.name ?? OPTION_DB_TABLES[0].name)
   const [q, setQ] = useState('')
   const [data, setData] = useState<OptionDbTable | null>(null)
@@ -68,54 +68,54 @@ export function OptionDbTab({ only, note }: Props = {}) {
   // ── 구분(섹션) ────────────────────────────────────────────────────────────
   // 엑셀 옵션DB 시트의 구분과 동일하게 나눈다. 한 덩어리로 모여 있으면 찾기 어렵다.
   const SECTIONS: { label: string; prefixes: string[] }[] = [
-    { label: '차량 옵션 (트림)',        prefixes: ['TRIM'] },
-    { label: '특장 옵션 (적재함 사양)', prefixes: ['TOP'] },
-    { label: '특장 옵션 (도어 종류)',   prefixes: ['DOPT'] },
-    { label: '특장 옵션 (도어 추가)',   prefixes: ['DADD'] },
-    { label: '스포일러',                prefixes: ['SPL', 'SPOILER'] },
-    { label: '특장 옵션 (기타)',        prefixes: ['TEMP', 'PART'] },
-    { label: '부가 상품',               prefixes: ['BLACKBOX', 'TINT', 'DECAL', 'SUPPLYKIT'] },
+    { label: t('차량 옵션 (트림)'),        prefixes: ['TRIM'] },
+    { label: t('특장 옵션 (적재함 사양)'), prefixes: ['TOP'] },
+    { label: t('특장 옵션 (도어 종류)'),   prefixes: ['DOPT'] },
+    { label: t('특장 옵션 (도어 추가)'),   prefixes: ['DADD'] },
+    { label: t('스포일러'),                prefixes: ['SPL', 'SPOILER'] },
+    { label: t('특장 옵션 (기타)'),        prefixes: ['TEMP', 'PART'] },
+    { label: t('부가 상품'),               prefixes: ['BLACKBOX', 'TINT', 'DECAL', 'SUPPLYKIT'] },
   ]
   const sectionOf = (row: Record<string, unknown>): string => {
     const pfx = String(row['value_code'] ?? '').split('_')[0]
-    return SECTIONS.find((s) => s.prefixes.includes(pfx))?.label ?? '기타'
+    return SECTIONS.find((s) => s.prefixes.includes(pfx))?.label ?? t('기타')
   }
   /** 무게상수는 행이 들고 있는 category 로 나눈다(옵션 단가의 접두어 구분과 같은 역할). */
   const WC_CATS: Record<string, string> = {
-    vehicle: '차종 기준값', item: '항목 무게·위치', tire: '타이어',
-    topframe: '탑무게 — 프레임(공통)', topreefer: '탑무게 — 냉동', topdry: '탑무게 — 내장',
+    vehicle: t('차종 기준값'), item: t('항목 무게·위치'), tire: t('타이어'),
+    topframe: t('탑무게 — 프레임(공통)'), topreefer: t('탑무게 — 냉동'), topdry: t('탑무게 — 내장'),
   }
   // ── 코드 → 사람이 읽는 이름 ──────────────────────────────────────────────
   // 옵션 단가는 `DOPT_REEFER_LOW_SLIDE` 같은 복합코드다. 무슨 조합인지 코드를 알아야
   // 읽히므로, DB 구조를 모르는 관리자가 고칠 수 없었다. 조각을 한글로 풀어 함께 보여준다.
   const PART_KO: Record<string, string> = {
     // 적재함 형태
-    REEFER: '냉동', DRY: '내장',
+    REEFER: t('냉동'), DRY: t('내장'),
     // 탑 높이
-    LOW: '저상', STD: '표준',
+    LOW: t('저상'), STD: t('표준'),
     // 도어 종류
-    SWING: '여닫이', SLIDE: '슬라이딩', EVSLIDE: '냉동/냉장 미닫이',
-    COUPANG: '미닫이', FOLD: '양문미닫이',
+    SWING: t('여닫이'), SLIDE: t('슬라이딩'), EVSLIDE: t('냉동/냉장 미닫이'),
+    COUPANG: t('미닫이'), FOLD: t('양문미닫이'),
     // 격벽 종류
-    NET: '그물망', MOVE: '이동식',
+    NET: t('그물망'), MOVE: t('이동식'),
     // 트림
-    BASIC: '기본(Basic)', PLUS: '플러스(Plus)',
+    BASIC: t('기본(Basic)'), PLUS: t('플러스(Plus)'),
     // 단독 옵션
-    O: '있음', X: '없음',
+    O: t('있음'), X: t('없음'),
   }
   /** 접두어 → 무엇의 가격인지 */
   const PREFIX_KO: Record<string, string> = {
-    TRIM: '트림', TOP: '탑', DOPT: '도어 종류', DADD: '도어 추가',
-    SPL: '스포일러', PART: '격벽', TEMP: '온도기록계',
-    BLACKBOX: '블랙박스', TINT: '썬팅', DECAL: '데칼', SUPPLYKIT: '지급품 키트',
+    TRIM: t('트림'), TOP: t('탑'), DOPT: t('도어 종류'), DADD: t('도어 추가'),
+    SPL: t('스포일러'), PART: t('격벽'), TEMP: t('온도기록계'),
+    BLACKBOX: t('블랙박스'), TINT: t('썬팅'), DECAL: t('데칼'), SUPPLYKIT: t('지급품 키트'),
   }
   /** 열 제목도 코드 대신 한글로 — 관리자가 무슨 칸인지 알 수 있어야 한다. */
   const COL_KO: Record<string, string> = {
-    model_code: '차종', value_code: '옵션 코드', supply_price: '단가', memo: '메모',
-    key: '상수 이름', description: '설명', category: '구분',
-    region: '지역', year: '연도', amount: '금액', extra: '추가', remaining_quota: '잔여물량',
-    as_of: '기준일', active: '적용', param_key: '항목', value: '값', unit: '단위',
-    months: '개월수', rate: '이율', label: '표기',
+    model_code: t('차종'), value_code: t('옵션 코드'), supply_price: t('단가'), memo: t('메모'),
+    key: t('상수 이름'), description: t('설명'), category: t('구분'),
+    region: t('지역'), year: t('연도'), amount: t('금액'), extra: t('추가'), remaining_quota: t('잔여물량'),
+    as_of: t('기준일'), active: t('적용'), param_key: t('항목'), value: t('값'), unit: t('단위'),
+    months: t('개월수'), rate: t('이율'), label: t('표기'),
   }
 
   /** `DOPT_REEFER_LOW_SLIDE` → '도어 종류 · 냉동 / 저상 / 슬라이딩' */
@@ -133,7 +133,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
       const order = Object.values(WC_CATS)
       const map = new Map<string, Record<string, unknown>[]>()
       for (const r of rows) {
-        const k = WC_CATS[String(r['category'] ?? '')] ?? '기타'
+        const k = WC_CATS[String(r['category'] ?? '')] ?? t('기타')
         map.set(k, [...(map.get(k) ?? []), r])
       }
       return [...order, '기타'].filter((l) => map.has(l)).map((l) => ({ label: l, rows: map.get(l)! }))
@@ -148,11 +148,11 @@ export function OptionDbTab({ only, note }: Props = {}) {
     return order.filter((l) => map.has(l)).map((l) => ({ label: l, rows: map.get(l)! }))
   }
 
-  function load(t = table, query = q) {
+  function load(tb = table, query = q) {
     setLoading(true); setErr(''); setMsg(''); setEdits({})
-    fetchOptionDbTable(t, query.trim() || undefined)
+    fetchOptionDbTable(tb, query.trim() || undefined)
       .then(setData)
-      .catch((e) => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .catch((e) => setErr(e instanceof Error ? e.message : t('로드 실패')))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load(table, '') /* 테이블 변경 시 검색 초기화 */ }, [table])
@@ -185,7 +185,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
       setMsg(`${res.rows}행 저장 · ${res.changed_fields}개 필드 변경(이력 기록됨)`)
       load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '저장 실패')
+      setErr(e instanceof Error ? e.message : t('저장 실패'))
       setLoading(false)
     }
   }
@@ -197,7 +197,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
     setErr(''); setMsg('')
     fetchRestorePoints(table)
       .then(setPoints)
-      .catch((e) => setErr(e instanceof Error ? e.message : '복원 지점 조회 실패'))
+      .catch((e) => setErr(e instanceof Error ? e.message : t('복원 지점 조회 실패')))
   }
 
   async function doRollback(p: RestorePoint) {
@@ -215,7 +215,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
         + (r.skipped.length ? ` (그 뒤 새로 만들어진 ${r.skipped.length}개 항목은 그대로 두었습니다)` : ''))
       load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '되돌리기 실패')
+      setErr(e instanceof Error ? e.message : t('되돌리기 실패'))
     } finally {
       setRollingBack('')
     }
@@ -224,7 +224,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
   function openLogs(rowKey?: string) {
     fetchOptionDbLogs({ table, row_key: rowKey, limit: 200 })
       .then(setLogs)
-      .catch((e) => setErr(e instanceof Error ? e.message : '이력 조회 실패'))
+      .catch((e) => setErr(e instanceof Error ? e.message : t('이력 조회 실패')))
   }
 
   const dirty = Object.keys(edits).length
@@ -235,7 +235,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
       <div style={s.bar}>
         {TABS.length > 1 && (
           <select style={s.select} value={table} onChange={(e) => { setQ(''); setTable(e.target.value) }}>
-            {TABS.map((t) => <option key={t.name} value={t.name}>{t.label}</option>)}
+            {TABS.map((tb) => <option key={tb.name} value={tb.name}>{t(tb.label)}</option>)}
           </select>
         )}
         {searchable && (
@@ -253,7 +253,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
         <button style={BTN.bar} onClick={() => openLogs()}>{t('변경 이력')}</button>
         <button style={BTN.barDanger} onClick={openRestore}>{t('되돌리기')}</button>
         <button style={dirty ? BTN.barPrimary : BTN.barDisabled} onClick={save} disabled={!dirty || loading}>
-          {loading ? '처리 중…' : dirty ? `저장 (${dirty}행)` : '저장'}
+          {loading ? t('처리 중…') : dirty ? `저장 (${dirty}행)` : t('저장')}
         </button>
       </div>
 
@@ -271,7 +271,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
                 {data.pk.map((f) => <th key={f} style={s.th}>{COL_KO[f] ?? f}</th>)}
                 {data.fields.map((f) => (
                   <th key={f} style={s.th}>
-                    {isVatField(f) ? '단가 (VAT 포함)' : COL_KO[f] ?? f}
+                    {isVatField(f) ? t('단가 (VAT 포함)') : COL_KO[f] ?? f}
                   </th>
                 ))}
                 <th style={s.th}></th>
@@ -347,7 +347,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
         <div style={s.overlay} onClick={(ev) => { if (ev.target === ev.currentTarget) setPoints(null) }}>
           <div style={s.modal}>
             <div style={s.modalHead}>
-              <span style={s.modalTitle}>되돌리기 — {TABS.find((t) => t.name === table)?.label}</span>
+              <span style={s.modalTitle}>되돌리기 — {TABS.find((tb) => tb.name === table)?.label}</span>
               <button style={BTN.bar} onClick={() => setPoints(null)}>✕</button>
             </div>
             <div style={s.note}>
@@ -374,7 +374,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
                             style={rollingBack ? BTN.rowDisabled : BTN.rowDangerOutline}
                             disabled={!!rollingBack}
                             onClick={() => doRollback(p)}
-                          >{rollingBack === p.at ? '되돌리는 중…' : '이 직전으로'}</button>
+                          >{rollingBack === p.at ? t('되돌리는 중…') : '이 직전으로'}</button>
                         </td>
                       </tr>
                     ))}

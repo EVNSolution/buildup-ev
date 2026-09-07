@@ -30,13 +30,13 @@ export function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !password) { setError('이메일과 비밀번호를 입력해 주세요.'); return }
+    if (!email.trim() || !password) { setError(t('이메일과 비밀번호를 입력해 주세요.')); return }
     setSubmitting(true)
     setError('')
     try {
       await login(email.trim(), password)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '로그인 실패')
+      setError(err instanceof Error ? err.message : t('로그인 실패'))
     } finally {
       setSubmitting(false)
     }
@@ -79,7 +79,7 @@ export function LoginPage() {
           {error && <div style={s.error}>{error}</div>}
 
           <button type="submit" style={{ ...BTN.primary, width: '100%' }} disabled={submitting}>
-            {submitting ? '로그인 중…' : '로그인'}
+            {submitting ? t('로그인 중…') : t('로그인')}
           </button>
         </form>
       </div>

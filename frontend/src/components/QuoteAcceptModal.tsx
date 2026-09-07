@@ -35,7 +35,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
     let alive = true
     fetchPricingBundle(quote.model_code)
       .then(b => { if (alive) setBundle(b) })
-      .catch(() => { if (alive) setBundleErr('옵션 이름을 불러오지 못했습니다 — 코드로 표시합니다') })
+      .catch(() => { if (alive) setBundleErr(t('옵션 이름을 불러오지 못했습니다 — 코드로 표시합니다')) })
     return () => { alive = false }
   }, [quote.model_code])
 
@@ -94,7 +94,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
                   {g.rows.map(([label, value]) => (
                     <tr key={label}>
                       <td style={m.tdLabel}>{label}</td>
-                      <td style={value ? m.tdValue : m.tdEmpty}>{value || '입력 없음'}</td>
+                      <td style={value ? m.tdValue : m.tdEmpty}>{value || t('입력 없음')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -107,7 +107,7 @@ export function QuoteAcceptModal({ quote, busy, onAccept, onClose }: {
           <button style={BTN.secondary} onClick={onClose} disabled={busy}>{t('닫기')}</button>
           {onAccept && (
             <button style={busy ? BTN.disabled : BTN.primary} disabled={busy} onClick={onAccept}>
-              {busy ? '처리 중' : '접수'}
+              {busy ? t('처리 중') : t('접수')}
             </button>
           )}
         </div>

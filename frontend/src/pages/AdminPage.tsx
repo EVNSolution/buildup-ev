@@ -126,7 +126,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
     let alive = true
     fetchOrderPreview(quoteId)
       .then(d => { if (alive) setPreview(d) })
-      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : '발주 내용을 불러오지 못했습니다') })
+      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [quoteId])
 
@@ -175,7 +175,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
               <PurchaseOrderSheet
                 orderId={0}
                 orderedAt={new Date()}
-                makerOrgName={makerName || '(특장사 선택 전)'}
+                makerOrgName={makerName || t('(특장사 선택 전)')}
                 modelCode={preview.model_code}
                 options={preview.options}
                 deliveryDue=""
@@ -201,7 +201,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
             style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn}
             disabled={!selected || loading}
             onClick={() => onConfirm(selected, remark, customBadge)}
-          >{loading ? '처리 중…' : '제작 배정'}</button>
+          >{loading ? t('처리 중…') : t('제작 배정')}</button>
         </div>
       </div>
     </div>
@@ -258,7 +258,7 @@ function AssignSalesModal({ quoteId, users, loading, error, onConfirm, onClose }
         <div style={modal.actions}>
           <button style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
           <button style={!selected || loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={!selected || loading} onClick={() => onConfirm(selected)}>
-            {loading ? '처리 중…' : '영업 배정'}
+            {loading ? t('처리 중…') : t('영업 배정')}
           </button>
         </div>
       </div>
@@ -287,13 +287,13 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.email || !form.name || !form.role || !form.org_code) { setError('모든 항목을 입력해 주세요.'); return }
+    if (!form.email || !form.name || !form.role || !form.org_code) { setError(t('모든 항목을 입력해 주세요.')); return }
     setLoading(true); setError('')
     try {
       const res = await createUser({ ...form, extra_roles: extraRoles.filter(r => r !== form.role) })
       setResult(res)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '계정 발급 실패')
+      setError(err instanceof Error ? err.message : t('계정 발급 실패'))
     } finally {
       setLoading(false)
     }
@@ -366,7 +366,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
           {error && <div style={modal.error}>{error}</div>}
           <div style={modal.actions}>
             <button type="button" style={modal.cancelBtn} onClick={onClose} disabled={loading}>취소</button>
-            <button type="submit" style={loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={loading}>{loading ? '발급 중…' : '발급'}</button>
+            <button type="submit" style={loading ? modal.confirmBtnDisabled : modal.confirmBtn} disabled={loading}>{loading ? t('발급 중…') : t('발급')}</button>
           </div>
         </form>
       </div>
@@ -404,7 +404,7 @@ function AccountsTab() {
     setLoading(true); setErr('')
     Promise.all([fetchUsers(), fetchOrgs(), fetchFeatureModules(), fetchAccessControl()])
       .then(([u, o, m, a]) => { setUsers(u); setOrgs(o); setModules(m); setAc(a) })
-      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('로드 실패')))
       .finally(() => setLoading(false))
   }
 
@@ -424,7 +424,7 @@ function AccountsTab() {
       const res = await resetUserPassword(email)
       setResetResult({ email, temp_password: res.temp_password })
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '비밀번호 재설정 실패')
+      setErr(e instanceof Error ? e.message : t('비밀번호 재설정 실패'))
     } finally {
       setResetting(null)
     }
@@ -437,21 +437,21 @@ function AccountsTab() {
       await updateUser(user.email, { status: newStatus })
       setUsers(prev => prev.map(u => u.email === user.email ? { ...u, status: newStatus } : u))
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '상태 변경 실패')
+      setErr(e instanceof Error ? e.message : t('상태 변경 실패'))
     } finally {
       setTogglingStatus(null)
     }
   }
 
   async function handleDelete(email: string) {
-    if (!window.confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return
+    if (!window.confirm(t('정말 삭제하시겠습니까? 되돌릴 수 없습니다.'))) return
     setDeleting(email)
     setErr('')
     try {
       await deleteUser(email)
       setUsers(prev => prev.filter(u => u.email !== email))
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '삭제 실패')
+      setErr(e instanceof Error ? e.message : t('삭제 실패'))
     } finally {
       setDeleting(null)
     }
@@ -472,7 +472,7 @@ function AccountsTab() {
       const saved = await updateUser(user.email, { extra_roles: next })
       setUsers(prev => prev.map(u => u.email === user.email ? { ...u, extra_roles: saved.extra_roles ?? next } : u))
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '역할 변경 실패')
+      setErr(e instanceof Error ? e.message : t('역할 변경 실패'))
     } finally {
       setRoleSaving(null)
     }
@@ -488,11 +488,11 @@ function AccountsTab() {
         return [...prev, entry]
       })
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : '모듈 토글 실패')
+      setErr(e instanceof Error ? e.message : t('모듈 토글 실패'))
     }
   }
 
-  const STATUS_LABEL: Record<string, string> = { active: '활성', invited: '초대됨', suspended: '정지' }
+  const STATUS_LABEL: Record<string, string> = { active: t('활성'), invited: t('초대됨'), suspended: t('정지') }
   const STATUS_STYLE: Record<string, React.CSSProperties> = {
     active: { background: 'var(--lime)', color: 'var(--dark)' },
     invited: { background: 'var(--card)', color: 'var(--dark)' },
@@ -522,9 +522,9 @@ function AccountsTab() {
                     style={{ ...(on ? acc.roleChipOn : acc.roleChipOff), ...(isPrimary ? acc.roleChipPrimary : null) }}
                     onClick={() => handleToggleExtraRole(user, r)}
                     disabled={isPrimary || roleSaving === user.email}
-                    title={isPrimary ? '주 역할 — 로그인 후 첫 화면 기준이라 여기서 끄지 않는다' : '겸직 역할 켜기/끄기'}
+                    title={isPrimary ? t('주 역할 — 로그인 후 첫 화면 기준이라 여기서 끄지 않는다') : t('겸직 역할 켜기/끄기')}
                   >
-                    {ROLE_KO[r]}{isPrimary ? ' · 주' : ''}
+                    {ROLE_KO[r]}{isPrimary ? t(' · 주') : ''}
                   </button>
                 )
               })}
@@ -532,7 +532,7 @@ function AccountsTab() {
           </>
         )}
         <div style={acc.expandHeader}>
-          {user.is_master ? '마스터 — 전체 모듈' : `계정 모듈 override — ${myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
+          {user.is_master ? t('마스터 — 전체 모듈') : `계정 모듈 override — ${myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
         </div>
         <div style={acc.moduleGrid}>
           {(user.is_master ? modules : getModulesForRoles(modules, myRoles)).map(mod => {
@@ -575,7 +575,7 @@ function AccountsTab() {
           onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
-          {resetting === user.email ? '…' : '비번재설정'}
+          {resetting === user.email ? '…' : t('비번재설정')}
         </button>
       ) : null
     }
@@ -585,33 +585,33 @@ function AccountsTab() {
           style={{ ...BTN.row }}
           onClick={() => setExpandedEmail(expandedEmail === user.email ? null : user.email)}
         >
-          {expandedEmail === user.email ? '▲ 모듈' : '▼ 모듈'}
+          {expandedEmail === user.email ? t('▲ 모듈') : t('▼ 모듈')}
         </button>
         <button
           style={{ ...BTN.row }}
           onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
-          {resetting === user.email ? '…' : '비번재설정'}
+          {resetting === user.email ? '…' : t('비번재설정')}
         </button>
         <button
           style={{ ...(user.status === 'active' ? BTN.rowDanger : BTN.rowPrimary) }}
           onClick={() => handleToggleStatus(user)}
           disabled={togglingStatus === user.email}
         >
-          {user.status === 'active' ? '정지' : '활성화'}
+          {user.status === 'active' ? t('정지') : t('활성화')}
         </button>
         <button
           style={{ ...(isDeleteDisabled(user) ? BTN.rowDisabled : BTN.rowDanger) }}
           onClick={() => handleDelete(user.email)}
           disabled={isDeleteDisabled(user) || deleting === user.email}
           title={
-            user.email === myEmail ? '본인 계정은 삭제할 수 없습니다' :
-            (user.role === 'ADMIN' && adminCount <= 1) ? '마지막 관리자 계정은 삭제할 수 없습니다' :
-            '계정 삭제'
+            user.email === myEmail ? t('본인 계정은 삭제할 수 없습니다') :
+            (user.role === 'ADMIN' && adminCount <= 1) ? t('마지막 관리자 계정은 삭제할 수 없습니다') :
+            t('계정 삭제')
           }
         >
-          {deleting === user.email ? '…' : '삭제'}
+          {deleting === user.email ? '…' : t('삭제')}
         </button>
         {/*
           「완전삭제」를 없앴다 — 그 영업의 **견적·주문·서류를 통째로** 지웠고, 계약 상태를
@@ -789,13 +789,13 @@ function SendStatus({ quote }: { quote: ApiQuote }) {
 
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
-      {chip(mailed, '메일',
-        mailed ? `참고용 메일 발송 ${fmtWhen(quote.docs_emailed_at)}${quote.docs_emailed_to ? ` → ${quote.docs_emailed_to}` : ''}` : '참고용 메일 미발송')}
-      {chip(signSent, '서명요청',
-        signSent ? `전자서명 요청 ${fmtWhen(c?.sent_at)}` : '전자서명 미요청')}
+      {chip(mailed, t('메일'),
+        mailed ? `참고용 메일 발송 ${fmtWhen(quote.docs_emailed_at)}${quote.docs_emailed_to ? ` → ${quote.docs_emailed_to}` : ''}` : t('참고용 메일 미발송'))}
+      {chip(signSent, t('서명요청'),
+        signSent ? `전자서명 요청 ${fmtWhen(c?.sent_at)}` : t('전자서명 미요청'))}
       {signDead
-        ? chip(true, c!.status === 'REJECTED' ? '서명거절' : '서명취소', `전자서명 ${c!.status}`, 'warn')
-        : chip(signDone, '서명완료', signDone ? `전자서명 완료 ${fmtWhen(c?.completed_at)}` : '전자서명 미완료')}
+        ? chip(true, c!.status === 'REJECTED' ? t('서명거절') : t('서명취소'), `전자서명 ${c!.status}`, 'warn')
+        : chip(signDone, t('서명완료'), signDone ? `전자서명 완료 ${fmtWhen(c?.completed_at)}` : t('전자서명 미완료'))}
     </div>
   )
 }
@@ -839,7 +839,7 @@ function CustomersTab() {
     setLoading(true)
     fetchCustomers(view)
       .then(setRows)
-      .catch(e => setErr(e instanceof Error ? e.message : '고객 목록을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('고객 목록을 불러오지 못했습니다')))
       .finally(() => setLoading(false))
   }
   useEffect(load, [view])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -859,7 +859,7 @@ function CustomersTab() {
       else if (!hiding && r.quotes_affected > 0) setNote(`${c.name} · 함께 숨겼던 견적 ${r.quotes_affected}건을 되돌렸습니다`)
       else setNote('')
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '처리 실패')
+      setErr(e instanceof Error ? e.message : t('처리 실패'))
     } finally { setBusy(null) }
   }
 
@@ -867,7 +867,7 @@ function CustomersTab() {
     <div>
       <div style={{ ...qt.filterBar, flexWrap: 'wrap' }}>
         <Segmented
-          items={[{ value: 'active', label: '사용 중' }, { value: 'hidden', label: '숨김' }]}
+          items={[{ value: 'active', label: t('사용 중') }, { value: 'hidden', label: t('숨김') }]}
           value={view}
           onChange={setView}
           size="sm"
@@ -904,13 +904,13 @@ function CustomersTab() {
                   <td style={qt.td}>{c.reg_no ?? '—'}</td>
                   <td style={qt.tdNum}>{c._count.quotes}</td>
                   <td style={qt.tdNum}>{c.contract_quotes || '—'}</td>
-                  <td style={qt.td}>{c.warp_customer_id ? '연결됨' : '—'}</td>
+                  <td style={qt.td}>{c.warp_customer_id ? t('연결됨') : '—'}</td>
                   <td style={qt.td}>{c.created_at.slice(0, 10)}</td>
                   <td style={qt.td}>
                     {(() => {
                       // 숨길 수 없는 이유를 버튼 자리에서 바로 알려 준다
                       const blocked = !c.hidden_at
-                        ? (c.warp_customer_id ? 'WARP 에 연결된 고객은 숨길 수 없습니다'
+                        ? (c.warp_customer_id ? t('WARP 에 연결된 고객은 숨길 수 없습니다')
                           : c.contract_quotes > 0 ? `계약서가 발송된 견적 ${c.contract_quotes}건이 있어 숨길 수 없습니다` : '')
                         : ''
                       const off = busy === c.id || !!blocked
@@ -919,10 +919,10 @@ function CustomersTab() {
                           style={off ? BTN.rowDisabled : BTN.row}
                           disabled={off}
                           title={blocked || (c.hidden_at
-                            ? '고객과 함께 숨긴 견적을 되돌립니다'
-                            : '고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다')}
+                            ? t('고객과 함께 숨긴 견적을 되돌립니다')
+                            : t('고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다'))}
                           onClick={() => toggle(c)}
-                        >{busy === c.id ? '…' : (c.hidden_at ? '다시 보이기' : '고객 숨기기')}</button>
+                        >{busy === c.id ? '…' : (c.hidden_at ? t('다시 보이기') : t('고객 숨기기'))}</button>
                       )
                     })()}
                   </td>
@@ -966,8 +966,8 @@ function QuotesWithFolders() {
       <div style={qt.viewRow}>
         <Segmented
           items={[
-            { value: 'list' as const, label: '견적 목록' },
-            { value: 'folders' as const, label: '고객 서류함' },
+            { value: 'list' as const, label: t('견적 목록') },
+            { value: 'folders' as const, label: t('고객 서류함') },
           ]}
           value={view}
           onChange={setView}
@@ -1079,7 +1079,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
       await assignQuote(confirmingId, makerOrgId, remark, customBadge)
       setConfirmingId(null); load()
     } catch (e: unknown) {
-      setConfirmError(e instanceof Error ? e.message : '배정 실패')
+      setConfirmError(e instanceof Error ? e.message : t('배정 실패'))
     } finally {
       setConfirmLoading(false)
     }
@@ -1102,7 +1102,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
       load()
       window.alert(`견적번호 ${r.quote_no} 로 배정했습니다.`)
     } catch (e: unknown) {
-      setAssignSalesErr(e instanceof Error ? e.message : '배정 실패')
+      setAssignSalesErr(e instanceof Error ? e.message : t('배정 실패'))
     } finally { setAssignSalesBusy(false) }
   }
 
@@ -1166,8 +1166,8 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
         <div style={qt.loading}>{t('로딩 중…')}</div>
       ) : shown.length === 0 ? (
         <EmptyState
-          title={nameQuery.trim() ? `「${nameQuery.trim()}」에 맞는 견적이 없습니다` : '조건에 맞는 견적이 없습니다'}
-          description={nameQuery.trim() ? '이름을 지우면 기간 안의 전체가 보입니다.' : '기간이나 상태 조건을 바꿔 다시 조회해 보세요.'}
+          title={nameQuery.trim() ? `「${nameQuery.trim()}」에 맞는 견적이 없습니다` : t('조건에 맞는 견적이 없습니다')}
+          description={nameQuery.trim() ? t('이름을 지우면 기간 안의 전체가 보입니다.') : t('기간이나 상태 조건을 바꿔 다시 조회해 보세요.')}
         />
       ) : isMobile ? (
         // ── 모바일: 카드 리스트 ──
@@ -1254,7 +1254,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                       key="signed"
                       style={{ ...BTN.rowPrimary, width: '100%' }}
                       onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                    >{q.contract?.signing_method === 'PAPER' ? '계약서 스캔본' : '서명본'}</button>,
+                    >{q.contract?.signing_method === 'PAPER' ? t('계약서 스캔본') : t('서명본')}</button>,
                   )
                   {/* 공개 문의(주인 없음) — 영업을 지정해야 진행된다. 이때 견적번호가 처음 발급된다 */}
                   if (salesAssign) row.push(
@@ -1354,7 +1354,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                       <button
                         style={q.status === 'draft' ? BTN.rowMuted : BTN.row}
                         disabled={q.status === 'draft'}
-                        title={q.status === 'draft' ? '견적서 생성 후 계약서를 볼 수 있습니다' : '특장 매매계약서 미리보기'}
+                        title={q.status === 'draft' ? t('견적서 생성 후 계약서를 볼 수 있습니다') : t('특장 매매계약서 미리보기')}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract-pdf`, `계약서_${q.customer?.name ?? q.id}.pdf`)}
                       >{t('계약서')}</button>
                       {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본(시스템 보관본) */}
@@ -1363,7 +1363,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                           style={BTN.rowPrimary}
                           title={t('고객이 서명·날인한 계약서 정본 (시스템 보관본)')}
                           onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                        >{q.contract?.signing_method === 'PAPER' ? '스캔본' : '서명본'}</button>
+                        >{q.contract?.signing_method === 'PAPER' ? t('스캔본') : t('서명본')}</button>
                       )}
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>{t('영업 배정')}</button>
@@ -1566,15 +1566,15 @@ export function AdminPage() {
     basedata: usePermission('basedata.manage'),
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
-    { key: 'quotes',   label: '견적 목록', show: true },
-    { key: 'customers', label: '고객',    show: true },
-    { key: 'perf',     label: '영업 성과', show: perm.stats },
-    { key: 'kanban',   label: '주문 진행', show: perm.orders },
-    { key: 'files',    label: '파일',      show: perm.orders },
-    { key: 'toggles',  label: '기능모듈',  show: perm.accounts },
-    { key: 'accounts', label: '계정 관리', show: perm.accounts },
-    { key: 'weights',  label: '무게상수',  show: perm.basedata },
-    { key: 'optiondb', label: '옵션DB',    show: perm.basedata },
+    { key: 'quotes',   label: t('견적 목록'), show: true },
+    { key: 'customers', label: t('고객'),    show: true },
+    { key: 'perf',     label: t('영업 성과'), show: perm.stats },
+    { key: 'kanban',   label: t('주문 진행'), show: perm.orders },
+    { key: 'files',    label: t('파일'),      show: perm.orders },
+    { key: 'toggles',  label: t('기능모듈'),  show: perm.accounts },
+    { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
+    { key: 'weights',  label: t('무게상수'),  show: perm.basedata },
+    { key: 'optiondb', label: t('옵션DB'),    show: perm.basedata },
   ] as const).filter(t => t.show)
 
   // 보고 있던 탭이 감춰지면(권한이 도중에 꺼지면) 첫 탭으로 되돌린다.

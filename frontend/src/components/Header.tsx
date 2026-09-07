@@ -37,7 +37,7 @@ export function Header({ customer }: Props) {
   // 저장된 고객 표시 전용. 예전엔 눌러서 진입 팝업을 다시 열었지만, 고객정보 입력이
   // 견적 저장 단계로 옮겨가면서 여는 대상이 사라졌다(보조금 조건은 가격바에서 고친다).
   const custLabel = customer
-    ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? '소상공인' : '일반'}`
+    ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? t('소상공인') : t('일반')}`
     : null
 
   return (

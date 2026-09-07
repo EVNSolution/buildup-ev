@@ -73,7 +73,7 @@ export function PublicConfiguratorPage() {
         }
         setSelections(sanitizeSelections(defaults, data))
       })
-      .catch(e => setLoadErr(e instanceof Error ? e.message : '차량 정보를 불러오지 못했습니다'))
+      .catch(e => setLoadErr(e instanceof Error ? e.message : t('차량 정보를 불러오지 못했습니다')))
   }, [])
 
   useEffect(() => { fetchPublicRegions().then(setRegions).catch(() => setRegions([])) }, [])

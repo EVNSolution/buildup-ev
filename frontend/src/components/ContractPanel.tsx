@@ -39,7 +39,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
   const [preview, setPreview] = useState(false)
   /** 취소 확인창을 열었는지. 한 번에 취소되지 않게 — 고객에게 보이는 행동이다 */
   const [canceling, setCanceling] = useState(false)
-  const [cancelReason, setCancelReason] = useState('재발송을 위해 취소합니다.')
+  const [cancelReason, setCancelReason] = useState(t('재발송을 위해 취소합니다.'))
   const [cancelBusy, setCancelBusy] = useState(false)
   /** 모두싸인 취소까지 됐는지 — 안 됐으면 옛 링크가 살아 있을 수 있다 */
   const [linkMaybeAlive, setLinkMaybeAlive] = useState(false)
@@ -51,7 +51,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
     setLoading(true); setErr('')
     fetchContract(quoteId)
       .then(setContract)
-      .catch(e => setErr(e instanceof Error ? e.message : '계약 상태 로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('계약 상태 로드 실패')))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [quoteId])
@@ -61,7 +61,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
     try {
       setContract(await sendContract(quoteId, method))
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '발송 실패')
+      setErr(e instanceof Error ? e.message : t('발송 실패'))
     } finally {
       setSending(false)
     }
@@ -75,7 +75,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
       setCanceling(false)
       load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '발송 취소 실패')
+      setErr(e instanceof Error ? e.message : t('발송 취소 실패'))
     } finally {
       setCancelBusy(false)
     }
@@ -92,7 +92,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
         <div style={s.statusRow}>
           <span style={{ ...s.badge, ...COLOR[contract.status] }}>{LABEL[contract.status]}</span>
           <span style={s.meta}>
-            {contract.signing_method === 'EMAIL' ? '이메일' : '카카오'}
+            {contract.signing_method === 'EMAIL' ? t('이메일') : t('카카오')}
             {contract.sent_at ? ` · 발송 ${contract.sent_at.slice(0, 16).replace('T', ' ')}` : ''}
           </span>
         </div>
@@ -108,7 +108,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
             <span style={s.tlLabel}>{t('서명 완료')}</span>
             <span style={s.tlVal}>
               {contract.completed_at ? contract.completed_at.slice(0, 16).replace('T', ' ')
-                : contract.status === 'COMPLETED' ? '완료' : '대기'}
+                : contract.status === 'COMPLETED' ? t('완료') : t('대기')}
             </span>
           </div>
           {contract.sent_at && (
@@ -150,7 +150,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
               <div style={s.cancelActions}>
                 <button style={s.ghost} onClick={() => setCanceling(false)} disabled={cancelBusy}>{t('그만두기')}</button>
                 <button style={s.danger} onClick={handleCancel} disabled={cancelBusy || cancelReason.trim().length < 2}>
-                  {cancelBusy ? '취소 중…' : '발송 취소'}
+                  {cancelBusy ? t('취소 중…') : t('발송 취소')}
                 </button>
               </div>
             </div>
@@ -183,11 +183,11 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
             {dest
               ? <>{t('받는 곳')} <b>{dest}</b></>
               : method === 'EMAIL'
-                ? '고객 이메일이 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.'
-                : '고객 휴대폰번호가 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.'}
+                ? t('고객 이메일이 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.')
+                : t('고객 휴대폰번호가 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.')}
           </div>
           <button style={s.primary} onClick={handleSend} disabled={sending || !dest}>
-            {sending ? '발송 중…' : (contract ? '재발송' : `계약서 발송${customerName ? ` (${customerName})` : ''}`)}
+            {sending ? t('발송 중…') : (contract ? t('재발송') : `계약서 발송${customerName ? ` (${customerName})` : ''}`)}
           </button>
           <div style={s.note}>{t('※ 계약서(전자서명)와 견적서를 함께 발송합니다. 고객 연락처는 견적에 저장된 정보를 사용합니다.')}</div>
         </div>

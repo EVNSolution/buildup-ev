@@ -107,8 +107,8 @@ function MyListWithFolders() {
       <div style={lv.viewSwitch}>
         <Segmented
           items={[
-            { value: 'list' as const, label: '견적·주문' },
-            { value: 'folders' as const, label: '고객 서류함' },
+            { value: 'list' as const, label: t('견적·주문') },
+            { value: 'folders' as const, label: t('고객 서류함') },
           ]}
           value={view}
           onChange={setView}
@@ -174,7 +174,7 @@ function MyListView() {
   async function handleDuplicate(q: ApiQuote) {
     if (!window.confirm(
       `${q.quote_no ?? `#${q.id}`} 의 옵션·고객정보·할부 조건을 그대로 복사해\n`
-      + '새 견적(임시저장)을 만듭니다. 진행할까요?',
+      + t('새 견적(임시저장)을 만듭니다. 진행할까요?'),
     )) return
     setDupBusy(q.id); setErr('')
     try {
@@ -182,7 +182,7 @@ function MyListView() {
       load()
       window.alert(`새 견적 ${r.quote_no ?? `#${r.id}`} 을(를) 만들었습니다. 「수정」에서 조건을 고친 뒤 견적서를 생성하세요.`)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '견적 복제 실패')
+      setErr(e instanceof Error ? e.message : t('견적 복제 실패'))
     } finally { setDupBusy(null) }
   }
 
@@ -196,7 +196,7 @@ function MyListView() {
      */
     Promise.all([fetchQuotes({ scope: 'mine' }), fetchOrders({ scope: 'mine' })])
       .then(([q, o]) => { setQuotes(q); setOrders(o) })
-      .catch(e => setErr(e instanceof Error ? e.message : '로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('로드 실패')))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
@@ -222,7 +222,7 @@ function MyListView() {
       setPaperFor(null)
       load()
     } catch (e) {
-      setPaperErr(e instanceof Error ? e.message : '서명본 등록 실패')
+      setPaperErr(e instanceof Error ? e.message : t('서명본 등록 실패'))
     } finally {
       setPaperBusy(false)
     }
@@ -247,7 +247,7 @@ function MyListView() {
       setAcceptView(null)
       load()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '수락 실패')
+      setErr(e instanceof Error ? e.message : t('수락 실패'))
     } finally { setAcceptBusy(null) }
   }
 
@@ -398,7 +398,7 @@ function MyListView() {
             }
           } catch (e) {
             closeReservedTab(pdfTab)
-            setPrepErr(e instanceof Error ? e.message : '저장 실패')
+            setPrepErr(e instanceof Error ? e.message : t('저장 실패'))
           } finally { setPrepSaving(false) }
         }}
       />
@@ -440,7 +440,7 @@ function MyListView() {
         items={pendingAccept.map(q => ({
           id: q.id,
           no: q.quote_no ?? `#${q.id}`,
-          title: q.customer?.name ?? '고객 미상',
+          title: q.customer?.name ?? t('고객 미상'),
           sub: `${q.model_code} · ${fmtPrice(q.final_price)}`,
           meta: fmtDate(q.created_at),
         }))}
@@ -528,7 +528,7 @@ function MyListView() {
                    * 버튼은 자리를 지키되 누르지 못하게 둔다 — 사라지면 「계약서가 어디 갔지」가 된다.
                    */
                   const noContract = isVehicleOnly(q)
-                  const noContractWhy = '차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다'
+                  const noContractWhy = t('차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다')
                   return (
                     <tr key={q.id}>
                       <td style={lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
@@ -557,12 +557,12 @@ function MyListView() {
                             <Tooltip
                               text={order.steps.done_labels.length
                                 ? `완료 · ${order.steps.done_labels.join(' · ')}`
-                                : '아직 완료된 단계가 없습니다'}
+                                : t('아직 완료된 단계가 없습니다')}
                               placement="below"
                             >
                               <span style={order.steps.stalled ? lv.progLate : lv.prog}>
                                 {order.steps.done}/{order.steps.total}
-                                {order.steps.stalled ? ' 지연' : ''}
+                                {order.steps.stalled ? t(' 지연') : ''}
                               </span>
                             </Tooltip>
                           )
@@ -579,9 +579,9 @@ function MyListView() {
                             style={q.docs_frozen_at ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             title={q.docs_frozen_at
                               ? `전자서명 발송(${fmtDate(q.docs_frozen_at)})으로 서류가 고정되었습니다 — 이력만 볼 수 있습니다. 조건을 바꾸려면 「복제」로 새 견적을 만드세요.`
-                              : '옵션 · 고객정보 · 할부 수정 및 수정 이력 (전자서명 발송 전까지 가능)'}
+                              : t('옵션 · 고객정보 · 할부 수정 및 수정 이력 (전자서명 발송 전까지 가능)')}
                             onClick={() => setEditQuote(q)}
-                          >{q.docs_frozen_at || !canEdit ? '이력' : '수정'}</button>
+                          >{q.docs_frozen_at || !canEdit ? t('이력') : t('수정')}</button>
                           {/* 전자서명을 보낸 견적은 고칠 수 없다 — 조건을 바꿔 다시 낼 땐 복제한다 */}
                           {canEdit && (
                           <button
@@ -589,7 +589,7 @@ function MyListView() {
                             disabled={dupBusy === q.id}
                             title={t('같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)')}
                             onClick={() => void handleDuplicate(q)}
-                          >{dupBusy === q.id ? '…' : '복제'}</button>
+                          >{dupBusy === q.id ? '…' : t('복제')}</button>
                           )}
                           {/* 「고객정보」는 조회 전용 — 고치는 곳은 「수정」 한 군데로 모았다 */}
                           <button
@@ -599,11 +599,11 @@ function MyListView() {
                           >{t('고객정보')}</button>
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
-                            title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
+                            title={q.status === 'draft' ? t('선수금·할부·면세 등 입력 후 견적서 생성') : t('견적서 열람·다운로드')}
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
-                          >{q.status === 'draft' ? '견적 생성' : '견적서'}</button>
+                          >{q.status === 'draft' ? t('견적 생성') : t('견적서')}</button>
                           {/*
                             계약서는 **견적서 다음 단계**다. 견적서가 나오기 전에는 만들 수 없고,
                             누르면 계약서에만 필요한 값(생년월일·주소·세부주소)을 확인하는 팝업이 먼저 뜬다.
@@ -613,10 +613,10 @@ function MyListView() {
                             style={(q.status === 'draft' || noContract) ? { ...lv.pdfBtn, opacity: 0.45, cursor: 'not-allowed' } : lv.pdfBtn}
                             disabled={q.status === 'draft' || noContract}
                             title={noContract ? noContractWhy : q.status === 'draft'
-                              ? '견적서를 먼저 만들어야 계약서를 만들 수 있습니다'
-                              : '계약 정보를 확인하고 특장 매매계약서를 만듭니다'}
+                              ? t('견적서를 먼저 만들어야 계약서를 만들 수 있습니다')
+                              : t('계약 정보를 확인하고 특장 매매계약서를 만듭니다')}
                             onClick={() => { setPrepErr(''); setContractPrep({ quote: q, next: 'pdf' }) }}
-                          >{q.status === 'draft' ? '계약서' : '계약서 생성'}</button>
+                          >{q.status === 'draft' ? t('계약서') : t('계약서 생성')}</button>
                           {/* 서명이 끝난 계약만 — 도장·서명이 찍힌 정본을 시스템에 보관한다 */}
                           {q.contract?.status === 'COMPLETED' && (
                             <button
@@ -634,8 +634,8 @@ function MyListView() {
                             <button
                               style={lv.pdfBtn}
                               title={noContract
-                                ? '참고용 — 견적서 PDF 를 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)'
-                                : '참고용 — 견적서·계약서 PDF 를 메일로 전달합니다 (서명 요청 아님)'}
+                                ? t('참고용 — 견적서 PDF 를 메일로 전달합니다 (차량만 견적이라 계약서는 없습니다)')
+                                : t('참고용 — 견적서·계약서 PDF 를 메일로 전달합니다 (서명 요청 아님)')}
                               onClick={() => setEmailQuote({
                                 id: q.id,
                                 customerName: q.customer?.name ?? undefined,
@@ -649,7 +649,7 @@ function MyListView() {
                           <button
                             style={(q.status === 'draft' || noContract) ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft' || noContract}
-                            title={noContract ? noContractWhy : q.status === 'draft' ? '견적서 생성 후 서명을 요청할 수 있습니다' : '고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다'}
+                            title={noContract ? noContractWhy : q.status === 'draft' ? t('견적서 생성 후 서명을 요청할 수 있습니다') : t('고객에게 전자서명을 요청합니다 — 진행상태가 기록됩니다')}
                             onClick={() => {
                               setPrepErr('')
                               // 계약서에 필요한 값이 비어 있으면 확인 팝업부터 — 서명은 그 계약서를 보내는 일이다
@@ -674,7 +674,7 @@ function MyListView() {
                             <button
                               style={noContract ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                               disabled={noContract}
-                              title={noContract ? noContractWhy : '종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다'}
+                              title={noContract ? noContractWhy : t('종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다')}
                               onClick={() => { setPaperErr(''); setPaperFor(q) }}
                             >{t('서명본 등록')}</button>
                           )}
@@ -792,7 +792,7 @@ export function SalesPage() {
         }
         setSelections(sanitizeSelections(defaults, data))
       })
-      .catch(e => console.error('pricing-bundle 로드 실패', e))
+      .catch(e => console.error(t('pricing-bundle 로드 실패'), e))
       .finally(() => setBundleLoading(false))
   }, [session])
 
@@ -919,7 +919,7 @@ export function SalesPage() {
      * **설치 자체가 불가능하다** — 확인 없이 견적이 나가면 되돌릴 수 없다.
      */
     if (bodyOnly && selections['BODYTYPE'] === 'BODY_REEFER' && !v2lConfirmed) {
-      setSaveError('냉동 사양은 차량의 V2L 포트 확인이 필요합니다. 「차량 트림」에서 확인란을 체크해 주세요.')
+      setSaveError(t('냉동 사양은 차량의 V2L 포트 확인이 필요합니다. 「차량 트림」에서 확인란을 체크해 주세요.'))
       return
     }
     /*
@@ -993,7 +993,7 @@ export function SalesPage() {
       })
       setShowSaveModal(false)
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : '저장 실패')
+      setSaveError(e instanceof Error ? e.message : t('저장 실패'))
     } finally {
       setIsSaving(false)
     }
@@ -1026,9 +1026,9 @@ export function SalesPage() {
       <div style={styles.tabBar}>
         <Tabs
           items={[
-            { key: 'config' as const, label: '컨피규레이터' },
-            { key: 'list' as const, label: '견적·주문' },
-            ...(canSeeStats ? [{ key: 'me' as const, label: '마이페이지' }] : []),
+            { key: 'config' as const, label: t('컨피규레이터') },
+            { key: 'list' as const, label: t('견적·주문') },
+            ...(canSeeStats ? [{ key: 'me' as const, label: t('마이페이지') }] : []),
           ]}
           value={salesTab}
           onChange={setSalesTab}

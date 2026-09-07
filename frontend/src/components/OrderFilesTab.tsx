@@ -35,7 +35,7 @@ export function OrderFilesTab() {
   function load() {
     fetchFileIndex()
       .then(setRows)
-      .catch(e => setErr(e instanceof Error ? e.message : '파일 목록을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('파일 목록을 불러오지 못했습니다')))
   }
   useEffect(load, [])   // eslint-disable-line react-hooks/exhaustive-deps
   useScreenRefresh(load)
@@ -73,7 +73,7 @@ export function OrderFilesTab() {
         {shown.map(r => (
           <button key={r.order_id} style={s.card} onClick={() => setPicked(r)}>
             <span style={s.cardMain}>
-              <span style={s.cardName}>{r.customer_name ?? '고객 미지정'}</span>
+              <span style={s.cardName}>{r.customer_name ?? t('고객 미지정')}</span>
               <span style={s.cardSub}>
                 {r.quote_no ?? `주문 ${r.order_id}`}
                 {r.maker_org ? ` · ${r.maker_org}` : ''}
@@ -100,7 +100,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
     setFiles(null)
     fetchOrderFiles(row.order_id)
       .then(setFiles)
-      .catch(e => setErr(e instanceof Error ? e.message : '파일을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('파일을 불러오지 못했습니다')))
   }, [row.order_id])
 
   const counts = useMemo(() => {
@@ -116,7 +116,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
       <button style={s.back} onClick={onBack}>{t('← 파일')}</button>
 
       <div style={s.head}>
-        <span style={s.headName}>{row.customer_name ?? '고객 미지정'}</span>
+        <span style={s.headName}>{row.customer_name ?? t('고객 미지정')}</span>
         <span style={s.headSub}>
           {row.quote_no ?? `주문 ${row.order_id}`}
           {row.maker_org ? ` · ${row.maker_org}` : ''}
@@ -134,7 +134,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                 key={k}
                 style={filter === k ? s.chipOn : s.chip}
                 onClick={() => setFilter(k)}
-              >{k === 'all' ? '전체' : GROUP_LABEL[k]} {counts[k]}</button>
+              >{k === 'all' ? t('전체') : GROUP_LABEL[k]} {counts[k]}</button>
             ))}
           </div>
 
@@ -162,11 +162,11 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                     <td style={s.td}>{f.label}</td>
                     <td style={s.td}>
                       <DocLink href={f.url} name={f.name ?? `${f.label}.pdf`} style={s.link}>
-                        {f.name || '열기'}
+                        {f.name || t('열기')}
                       </DocLink>
                     </td>
                     <td style={s.tdNum}>{f.size ? fmtBytes(f.size) : '—'}</td>
-                    <td style={s.tdMuted}>{f.by ?? '자동'}</td>
+                    <td style={s.tdMuted}>{f.by ?? t('자동')}</td>
                     <td style={s.tdNum}>{f.at.slice(0, 10)}</td>
                     <td style={s.tdNum}>
                       {/*

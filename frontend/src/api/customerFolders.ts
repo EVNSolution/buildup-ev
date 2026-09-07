@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /**
  * 고객 서류함 — 견적서·계약서를 고객별로 모아 본다.
  * 범위는 서버가 정한다(관리자 전체 · 영업은 자기 견적의 고객만).
@@ -68,12 +69,12 @@ const mineQ = (mine?: boolean) => (mine ? '?scope=mine' : '')
 
 export async function fetchFolders(mine?: boolean): Promise<ApiFolderRow[]> {
   const res = await fetch(`/api/v1/customer-folders${mineQ(mine)}`, { credentials: 'include' })
-  return (await jsonOrThrow(res, '서류함 조회') as { data: ApiFolderRow[] }).data
+  return (await jsonOrThrow(res, t('서류함 조회')) as { data: ApiFolderRow[] }).data
 }
 
 export async function fetchFolder(key: number, mine?: boolean): Promise<ApiFolder> {
   const res = await fetch(`/api/v1/customer-folders/${key}${mineQ(mine)}`, { credentials: 'include' })
-  return await jsonOrThrow(res, '서류함 조회') as ApiFolder
+  return await jsonOrThrow(res, t('서류함 조회')) as ApiFolder
 }
 
 export function folderFileUrl(key: number, docId: string, download = false, mine?: boolean): string {

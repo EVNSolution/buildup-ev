@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { t } from '../i18n'
 
 /**
  * 전화번호 3칸 입력 — [   ]-[    ]-[    ]
@@ -59,7 +60,7 @@ export function PhoneInput({ value, onChange, boxStyle, disabled }: Props) {
             inputMode="numeric"
             maxLength={LENGTHS[i]}
             disabled={disabled}
-            aria-label={['국번 앞자리', '가운데 자리', '뒷자리'][i]}
+            aria-label={[t('국번 앞자리'), t('가운데 자리'), '뒷자리'][i]}
           />
         </div>
       ))}

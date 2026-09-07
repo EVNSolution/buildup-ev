@@ -48,7 +48,7 @@ export function PaperContractModal({ label, loading, error, onSubmit, onClose }:
             disabled={!file || loading}
             onClick={() => file && onSubmit(file)}
           >
-            {loading ? '등록 중…' : '서명본 등록'}
+            {loading ? t('등록 중…') : t('서명본 등록')}
           </button>
         </div>
       </div>

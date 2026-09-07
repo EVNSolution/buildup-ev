@@ -71,7 +71,7 @@ export function InboxPanel({ title, items, acceptLabel, busyId, onView, onAccept
               disabled={busyId === it.id}
               onClick={() => onAccept(it.id)}
             >
-              {busyId === it.id ? '처리 중' : acceptLabel}
+              {busyId === it.id ? t('처리 중') : acceptLabel}
             </button>
           </div>
         </div>

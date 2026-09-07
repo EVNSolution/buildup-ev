@@ -46,29 +46,29 @@ export interface ConsentSituation {
 export interface ConsentRow { key: string; tag?: '필수' | '선택'; value: string }
 
 export function consentRows(sit: ConsentSituation): ConsentRow[] {
-  const required = ['성명', '휴대전화번호', '전자우편주소']
+  const required = [t('성명'), t('휴대전화번호'), '전자우편주소']
   // 보조금 조건 — 특장만 견적에는 이 칸들이 아예 없다
   if (!sit.bodyOnly) {
-    required.push('사업자 구분')
-    if (!sit.corporate) required.push('지역(시·군·구)')
-    required.push('경유차 폐차 여부', '소상공인 여부', '화물자동차 운송사업허가 보유 여부')
+    required.push(t('사업자 구분'))
+    if (!sit.corporate) required.push(t('지역(시·군·구)'))
+    required.push(t('경유차 폐차 여부'), t('소상공인 여부'), t('화물자동차 운송사업허가 보유 여부'))
   }
-  const purposes = ['상담 신청 접수', '견적 안내 및 상담 연락', '담당 영업사원 배정']
-  if (!sit.bodyOnly) purposes.push('보조금 지원 대상 여부 확인 및 예상 금액 산정')
+  const purposes = [t('상담 신청 접수'), t('견적 안내 및 상담 연락'), '담당 영업사원 배정']
+  if (!sit.bodyOnly) purposes.push(t('보조금 지원 대상 여부 확인 및 예상 금액 산정'))
 
   return [
-    { key: '수집 항목', tag: '필수', value: required.join(', ') },
-    { key: '수집 항목', tag: '선택', value: '남기실 말씀' },
-    { key: '이용 목적', value: purposes.join(', ') },
-    { key: '보유·이용 기간', value: '처리 목적 달성 시 또는 정보주체의 삭제 요청 시까지' },
+    { key: t('수집 항목'), tag: '필수', value: required.join(', ') },
+    { key: t('수집 항목'), tag: '선택', value: t('남기실 말씀') },
+    { key: t('이용 목적'), value: purposes.join(', ') },
+    { key: t('보유·이용 기간'), value: t('처리 목적 달성 시 또는 정보주체의 삭제 요청 시까지') },
   ]
 }
 
-const CONSENT_TEXT = '위 내용을 확인하였으며, 개인정보 수집·이용에 동의합니다.'
+const CONSENT_TEXT = t('위 내용을 확인하였으며, 개인정보 수집·이용에 동의합니다.')
 /** 거부할 권리와 그 불이익 — 동의받을 때 함께 알려야 하는 항목이다. */
-const CONSENT_REFUSAL = '동의를 거부하실 수 있으며, 거부하시는 경우 상담 신청이 접수되지 않습니다.'
+const CONSENT_REFUSAL = t('동의를 거부하실 수 있으며, 거부하시는 경우 상담 신청이 접수되지 않습니다.')
 /** 처리방침 제3조⑤ — 만 14세 미만은 대상이 아니다. */
-const CONSENT_AGE = '본 서비스는 만 14세 이상을 대상으로 합니다.'
+const CONSENT_AGE = t('본 서비스는 만 14세 이상을 대상으로 합니다.')
 
 interface Props {
   modelCode: string
@@ -148,7 +148,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
       })
       onDone(inquiry_id)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '상담 신청에 실패했습니다')
+      setErr(e instanceof Error ? e.message : t('상담 신청에 실패했습니다'))
     } finally { setBusy(false) }
   }
 
@@ -212,7 +212,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
               <div key={r.key + (r.tag ?? '')} style={s.consentRow}>
                 <dt style={s.consentKey}>
                   {r.key}
-                  {r.tag && <span style={r.tag === '필수' ? s.req : s.optTag}> · {r.tag}</span>}
+                  {r.tag && <span style={r.tag === '필수' ? s.req : s.optTag}> · {t(r.tag)}</span>}
                 </dt>
                 <dd style={s.consentVal}>{r.value}</dd>
               </div>
@@ -233,7 +233,7 @@ export function InquiryModal({ modelCode, selections, subsidy, onSubsidyChange, 
 
         <div style={s.btnRow}>
           <button style={{ ...BTN.primary, flex: 1, ...(canSubmit ? null : s.btnOff) }} disabled={!canSubmit} onClick={submit}>
-            {busy ? '보내는 중…' : '상담 신청'}
+            {busy ? t('보내는 중…') : t('상담 신청')}
           </button>
           <button style={{ ...BTN.secondary, flex: 1 }} onClick={onClose} disabled={busy}>{t('취소')}</button>
         </div>

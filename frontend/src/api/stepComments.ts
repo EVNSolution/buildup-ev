@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /** 단계별 대화 — 이력이 목적이라 수정·삭제 API 는 없다 */
 
 export interface StepComment {
@@ -27,7 +28,7 @@ async function jsonOrThrow(res: Response, what: string) {
 /** 단계마다 안 읽은 개수 — 버튼의 빨간 점 */
 export async function fetchUnread(orderId: number): Promise<Record<string, number>> {
   const res = await fetch(`/api/v1/orders/${orderId}/step-comments/unread`, { credentials: 'include' })
-  const b = await jsonOrThrow(res, '안 읽은 대화 조회') as { data: Record<string, number> }
+  const b = await jsonOrThrow(res, t('안 읽은 대화 조회')) as { data: Record<string, number> }
   return b.data
 }
 
@@ -42,7 +43,7 @@ export async function fetchComments(
 ): Promise<{ comments: StepComment[]; me: string }> {
   const q = after != null && after > 0 ? `?after=${after}` : ''
   const res = await fetch(`/api/v1/orders/${orderId}/steps/${stepCode}/comments${q}`, { credentials: 'include' })
-  const b = await jsonOrThrow(res, '대화 조회') as { data: { comments: StepComment[]; me: string } }
+  const b = await jsonOrThrow(res, t('대화 조회')) as { data: { comments: StepComment[]; me: string } }
   return b.data
 }
 
@@ -59,7 +60,7 @@ export async function fetchAllComments(orderId: number, after?: number): Promise
 }> {
   const q = after != null && after > 0 ? `?after=${after}` : ''
   const res = await fetch(`/api/v1/orders/${orderId}/step-comments${q}`, { credentials: 'include' })
-  const b = await jsonOrThrow(res, '대화 이력 조회') as { data: {
+  const b = await jsonOrThrow(res, t('대화 이력 조회')) as { data: {
     comments: StepComment[]; me: string; steps?: { code: string; label: string }[]
   } }
   return b.data
@@ -82,6 +83,6 @@ export async function postComment(
     credentials: 'include',
     body: fd,
   })
-  const b = await jsonOrThrow(res, '전송') as { data: StepComment }
+  const b = await jsonOrThrow(res, t('전송')) as { data: StepComment }
   return b.data
 }

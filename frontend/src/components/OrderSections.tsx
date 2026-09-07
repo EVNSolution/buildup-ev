@@ -62,7 +62,7 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
 
   return (
     <>
-      <Section title={t('수락 대기')} open={!closed.has('수락 대기')} onToggle={() => toggle('수락 대기')} rows={pending}>
+      <Section title={t('수락 대기')} open={!closed.has('수락 대기')} onToggle={() => toggle(t('수락 대기'))} rows={pending}>
         <OrderStepsBoard
           orders={pending}
           mode="pending"
@@ -74,11 +74,11 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
         />
       </Section>
 
-      <Section title={t('진행 중')} open={!closed.has('진행 중')} onToggle={() => toggle('진행 중')} rows={active}>
+      <Section title={t('진행 중')} open={!closed.has('진행 중')} onToggle={() => toggle(t('진행 중'))} rows={active}>
         <OrderStepsBoard orders={active} onCardClick={onOpen} />
       </Section>
 
-      <Section title={t('완료')} open={!closed.has('완료')} onToggle={() => toggle('완료')} rows={done}>
+      <Section title={t('완료')} open={!closed.has('완료')} onToggle={() => toggle(t('완료'))} rows={done}>
         <OrderStepsBoard orders={done} onCardClick={onOpen} />
       </Section>
     </>

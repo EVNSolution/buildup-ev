@@ -40,7 +40,7 @@ export function MakerPage() {
     setLoading(true); setErr('')
     fetchOrders({})
       .then(setOrders)
-      .catch(e => setErr(e instanceof Error ? e.message : '주문 목록 로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('주문 목록 로드 실패')))
       .finally(() => setLoading(false))
   }
 
@@ -55,7 +55,7 @@ export function MakerPage() {
       setAcceptTarget(null)
       load()
     } catch (e: unknown) {
-      setAcceptErr(e instanceof Error ? e.message : '주문 수락 실패')
+      setAcceptErr(e instanceof Error ? e.message : t('주문 수락 실패'))
     } finally {
       setAcceptingId(null)
     }
@@ -72,7 +72,7 @@ export function MakerPage() {
       setAcceptTarget(null)
       load()
     } catch (e: unknown) {
-      setAcceptErr(e instanceof Error ? e.message : '주문 거부 실패')
+      setAcceptErr(e instanceof Error ? e.message : t('주문 거부 실패'))
     } finally {
       setAcceptingId(null)
     }

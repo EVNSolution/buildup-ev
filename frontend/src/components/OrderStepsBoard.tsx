@@ -30,7 +30,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
   lateInfo?: (o: ApiOrder) => { days: number; late: boolean }
 }) {
   if (orders.length === 0) {
-    return <div style={s.empty}>{mode === 'pending' ? '수락 대기 중인 주문이 없습니다.' : '진행 중인 주문이 없습니다.'}</div>
+    return <div style={s.empty}>{mode === 'pending' ? t('수락 대기 중인 주문이 없습니다.') : t('진행 중인 주문이 없습니다.')}</div>
   }
 
   /*
@@ -67,7 +67,7 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
             <div style={s.main}>
               <div style={s.line1}>
                 <span style={s.no}>주문 #{o.id}</span>
-                <span style={s.name}>{o.quote.customer?.name ?? '고객 미상'}</span>
+                <span style={s.name}>{o.quote.customer?.name ?? t('고객 미상')}</span>
                 <span style={s.model}>{o.quote.model_code}</span>
                 {/*
                   비고가 적힌 주문 = **이 건만의 요청이 있다.** 목록에서 바로 보여야

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { pushState, enablePush, disablePush, pushConfig, isInstalled, type PushState } from '../lib/push'
 
 /**
@@ -51,7 +52,7 @@ export function PushToggle() {
       else await enablePush(cfg!.publicKey)
       setSt(await pushState())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '알림 설정을 바꾸지 못했습니다')
+      setErr(e instanceof Error ? e.message : t('알림 설정을 바꾸지 못했습니다'))
     } finally { setBusy(false) }
   }
 
@@ -67,9 +68,9 @@ export function PushToggle() {
    */
   const needsInstall = !on && !isInstalled() && /iPad|iPhone|iPod/.test(navigator.userAgent)
   const label = err ? err
-    : needsInstall ? '홈 화면에 추가한 뒤에 켜야 알림이 옵니다'
-    : on ? '이 기기 알림 켜짐 — 누르면 끕니다'
-    : '이 기기 알림 받기'
+    : needsInstall ? t('홈 화면에 추가한 뒤에 켜야 알림이 옵니다')
+    : on ? t('이 기기 알림 켜짐 — 누르면 끕니다')
+    : t('이 기기 알림 받기')
 
   return (
     <button

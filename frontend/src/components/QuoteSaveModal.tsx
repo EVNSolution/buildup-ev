@@ -186,7 +186,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         setTimeout(() => addrRef.current?.focus(), 0)
       })
     } catch (e) {
-      setAddrErr(e instanceof Error ? e.message : '주소 검색을 불러오지 못했습니다')
+      setAddrErr(e instanceof Error ? e.message : t('주소 검색을 불러오지 못했습니다'))
     }
   }
 
@@ -209,10 +209,10 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
       const fill = (k: 'ceo_name' | 'phone' | 'address' | 'buyer_tel', val: string | null, label: string) => {
         if (val && !next[k].trim()) { next[k] = val; filled.push(label) }
       }
-      fill('ceo_name', hit.ceo_name, '대표이사')
-      fill('phone', hit.phone, '휴대폰')
-      fill('address', hit.address, '세부주소')
-      fill('buyer_tel', hit.tel, '전화번호')
+      fill('ceo_name', hit.ceo_name, t('대표이사'))
+      fill('phone', hit.phone, t('휴대폰'))
+      fill('address', hit.address, t('세부주소'))
+      fill('buyer_tel', hit.tel, t('전화번호'))
       return next
     })
     setAutofilled(filled)
@@ -243,7 +243,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
     try {
       const hit = await lookupWarpCustomer(v.name, v.phone)
       if (!hit) {
-        setWarpNotice('CRM(WARP)에 일치하는 고객이 없습니다 — 이름·휴대폰이 등록된 값과 정확히 같아야 합니다.')
+        setWarpNotice(t('CRM(WARP)에 일치하는 고객이 없습니다 — 이름·휴대폰이 등록된 값과 정확히 같아야 합니다.'))
         return
       }
       const filled: string[] = []
@@ -253,18 +253,18 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         const fill = (k: 'email' | 'address' | 'address_detail' | 'buyer_tel' | 'ceo_name', val: string | null, label: string) => {
           if (val && !next[k].trim()) { next[k] = val; filled.push(label) }
         }
-        fill('email', hit.email, '이메일')
+        fill('email', hit.email, t('이메일'))
         // 법인은 사업자번호만. 개인은 생년월일 우선, 없으면 개인사업자 번호.
         const regno = isCorporate ? hit.biz_regno : (hit.birth_regno ?? hit.biz_regno)
         if (regno && !next.buyer_regno.trim()) {
           next.buyer_regno = regno
           regnoFilled = regno
-          filled.push(isCorporate ? '사업자번호' : '생년월일/사업자번호')
+          filled.push(isCorporate ? t('사업자번호') : t('생년월일/사업자번호'))
         }
-        fill('address', hit.address, '주소')
-        fill('address_detail', hit.address_detail, '세부주소')
-        fill('buyer_tel', hit.tel, '유선번호')
-        if (isCorporate) fill('ceo_name', hit.ceo_name, '대표이사')
+        fill('address', hit.address, t('주소'))
+        fill('address_detail', hit.address_detail, t('세부주소'))
+        fill('buyer_tel', hit.tel, t('유선번호'))
+        if (isCorporate) fill('ceo_name', hit.ceo_name, t('대표이사'))
         return next
       })
       setWarpVehicles(hit.vehicles)
@@ -342,7 +342,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         </div>
 
         <div style={s.row}>
-          <label style={s.label}>{isCorporate ? '상호' : '성명'}<Tag need /></label>
+          <label style={s.label}>{isCorporate ? t('상호') : t('성명')}<Tag need /></label>
           <input
             style={s.field} type="text" value={v.name}
             onChange={e => set('name', e.target.value)}
@@ -352,7 +352,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
 
         <div style={s.row}>
           <label style={s.label}>
-            {isCorporate ? '사업자번호' : '생년월일 / 사업자번호'}
+            {isCorporate ? t('사업자번호') : t('생년월일 / 사업자번호')}
             <Tag need={forContract} />
           </label>
           <input
@@ -403,7 +403,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
               onClick={() => void tryWarpAutofill()}
               title={t('이름 + 휴대폰 완전일치로 WARP CRM 고객정보를 불러와 빈 칸을 채웁니다')}
             >
-              {warpLoading ? '조회 중…' : 'CRM에서 불러오기'}
+              {warpLoading ? t('조회 중…') : t('CRM에서 불러오기')}
             </button>
           </div>
         </div>
@@ -415,7 +415,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
               <div key={i}>
                 {[veh.maker, veh.name, veh.plate_no, veh.year && `${veh.year}년식`,
                   veh.truck_types.length ? veh.truck_types.join('/') : null]
-                  .filter(Boolean).join(' · ') || '상세 정보 없음'}
+                  .filter(Boolean).join(' · ') || t('상세 정보 없음')}
               </div>
             ))}
           </div>
@@ -424,8 +424,8 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
           <label style={s.label}>
             {t('이메일')}<Tag need={forContract} />
             <Note>{forContract
-              ? (isCorporate && !v.buyer_agent.trim() ? '법인 직인을 찍을 사람 · 전자서명용' : '전자서명을 위한 이메일')
-              : '견적서·계약서를 메일로 받아 보시려면 입력을 권장합니다'}</Note>
+              ? (isCorporate && !v.buyer_agent.trim() ? t('법인 직인을 찍을 사람 · 전자서명용') : t('전자서명을 위한 이메일'))
+              : t('견적서·계약서를 메일로 받아 보시려면 입력을 권장합니다')}</Note>
           </label>
           <input style={s.field} type="email" value={v.email} onChange={e => set('email', e.target.value)} />
         </div>
@@ -436,7 +436,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
           답이 쓰이지 않는 질문을 남겨 두면 채우게 되고, 채우면 견적서에서 헷갈린다.
           **주소는 남긴다** — 계약서에 들어가는 값이라 보조금과 무관하다.
         */}
-        <div style={s.sectionTitle}>{bodyOnly ? '주소' : '보조금 조건'}</div>
+        <div style={s.sectionTitle}>{bodyOnly ? t('주소') : t('보조금 조건')}</div>
         <div style={s.grid}>
         {bodyOnly ? addressBlock : (
           /* 사업자 구분은 위에서 이미 받았다 — 같은 상태를 공유하므로 여기선 감춘다 */
@@ -509,7 +509,7 @@ function missingBase(v: QuoteSaveValues, bodyOnly = false): string[] {
     [v.subsidy.has_transport_license !== null, '화물자동차 운송사업허가증'],
   ]
   const required: [boolean, string][] = [
-    [filled(v.name), isCorporate ? '상호' : '성명'],
+    [filled(v.name), isCorporate ? t('상호') : t('성명')],
     [!isCorporate || filled(v.ceo_name), '대표이사'],
     [filled(v.phone), '휴대폰'],
     ...subsidyNeeded,
@@ -538,7 +538,7 @@ export function missingForContract(v: QuoteSaveValues, bodyOnly = false): string
   const extra: [boolean, string][] = [
     // 계약 단계에서는 이메일이 필요하다 — 전자서명·서류 발송이 여기서 시작된다
     [filled(v.email), '이메일'],
-    [regNoOk, isCorporate ? '사업자번호' : '생년월일'],
+    [regNoOk, isCorporate ? t('사업자번호') : t('생년월일')],
     [filled(v.address), '주소'],
     [filled(v.address_detail), '세부주소'],
   ]
@@ -563,13 +563,13 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
   return (
     <div style={s.overlay}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
-        <h2 style={s.h2}>{forContract ? '계약서 정보 확인' : isEdit ? '고객정보 수정' : '견적 저장'}</h2>
+        <h2 style={s.h2}>{forContract ? t('계약서 정보 확인') : isEdit ? t('고객정보 수정') : t('견적 저장')}</h2>
         <p style={s.desc}>
           {forContract
-            ? '계약서에 그대로 들어갑니다. 견적서에 입력한 값은 이미 채워져 있습니다 — 확인하고 빈 칸만 채우세요.'
+            ? t('계약서에 그대로 들어갑니다. 견적서에 입력한 값은 이미 채워져 있습니다 — 확인하고 빈 칸만 채우세요.')
             : isEdit
-            ? '고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.'
-            : '저장 후에도 견적 목록의 「수정」에서 고칠 수 있습니다.'}
+            ? t('고친 값은 견적서·계약서에 즉시 반영됩니다. 사업자 구분·지역을 바꾸면 보조금이 다시 계산됩니다.')
+            : t('저장 후에도 견적 목록의 「수정」에서 고칠 수 있습니다.')}
         </p>
 
         <QuoteCustomerForm v={v} setV={setV} regions={regions} forContract={forContract} bodyOnly={bodyOnly} />
@@ -586,7 +586,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
 
         <div style={s.btnRow}>
           <button style={{ ...s.btnOk, ...(canSave ? null : s.btnOff) }} onClick={() => canSave && onSave(v)} disabled={!canSave}>
-            {saving ? '저장 중…' : forContract ? '확인 완료' : isEdit ? '저장' : '견적 저장'}
+            {saving ? t('저장 중…') : forContract ? t('확인 완료') : isEdit ? t('저장') : t('견적 저장')}
           </button>
           <button style={s.btnCancel} onClick={onClose} disabled={saving}>{t('취소')}</button>
         </div>

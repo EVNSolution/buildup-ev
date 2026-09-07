@@ -155,16 +155,16 @@ export function OptionPanel({
   const lockedTab = (k: TabKey) => !!vehicleOnly && k !== 'vehicle'
   const unseen = TABS.filter((t) => !visited.has(t.key) && !lockedTab(t.key))
   const btnLabel = isSaving
-    ? '저장 중…'
+    ? t('저장 중…')
     : saveLabel && !unseen.length && !isUnsupported
     ? saveLabel
     : savedQuote
-    ? '새 견적 작성'
+    ? t('새 견적 작성')
     : isUnsupported
-    ? '내장탑 미정 — 확정 불가'
+    ? t('내장탑 미정 — 확정 불가')
     : unseen.length
     ? tf('{0} 확인 필요', unseen.map((tab) => t(tab.label)).join('·'))
-    : '견적 저장'
+    : t('견적 저장')
 
   // 저장 완료 상태에서는 버튼이 '새 견적 작성' 이 된다 — 잠그면 다음 견적을 못 짠다.
   const btnDisabled = isSaving || (!savedQuote && (isUnsupported || unseen.length > 0))
@@ -193,7 +193,7 @@ export function OptionPanel({
             aria-disabled={lockedTab(tab.key)}
             style={tab.key === activeTab ? styles.tabOn
               : lockedTab(tab.key) ? styles.tabOff : styles.tab}
-            title={lockedTab(tab.key) ? '차량만 견적이라 특장 옵션을 고르지 않습니다' : undefined}
+            title={lockedTab(tab.key) ? t('차량만 견적이라 특장 옵션을 고르지 않습니다') : undefined}
             onClick={() => {
               if (lockedTab(tab.key)) return
               setActiveTab(tab.key); setVisited((v) => new Set(v).add(tab.key))

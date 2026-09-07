@@ -29,7 +29,7 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
         all.sort((a, b) => a.uploaded_at.localeCompare(b.uploaded_at))
         setFiles(all)
       })
-      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '증빙 목록을 불러오지 못했습니다') })
+      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : t('증빙 목록을 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [orderId])
 
@@ -64,7 +64,7 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
                   <td style={s.td}>
                     {EVIDENCE_LABEL[f.kind as EvidenceKind] ?? f.kind}
                     {/* 원본인지 줄인 것인지 — 나중에 화질을 따질 때 필요하다 */}
-                    <span style={s.kept}>{f.kept_original ? ' · 원본' : ' · 축소본'}</span>
+                    <span style={s.kept}>{f.kept_original ? t(' · 원본') : t(' · 축소본')}</span>
                   </td>
                   <td style={s.td}>
                     <DocLink href={stepFileUrl(orderId, f.id)} name={f.name ?? `파일_${f.id}`} style={s.link}>

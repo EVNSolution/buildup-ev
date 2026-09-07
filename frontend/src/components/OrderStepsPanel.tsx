@@ -78,7 +78,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   /** 완료 전에 확인해야 하는 단계에서, 확인을 마친 것들(서명본 내려받기 등) */
   const [acked, setAcked] = useState<Set<string>>(new Set())
   function load() {
-    fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : '단계 정보를 불러오지 못했습니다'))
+    fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : t('단계 정보를 불러오지 못했습니다')))
   }
   useEffect(() => { load() }, [orderId])   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -113,14 +113,14 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
     try {
       await completeStep(orderId, code, def.dateLabel ? dates[code] : undefined)
       load()
-    } catch (e) { setErr(e instanceof Error ? e.message : '완료 처리에 실패했습니다') }
+    } catch (e) { setErr(e instanceof Error ? e.message : t('완료 처리에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
   async function handleUndo(code: string) {
     setBusy(code); setErr('')
     try { await undoStep(orderId, code); load() }
-    catch (e) { setErr(e instanceof Error ? e.message : '완료 취소에 실패했습니다') }
+    catch (e) { setErr(e instanceof Error ? e.message : t('완료 취소에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
@@ -142,7 +142,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
         ok++
       }
     } catch (e) {
-      const why = e instanceof Error ? e.message : '파일 등록에 실패했습니다'
+      const why = e instanceof Error ? e.message : t('파일 등록에 실패했습니다')
       const rest = picked[ok]?.name
       setErr(picked.length > 1 ? `${ok}장 등록 후 실패${rest ? ` (${rest})` : ''} — ${why}` : why)
     } finally {
@@ -154,7 +154,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   async function handleDelete(fileId: number) {
     setBusy('f' + fileId); setErr('')
     try { await deleteStepFile(orderId, fileId); load() }
-    catch (e) { setErr(e instanceof Error ? e.message : '파일 삭제에 실패했습니다') }
+    catch (e) { setErr(e instanceof Error ? e.message : t('파일 삭제에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
@@ -183,7 +183,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
       */}
       <div style={s.record}>
         <Rec label="발주" value={res.order.assigned_at?.slice(0, 10) ?? '—'} />
-        <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? '미수락'} />
+        <Rec label="수락" value={res.order.accepted_at?.slice(0, 10) ?? t('미수락')} />
         {/* 납기 옆에 「n일 경과」·「n일 전」을 붙인다 — 날짜만으로는 급한지 세어 봐야 안다 */}
         <Rec
           label="납기"
@@ -254,7 +254,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                         style={busy === def.code ? s.undoBtnOff : s.undoBtn}
                         disabled={busy === def.code}
                         onClick={() => handleUndo(def.code)}
-                      >{busy === def.code ? '처리 중' : '완료 취소'}</button>
+                      >{busy === def.code ? t('처리 중') : t('완료 취소')}</button>
                     )}
                     {/* 지연은 숫자로 말한다 — 「지연」만으로는 얼마나 늦었는지 모른다 */}
                     {st.stalled && st.overdue_days != null && (
@@ -287,7 +287,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                         style={gate.ok && dateOk && ackOk && busy !== def.code ? BTN.rowPrimary : BTN.rowDisabled}
                         disabled={!gate.ok || !dateOk || !ackOk || busy === def.code}
                         onClick={() => handleComplete(def.code)}
-                      >{busy === def.code ? '처리 중' : '완료'}</button>
+                      >{busy === def.code ? t('처리 중') : t('완료')}</button>
                     )}
                     {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
                       <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
@@ -330,12 +330,12 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                             style={acked.has(def.code) ? s.ackDone : BTN.row}
                             onClick={() => {
                               // 앱(PWA)에는 탭이 없다 — openPdf 가 갈라서 처리한다
-                              openPdf(`/api/v1/orders/${orderId}/tuning/signed`, '튜닝신청서_서명본.pdf')
+                              openPdf(`/api/v1/orders/${orderId}/tuning/signed`, t('튜닝신청서_서명본.pdf'))
                               setAcked(p => new Set(p).add(def.code))
                             }}
                           >{acked.has(def.code) ? `✓ ${def.ackLabel}` : def.ackLabel}</button>
                           <span style={s.ackHint}>
-                            {acked.has(def.code) ? '내려받았습니다' : '서명본을 내려받아야 완료 처리할 수 있습니다'}
+                            {acked.has(def.code) ? t('내려받았습니다') : t('서명본을 내려받아야 완료 처리할 수 있습니다')}
                           </span>
                         </div>
                       )}
@@ -464,7 +464,7 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
         <span style={s.spacer} />
         {canEdit && (
           <button style={busy ? BTN.rowDisabled : BTN.row} disabled={busy} onClick={() => ref.current?.click()}>
-            {busy ? '올리는 중' : files.length > 0 ? '추가' : '업로드'}
+            {busy ? t('올리는 중') : files.length > 0 ? t('추가') : t('업로드')}
           </button>
         )}
         {/* 여러 장 고를 수 있다 — 검수 사진은 한 장으로 끝나는 일이 드물다 */}

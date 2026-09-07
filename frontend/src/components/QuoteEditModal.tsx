@@ -83,14 +83,14 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
   const frozen = !!quote.docs_frozen_at || !canEdit
 
   function done(text: string) { setMsg(text); setErr(''); onSaved() }
-  function fail(e: unknown) { setErr(e instanceof Error ? e.message : '저장 실패'); setMsg('') }
+  function fail(e: unknown) { setErr(e instanceof Error ? e.message : t('저장 실패')); setMsg('') }
 
   return (
     <div style={s.overlay}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <div style={s.head}>
           <span style={s.title}>
-            {canEdit ? '견적 수정' : '견적 조회'} — {quote.quote_no ?? `#${quote.id}`} · {quote.customer?.name ?? '고객 미지정'}
+            {canEdit ? t('견적 수정') : t('견적 조회')} — {quote.quote_no ?? `#${quote.id}`} · {quote.customer?.name ?? t('고객 미지정')}
           </span>
           <button style={BTN.bar} onClick={onClose}>{t('닫기')}</button>
         </div>
@@ -98,8 +98,8 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
         {frozen && (
           <div style={s.frozen}>
             {!canEdit
-              ? '견적 수정 권한이 없습니다. 이력만 조회할 수 있습니다.'
-              : '전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 — 고객이 받은 문서와 어긋나면 안 되기 때문입니다. 조건을 바꿔 다시 내려면 목록의 「복제」로 같은 고객·같은 옵션의 새 견적을 만드세요.'}
+              ? t('견적 수정 권한이 없습니다. 이력만 조회할 수 있습니다.')
+              : t('전자서명 발송으로 서류가 고정되어 수정할 수 없습니다 — 고객이 받은 문서와 어긋나면 안 되기 때문입니다. 조건을 바꿔 다시 내려면 목록의 「복제」로 같은 고객·같은 옵션의 새 견적을 만드세요.')}
           </div>
         )}
 
@@ -162,7 +162,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
         setBundle(b)
         setSel(sanitizeSelections((quote.selections ?? {}) as Record<string, string>, b))
       })
-      .catch(e => setLoadErr(e instanceof Error ? e.message : '옵션 목록 로드 실패'))
+      .catch(e => setLoadErr(e instanceof Error ? e.message : t('옵션 목록 로드 실패')))
   }, [quote.model_code])
 
   const hidden = useMemo(
@@ -220,9 +220,9 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
       // 할인·보조금을 함께 바꿨으면 여기 금액은 이미 지난 값이다(서버가 뒤에 다시 계산한다).
       // 그럴 땐 금액을 말하지 않는다 — 틀린 숫자를 보여 주느니 목록에서 확인하는 편이 낫다.
       onDone(
-        extrasChanged ? '저장했습니다 — 목록에서 실구매가를 확인하세요'
+        extrasChanged ? t('저장했습니다 — 목록에서 실구매가를 확인하세요')
         : r.changed ? `옵션 ${r.changed}건 변경 · 실구매가 ₩${r.final_price.toLocaleString('ko-KR')}`
-        : '바뀐 값이 없습니다',
+        : t('바뀐 값이 없습니다'),
       )
     } catch (e) { onFail(e) } finally { setBusy(false) }
   }
@@ -334,7 +334,7 @@ function CustomerTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps)
         buyer_regno: v.buyer_regno.trim(),
         buyer_tel: v.buyer_tel,
       })
-      onDone('고객정보를 저장했습니다')
+      onDone(t('고객정보를 저장했습니다'))
     } catch (e) { onFail(e) } finally { setBusy(false) }
   }
 
@@ -346,7 +346,7 @@ function CustomerTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps)
       </div>
       <SaveBar
         frozen={frozen} busy={busy || missing.length > 0} onSave={save}
-        note={missing.length ? `아직 ${missing.join(', ')} 을(를) 입력하지 않았습니다.` : '고친 값은 견적서·계약서에 즉시 반영됩니다.'}
+        note={missing.length ? `아직 ${missing.join(', ')} 을(를) 입력하지 않았습니다.` : t('고친 값은 견적서·계약서에 즉시 반영됩니다.')}
       />
     </>
   )
@@ -382,7 +382,7 @@ function InputsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) {
         //    기본값을 실어 보내면 저장만 눌러도 예전 견적의 실구매가가 달라진다.
         //    서버의 PATCH inputs 는 받은 키만 덮어쓰므로, 빼 두면 저장된 값이 그대로 남는다.
       })
-      onDone('할부 조건을 저장했습니다')
+      onDone(t('할부 조건을 저장했습니다'))
     } catch (e) { onFail(e) } finally { setBusy(false) }
   }
 
@@ -413,7 +413,7 @@ function HistoryTab({ quoteId }: { quoteId: number }) {
   const [err, setErr] = useState('')
 
   useEffect(() => {
-    fetchQuoteHistory(quoteId).then(setRows).catch(e => setErr(e instanceof Error ? e.message : '이력 조회 실패'))
+    fetchQuoteHistory(quoteId).then(setRows).catch(e => setErr(e instanceof Error ? e.message : t('이력 조회 실패')))
   }, [quoteId])
 
   if (err) return <div style={s.err}>{err}</div>
@@ -470,7 +470,7 @@ function SaveBar({ frozen, busy, onSave, note }: { frozen: boolean; busy: boolea
     <div style={s.saveBar}>
       <span style={s.note}>{note}</span>
       <button style={frozen || busy ? BTN.barDisabled : BTN.barPrimary} disabled={frozen || busy} onClick={onSave}>
-        {busy ? '저장 중…' : '저장'}
+        {busy ? t('저장 중…') : t('저장')}
       </button>
     </div>
   )

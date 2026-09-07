@@ -78,7 +78,7 @@ export function OrderChatTab(
         const preferred = initialStep && steps.some(x => x.code === initialStep) ? initialStep : ''
         setStep(prev => prev || preferred || d.comments[d.comments.length - 1]?.step_code || steps[0]?.code || '')
       })
-      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : '불러오지 못했습니다') })
+      .catch(e => { if (alive) setErr(e instanceof Error ? e.message : t('불러오지 못했습니다')) })
     return () => { alive = false }
   }, [orderId])
 
@@ -141,7 +141,7 @@ export function OrderChatTab(
       setRows(prev => [...(prev ?? []), row])
       setText(''); setImage(null)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : '전송하지 못했습니다')
+      setErr(e instanceof Error ? e.message : t('전송하지 못했습니다'))
     } finally { setBusy(false) }
   }
 

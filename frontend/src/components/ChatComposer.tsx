@@ -18,7 +18,7 @@ import { ClipIcon, SendIcon } from './icons/ChatIcons'
  * 가운데 정렬이면 줄이 늘 때마다 버튼이 같이 떠올라 자리가 흔들린다.
  */
 export function ChatComposer({
-  text, onTextChange, image, onImageChange, onSend, busy, placeholder = '내용을 입력하세요', above,
+  text, onTextChange, image, onImageChange, onSend, busy, placeholder = t('내용을 입력하세요'), above,
 }: {
   text: string
   onTextChange: (v: string) => void
@@ -101,7 +101,7 @@ export function ChatComposer({
           onClose={() => onImageChange(null)}
           action={
             <button style={s.sendTop} onClick={onSend} disabled={busy}>
-              {busy ? '보내는 중…' : '보내기'}
+              {busy ? t('보내는 중…') : t('보내기')}
               <SendIcon size={18} />
             </button>
           }

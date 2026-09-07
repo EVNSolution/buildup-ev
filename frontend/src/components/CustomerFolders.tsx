@@ -37,7 +37,7 @@ export function CustomerFolders({ mine }: {
   useEffect(() => {
     fetchFolders(mine)
       .then(setRows)
-      .catch(e => setErr(e instanceof Error ? e.message : '서류함을 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('서류함을 불러오지 못했습니다')))
   }, [mine])
 
   // 사람들이 실제로 기억하는 것들 — 이름·연락처·생년월일(사업자번호)
@@ -83,7 +83,7 @@ export function CustomerFolders({ mine }: {
                     {r.merged > 1 && <span style={s.mergedTag}> · {r.merged}건 합침</span>}
                   </span>
                   <span style={s.cardSub}>
-                    {r.reg_no ?? r.phone ?? '연락처 없음'} · 견적 {r.quotes}건
+                    {r.reg_no ?? r.phone ?? t('연락처 없음')} · 견적 {r.quotes}건
                   </span>
                 </span>
                 <span style={s.cardAt}>{fmtWhen(r.last_activity)}</span>
@@ -105,7 +105,7 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
     setRes(null); setErr('')
     fetchFolder(folderKey, mine)
       .then(setRes)
-      .catch(e => setErr(e instanceof Error ? e.message : '서류를 불러오지 못했습니다'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('서류를 불러오지 못했습니다')))
   }, [folderKey, mine])
 
   if (err) return <div style={s.body}><div style={s.err}>{err}</div></div>
@@ -126,7 +126,7 @@ function FolderBody({ folderKey, mine }: { folderKey: number; mine?: boolean }) 
 
       {top && (
         <section style={s.topBox}>
-          <div style={s.topTag}>{top.frozenAt ? '최종본 · 서명 요청 시점' : '최근 견적'}</div>
+          <div style={s.topTag}>{top.frozenAt ? t('최종본 · 서명 요청 시점') : t('최근 견적')}</div>
           <QuoteCard q={top} folderKey={folderKey} mine={mine} />
         </section>
       )}

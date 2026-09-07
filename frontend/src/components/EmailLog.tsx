@@ -18,9 +18,9 @@ export function EmailLog({ rows }: { rows: EmailLogRow[] | null }) {
       {rows.map(r => (
         <div key={r.id} style={e.logRow}>
           <span style={r.withContract ? e.tagBoth : e.tagQuote}>
-            {r.withContract ? '견적서+계약서' : '견적서만'}
+            {r.withContract ? t('견적서+계약서') : t('견적서만')}
           </span>
-          <span style={e.logNo}>{r.quoteNo ?? '번호 없음'}</span>
+          <span style={e.logNo}>{r.quoteNo ?? t('번호 없음')}</span>
           <span style={e.logDate}>{r.sentAt.slice(0, 16).replace('T', ' ')}</span>
           <span style={e.logTo} title={`${r.to} · 보낸 사람 ${r.sentBy}`}>{r.to}</span>
         </div>

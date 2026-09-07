@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /**
  * 서류(PDF)를 연다 — **설치형(PWA)과 브라우저를 갈라서.**
  *
@@ -62,10 +63,10 @@ async function saveToDevice(url: string, fallback: string): Promise<void> {
  * ⚠️ 브라우저 경로는 반드시 **클릭 핸들러 안에서 동기적으로** 호출할 것.
  *    setTimeout·useEffect 안에서 부르면 팝업 차단에 걸린다.
  */
-export function openPdf(url: string, fallbackName = '서류.pdf') {
+export function openPdf(url: string, fallbackName = t('서류.pdf')) {
   if (isStandalone()) {
     void saveToDevice(url, fallbackName).catch((e: unknown) => {
-      alert(e instanceof Error ? e.message : '서류를 불러오지 못했습니다')
+      alert(e instanceof Error ? e.message : t('서류를 불러오지 못했습니다'))
     })
     return
   }

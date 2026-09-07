@@ -13,7 +13,7 @@ import { safeTop, safeBottom } from '../styles/safeArea'
  *
  * 보내기 전 미리보기로도 쓴다 — 찍은 사진을 크게 확인하고 오른쪽 위에서 보낸다.
  */
-export function PhotoViewer({ src, alt = '사진', onClose, action }: {
+export function PhotoViewer({ src, alt = t('사진'), onClose, action }: {
   src: string
   alt?: string
   onClose: () => void

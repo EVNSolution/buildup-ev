@@ -48,7 +48,7 @@ function LoadCalcTab({
   useEffect(() => {
     fetchModelSpec(modelCode)
       .then(setSpec)
-      .catch(e => setSpecErr(e instanceof Error ? e.message : '제원 로드 실패'))
+      .catch(e => setSpecErr(e instanceof Error ? e.message : t('제원 로드 실패')))
   }, [modelCode])
 
   // 옵션 → selections
@@ -193,7 +193,7 @@ function LoadCalcTab({
                 </span>
                 {spec.gvw_limit_kg != null ? (
                   <span style={result.legal.within_gvw ? lc.badgeOk : lc.badgeNg}>
-                    {result.legal.within_gvw ? '적합 ✓' : '부적합 ✗'}
+                    {result.legal.within_gvw ? t('적합 ✓') : t('부적합 ✗')}
                   </span>
                 ) : <span style={lc.badgeGray}>{t('확인 불가')}</span>}
               </div>
@@ -203,7 +203,7 @@ function LoadCalcTab({
                   전 {fmtPct(result.tire_load_rate.loaded_front_pct)} / 후 {fmtPct(result.tire_load_rate.loaded_rear_pct)} (≤ 100 %)
                 </span>
                 <span style={tireOk ? lc.badgeOk : lc.badgeNg}>
-                  {tireOk ? '적합 ✓' : '부적합 ✗'}
+                  {tireOk ? t('적합 ✓') : t('부적합 ✗')}
                 </span>
               </div>
               <div style={lc.legalRow}>
@@ -259,9 +259,9 @@ function DocsTab({
     setSaving(true); setSaveMsg('')
     try {
       await saveVehicleInfo(orderId, info)
-      setSaveMsg('저장됨 ✓')
+      setSaveMsg(t('저장됨 ✓'))
     } catch (e) {
-      setSaveMsg(e instanceof Error ? e.message : '저장 실패')
+      setSaveMsg(e instanceof Error ? e.message : t('저장 실패'))
     } finally {
       setSaving(false)
     }
@@ -291,14 +291,14 @@ function DocsTab({
         <div style={det.cardTitle}>{t('차량정보 입력 (서류 바인딩)')}</div>
         <div style={det.infoGrid}>
           {([
-            ['제원관리번호', '제원관리번호'],
-            ['등록번호',     '등록번호'],
-            ['차대번호',     '차대번호'],
-            ['형식코드',     '형식코드'],
-            ['모델연도',     '모델연도'],
-            ['소유자성명',   '소유자성명'],
-            ['소유자주소',   '소유자주소'],
-            ['최초등록일',   '최초등록일 (예: 2025-01-15)'],
+            [t('제원관리번호'), '제원관리번호'],
+            [t('등록번호'),     '등록번호'],
+            [t('차대번호'),     '차대번호'],
+            [t('형식코드'),     '형식코드'],
+            [t('모델연도'),     '모델연도'],
+            [t('소유자성명'),   '소유자성명'],
+            [t('소유자주소'),   '소유자주소'],
+            [t('최초등록일'),   '최초등록일 (예: 2025-01-15)'],
           ] as [keyof OrderVehicleInfo, string][]).map(([k, placeholder]) => (
             <Fragment key={k}>
               <label style={det.infoLabel}>{k}</label>
@@ -314,7 +314,7 @@ function DocsTab({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
           <button style={det.saveBtn} onClick={handleSave} disabled={saving}>
-            {saving ? '저장 중…' : '차량정보 저장'}
+            {saving ? t('저장 중…') : t('차량정보 저장')}
           </button>
           {saveMsg && (
             <span style={{ fontSize: 12, color: saveMsg.includes('✓') ? 'var(--dark)' : 'var(--warn)' }}>
@@ -335,9 +335,9 @@ function DocsTab({
         {canViewStructDocs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: bomOk ? 1 : 0.4, pointerEvents: bomOk ? 'auto' : 'none' }}>
           {[
-            { label: '주요제원대비표',  type: 'spec-table',  desc: '별지 제33호의2서식 — 튜닝 전·후 제원 비교', ready: true },
-            { label: '하중계산서',      type: 'load-calc',   desc: '탈거/설치 BOM · 하중분포 · 법규판정', ready: true },
-            { label: '작업지시서',      type: 'work-order',  desc: '선택 사양 · 작업 내역 (특장사 수령용)', ready: false },
+            { label: t('주요제원대비표'),  type: 'spec-table',  desc: t('별지 제33호의2서식 — 튜닝 전·후 제원 비교'), ready: true },
+            { label: t('하중계산서'),      type: 'load-calc',   desc: t('탈거/설치 BOM · 하중분포 · 법규판정'), ready: true },
+            { label: t('작업지시서'),      type: 'work-order',  desc: t('선택 사양 · 작업 내역 (특장사 수령용)'), ready: false },
           ].map(({ label, type, desc, ready }) => (
             <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
               {ready ? (
@@ -369,7 +369,7 @@ function DocsTab({
           <div style={{ borderTop: canViewStructDocs ? 'var(--hairline)' : undefined, marginTop: canViewStructDocs ? 12 : 0, paddingTop: canViewStructDocs ? 12 : 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
             <button
               type="button"
-              onClick={() => openPdf(pdfUrl('contract'), '계약서.pdf')}
+              onClick={() => openPdf(pdfUrl('contract'), t('계약서.pdf'))}
               style={det.pdfBtn}
             >
               {t('특장 매매계약서 미리보기')}
@@ -413,7 +413,7 @@ interface Props {
   initialChatStep?: string
 }
 
-export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', makerView = false, onRemove, initialTab, initialChatStep }: Props) {
+export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'), makerView = false, onRemove, initialTab, initialChatStep }: Props) {
   // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
@@ -485,7 +485,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
     setLoading(true); setErr('')
     fetchOrderDetail(orderId)
       .then(setDetail)
-      .catch(e => setErr(e instanceof Error ? e.message : '주문 상세 로드 실패'))
+      .catch(e => setErr(e instanceof Error ? e.message : t('주문 상세 로드 실패')))
       .finally(() => setLoading(false))
   }, [orderId])
 
@@ -563,7 +563,7 @@ export function OrderDetail({ orderId, onBack, backLabel = '← 배정 주문', 
             : det.tabBtn
           }
           onClick={() => setTab('chat')}
-          aria-label={unreadChat > 0 ? '대화 — 안 읽은 글 있음' : '대화'}
+          aria-label={unreadChat > 0 ? t('대화 — 안 읽은 글 있음') : t('대화')}
         >
           {t('대화')}
         </button>

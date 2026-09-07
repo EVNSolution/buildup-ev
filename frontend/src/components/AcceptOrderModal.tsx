@@ -62,7 +62,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
     let alive = true
     fetchOrderDetail(orderId)
       .then(d => { if (alive) { setModelCode(d.model_code); setOptions(d.options) } })
-      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : '발주 내용을 불러오지 못했습니다') })
+      .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [orderId])
 
@@ -128,7 +128,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
                 {/* 고를 수 있는 날짜만 그린다 — 눌러 보고 나서 안 된다는 걸 알게 하지 않는다 */}
                 <DueDatePicker orderedAt={base} value={due} onChange={setDue} />
                 <div style={m.picked}>
-                  {due ? <>{t('납기일')} <b>{due}</b></> : '납기일을 선택하십시오'}
+                  {due ? <>{t('납기일')} <b>{due}</b></> : t('납기일을 선택하십시오')}
                 </div>
               </>
             )}
@@ -157,7 +157,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
         {error && <div style={m.err}>{error}</div>}
 
         <div style={m.actions}>
-          <button style={BTN.secondary} onClick={onClose} disabled={busy}>{readOnly ? '닫기' : '취소'}</button>
+          <button style={BTN.secondary} onClick={onClose} disabled={busy}>{readOnly ? t('닫기') : t('취소')}</button>
           {readOnly ? null : !rejecting ? (
             <>
               <button style={m.rejectBtn} onClick={() => setRejecting(true)} disabled={busy}>{t('거부')}</button>
@@ -166,7 +166,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
                 disabled={!canAccept}
                 onClick={() => parsed && onAccept?.(due)}
               >
-                {busy ? '처리 중' : '수락'}
+                {busy ? t('처리 중') : t('수락')}
               </button>
             </>
           ) : (
@@ -175,7 +175,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
               disabled={!reason.trim() || busy}
               onClick={() => onReject?.(reason.trim())}
             >
-              {busy ? '처리 중' : '거부하기'}
+              {busy ? t('처리 중') : t('거부하기')}
             </button>
           )}
         </div>

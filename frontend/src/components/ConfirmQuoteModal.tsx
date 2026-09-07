@@ -102,7 +102,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
       await saveQuoteInputs(quoteId, payload())
       if (!isConfirmed) await confirmQuote(quoteId)
       onDone(); onClose()
-    } catch (e) { setErr(e instanceof Error ? e.message : '견적서 생성 실패') }
+    } catch (e) { setErr(e instanceof Error ? e.message : t('견적서 생성 실패')) }
     finally { setBusy(false) }
   }
 
@@ -111,7 +111,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
     <div style={s.overlay}>
       <div style={s.box}>
         <div style={s.head}>
-          <span style={s.title}>{isConfirmed ? '견적 입력 수정' : '견적서 생성'}{customerName ? ` — ${customerName}` : ''}</span>
+          <span style={s.title}>{isConfirmed ? t('견적 입력 수정') : t('견적서 생성')}{customerName ? ` — ${customerName}` : ''}</span>
           <button style={s.close} onClick={onClose}>✕</button>
         </div>
 
@@ -135,7 +135,7 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
                   ? <option value={0}>{t('일시불')}</option>
                   : rates.map((r) => (
                     <option key={r.months} value={r.months}>
-                      {r.label ?? (r.months === 0 ? '일시불' : `${r.months}개월`)}{r.months > 0 ? ` · ${(r.rate * 100).toFixed(1)}%` : ''}
+                      {r.label ?? (r.months === 0 ? t('일시불') : `${r.months}개월`)}{r.months > 0 ? ` · ${(r.rate * 100).toFixed(1)}%` : ''}
                     </option>
                   ))
                 }
@@ -146,14 +146,14 @@ export function ConfirmQuoteModal({ quoteId, customerName, status, initialInputs
 
           <div style={s.note}>
             {isConfirmed
-              ? '※ 저장하면 견적서·계약서에 즉시 반영됩니다.'
-              : '※ 생성하면 견적서와 매매계약서가 각각 만들어지고, «견적서»·«계약서» 버튼에서 바로 열람할 수 있습니다. 생성 후에도 «수정»으로 값을 변경할 수 있습니다.'}
+              ? t('※ 저장하면 견적서·계약서에 즉시 반영됩니다.')
+              : t('※ 생성하면 견적서와 매매계약서가 각각 만들어지고, «견적서»·«계약서» 버튼에서 바로 열람할 수 있습니다. 생성 후에도 «수정»으로 값을 변경할 수 있습니다.')}
           </div>
           {err && <div style={s.err}>{err}</div>}
 
           <div style={s.btnRow}>
             <button style={s.primary} onClick={handleConfirm} disabled={busy}>
-              {busy ? '처리 중…' : isConfirmed ? '저장' : '견적서 생성'}
+              {busy ? t('처리 중…') : isConfirmed ? t('저장') : t('견적서 생성')}
             </button>
           </div>
         </div>
