@@ -14,6 +14,7 @@ import {
   tuningRecipient, TuningEsignError,
 } from '../services/tuning-esign.js';
 import { ModusignConfigError, ModusignApiError } from '../services/modusign.js';
+import { assertOrderQuoteOwner } from '../lib/quote-access.js';
 
 export const tuningRouter = Router();
 
@@ -72,6 +73,7 @@ tuningRouter.get('/:id/tuning', rbac('ADMIN', 'SALES', 'MAKER'),
   async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+    if (!(await assertOrderQuoteOwner(req, res, id))) return;
     try {
       const [a, recipient] = await Promise.all([getLatestTuning(id), tuningRecipient(id)]);
       res.json({ recipient, data: a ? {
@@ -93,6 +95,7 @@ tuningRouter.get('/:id/tuning/signed', rbac('ADMIN', 'SALES', 'MAKER'),
   async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
+    if (!(await assertOrderQuoteOwner(req, res, id))) return;
     try {
       const filePath = await ensureTuningSignedPdf(id);
       if (!filePath || !existsSync(filePath)) {

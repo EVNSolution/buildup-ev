@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { assertOrderQuoteOwner } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
@@ -175,6 +176,11 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } });
     return;
   }
+  /*
+   * ⚠️ 아래 `ownOrgOnly` 는 **특장사 조직**만 본다. 영업은 그대로 통과해,
+   *    영업 아무나 남의 담당 주문을 열 수 있었다(고객명·가격이 실려 있다).
+   */
+  if (!(await assertOrderQuoteOwner(req, res, id))) return;
   try {
     const auth = req.auth!;
 

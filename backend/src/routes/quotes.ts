@@ -4,6 +4,7 @@ import { syncOpenContracts } from '../services/contract-sync.js';
 import type { Request, Response } from 'express';
 import { rbac, requirePermission, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
+import { assertQuoteOwner } from '../lib/quote-access.js';
 import { collectGeneratedDocPaths, deleteGeneratedDocFilesByPaths } from '../services/docgen.js';
 import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import { renderContractPdfForQuote, ContractDocError } from '../services/contract-docgen.js';
@@ -1195,6 +1196,13 @@ quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Prom
     return;
   }
   try {
+    /*
+     * ⚠️ **여기에 소유권 검사가 없었다.** 목록과 견적서 PDF 에는 있는데 이 경로만 비어 있어,
+     *    남의 견적의 고객명·전화·이메일·주소·실구매가가 그대로 나갔다(실제로 200 을 받아 확인).
+     *    같은 자료를 주는 길이 여럿이면 **모든 길에 같은 문**이 있어야 한다.
+     */
+    if (!(await assertQuoteOwner(req, res, id))) return;
+
     const quote = await prisma.quote.findUnique({
       where: { id },
       include: { customer: true },
