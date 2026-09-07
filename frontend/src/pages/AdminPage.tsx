@@ -1724,11 +1724,17 @@ const qt: Record<string, React.CSSProperties> = {
   /** 날짜를 접는 버튼 — 칸을 가득 채워 줄 전체가 눌리는 것처럼 보인다 */
   groupBtn: {
     display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',
-    width: '100%', background: 'none', border: 'none', padding: 0,
+    /*
+     * ⚠️ **여백은 칸이 아니라 버튼이 갖는다.** 여백을 칸에 두면 버튼은 글자 크기로만
+     *    줄어들어, 예전에 `<tr onClick>` 으로 눌리던 글자 둘레 12px 가 죽는다
+     *    (재 보고 알았다 — 글자 위치는 그대로였지만 누르는 자리가 좁아졌다).
+     */
+    width: '100%', background: 'none', border: 'none',
+    padding: 'var(--sp-3) var(--sp-3) var(--sp-2)',
     font: 'inherit', textAlign: 'left' as const, cursor: 'pointer',
   },
   groupCell: {
-    padding: 'var(--sp-3) var(--sp-3) var(--sp-2)', borderTop: 'var(--hairline)',
+    padding: 0, borderTop: 'var(--hairline)',
     display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)',
   },
   groupArrow: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', width: 12 },
