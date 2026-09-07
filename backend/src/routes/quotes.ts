@@ -933,8 +933,20 @@ quotesRouter.patch('/:id/accept-sales', rbac('SALES', 'ADMIN'), async (req: Requ
       res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락한 건입니다' } }); return;
     }
 
+    /*
+     * ⚠️ **읽고 나서 쓰면 둘 다 통과한다.** 위 검사와 이 쓰기 사이에 다른 요청이 끼어들면
+     *    둘 다 「아직 수락 안 함」을 보고 둘 다 수락한다 — 동시에 10번 눌러 보니
+     *    **10번 다 성공했고 이력도 10줄** 쌓였다(누가 언제 받았는지가 흐려진다).
+     *    조건을 쓰는 순간에 함께 건다 — DB 가 한 행을 한 번만 바꾼다.
+     */
     const now = new Date();
-    await prisma.quote.update({ where: { id }, data: { sales_accepted_at: now } });
+    const won = await prisma.quote.updateMany({
+      where: { id, sales_accepted_at: null },
+      data: { sales_accepted_at: now },
+    });
+    if (won.count === 0) {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락한 건입니다' } }); return;
+    }
     // 언제 누가 받았는지 남긴다 — 배정~수락 사이가 비면 그 구간을 되짚게 된다
     await logQuoteChanges(id, 'inputs', { sales_accepted_at: '' }, { sales_accepted_at: now.toISOString() },
       req.auth?.email ?? 'unknown', ['sales_accepted_at']);
@@ -1050,7 +1062,19 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     });
 
     res.json({ data: { quote: updatedQuote, order } });
-  } catch (e) {
+  } catch (e: unknown) {
+    /*
+     * **같은 견적에 주문은 하나뿐이다**(order.quote_id 가 유일). 배정 버튼을 두 번 누르면
+     * 두 요청이 나란히 「아직 주문 없음」을 보고 둘 다 만들려 든다 — 하나는 제약에 부딪힌다.
+     *
+     * ⚠️ 그걸 500 으로 돌려주면 **배정은 이미 성공했는데 사용자에게는 오류로 보인다.**
+     *    동시에 10번 눌러 보니 200×1 · 409×2 · **500×7** 이었다(주문은 1개만 생겼다).
+     *    같은 상황을 409 로 답해야 화면이 「이미 배정된 건」이라고 옳게 안내한다.
+     */
+    if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002') {
+      res.status(409).json({ error: { code: 'ALREADY_ASSIGNED', message: '이미 배정된 견적입니다' } });
+      return;
+    }
     console.error('[PATCH /quotes/:id/assign]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '특장사 배정 중 오류가 발생했습니다.' } });
   }
