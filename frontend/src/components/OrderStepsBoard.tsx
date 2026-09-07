@@ -1,4 +1,5 @@
 import type { ApiOrder } from '@shared/types/index'
+import { dueLabel } from '../lib/dueLabel'
 import { t } from '../i18n'
 import { STEPS } from '@shared/process/steps'
 import { dueInfo } from '@shared/process/due'
@@ -102,8 +103,8 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                     「n일 전」·「n일 경과」는 날짜 **옆**에 붙인다 — 날짜만으로는
                     오늘이 며칠인지 세어 봐야 급한지 알 수 있다.
                   */}
-                  {due.label && (
-                    <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{due.label}</span>
+                  {dueLabel(due) && (
+                    <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{dueLabel(due)}</span>
                   )}
                 </div>
               )}

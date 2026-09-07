@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { t } from '../i18n'
-import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
+import { t , tf} from '../i18n'
+import { clampMemo, MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS } from '@shared/docs/memo'
 import type { ApiPricingBundle } from '@shared/types/index'
 import { optionBreakdown } from '@shared/pricing/core'
 
@@ -90,7 +90,7 @@ export function QuoteExtras({
   return (
     <>
       <label style={s.label}>
-        {t('메모 / 안내문')} <span style={s.limit}>{MEMO_LIMIT_HINT}</span>
+        {t('메모 / 안내문')} <span style={s.limit}>{tf('최대 {0}줄 · 한 줄 {1}자', MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS)}</span>
       </label>
       {/*
         줄바꿈은 견적서·계약서에 **그대로 찍힌다.** 그래서 넘치는 것을 잘라 내면

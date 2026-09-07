@@ -7,7 +7,7 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview } from '../api/quotes'
 import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
-import { clampMemo, MEMO_MAX_LINES, MEMO_LIMIT_HINT } from '@shared/docs/memo'
+import { clampMemo, MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS } from '@shared/docs/memo'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
@@ -184,7 +184,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
                   <textarea
                     style={modal.remarkInput}
                     rows={MEMO_MAX_LINES}
-                    placeholder={`이 주문만의 요청사항 (${MEMO_LIMIT_HINT})`}
+                    placeholder={tf('이 주문만의 요청사항 ({0})', tf('최대 {0}줄 · 한 줄 {1}자', MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS))}
                     value={remark}
                     onChange={e => setRemark(clampMemo(e.target.value))}
                   />

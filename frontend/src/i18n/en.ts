@@ -980,6 +980,7 @@ export const EN: Record<string, string> = {
   '사이드도어 부속': 'Side door — fittings',
   '부대비': 'Incidental cost',
   '슬라이딩 가산/도어': 'Sliding surcharge per door',
+  '납기 오늘': 'Due today',
 }
 
 /**
@@ -1085,6 +1086,13 @@ export const EN_FMT: Record<string, string> = {
   '{0}일': '{0}d',
   '견적 {0}건': '{0} quotes',
   '표본 {0}건': 'n = {0}',
+  '납기 {0}일 경과': '{0}d overdue',
+  '납기 {0}일 전': 'Due in {0}d',
+  '최대 {0}줄 · 한 줄 {1}자': 'Max {0} lines · {1} chars per line',
+  '이 주문만의 요청사항 ({0})': 'Requests specific to this order ({0})',
+  '선행 단계가 완료되지 않았습니다 — {0}': 'Earlier steps are not complete — {0}',
+  '증빙 등록 후 완료할 수 있습니다 — {0}': 'Upload the required evidence first — {0}',
+  '후속 단계를 먼저 취소하십시오 — {0}': 'Undo the later steps first — {0}',
 }
 
 /**

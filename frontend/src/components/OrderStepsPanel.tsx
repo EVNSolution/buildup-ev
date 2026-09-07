@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { gateReason } from '../lib/gateReason'
+import { dueLabel } from '../lib/dueLabel'
 import { t , tf} from '../i18n'
 import {
   TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
@@ -187,7 +189,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
         {/* 납기 옆에 「n일 경과」·「n일 전」을 붙인다 — 날짜만으로는 급한지 세어 봐야 안다 */}
         <Rec
           label="납기"
-          value={res.order.delivery_due ? `${res.order.delivery_due}${due.label ? `  ${due.label}` : ''}` : '—'}
+          value={res.order.delivery_due ? `${res.order.delivery_due}${dueLabel(due) ? `  ${dueLabel(due)}` : ''}` : '—'}
           strong={!!res.order.delivery_due}
           tone={due.state === 'overdue' ? 'late' : undefined}
         />
@@ -359,7 +361,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                       ))}
 
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
-                      {!gate.ok && <div style={s.blocked}>{gate.reason}</div>}
+                      {!gate.ok && <div style={s.blocked}>{gateReason(gate)}</div>}
                       {gate.ok && !dateOk && <div style={s.blocked}>{def.dateLabel}을(를) 선택하십시오</div>}
                     </div>
                   )}

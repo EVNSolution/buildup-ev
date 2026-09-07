@@ -309,7 +309,17 @@ export interface StepState {
  * 지금 이 단계를 완료할 수 있는가 — **선행 단계와 증빙을 함께 본다.**
  * 서버가 최종 판정하고 화면도 같은 함수로 미리 막는다(같은 답이 나와야 한다).
  */
-export type StepGate = { ok: true } | { ok: false; reason: string };
+/**
+ * 막힌 이유.
+ *
+ * `reason` 은 **한국어 완성문**이다 — 서버 응답과 로그가 그대로 쓴다. 그대로 둔다.
+ * `code`·`names` 는 화면이 **다시 조립**하려고 덧붙인 것이다: 영문화하면 이름이 문장
+ * 가운데 끼어들고 어순도 달라져, 완성문으로는 사전에서 찾을 수 없다.
+ */
+export type GateCode = 'unknown' | 'requires' | 'evidence' | 'not_done' | 'undo_blocked';
+export type StepGate =
+  | { ok: true }
+  | { ok: false; reason: string; code: GateCode; names?: string[] };
 
 export function canComplete(
   code: string,
@@ -320,19 +330,19 @@ export function canComplete(
 ): StepGate {
   const byDef = defs === STEPS ? STEP_BY_CODE : Object.fromEntries(defs.map(d => [d.code, d]));
   const def = byDef[code];
-  if (!def) return { ok: false, reason: '알 수 없는 단계입니다' };
+  if (!def) return { ok: false, reason: '알 수 없는 단계입니다', code: 'unknown' };
 
   const byCode = new Map(states.map(s => [s.code, s]));
   const missing = def.requires.filter(r => byCode.get(r)?.status !== 'done');
   if (missing.length > 0) {
     const names = missing.map(m => byDef[m]?.label ?? m).join(' · ');
-    return { ok: false, reason: `선행 단계가 완료되지 않았습니다 — ${names}` };
+    return { ok: false, reason: `선행 단계가 완료되지 않았습니다 — ${names}`, code: 'requires', names: missing.map(m => byDef[m]?.label ?? m) };
   }
 
   const lackEvidence = def.evidence.filter(e => !uploadedKinds.includes(e));
   if (lackEvidence.length > 0) {
     const names = lackEvidence.map(e => EVIDENCE_LABEL[e]).join(' · ');
-    return { ok: false, reason: `증빙 등록 후 완료할 수 있습니다 — ${names}` };
+    return { ok: false, reason: `증빙 등록 후 완료할 수 있습니다 — ${names}`, code: 'evidence', names: lackEvidence.map(e => EVIDENCE_LABEL[e]) };
   }
 
   return { ok: true };
@@ -368,16 +378,16 @@ export function newlyOpened(completed: string, doneBefore: Set<string>, defs: St
  */
 export function canUndo(code: string, states: StepState[], defs: StepDef[] = STEPS): StepGate {
   const def = (defs === STEPS ? STEP_BY_CODE : Object.fromEntries(defs.map(d => [d.code, d])))[code];
-  if (!def) return { ok: false, reason: '알 수 없는 단계입니다' };
+  if (!def) return { ok: false, reason: '알 수 없는 단계입니다', code: 'unknown' };
   if (states.find(s => s.code === code)?.status !== 'done') {
-    return { ok: false, reason: '완료된 단계만 취소할 수 있습니다' };
+    return { ok: false, reason: '완료된 단계만 취소할 수 있습니다', code: 'not_done' };
   }
   const done = new Set(states.filter(s => s.status === 'done').map(s => s.code));
   // 이 단계를 선행으로 삼는 단계 중 이미 끝난 것
   const blockers = defs.filter(s => s.requires.includes(code) && done.has(s.code));
   if (blockers.length > 0) {
     const names = blockers.map(b => b.label).join(' · ');
-    return { ok: false, reason: `후속 단계를 먼저 취소하십시오 — ${names}` };
+    return { ok: false, reason: `후속 단계를 먼저 취소하십시오 — ${names}`, code: 'undo_blocked', names: names.split(', ') };
   }
   return { ok: true };
 }
