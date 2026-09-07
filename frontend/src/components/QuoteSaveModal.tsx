@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { t } from '../i18n'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
 import { lookupCustomer, lookupWarpCustomer, type WarpVehicleInfo } from '../api/quotes'
@@ -97,7 +98,7 @@ export function valuesFromCustomer(c: CustomerInfo | null, subsidy: SubsidyInput
  */
 function Tag({ need }: { need?: boolean }) {
   if (!need) return null
-  return <span style={s.tagOn}> · 필수</span>
+  return <span style={s.tagOn}> {t('· 필수')}</span>
 }
 
 /** 라벨 옆 회색 안내(무슨 값을 적어야 하는지). */
@@ -283,22 +284,22 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
   const addressBlock = (<>
             {/* 지역 바로 다음이 주소 — 두 칸으로 나눠 놓아야 팝업이 한 화면에 들어온다 */}
             <div style={s.row}>
-              <label style={s.label}>주소<Tag need={forContract} /></label>
+              <label style={s.label}>{t('주소')}<Tag need={forContract} /></label>
               <div style={s.addrRow}>
                 <input
                   style={{ ...s.field, flex: 1, minWidth: 0 }} type="text" value={v.address}
                   onChange={e => set('address', e.target.value)}
                 />
-                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>검색</button>
+                <button type="button" style={s.addrBtn} onClick={() => void pickAddress()}>{t('검색')}</button>
               </div>
               {addrErr && <div style={s.warn}>{addrErr} — 직접 입력해 주세요</div>}
             </div>
             <div style={s.row}>
-              <label style={s.label}>세부주소<Tag need={forContract} /></label>
+              <label style={s.label}>{t('세부주소')}<Tag need={forContract} /></label>
               <input
                 ref={addrRef}
                 style={s.field} type="text" value={v.address_detail}
-                placeholder="동·호수 등"
+                placeholder={t('동·호수 등')}
                 onChange={e => set('address_detail', e.target.value)}
               />
             </div>
@@ -306,7 +307,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
 
   return (
     <>
-        <div style={s.sectionTitle}>고객 정보</div>
+        <div style={s.sectionTitle}>{t('고객 정보')}</div>
 
         <div style={s.grid}>
         {/*
@@ -320,17 +321,17 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         */}
         {forContract && (
           <div style={{ ...s.row, ...s.gridFull }}>
-            <label style={s.label}>계약일자<Tag need /></label>
+            <label style={s.label}>{t('계약일자')}<Tag need /></label>
             <input
               style={s.field} type="date" value={v.contract_date}
               onChange={e => set('contract_date', e.target.value)}
             />
-            <div style={s.hintLine}>계약서에 찍히는 날짜입니다. 기본은 오늘.</div>
+            <div style={s.hintLine}>{t('계약서에 찍히는 날짜입니다. 기본은 오늘.')}</div>
           </div>
         )}
 
         <div style={{ ...s.row, ...s.gridFull }}>
-          <label style={s.label}>사업자 구분<Tag need /></label>
+          <label style={s.label}>{t('사업자 구분')}<Tag need /></label>
           <select
             style={s.field}
             value={v.subsidy.business_type}
@@ -357,7 +358,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
           <input
             style={s.field} type="text" value={v.buyer_regno}
             inputMode="numeric"
-            placeholder="숫자만 입력"
+            placeholder={t('숫자만 입력')}
             onChange={e => set('buyer_regno', e.target.value)}
             onBlur={e => {
               // 칸을 벗어날 때 형식을 맞춘다 — 입력 중에 하이픈이 끼어들면 지우기가 성가시다
@@ -380,15 +381,15 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
 
         {isCorporate && (
           <div style={s.row}>
-            <label style={s.label}>대표이사<Tag need /></label>
+            <label style={s.label}>{t('대표이사')}<Tag need /></label>
             <input style={s.field} type="text" value={v.ceo_name} onChange={e => set('ceo_name', e.target.value)} />
           </div>
         )}
 
         <div style={s.row}>
           <label style={s.label}>
-            휴대폰<Tag need />
-            <Note>이름·휴대폰이 일치하면 CRM에서 불러올 수 있습니다</Note>
+            {t('휴대폰')}<Tag need />
+            <Note>{t('이름·휴대폰이 일치하면 CRM에서 불러올 수 있습니다')}</Note>
           </label>
           <div style={s.addrRow}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -400,7 +401,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
               style={{ ...s.addrBtn, ...(canWarpLookup && !warpLoading ? null : s.warpBtnOff) }}
               disabled={!canWarpLookup || warpLoading}
               onClick={() => void tryWarpAutofill()}
-              title="이름 + 휴대폰 완전일치로 WARP CRM 고객정보를 불러와 빈 칸을 채웁니다"
+              title={t('이름 + 휴대폰 완전일치로 WARP CRM 고객정보를 불러와 빈 칸을 채웁니다')}
             >
               {warpLoading ? '조회 중…' : 'CRM에서 불러오기'}
             </button>
@@ -409,7 +410,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         {warpNotice && <div style={s.autofill}>{warpNotice}</div>}
         {warpVehicles.length > 0 && (
           <div style={s.warpVehicleBox}>
-            <b>CRM 등록 차량 (참고용 — 견적에 저장되지 않습니다)</b>
+            <b>{t('CRM 등록 차량 (참고용 — 견적에 저장되지 않습니다)')}</b>
             {warpVehicles.map((veh, i) => (
               <div key={i}>
                 {[veh.maker, veh.name, veh.plate_no, veh.year && `${veh.year}년식`,
@@ -421,7 +422,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         )}
         <div style={s.row}>
           <label style={s.label}>
-            이메일<Tag need={forContract} />
+            {t('이메일')}<Tag need={forContract} />
             <Note>{forContract
               ? (isCorporate && !v.buyer_agent.trim() ? '법인 직인을 찍을 사람 · 전자서명용' : '전자서명을 위한 이메일')
               : '견적서·계약서를 메일로 받아 보시려면 입력을 권장합니다'}</Note>
@@ -447,28 +448,28 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         </div>
 
         <div style={s.sectionTitle}>
-          계약서 정보
-          <span style={s.optional}> · 비우면 계약서에 공란</span>
+          {t('계약서 정보')}
+          <span style={s.optional}> {t('· 비우면 계약서에 공란')}</span>
         </div>
         <div style={s.grid}>
         <div style={s.row}>
-          <label style={s.label}>계약처</label>
+          <label style={s.label}>{t('계약처')}</label>
           <input style={s.field} type="text" value={v.contract_party} onChange={e => set('contract_party', e.target.value)} />
         </div>
         <div style={s.row}>
-          <label style={s.label}>유선번호</label>
+          <label style={s.label}>{t('유선번호')}</label>
           <PhoneInput value={v.buyer_tel} onChange={x => set('buyer_tel', x)} boxStyle={s.field} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
             대리인
-            {v.buyer_agent.trim() ? <Note>위임장 필요</Note> : null}
+            {v.buyer_agent.trim() ? <Note>{t('위임장 필요')}</Note> : null}
           </label>
           <input style={s.field} type="text" value={v.buyer_agent} onChange={e => set('buyer_agent', e.target.value)} />
         </div>
         <div style={s.row}>
           <label style={s.label}>
-            관계<Tag need={!!v.buyer_agent.trim()} />
+            {t('관계')}<Tag need={!!v.buyer_agent.trim()} />
           </label>
           <input style={s.field} type="text" value={v.buyer_relation} onChange={e => set('buyer_relation', e.target.value)} />
         </div>
@@ -587,7 +588,7 @@ export function QuoteSaveModal({ initial, regions, saving, error, onSave, onClos
           <button style={{ ...s.btnOk, ...(canSave ? null : s.btnOff) }} onClick={() => canSave && onSave(v)} disabled={!canSave}>
             {saving ? '저장 중…' : forContract ? '확인 완료' : isEdit ? '저장' : '견적 저장'}
           </button>
-          <button style={s.btnCancel} onClick={onClose} disabled={saving}>취소</button>
+          <button style={s.btnCancel} onClick={onClose} disabled={saving}>{t('취소')}</button>
         </div>
       </div>
     </div>

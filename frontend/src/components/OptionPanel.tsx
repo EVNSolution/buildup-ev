@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import type { ApiPricingBundle } from '@shared/types/index'
 import type { PricingOk, CustomOptionDraft } from '@shared/pricing/core'
 import { VehicleOptionsTab } from './tabs/VehicleOptionsTab'
@@ -79,6 +80,10 @@ interface Props {
   onCustomOptionsChange?: (next: CustomOptionDraft[]) => void
 }
 
+/*
+ * ⚠️ label 은 **한국어 그대로 둔다.** 여기서 t() 를 부르면 모듈을 읽는 순간의 언어로 굳어
+ *    언어를 바꿔도 안 따라온다(모듈 최상위는 한 번만 평가된다). 옮기는 것은 그리는 자리에서.
+ */
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'vehicle', label: '차량 트림' },
   { key: 'body', label: '특장' },
@@ -194,7 +199,7 @@ export function OptionPanel({
               setActiveTab(tab.key); setVisited((v) => new Set(v).add(tab.key))
             }}
           >
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </div>

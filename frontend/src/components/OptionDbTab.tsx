@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   OPTION_DB_TABLES, fetchOptionDbTable, saveOptionDbRows, fetchOptionDbLogs,
@@ -245,12 +246,12 @@ export function OptionDbTab({ only, note }: Props = {}) {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') load() }}
             />
-            <button style={BTN.bar} onClick={() => load()}>검색</button>
+            <button style={BTN.bar} onClick={() => load()}>{t('검색')}</button>
           </>
         )}
         <div style={{ flex: 1 }} />
-        <button style={BTN.bar} onClick={() => openLogs()}>변경 이력</button>
-        <button style={BTN.barDanger} onClick={openRestore}>되돌리기</button>
+        <button style={BTN.bar} onClick={() => openLogs()}>{t('변경 이력')}</button>
+        <button style={BTN.barDanger} onClick={openRestore}>{t('되돌리기')}</button>
         <button style={dirty ? BTN.barPrimary : BTN.barDisabled} onClick={save} disabled={!dirty || loading}>
           {loading ? '처리 중…' : dirty ? `저장 (${dirty}행)` : '저장'}
         </button>
@@ -260,7 +261,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
 
       {msg && <div style={s.ok}>✓ {msg}</div>}
       {err && <div style={s.err}>{err}</div>}
-      {loading && !data && <div style={s.empty}>로딩 중…</div>}
+      {loading && !data && <div style={s.empty}>{t('로딩 중…')}</div>}
 
       {data && (
         <div style={s.tableWrap}>
@@ -329,7 +330,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
                       </td>
                     ))}
                     <td style={s.td}>
-                      <button style={BTN.row} title="이 항목의 변경 이력" onClick={() => openLogs(k)}>이력</button>
+                      <button style={BTN.row} title={t('이 항목의 변경 이력')} onClick={() => openLogs(k)}>{t('이력')}</button>
                     </td>
                   </tr>
                 )
@@ -337,7 +338,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
             </tbody>
             ))}
           </table>
-          {data.rows.length === 0 && <div style={s.empty}>표시할 행이 없습니다.</div>}
+          {data.rows.length === 0 && <div style={s.empty}>{t('표시할 행이 없습니다.')}</div>}
           <div style={s.count}>{data.rows.length}행</div>
         </div>
       )}
@@ -354,12 +355,12 @@ export function OptionDbTab({ only, note }: Props = {}) {
               그 이후의 수정은 모두 취소됩니다. 되돌린 것도 이력에 남아 다시 되돌릴 수 있습니다.
             </div>
             <div style={s.logWrap}>
-              {points.length === 0 ? <div style={s.empty}>되돌릴 수 있는 수정 기록이 없습니다.</div> : (
+              {points.length === 0 ? <div style={s.empty}>{t('되돌릴 수 있는 수정 기록이 없습니다.')}</div> : (
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      <th style={s.th}>수정 일시</th><th style={s.th}>수정자</th>
-                      <th style={s.th}>범위</th><th style={s.th}></th>
+                      <th style={s.th}>{t('수정 일시')}</th><th style={s.th}>{t('수정자')}</th>
+                      <th style={s.th}>{t('범위')}</th><th style={s.th}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -393,12 +394,12 @@ export function OptionDbTab({ only, note }: Props = {}) {
               <button style={BTN.bar} onClick={() => setLogs(null)}>✕</button>
             </div>
             <div style={s.logWrap}>
-              {logs.length === 0 ? <div style={s.empty}>기록이 없습니다.</div> : (
+              {logs.length === 0 ? <div style={s.empty}>{t('기록이 없습니다.')}</div> : (
                 <table style={s.table}>
                   <thead>
                     <tr>
-                      <th style={s.th}>일시</th><th style={s.th}>대상</th><th style={s.th}>항목</th>
-                      <th style={s.th}>이전값</th><th style={s.th}>새값</th><th style={s.th}>수정자</th>
+                      <th style={s.th}>{t('일시')}</th><th style={s.th}>{t('대상')}</th><th style={s.th}>{t('항목')}</th>
+                      <th style={s.th}>{t('이전값')}</th><th style={s.th}>{t('새값')}</th><th style={s.th}>{t('수정자')}</th>
                     </tr>
                   </thead>
                   <tbody>

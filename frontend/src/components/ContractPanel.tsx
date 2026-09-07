@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { t } from '../i18n'
 import { fetchContract, sendContract, cancelContract, contractSignedUrl, type ContractInfo } from '../api/contracts'
 import { BTN } from '../styles/buttons'
 import { PdfModal } from './PdfModal'
@@ -80,7 +81,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
     }
   }
 
-  if (loading) return <div style={s.muted}>불러오는 중…</div>
+  if (loading) return <div style={s.muted}>{t('불러오는 중…')}</div>
 
   const inProgress = contract && ['SENT', 'VIEWED', 'SIGNING'].includes(contract.status)
   const resendable = !contract || ['REJECTED', 'CANCELED'].includes(contract.status)
@@ -100,11 +101,11 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
       {contract && (
         <div style={s.timeline}>
           <div style={s.tlRow}>
-            <span style={s.tlLabel}>서명 요청 발송</span>
+            <span style={s.tlLabel}>{t('서명 요청 발송')}</span>
             <span style={s.tlVal}>{contract.sent_at ? contract.sent_at.slice(0, 16).replace('T', ' ') : '—'}</span>
           </div>
           <div style={s.tlRow}>
-            <span style={s.tlLabel}>서명 완료</span>
+            <span style={s.tlLabel}>{t('서명 완료')}</span>
             <span style={s.tlVal}>
               {contract.completed_at ? contract.completed_at.slice(0, 16).replace('T', ' ')
                 : contract.status === 'COMPLETED' ? '완료' : '대기'}
@@ -112,34 +113,34 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
           </div>
           {contract.sent_at && (
             <div style={s.frozen}>
-              발송 시점의 견적서·계약서가 고정되었습니다. 이후 단가가 바뀌어도 문서는 바뀌지 않으며, 견적 입력도 수정할 수 없습니다.
+              {t('발송 시점의 견적서·계약서가 고정되었습니다. 이후 단가가 바뀌어도 문서는 바뀌지 않으며, 견적 입력도 수정할 수 없습니다.')}
             </div>
           )}
         </div>
       )}
 
       {contract?.status === 'COMPLETED' && contract.has_signed && (
-        <button style={s.primary} onClick={() => setPreview(true)}>서명본 보기 / 다운로드</button>
+        <button style={s.primary} onClick={() => setPreview(true)}>{t('서명본 보기 / 다운로드')}</button>
       )}
 
       {inProgress && (
         <div style={s.pending}>
-          <div style={s.muted}>고객이 서명을 진행 중입니다. 완료되면 서명본이 저장됩니다.</div>
+          <div style={s.muted}>{t('고객이 서명을 진행 중입니다. 완료되면 서명본이 저장됩니다.')}</div>
           {/*
             발송 취소 — **재발송을 여는 유일한 문이다.**
             재발송은 거절·취소된 계약에서만 되므로, 고객이 끝내 서명하지 않은 건은
             이걸 누르지 않으면 영원히 다시 보낼 수 없다.
           */}
           {!canceling ? (
-            <button style={s.ghost} onClick={() => setCanceling(true)}>발송 취소하고 다시 보내기</button>
+            <button style={s.ghost} onClick={() => setCanceling(true)}>{t('발송 취소하고 다시 보내기')}</button>
           ) : (
             <div style={s.cancelBox}>
-              <div style={s.cancelTitle}>이 서명 요청을 취소합니다</div>
+              <div style={s.cancelTitle}>{t('이 서명 요청을 취소합니다')}</div>
               <div style={s.muted}>
                 고객이 받은 링크가 무효가 되고, <b>재발송할 수 있게</b> 됩니다.
                 이미 보낸 기록은 지워지지 않습니다.
               </div>
-              <label style={s.cancelLabel}>취소 사유<span style={s.opt}> · 고객에게 보입니다</span></label>
+              <label style={s.cancelLabel}>{t('취소 사유')}<span style={s.opt}> {t('· 고객에게 보입니다')}</span></label>
               <input
                 style={s.cancelInput}
                 value={cancelReason}
@@ -147,7 +148,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
                 onChange={e => setCancelReason(e.target.value)}
               />
               <div style={s.cancelActions}>
-                <button style={s.ghost} onClick={() => setCanceling(false)} disabled={cancelBusy}>그만두기</button>
+                <button style={s.ghost} onClick={() => setCanceling(false)} disabled={cancelBusy}>{t('그만두기')}</button>
                 <button style={s.danger} onClick={handleCancel} disabled={cancelBusy || cancelReason.trim().length < 2}>
                   {cancelBusy ? '취소 중…' : '발송 취소'}
                 </button>
@@ -165,8 +166,8 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
       {linkMaybeAlive && (
         <div style={s.warn}>
           우리 쪽 계약은 취소되어 <b>재발송할 수 있습니다.</b> 다만 모두싸인에서 문서를 취소하지 못했습니다 —
-          <b>고객이 받은 이전 링크가 아직 살아 있을 수 있습니다.</b>
-          모두싸인에서 그 문서를 직접 취소해 주세요.
+          <b>{t('고객이 받은 이전 링크가 아직 살아 있을 수 있습니다.')}</b>
+          {t('모두싸인에서 그 문서를 직접 취소해 주세요.')}
         </div>
       )}
 
@@ -174,13 +175,13 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
         <div style={s.sendBox}>
           {contract && <div style={s.muted}>이전 계약이 {LABEL[contract.status]} 상태입니다. 재발송할 수 있습니다.</div>}
           <div style={s.methodRow}>
-            <label style={s.radio}><input type="radio" checked={method === 'EMAIL'} onChange={() => setMethod('EMAIL')} /> 이메일</label>
-            <label style={s.radio}><input type="radio" checked={method === 'KAKAO'} onChange={() => setMethod('KAKAO')} /> 카카오 알림톡</label>
+            <label style={s.radio}><input type="radio" checked={method === 'EMAIL'} onChange={() => setMethod('EMAIL')} /> {t('이메일')}</label>
+            <label style={s.radio}><input type="radio" checked={method === 'KAKAO'} onChange={() => setMethod('KAKAO')} /> {t('카카오 알림톡')}</label>
           </div>
           {/* 서명 요청은 1건마다 과금된다 — 어디로 나가는지 누르기 전에 보여준다 */}
           <div style={dest ? s.dest : s.destWarn}>
             {dest
-              ? <>받는 곳 <b>{dest}</b></>
+              ? <>{t('받는 곳')} <b>{dest}</b></>
               : method === 'EMAIL'
                 ? '고객 이메일이 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.'
                 : '고객 휴대폰번호가 없어 보낼 수 없습니다 — 「수정 → 고객정보」에서 입력하세요.'}
@@ -188,7 +189,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
           <button style={s.primary} onClick={handleSend} disabled={sending || !dest}>
             {sending ? '발송 중…' : (contract ? '재발송' : `계약서 발송${customerName ? ` (${customerName})` : ''}`)}
           </button>
-          <div style={s.note}>※ 계약서(전자서명)와 견적서를 함께 발송합니다. 고객 연락처는 견적에 저장된 정보를 사용합니다.</div>
+          <div style={s.note}>{t('※ 계약서(전자서명)와 견적서를 함께 발송합니다. 고객 연락처는 견적에 저장된 정보를 사용합니다.')}</div>
         </div>
       )}
 
@@ -198,7 +199,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
         <PdfModal
           previewUrl={contractSignedUrl(quoteId)}
           downloadUrl={contractSignedUrl(quoteId)}
-          title="특장매매계약서 서명본"
+          title={t('특장매매계약서 서명본')}
           subtitle={customerName}
           onClose={() => setPreview(false)}
         />

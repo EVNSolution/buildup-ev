@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { t } from '../i18n'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
@@ -283,7 +284,7 @@ function MyListView() {
    *    통째로 사라졌다 다시 열려** 저장 메시지가 보이지 않고 화면이 깜빡였다.
    *    이미 한 번 받아 둔 목록이 있으면 그대로 두고 조용히 갱신한다.
    */
-  if (loading && quotes.length === 0) return <div style={lv.empty}>로딩 중…</div>
+  if (loading && quotes.length === 0) return <div style={lv.empty}>{t('로딩 중…')}</div>
   /*
    * ⚠️ 오류가 났다고 **목록을 통째로 갈아치우지 않는다.**
    *    예전에는 여기서 오류 문구만 남기고 return 했다. 그래서 목록을 다 받아 둔 뒤의
@@ -435,7 +436,7 @@ function MyListView() {
     <div style={lv.root}>
       {err && <div style={lv.errBar}>{err}</div>}
       <InboxPanel
-        title="배정된 문의"
+        title={t('배정된 문의')}
         items={pendingAccept.map(q => ({
           id: q.id,
           no: q.quote_no ?? `#${q.id}`,
@@ -456,14 +457,14 @@ function MyListView() {
             type="text"
             value={nameQuery}
             onChange={e => setNameQuery(e.target.value)}
-            placeholder="고객 이름"
-            aria-label="고객 이름으로 좁히기"
+            placeholder={t('고객 이름')}
+            aria-label={t('고객 이름으로 좁히기')}
             style={lv.search}
           />
         </div>
         {quotes.length === 0 ? (
           <EmptyState
-            title="아직 저장된 견적이 없습니다"
+            title={t('아직 저장된 견적이 없습니다')}
             description="컨피규레이터에서 옵션을 고르고 견적을 저장하면 여기에 쌓입니다."
           />
         ) : shownQuotes.length === 0 ? (
@@ -477,13 +478,13 @@ function MyListView() {
               <thead>
                 <tr>
                   <th style={lv.th}>#</th>
-                  <th style={lv.th}>고객</th>
-                  <th style={lv.th}>실구매가(기타 포함)</th>
-                  <th style={lv.th}>상태</th>
-                  <th style={lv.th}>전자서명</th>
-                  <th style={lv.th}>주문 현황</th>
-                  <th style={lv.th}>특장사</th>
-                  <th style={lv.th}>날짜</th>
+                  <th style={lv.th}>{t('고객')}</th>
+                  <th style={lv.th}>{t('실구매가(기타 포함)')}</th>
+                  <th style={lv.th}>{t('상태')}</th>
+                  <th style={lv.th}>{t('전자서명')}</th>
+                  <th style={lv.th}>{t('주문 현황')}</th>
+                  <th style={lv.th}>{t('특장사')}</th>
+                  <th style={lv.th}>{t('날짜')}</th>
                   <th style={lv.th}></th>
                 </tr>
               </thead>
@@ -586,16 +587,16 @@ function MyListView() {
                           <button
                             style={dupBusy === q.id ? { ...lv.pdfBtn, opacity: 0.45 } : lv.pdfBtn}
                             disabled={dupBusy === q.id}
-                            title="같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)"
+                            title={t('같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)')}
                             onClick={() => void handleDuplicate(q)}
                           >{dupBusy === q.id ? '…' : '복제'}</button>
                           )}
                           {/* 「고객정보」는 조회 전용 — 고치는 곳은 「수정」 한 군데로 모았다 */}
                           <button
                             style={lv.pdfBtn}
-                            title="고객·계약 정보 조회 (수정 불가)"
+                            title={t('고객·계약 정보 조회 (수정 불가)')}
                             onClick={() => setViewQuote(q)}
-                          >고객정보</button>
+                          >{t('고객정보')}</button>
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
                             title={q.status === 'draft' ? '선수금·할부·면세 등 입력 후 견적서 생성' : '견적서 열람·다운로드'}
@@ -620,9 +621,9 @@ function MyListView() {
                           {q.contract?.status === 'COMPLETED' && (
                             <button
                               style={lv.confirmBtn}
-                              title="고객이 서명·날인한 계약서 정본 (시스템 보관본)"
+                              title={t('고객이 서명·날인한 계약서 정본 (시스템 보관본)')}
                               onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
-                            >서명본</button>
+                            >{t('서명본')}</button>
                           )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           {/*
@@ -642,7 +643,7 @@ function MyListView() {
                                 defaultTo: q.customer?.email ?? undefined,
                                 noContract,
                               })}
-                            >메일 전달</button>
+                            >{t('메일 전달')}</button>
                           )}
                           {canSign && (
                           <button
@@ -663,7 +664,7 @@ function MyListView() {
                                 })
                               }
                             }}
-                          >서명 요청</button>
+                          >{t('서명 요청')}</button>
                           )}
                           {/*
                             종이로 받은 계약서를 올린다 — 전자서명을 건너뛰고 계약완료가 된다.
@@ -675,7 +676,7 @@ function MyListView() {
                               disabled={noContract}
                               title={noContract ? noContractWhy : '종이로 체결한 계약서 서명본을 올려 계약완료로 만듭니다'}
                               onClick={() => { setPaperErr(''); setPaperFor(q) }}
-                            >서명본 등록</button>
+                            >{t('서명본 등록')}</button>
                           )}
                         </div>
                       </td>
@@ -1001,8 +1002,8 @@ export function SalesPage() {
   const isUnsupported = liveCalc?.status === 'unsupported'
   const displayCalc = savedQuote ? { ...savedQuote.pricing, status: 'ok' as const } : liveCalc
 
-  if (bundleLoading) return <div style={styles.loading}>로딩 중…</div>
-  if (!bundle) return <div style={styles.loading}>옵션 데이터 로드 실패</div>
+  if (bundleLoading) return <div style={styles.loading}>{t('로딩 중…')}</div>
+  if (!bundle) return <div style={styles.loading}>{t('옵션 데이터 로드 실패')}</div>
 
   return (
     <div style={styles.root}>
@@ -1069,9 +1070,9 @@ export function SalesPage() {
              프레임에 딱 맞는다. 3D 연동이 붙으면 이 자리에 iframe 이 들어간다.
            */}
            <div style={styles.frame}>
-             <img src={stegoSide} alt="STEGO-K 측면" style={styles.stageImg} />
+             <img src={stegoSide} alt={t('STEGO-K 측면')} style={styles.stageImg} />
            </div>
-           <div style={styles.stageNote}>3D 미리보기 연동 예정</div>
+           <div style={styles.stageNote}>{t('3D 미리보기 연동 예정')}</div>
           </div>
 
           {!compact && (

@@ -52,7 +52,7 @@ export function BodyOnlyToggle({ on, onToggle, disabled }: {
         : on ? { ...BTN.rowPrimary, width: '100%' } : { ...BTN.row, width: '100%' }}
       disabled={disabled}
       onClick={() => onToggle(!on)}
-    >{on ? '✓ 특장만 견적' : '특장만 견적'}</button>
+    >{on ? `✓ ${t('특장만 견적')}` : t('특장만 견적')}</button>
   )
 }
 
