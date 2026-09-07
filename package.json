@@ -19,5 +19,8 @@
   "scripts": {
     "contract:verify": "tsx scripts/verify-contract-template.mjs",
     "contract:integration:verify": "node scripts/verify-direct-integration-contract.mjs buildup-ev"
+  },
+  "devDependencies": {
+    "pizzip": "^3.2.0"
   }
 }

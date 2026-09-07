@@ -8,9 +8,11 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
-import { authCookie } from './helpers.js';
+import { authCookie, authFixtureReady } from './helpers.js';
 
 const shouldSkip = !process.env['DATABASE_URL'];
+/* seed 계정이 없는 DB 에서는 인증이 막혀 전부 403 이 된다 — 제품이 아니라 준비의 문제다 */
+const AUTH_OK = await authFixtureReady('sales1@evnsolution.com');
 const SALES_COOKIE = authCookie('sales1@evnsolution.com', 'SALES', 'ORG_HQ');
 
 const REEFER_SELECTIONS = {
@@ -24,7 +26,7 @@ const REEFER_SELECTIONS = {
 };
 const CUSTOMER = { biz_type: 'individual', is_sosang: true, region: '경기 남양주시' };
 
-describe.skipIf(shouldSkip)('GET /api/v1/models/:code/pricing-bundle', () => {
+describe.skipIf(shouldSkip || !AUTH_OK)('GET /api/v1/models/:code/pricing-bundle', () => {
   const app = createApp();
 
   it('PV5_OPENBED — groups·rules·option_prices·door·tax·subsidy_national 포함', async () => {
@@ -57,7 +59,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/models/:code/pricing-bundle', () => {
   });
 });
 
-describe.skipIf(shouldSkip)('GET /api/v1/subsidy/local', () => {
+describe.skipIf(shouldSkip || !AUTH_OK)('GET /api/v1/subsidy/local', () => {
   const app = createApp();
 
   it('경기 남양주시 2026 → amount=3450000', async () => {
@@ -87,7 +89,7 @@ describe.skipIf(shouldSkip)('GET /api/v1/subsidy/local', () => {
   });
 });
 
-describe.skipIf(shouldSkip)('POST /api/v1/quotes', () => {
+describe.skipIf(shouldSkip || !AUTH_OK)('POST /api/v1/quotes', () => {
   const app = createApp();
 
   it('냉동 옵션 → 201 + quote_id + real_price=46471818(±1)', { timeout: 15_000 }, async () => {

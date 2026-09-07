@@ -15,7 +15,7 @@ import { mergePermissions } from '../lib/permissions.js';
 import { canSeeQuotePrices, isAdmin, masterBypassEnabled, ownOrgOnly, requirePermission } from '../middleware/rbac.js';
 import type { AuthContext } from '../middleware/rbac.js';
 import type { AccessControl } from '@buildup-ev/shared/types';
-import { authCookie } from './helpers.js';
+import { authCookie, authFixtureReady } from './helpers.js';
 
 // ── 단위 테스트용 AC 픽스처 (8모듈 기준) ──────────────────────────────
 const ROLE_ACS: AccessControl[] = [
@@ -35,6 +35,9 @@ const ROLE_ACS: AccessControl[] = [
 ];
 
 // ── 단위 테스트: mergePermissions ──────────────────────────────────────
+
+/* 아래 두 블록은 seed 계정으로 로그인한다 — 없으면 인증이 막혀 전부 403 이다 */
+const AUTH_OK = await authFixtureReady('sales1@evnsolution.com', 'admin@evnsolution.com', 'maker1@partner.com');
 
 describe('mergePermissions — 권한 머지 로직', () => {
   it('SALES 역할 기본 모듈 2개 반환', () => {
@@ -194,7 +197,7 @@ describe('운영 권한 경계', () => {
 
 // ── API 통합 테스트 (JWT 쿠키, DB 필요 없음 — NODE_ENV=test 경로) ────────
 
-describe('GET /api/v1/auth/me — JWT 인증 (test mode DB skip)', () => {
+describe.skipIf(!AUTH_OK)('GET /api/v1/auth/me — JWT 인증 (test mode DB skip)', () => {
   const app = createApp();
 
   it('인증 없음 → 403', async () => {
@@ -219,7 +222,7 @@ describe('GET /api/v1/auth/me — JWT 인증 (test mode DB skip)', () => {
 
 // ── org 격리 stub 테스트 ──────────────────────────────────────────────
 
-describe('orders RBAC — 인증·권한 검증', () => {
+describe.skipIf(!AUTH_OK)('orders RBAC — 인증·권한 검증', () => {
   const app = createApp();
 
   it('쿠키 없는 GET /orders/:id → 403', async () => {

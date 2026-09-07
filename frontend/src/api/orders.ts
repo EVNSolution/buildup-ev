@@ -16,18 +16,6 @@ export async function fetchOrders(
   return body.data
 }
 
-export async function updateOrderStatus(orderId: number, status: string): Promise<void> {
-  const res = await fetch(`/api/v1/orders/${orderId}/status`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(body.error?.message ?? `상태 변경 실패: ${res.status}`)
-  }
-}
 
 /**
  * 특장사 주문 수락 (배정→주문, 제작 착수).

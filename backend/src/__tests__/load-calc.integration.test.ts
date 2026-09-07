@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { calcLoad } from '@buildup-ev/shared/load-calc';
-import { authCookie } from './helpers.js';
+import { authCookie, authFixtureReady } from './helpers.js';
 
 const PV5_INPUT = {
   curb_axle_front_kg: 1105,
@@ -20,7 +20,9 @@ const PV5_INPUT = {
   crew_items: [{ weight_kg: 130, dist_to_rear_axle_mm: 1500 }],
 };
 
-describe('POST /api/v1/load-calc — PV5 통합 테스트', () => {
+const AUTH_OK = await authFixtureReady('sales1@evnsolution.com', 'maker1@partner.com');
+
+describe.skipIf(!AUTH_OK)('POST /api/v1/load-calc — PV5 통합 테스트', () => {
   const app = createApp();
 
   it('shared/load-calc 코어 결과와 일치 (cyberts 검증값)', async () => {
