@@ -877,7 +877,7 @@ function CustomersTab() {
           size="sm"
         />
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)' }}>
-          {view === 'hidden' ? tf('숨긴 고객 {0}명', rows.length) : `${rows.length}명`}
+          {view === 'hidden' ? tf('숨긴 고객 {0}명', rows.length) : tf('{0}명', rows.length)}
         </span>
       </div>
       {err && <div style={{ color: 'var(--req)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{err}</div>}
