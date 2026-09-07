@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import {
   fetchFolders, fetchFolder, folderFileUrl,
   type ApiFolderRow, type ApiFolder, type ApiFolderQuote, type ApiFolderDoc,
@@ -61,7 +61,7 @@ export function CustomerFolders({ mine }: {
           value={q}
           onChange={e => setQ(e.target.value)}
         />
-        <span style={s.count}>{shown.length}명</span>
+        <span style={s.count}>{tf('{0}명', shown.length)}</span>
       </div>
 
       {shown.length === 0 && <div style={s.muted}>해당하는 고객이 없습니다.</div>}

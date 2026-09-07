@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { t } from '../i18n'
+import { t , tc, tf} from '../i18n'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
@@ -451,7 +451,7 @@ function MyListView() {
       />
       <div style={lv.section}>
         <div style={lv.listHead}>
-          <div style={lv.sectionTitle}>내 견적 ({shownQuotes.length}{nameQuery.trim() && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
+          <div style={lv.sectionTitle}>{t('내 견적')} ({shownQuotes.length}{nameQuery.trim() && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
           {/* 이름을 치면 바로 좁아진다 — 다시 조회할 필요가 없다 */}
           <input
             type="text"
@@ -516,7 +516,7 @@ function MyListView() {
                    >
                     <span style={lv.groupArrow}>{isOpen ? '▾' : '▸'}</span>
                     <span style={lv.groupDate}>{date}</span>
-                    <span style={lv.groupCount}>{rows.length}건</span>
+                    <span style={lv.groupCount}>{tf('{0}건', rows.length)}</span>
                    </button>
                   </td>
                 </tr>
@@ -596,14 +596,14 @@ function MyListView() {
                             style={lv.pdfBtn}
                             title={t('고객·계약 정보 조회 (수정 불가)')}
                             onClick={() => setViewQuote(q)}
-                          >{t('고객정보')}</button>
+                          >{tc('고객정보', 'btn')}</button>
                           <button
                             style={q.status === 'draft' ? lv.confirmBtn : lv.pdfBtn}
                             title={q.status === 'draft' ? t('선수금·할부·면세 등 입력 후 견적서 생성') : t('견적서 열람·다운로드')}
                             onClick={() => q.status === 'draft'
                               ? setConfirmQuoteModal({ id: q.id, customerName: q.customer?.name ?? undefined, status: q.status, inputs: q.inputs ?? undefined, customer: q.customer ?? undefined })
                               : openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
-                          >{q.status === 'draft' ? t('견적 생성') : t('견적서')}</button>
+                          >{q.status === 'draft' ? tc('견적 생성', 'btn') : tc('견적서', 'btn')}</button>
                           {/*
                             계약서는 **견적서 다음 단계**다. 견적서가 나오기 전에는 만들 수 없고,
                             누르면 계약서에만 필요한 값(생년월일·주소·세부주소)을 확인하는 팝업이 먼저 뜬다.
@@ -643,7 +643,7 @@ function MyListView() {
                                 defaultTo: q.customer?.email ?? undefined,
                                 noContract,
                               })}
-                            >{t('메일 전달')}</button>
+                            >{tc('메일 전달', 'btn')}</button>
                           )}
                           {canSign && (
                           <button
@@ -664,7 +664,7 @@ function MyListView() {
                                 })
                               }
                             }}
-                          >{t('서명 요청')}</button>
+                          >{tc('서명 요청', 'btn')}</button>
                           )}
                           {/*
                             종이로 받은 계약서를 올린다 — 전자서명을 건너뛰고 계약완료가 된다.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf, getLang} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchSalesStats, fetchAttention, FUNNEL,
@@ -84,20 +84,20 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
   return (
     <div>
       <div style={s.bar}>
-        <input type="date" style={s.date} value={from} onChange={e => setFrom(e.target.value)} />
+        <input type="date" lang={getLang()} style={s.date} value={from} onChange={e => setFrom(e.target.value)} />
         <span style={s.sep}>~</span>
-        <input type="date" style={s.date} value={to} onChange={e => setTo(e.target.value)} />
+        <input type="date" lang={getLang()} style={s.date} value={to} onChange={e => setTo(e.target.value)} />
         {showUserFilter && (
           <select style={s.select} value={user} onChange={e => setUser(e.target.value)}>
-            <option value="">전체</option>
+            <option value="">{t('전체')}</option>
             {userOptions.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         )}
-        <button style={BTN.barPrimary} onClick={load}>조회</button>
+        <button style={BTN.barPrimary} onClick={load}>{t('조회')}</button>
       </div>
 
       {err && <div style={s.err}>{err}</div>}
-      {loading && <div style={s.empty}>조회 중입니다…</div>}
+      {loading && <div style={s.empty}>{t('조회 중입니다…')}</div>}
 
       {!loading && attention && (
         <section style={s.section}>
@@ -126,10 +126,10 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               {attention.map(a => (
                 <div key={`${a.quote_id}-${a.kind}`} style={s.item}>
                   <div style={s.itemTop}>
-                    <span style={KIND_KO[a.kind].tone === 'warn' ? s.tagWarn : s.tagInfo}>{KIND_KO[a.kind].label}</span>
+                    <span style={KIND_KO[a.kind].tone === 'warn' ? s.tagWarn : s.tagInfo}>{t(KIND_KO[a.kind].label)}</span>
                     <span style={s.itemDays}>{a.days}일</span>
                   </div>
-                  <div style={s.why}>{KIND_KO[a.kind].why}</div>
+                  <div style={s.why}>{t(KIND_KO[a.kind].why)}</div>
                   <div style={s.itemBottom}>
                     <span style={s.itemNo}>{a.quote_no ?? `#${a.quote_id}`}</span>
                     <span style={s.itemCustomer}>{a.customer ?? '—'}</span>
@@ -153,8 +153,8 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
                   {attention.map(a => (
                     <tr key={`${a.quote_id}-${a.kind}`}>
                       <td style={s.td}>
-                        <span style={KIND_KO[a.kind].tone === 'warn' ? s.tagWarn : s.tagInfo}>{KIND_KO[a.kind].label}</span>
-                        <div style={s.why}>{KIND_KO[a.kind].why}</div>
+                        <span style={KIND_KO[a.kind].tone === 'warn' ? s.tagWarn : s.tagInfo}>{t(KIND_KO[a.kind].label)}</span>
+                        <div style={s.why}>{t(KIND_KO[a.kind].why)}</div>
                       </td>
                       <td style={{ ...s.td, fontWeight: 700 }}>{a.days}일</td>
                       <td style={s.td}>{a.quote_no ?? `#${a.quote_id}`}</td>
@@ -178,9 +178,9 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <Funnel reached={total.reached} />
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
-                  <Metric label="견적완료" value={won(total.amount.confirmed)} />
-                  <Metric label="계약완료" value={won(total.amount.contracted)} />
-                  <Metric label="인도완료" value={won(total.amount.completed)} strong />
+                  <Metric label={t('견적완료')} value={won(total.amount.confirmed)} />
+                  <Metric label={t('계약완료')} value={won(total.amount.contracted)} />
+                  <Metric label={t('인도완료')} value={won(total.amount.completed)} strong />
                 </MetricGroup>
               </div>
             </section>
@@ -190,34 +190,34 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
 
           {stats.map(st => (
             <section key={st.sales_user_id} style={s.section}>
-              <div style={s.h}>{st.sales_user_id} <span style={s.count}>견적 {st.activity.quotes}건</span></div>
+              <div style={s.h}>{st.sales_user_id} <span style={s.count}>{tf('견적 {0}건', st.activity.quotes)}</span></div>
               <Funnel reached={st.reached} />
 
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
-                  <Metric label="견적완료" value={won(st.amount.confirmed)} />
-                  <Metric label="계약완료" value={won(st.amount.contracted)} />
-                  <Metric label="인도완료" value={won(st.amount.completed)} strong />
+                  <Metric label={t('견적완료')} value={won(st.amount.confirmed)} />
+                  <Metric label={t('계약완료')} value={won(st.amount.contracted)} />
+                  <Metric label={t('인도완료')} value={won(st.amount.completed)} strong />
                 </MetricGroup>
 
                 <MetricGroup title={t('활동')}>
-                  <Metric label="메일 발송" value={`${st.activity.emailed}건`} />
-                  <Metric label="서명 요청" value={`${st.activity.sign_requested}건`} />
+                  <Metric label={t('메일 발송')} value={tf('{0}건', st.activity.emailed)} />
+                  <Metric label={t('서명 요청')} value={tf('{0}건', st.activity.sign_requested)} />
                   <Metric
-                    label="서명 완료율" value={signRate(st)}
-                    note={`이메일 ${st.signing.email_done}/${st.signing.email_sent} · 알림톡 ${st.signing.kakao_done}/${st.signing.kakao_sent}`}
+                    label={t('서명 완료율')} value={signRate(st)}
+                    note={tf('이메일 {0}/{1} · 알림톡 {2}/{3}', st.signing.email_done, st.signing.email_sent, st.signing.kakao_done, st.signing.kakao_sent)}
                   />
                   <Metric
-                    label="견적당 수정"
-                    value={st.edits_per_quote === null ? '—' : `${st.edits_per_quote}회`}
-                    note="견적 1건당 평균"
+                    label={t('견적당 수정')}
+                    value={st.edits_per_quote === null ? '—' : tf('{0}회', st.edits_per_quote)}
+                    note={t('견적 1건당 평균')}
                   />
                 </MetricGroup>
 
                 <MetricGroup title={t('소요')}>
-                  <Lead label="견적완료" v={st.lead.to_confirmed} />
-                  <Lead label="계약완료" v={st.lead.to_contracted} />
-                  <Lead label="인도완료" v={st.lead.to_completed} />
+                  <Lead label={t('견적완료')} v={st.lead.to_confirmed} />
+                  <Lead label={t('계약완료')} v={st.lead.to_contracted} />
+                  <Lead label={t('인도완료')} v={st.lead.to_completed} />
                 </MetricGroup>
               </div>
             </section>
@@ -251,7 +251,7 @@ function Funnel({ reached }: { reached: Record<FunnelStage, number> }) {
               </div>
             )}
             <div style={s.step}>
-              <div style={s.stepName}>{STAGE_KO[stage]}</div>
+              <div style={s.stepName}>{t(STAGE_KO[stage])}</div>
               <div style={s.stepNum}>{reached[stage]}</div>
             </div>
           </div>
@@ -296,14 +296,21 @@ function Lead({ label, v }: { label: string; v: { days: number | null; n: number
   return (
     <Metric
       label={label}
-      value={v.days === null ? '—' : `${v.days}일`}
-      note={v.n ? `표본 ${v.n}건` : t('산출 불가')}
+      value={v.days === null ? '—' : tf('{0}일', v.days)}
+      note={v.n ? tf('표본 {0}건', v.n) : t('산출 불가')}
     />
   )
 }
 
 const s: Record<string, React.CSSProperties> = {
-  bar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' },
+  /*
+   * 날짜 두 칸 + 조회는 **한 줄에 둔다.** 줄바꿈을 허용했더니 영어에서 버튼만 둘째 줄로
+   * 내려가 검색 줄이 두 겹이 됐다(제보). 칸이 줄어들되 줄은 안 바뀐다.
+   */
+  bar: {
+    display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 16,
+    flexWrap: 'nowrap', minWidth: 0,
+  },
   // 모양·높이는 globals.css 가 정한다 — 여기서는 **줄어드는 방식만** 정한다
   date: { flex: '0 1 auto', minWidth: 0 },
   /*
@@ -340,6 +347,14 @@ const s: Record<string, React.CSSProperties> = {
   funnel: {
     display: 'flex', alignItems: 'stretch', flexWrap: 'nowrap', gap: 2, marginBottom: 12,
     width: '100%', containerType: 'inline-size' as const,
+    /*
+     * 영어 라벨은 한국어의 두세 배다(계약완료 4자 → Contract signed 15자). 칸을 나눠 갖게만
+     * 두면 이름끼리 겹친다(제보). 한 줄로 읽히는 것이 이 그림의 전부라 **줄바꿈은 못 하니**,
+     * 한 화면에 다 들어와야 한다 — 옆으로 밀면 뒷 단계가 안 보여 흐름이 끊긴다.
+     * 그래서 칸은 여섯이 똑같이 나눠 갖고, 이름은 영어를 짧게 줄여 그 폭에 맞췄다
+     * (Contract signed → Contracted, In Production → Production, Completed → Done).
+     */
+    overflowX: 'hidden',
   },
   stepWrap: { display: 'flex', alignItems: 'stretch', flex: '1 1 0', minWidth: 0 },
   /*
@@ -347,9 +362,20 @@ const s: Record<string, React.CSSProperties> = {
    * 덩어리로 읽힌다. 숫자와 이름만 두고, 사이의 화살표가 흐름을 만든다.
    */
   // 좌우 여백 없음 — 320px 에서는 4px 씩만 있어도 「견적완료」가 잘린다(실측). 사이는 gap 이 만든다
+  // minWidth: max-content — 글자보다 좁아지지 않는다. 그래서 겹치는 대신 위에서 옆으로 밀린다
+  // 여섯 칸은 **모두 같은 폭**이다(flex: 1 1 0). 칸마다 글자 길이에 맞춰 달라지면 깔때기가 아니라
+  // 들쭉날쭉한 목록으로 읽힌다(제보). 긴 영어 이름은 칸 폭에 맞춰 글자가 줄어든다(stepName 의 clamp).
   step: { padding: 'var(--sp-2) 0', textAlign: 'center', flex: '1 1 0', minWidth: 0 },
   // 6칸이라 한 칸이 대략 컨테이너의 1/8~1/6 — 그 폭 안에서 네 글자가 접히지 않는 크기로 묶는다
-  stepName: { fontSize: 'clamp(9px, 1.9cqi, 13px)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
+  /*
+   * 이름은 칸 폭 안에서 **접힌다.** 한국어는 네 글자라 접힐 일이 없었지만 영어는 길다.
+   * nowrap 으로 두면 칸을 넘어 옆 단계와 겹친다(제보) — 칸 폭은 여섯이 같아야 하므로
+   * 넘치는 쪽이 아니라 접히는 쪽을 고른다.
+   */
+  stepName: {
+    fontSize: 'clamp(9px, 1.9cqi, 13px)', color: 'var(--muted)',
+    lineHeight: 1.25, overflowWrap: 'anywhere' as const,  // 더 좁아지면 접히더라도 옆 칸을 침범하지 않는다
+  },
   stepNum: { fontSize: 'clamp(13px, 3.1cqi, 20px)', fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
   arrow: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

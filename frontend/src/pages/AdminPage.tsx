@@ -34,7 +34,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
-import { t } from '../i18n'
+import { t , tc, tf} from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useEscapeClose } from '../lib/escClose'
@@ -575,7 +575,7 @@ function AccountsTab() {
           onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
-          {resetting === user.email ? '…' : t('비번재설정')}
+          {resetting === user.email ? '…' : tc('비번재설정', 'btn')}
         </button>
       ) : null
     }
@@ -592,7 +592,7 @@ function AccountsTab() {
           onClick={() => setResetConfirm(user)}
           disabled={resetting === user.email}
         >
-          {resetting === user.email ? '…' : t('비번재설정')}
+          {resetting === user.email ? '…' : tc('비번재설정', 'btn')}
         </button>
         <button
           style={{ ...(user.status === 'active' ? BTN.rowDanger : BTN.rowPrimary) }}
@@ -661,7 +661,7 @@ function AccountsTab() {
       )}
 
       <div style={acc.toolbar}>
-        <span style={acc.count}>{users.length}명</span>
+        <span style={acc.count}>{tf('{0}명', users.length)}</span>
         {/* 높이는 BTN 이 정한다 — 여기서 minHeight 를 덮으면(undefined) 값이 지워져 납작해진다 */}
         <button style={BTN.barPrimary} onClick={() => setShowCreate(true)}>{t('+ 계정 발급')}</button>
       </div>
@@ -849,14 +849,14 @@ function CustomersTab() {
     const hiding = !c.hidden_at
     // 견적이 함께 숨겨지는 건 놀랄 일이라 미리 알린다
     if (hiding && c._count.quotes > 0) {
-      if (!window.confirm(`${c.name} 고객을 숨깁니다.\n\n이 고객의 견적 ${c._count.quotes}건도 함께 숨겨집니다.\n지우는 것이 아니라 화면에서만 감추며, 언제든 되돌릴 수 있습니다.`)) return
+      if (!window.confirm(tf('{0} 고객을 숨깁니다.\n\n이 고객의 견적 {1}건도 함께 숨겨집니다.\n지우는 것이 아니라 화면에서만 감추며, 언제든 되돌릴 수 있습니다.', c.name, c._count.quotes))) return
     }
     setBusy(c.id); setErr('')
     try {
       const r = await setCustomerHidden(c.id, hiding)
       load()
-      if (hiding && r.quotes_affected > 0) setNote(`${c.name} · 견적 ${r.quotes_affected}건도 함께 숨겼습니다`)
-      else if (!hiding && r.quotes_affected > 0) setNote(`${c.name} · 함께 숨겼던 견적 ${r.quotes_affected}건을 되돌렸습니다`)
+      if (hiding && r.quotes_affected > 0) setNote(tf('{0} · 견적 {1}건도 함께 숨겼습니다', c.name, r.quotes_affected))
+      else if (!hiding && r.quotes_affected > 0) setNote(tf('{0} · 함께 숨겼던 견적 {1}건을 되돌렸습니다', c.name, r.quotes_affected))
       else setNote('')
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('처리 실패'))
@@ -873,7 +873,7 @@ function CustomersTab() {
           size="sm"
         />
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--muted)' }}>
-          {view === 'hidden' ? `숨긴 고객 ${rows.length}명` : `${rows.length}명`}
+          {view === 'hidden' ? tf('숨긴 고객 {0}명', rows.length) : `${rows.length}명`}
         </span>
       </div>
       {err && <div style={{ color: 'var(--req)', fontSize: 'var(--fs-caption)', marginBottom: 'var(--sp-3)' }}>{err}</div>}
@@ -911,7 +911,7 @@ function CustomersTab() {
                       // 숨길 수 없는 이유를 버튼 자리에서 바로 알려 준다
                       const blocked = !c.hidden_at
                         ? (c.warp_customer_id ? t('WARP 에 연결된 고객은 숨길 수 없습니다')
-                          : c.contract_quotes > 0 ? `계약서가 발송된 견적 ${c.contract_quotes}건이 있어 숨길 수 없습니다` : '')
+                          : c.contract_quotes > 0 ? tf('계약서가 발송된 견적 {0}건이 있어 숨길 수 없습니다', c.contract_quotes) : '')
                         : ''
                       const off = busy === c.id || !!blocked
                       return (
@@ -922,7 +922,7 @@ function CustomersTab() {
                             ? t('고객과 함께 숨긴 견적을 되돌립니다')
                             : t('고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다'))}
                           onClick={() => toggle(c)}
-                        >{busy === c.id ? '…' : (c.hidden_at ? t('다시 보이기') : t('고객 숨기기'))}</button>
+                        >{busy === c.id ? '…' : (c.hidden_at ? tc('다시 보이기', 'btn') : tc('고객 숨기기', 'btn'))}</button>
                       )
                     })()}
                   </td>
@@ -1181,7 +1181,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
             <button type="button" style={qtMob.groupHead} onClick={() => toggle(date)} aria-expanded={isOpen(date)}>
               <span style={qtMob.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
               <span style={qtMob.groupDate}>{date}</span>
-              <span style={qtMob.groupCount}>{rows.length}건</span>
+              <span style={qtMob.groupCount}>{tf('{0}건', rows.length)}</span>
             </button>
             {isOpen(date) && rows.map(q => {
             return (
@@ -1223,7 +1223,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                 <button
                   style={{ ...BTN.row, width: '100%' }}
                   onClick={() => setViewing(q)}
-                >{t('고객정보')}</button>
+                >{tc('고객정보', 'btn')}</button>
                 <button
                   style={{ ...BTN.row, width: '100%' }}
                   onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
@@ -1312,7 +1312,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                   <button type="button" style={qt.groupBtn} aria-expanded={isOpen(date)} onClick={() => toggle(date)}>
                     <span style={qt.groupArrow}>{isOpen(date) ? '▾' : '▸'}</span>
                     <span style={qt.groupDate}>{date}</span>
-                    <span style={qt.groupCount}>{rows.length}건</span>
+                    <span style={qt.groupCount}>{tf('{0}건', rows.length)}</span>
                   </button>
                 </td>
               </tr>
@@ -1345,7 +1345,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                         style={BTN.row}
                         title={t('고객·계약 정보 조회 (수정 불가)')}
                         onClick={() => setViewing(q)}
-                      >{t('고객정보')}</button>
+                      >{tc('고객정보', 'btn')}</button>
                       <button
                         style={BTN.row}
                         onClick={() => openPdf(`/api/v1/quotes/${q.id}/pdf`, `견적서_${q.customer?.name ?? q.id}.pdf`)}
@@ -1492,7 +1492,7 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   return (
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
-      {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>조회 전용 — 상태 변경은 배정 특장사만 가능합니다.</div>}
+      {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{t('조회 전용 — 상태 변경은 배정 특장사만 가능합니다.')}</div>}
       {/*
         수락 대기 · 진행 중 · 완료 — **특장사 화면과 같은 것을 본다.**
         예전에는 여기만 구획 없이 전부 한 덩어리였다. 같은 주문을 두고 두 사람이

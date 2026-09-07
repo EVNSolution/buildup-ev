@@ -129,7 +129,7 @@ export function QuoteExtras({
             }
           }}
         />
-        프로모션{vehicleOnly && <span style={s.offNote}> {t('· 특장 견적에만')}</span>}
+        {t('프로모션')}{vehicleOnly && <span style={s.offNote}> {t('· 특장 견적에만')}</span>}
       </label>
       {showPromo && !vehicleOnly && (
         <div style={s.list}>
