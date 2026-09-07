@@ -76,8 +76,8 @@ function ContractBadge({ c }: { c?: { status: string; sent_at: string | null; co
   if (!c) return <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
   const when = c.completed_at ?? c.sent_at
   return (
-    <Tooltip text={`${CONTRACT_LABEL[c.status] ?? c.status}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
-      <Badge tone={CONTRACT_TONE[c.status] ?? 'progress'}>{CONTRACT_LABEL[c.status] ?? c.status}</Badge>
+    <Tooltip text={`${t(CONTRACT_LABEL[c.status] ?? c.status)}${when ? ` · ${when.slice(0, 10)}` : ''}`} placement="below">
+      <Badge tone={CONTRACT_TONE[c.status] ?? 'progress'}>{t(CONTRACT_LABEL[c.status] ?? c.status)}</Badge>
     </Tooltip>
   )
 }
@@ -537,7 +537,7 @@ function MyListView() {
                       <td style={lv.td}>
                         <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                           <Badge tone={q.status === 'draft' ? 'wait' : (q.status === 'confirmed' || q.status === 'assigned' || q.status === 'ordered') ? 'progress' : 'done'}>
-                            {QUOTE_STATUS_KO[q.status] ?? q.status}
+                            {t(QUOTE_STATUS_KO[q.status] ?? q.status)}
                           </Badge>
                         </Tooltip>
                       </td>

@@ -35,6 +35,10 @@ import { useEscapeClose } from '../lib/escClose'
  */
 type TabKey = 'options' | 'customer' | 'inputs' | 'history'
 
+/*
+ * ⚠️ label 은 **한국어 그대로**다. 여기서 t() 를 부르면 모듈을 읽는 순간의 언어로 굳어
+ *    언어를 바꿔도 안 따라온다. 옮기는 것은 그리는 자리(아래 TABS.map)에서 한다.
+ */
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'options', label: '옵션' },
   { key: 'customer', label: '고객정보' },
@@ -104,9 +108,9 @@ export function QuoteEditModal({ quote, onClose, onSaved }: Props) {
         )}
 
         <div style={s.tabs}>
-          {TABS.map(t => (
-            <button key={t.key} style={tab === t.key ? s.tabOn : s.tab} onClick={() => { setTab(t.key); setMsg(''); setErr('') }}>
-              {t.label}
+          {TABS.map(it => (
+            <button key={it.key} style={tab === it.key ? s.tabOn : s.tab} onClick={() => { setTab(it.key); setMsg(''); setErr('') }}>
+              {t(it.label)}
             </button>
           ))}
         </div>
@@ -433,8 +437,8 @@ function HistoryTab({ quoteId }: { quoteId: number }) {
           {rows.map(r => (
             <tr key={r.id}>
               <td style={s.td}>{r.changed_at.replace('T', ' ').slice(0, 16)}</td>
-              <td style={s.td}>{SECTION_KO[r.section] ?? r.section}</td>
-              <td style={s.td}>{FIELD_KO[r.field] ?? r.field}</td>
+              <td style={s.td}>{t(SECTION_KO[r.section] ?? r.section)}</td>
+              <td style={s.td}>{t(FIELD_KO[r.field] ?? r.field)}</td>
               <td style={{ ...s.td, color: 'var(--warn)' }}>{r.old_value ?? '—'}</td>
               <td style={{ ...s.td, color: 'var(--dark)', fontWeight: 700 }}>{r.new_value ?? '—'}</td>
               <td style={s.td}>{r.changed_by}</td>

@@ -334,7 +334,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
           <div>
             <label style={acc.label}>역할<span style={acc.req}> · 필수</span></label>
             <select value={form.role} onChange={e => setField('role', e.target.value)} style={acc.input} disabled={loading}>
-              {ROLES.map(r => <option key={r} value={r}>{ROLE_KO[r]} ({r})</option>)}
+              {ROLES.map(r => <option key={r} value={r}>{t(ROLE_KO[r])} ({r})</option>)}
             </select>
           </div>
           <div>
@@ -350,7 +350,7 @@ function CreateUserModal({ orgs, onClose }: CreateUserModalProps) {
                     onClick={() => setExtraRoles(prev => on ? prev.filter(x => x !== r) : [...prev, r])}
                     disabled={loading}
                   >
-                    {ROLE_KO[r]}
+                    {t(ROLE_KO[r])}
                   </button>
                 )
               })}
@@ -524,7 +524,7 @@ function AccountsTab() {
                     disabled={isPrimary || roleSaving === user.email}
                     title={isPrimary ? t('주 역할 — 로그인 후 첫 화면 기준이라 여기서 끄지 않는다') : t('겸직 역할 켜기/끄기')}
                   >
-                    {ROLE_KO[r]}{isPrimary ? t(' · 주') : ''}
+                    {t(ROLE_KO[r])}{isPrimary ? t(' · 주') : ''}
                   </button>
                 )
               })}
@@ -678,7 +678,7 @@ function AccountsTab() {
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   {rolesOf(user).map(r => (
-                    <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{ROLE_KO[r]}</span>
+                    <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{t(ROLE_KO[r])}</span>
                   ))}
                   <span style={{ ...acc.statusBadge, ...STATUS_STYLE[user.status] }}>
                     {STATUS_LABEL[user.status] ?? user.status}
@@ -724,7 +724,7 @@ function AccountsTab() {
                     <td style={styles.tdToggle}>
                       {/* 겸직이면 가진 역할을 모두 보여준다 — 하나만 보이면 왜 다른 화면이 열리는지 알 수 없다 */}
                       {rolesOf(user).map(r => (
-                        <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{ROLE_KO[r]}</span>
+                        <span key={r} style={r === user.role ? acc.roleBadge : acc.roleBadgeExtra}>{t(ROLE_KO[r])}</span>
                       ))}
                       {user.is_master && <span style={acc.masterBadge}>{t('마스터')}</span>}
                     </td>
@@ -1616,12 +1616,12 @@ export function AdminPage() {
               const roleMods = getModulesForRole(modules, role)
               return (
                 <div key={role} style={styles.surfaceGroup}>
-                  <div style={styles.surfaceLabel}>{ROLE_KO[role]} ({role})</div>
+                  <div style={styles.surfaceLabel}>{t(ROLE_KO[role])} ({role})</div>
                   <table style={styles.table}>
                     <thead>
                       <tr>
                         <th style={styles.thModule}>{t('모듈')}</th>
-                        <th style={styles.thRole}>{ROLE_KO[role]} 기본값</th>
+                        <th style={styles.thRole}>{t(ROLE_KO[role])} 기본값</th>
                       </tr>
                     </thead>
                     <tbody>

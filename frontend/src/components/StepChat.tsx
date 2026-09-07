@@ -205,7 +205,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
               <div key={c.id} style={mine ? s.mineWrap : s.themWrap}>
                 <div style={s.meta}>
                   {c.author_name ?? c.author}
-                  <span style={s.role}>{ROLE_LABEL[c.author_role] ?? c.author_role}</span>
+                  <span style={s.role}>{t(ROLE_LABEL[c.author_role] ?? c.author_role)}</span>
                   <span style={s.time}>{stamp(c.created_at)}</span>
                 </div>
                 <div style={mine ? s.mine : s.them}>

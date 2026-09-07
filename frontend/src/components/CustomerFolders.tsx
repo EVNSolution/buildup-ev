@@ -164,8 +164,8 @@ function QuoteCard({ q, folderKey, mine }: { q: ApiFolderQuote; folderKey: numbe
       <div style={s.qHead}>
         <span style={s.qNo}>{q.quoteNo ?? `#${q.id}`}</span>
         {/* 특장만·차량만은 여기서 바로 갈린다 — 견적서를 열어 볼 필요가 없다 */}
-        {KIND_LABEL[q.kind] && <span style={q.kind === 'body' ? s.kindBody : s.kindVehicle}>{KIND_LABEL[q.kind]}</span>}
-        <span style={s.qStatus}>{STATUS_KO[q.status] ?? q.status}</span>
+        {KIND_LABEL[q.kind] && <span style={q.kind === 'body' ? s.kindBody : s.kindVehicle}>{t(KIND_LABEL[q.kind] ?? '')}</span>}
+        <span style={s.qStatus}>{t(STATUS_KO[q.status] ?? q.status)}</span>
         <span style={s.spacer} />
         {q.finalPrice != null && <span style={s.qPrice}>{fmtPrice(q.finalPrice)}</span>}
         <span style={s.qDate}>{q.createdAt.slice(0, 10)}</span>

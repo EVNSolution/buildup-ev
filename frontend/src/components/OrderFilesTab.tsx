@@ -157,7 +157,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
                 {shown.map((f, i) => (
                   <tr key={`${f.url}-${i}`}>
                     <td style={s.td}>
-                      <span style={f.group === 'upload' ? s.tagUp : s.tagGen}>{GROUP_LABEL[f.group]}</span>
+                      <span style={f.group === 'upload' ? s.tagUp : s.tagGen}>{t(GROUP_LABEL[f.group])}</span>
                     </td>
                     <td style={s.td}>{f.label}</td>
                     <td style={s.td}>

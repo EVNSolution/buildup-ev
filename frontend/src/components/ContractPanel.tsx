@@ -90,7 +90,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
     <div>
       {contract && (
         <div style={s.statusRow}>
-          <span style={{ ...s.badge, ...COLOR[contract.status] }}>{LABEL[contract.status]}</span>
+          <span style={{ ...s.badge, ...COLOR[contract.status] }}>{t(LABEL[contract.status])}</span>
           <span style={s.meta}>
             {contract.signing_method === 'EMAIL' ? t('이메일') : t('카카오')}
             {contract.sent_at ? ` · 발송 ${contract.sent_at.slice(0, 16).replace('T', ' ')}` : ''}
@@ -173,7 +173,7 @@ export function ContractPanel({ quoteId, customerName, customerEmail, customerPh
 
       {resendable && (
         <div style={s.sendBox}>
-          {contract && <div style={s.muted}>이전 계약이 {LABEL[contract.status]} 상태입니다. 재발송할 수 있습니다.</div>}
+          {contract && <div style={s.muted}>이전 계약이 {t(LABEL[contract.status])} 상태입니다. 재발송할 수 있습니다.</div>}
           <div style={s.methodRow}>
             <label style={s.radio}><input type="radio" checked={method === 'EMAIL'} onChange={() => setMethod('EMAIL')} /> {t('이메일')}</label>
             <label style={s.radio}><input type="radio" checked={method === 'KAKAO'} onChange={() => setMethod('KAKAO')} /> {t('카카오 알림톡')}</label>

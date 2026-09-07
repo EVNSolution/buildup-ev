@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import {
   TRACK_LABEL, EVIDENCE_LABEL, canComplete, canUndo, keepsOriginal,
   stepsFor, stepMapFor, EXTRA_EVIDENCE,
@@ -202,7 +202,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
         return (
           <section key={track} style={s.track}>
             <div style={s.trackHead}>
-              <span style={s.trackName}>{TRACK_LABEL[track]}</span>
+              <span style={s.trackName}>{t(TRACK_LABEL[track])}</span>
               <span style={s.trackBar}>
                 {list.map(d => {
                   const p = phaseOf(d)
@@ -239,7 +239,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     <span style={phase === 'done' ? s.markDone : phase === 'now' ? s.markNow : s.markLater}>
                       {phase === 'done' ? '✓' : phase === 'now' ? '●' : '○'}
                     </span>
-                    <span style={phase === 'later' ? s.nameLater : s.name}>{def.label}</span>
+                    <span style={phase === 'later' ? s.nameLater : s.name}>{t(def.label)}</span>
 
                     {/*
                       **완료 취소는 단계 이름 바로 옆**에 둔다. 오른쪽 끝에 있으면
@@ -290,7 +290,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                       >{busy === def.code ? t('처리 중') : t('완료')}</button>
                     )}
                     {phase === 'now' && def.auto && !myRoles.includes(def.actor as never) && (
-                      <span style={s.autoTag}>{ACTOR_LABEL[def.actor]} 발송 시 처리됩니다</span>
+                      <span style={s.autoTag}>{t(ACTOR_LABEL[def.actor])} 발송 시 처리됩니다</span>
                     )}
 
                     {/*
@@ -301,7 +301,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                     <button
                       style={s.chatBtn}
                       onClick={() => setChat({ code: def.code, label: def.label })}
-                      title={`${def.label} 대화`}
+                      title={tf('{0} 대화', t(def.label))}
                     >
                       대화
                       {(unread[def.code] ?? 0) > 0 && <span style={s.dot} aria-label={t('안 읽은 대화 있음')} />}
@@ -449,7 +449,7 @@ function EvidenceRow({ kind, orderId, files, canEdit, busy, optional, onPick, on
     <div style={s.evidence}>
       <div style={s.evidenceHead}>
         <span style={files.length > 0 ? s.evidenceOk : optional ? s.evidenceOpt : s.evidenceNeed}>
-          {files.length > 0 ? '✓' : '·'} {EVIDENCE_LABEL[kind]}
+          {files.length > 0 ? '✓' : '·'} {t(EVIDENCE_LABEL[kind])}
           {/*
             필수인지 선택인지 **둘 다 적는다.** 예전엔 선택일 때만 「· 선택」을 적었는데,
             아무 표시가 없는 항목이 필수인지 그냥 안 적힌 것인지 알 수 없었다.

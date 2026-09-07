@@ -59,10 +59,10 @@ export function OrderEvidenceList({ orderId }: { orderId: number }) {
                 <tr key={f.id}>
                   <td style={s.td}>
                     {def?.label ?? f.step_code}
-                    {def && <span style={s.track}> · {TRACK_LABEL[def.track]}</span>}
+                    {def && <span style={s.track}> · {t(TRACK_LABEL[def.track])}</span>}
                   </td>
                   <td style={s.td}>
-                    {EVIDENCE_LABEL[f.kind as EvidenceKind] ?? f.kind}
+                    {t(EVIDENCE_LABEL[f.kind as EvidenceKind] ?? f.kind)}
                     {/* 원본인지 줄인 것인지 — 나중에 화질을 따질 때 필요하다 */}
                     <span style={s.kept}>{f.kept_original ? t(' · 원본') : t(' · 축소본')}</span>
                   </td>

@@ -279,7 +279,7 @@ function DocsTab({
             <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid var(--line)' }}>
               <span style={{ fontSize: 13 }}>{doc.name}</span>
               <span style={{ ...det.docBadge, ...DOC_STATUS_STYLE[doc.status] }}>
-                {DOC_STATUS_LABEL[doc.status] ?? doc.status}
+                {t(DOC_STATUS_LABEL[doc.status] ?? doc.status)}
               </span>
             </div>
           ))}

@@ -175,7 +175,7 @@ export function OrderChatTab(
                   {/* 어느 단계 이야기인지 — 이것이 없으면 시간순 나열이 뒤죽박죽으로 읽힌다 */}
                   <span style={s.stepTag}>{label.get(c.step_code) ?? c.step_code}</span>
                   {c.author_name ?? c.author}
-                  <span style={s.role}>{ROLE_LABEL[c.author_role] ?? c.author_role}</span>
+                  <span style={s.role}>{t(ROLE_LABEL[c.author_role] ?? c.author_role)}</span>
                   <span style={s.time}>{stamp(c.created_at).slice(11)}</span>
                 </div>
                 <div style={mine ? s.mine : s.them}>
