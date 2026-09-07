@@ -210,7 +210,7 @@ export const EN: Record<string, string> = {
   '국고보조금': 'National subsidy',
   '국번 앞자리': 'Area code',
   '그만두기': 'Never mind',
-  '그물망': 'Cargo net',
+  '그물망': 'Mesh',
   '금': 'Fri',
   '금액': 'Amount',
   '금액 (VAT 포함)': 'Amount (VAT incl.)',
@@ -885,6 +885,8 @@ export const EN: Record<string, string> = {
   '휴대폰': 'Mobile',
   '사양 보기': 'View specs',
   '내역': 'Breakdown',
+  '그물망 격벽': 'Mesh bulkhead',
+  '냉동/냉장 이동식 격벽': 'Movable insulated bulkhead',
 }
 
 /**
@@ -981,6 +983,7 @@ export const EN_FMT: Record<string, string> = {
   '표본 {-1}건': 'Sample of {-1}',
   '확정 실패: {-1}': 'Could not confirm: {-1}',
   '{0} 확인 필요': '{0} needs review',
+  '기타 포함 {0}': 'Incl. extras {0}',
 }
 
 /**

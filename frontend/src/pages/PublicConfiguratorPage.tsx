@@ -158,7 +158,7 @@ export function PublicConfiguratorPage() {
           v2lConfirmed={v2lConfirmed}
           onV2lConfirmedChange={setV2lConfirmed}
           publicMode
-          saveLabel="상담 신청"
+          saveLabel={t('상담 신청')}
           memo="" onMemoChange={() => {}}
           promotionZeroed={PUBLIC_NO_PROMO} onTogglePromotion={() => {}}
           promotionDiscount={0} onPromotionDiscountChange={() => {}}
