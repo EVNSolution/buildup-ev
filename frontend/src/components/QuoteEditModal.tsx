@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { customOptionError } from '../lib/customOptionError'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import { DownPaymentFields } from './DownPaymentFields'
 import type { ApiPricingBundle, ApiQuote } from '@shared/types/index'
 import { fetchPricingBundle } from '../api/models'
@@ -226,7 +226,7 @@ function OptionsTab({ quote, frozen, busy, setBusy, onDone, onFail }: SubProps) 
       // 그럴 땐 금액을 말하지 않는다 — 틀린 숫자를 보여 주느니 목록에서 확인하는 편이 낫다.
       onDone(
         extrasChanged ? t('저장했습니다 — 목록에서 실구매가를 확인하세요')
-        : r.changed ? `옵션 ${r.changed}건 변경 · 실구매가 ₩${r.final_price.toLocaleString('ko-KR')}`
+        : r.changed ? tf('옵션 {0}건 변경 · 실구매가 ₩{1}', r.changed, r.final_price.toLocaleString('ko-KR'))
         : t('바뀐 값이 없습니다'),
       )
     } catch (e) { onFail(e) } finally { setBusy(false) }

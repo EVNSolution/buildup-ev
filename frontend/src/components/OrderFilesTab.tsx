@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchFileIndex, fetchOrderFiles,
@@ -64,7 +64,7 @@ export function OrderFilesTab() {
           value={q}
           onChange={e => setQ(e.target.value)}
         />
-        <span style={s.count}>{shown.length}건</span>
+        <span style={s.count}>{tf('{0}건', shown.length)}</span>
       </div>
 
       {shown.length === 0 && <div style={s.muted}>{t('해당하는 주문이 없습니다.')}</div>}
@@ -75,14 +75,14 @@ export function OrderFilesTab() {
             <span style={s.cardMain}>
               <span style={s.cardName}>{r.customer_name ?? t('고객 미지정')}</span>
               <span style={s.cardSub}>
-                {r.quote_no ?? `주문 ${r.order_id}`}
+                {r.quote_no ?? tf('주문 {0}', r.order_id)}
                 {r.maker_org ? ` · ${r.maker_org}` : ''}
               </span>
             </span>
             <span style={s.cardNums}>
               {/* 사진이 안 올라온 건을 눈으로 찾을 수 있게 — 0 도 숨기지 않는다 */}
-              <span style={r.uploads > 0 ? s.pill : s.pillZero}>업로드 {r.uploads}</span>
-              <span style={s.pillMuted}>자동생성 {r.generated}</span>
+              <span style={r.uploads > 0 ? s.pill : s.pillZero}>{tf('업로드 {0}', r.uploads)}</span>
+              <span style={s.pillMuted}>{tf('자동생성 {0}', r.generated)}</span>
             </span>
           </button>
         ))}
@@ -118,7 +118,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
       <div style={s.head}>
         <span style={s.headName}>{row.customer_name ?? t('고객 미지정')}</span>
         <span style={s.headSub}>
-          {row.quote_no ?? `주문 ${row.order_id}`}
+          {row.quote_no ?? tf('주문 {0}', row.order_id)}
           {row.maker_org ? ` · ${row.maker_org}` : ''}
         </span>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { t } from '../i18n'
+import { t , tf} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   OPTION_DB_TABLES, fetchOptionDbTable, saveOptionDbRows, fetchOptionDbLogs,
@@ -182,7 +182,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
           return merged
         })
       const res = await saveOptionDbRows(table, rows)
-      setMsg(`${res.rows}행 저장 · ${res.changed_fields}개 필드 변경(이력 기록됨)`)
+      setMsg(tf('{0}행 저장 · {1}개 필드 변경(이력 기록됨)', res.rows, res.changed_fields))
       load()
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('저장 실패'))
@@ -322,7 +322,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
                             />
                             {isVatField(f) && (
                               <div style={s.sub}>
-                                공급가 {toSupply(Number(String(f in e ? e[f] : toVat(Number(r[f]) || 0)).replace(/,/g, '')) || 0).toLocaleString('ko-KR')}
+                                {tf('공급가 {0}', toSupply(Number(String(f in e ? e[f] : toVat(Number(r[f]) || 0)).replace(/,/g, '')) || 0).toLocaleString('ko-KR'))}
                               </div>
                             )}
                           </>

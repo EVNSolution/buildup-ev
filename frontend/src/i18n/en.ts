@@ -989,6 +989,9 @@ export const EN: Record<string, string> = {
   '· 임시 비밀번호는 이 화면에서 한 번만 보이며 다시 조회할 수 없습니다.': '· The temporary password is shown only once, on this screen, and cannot be retrieved again.',
   '※ 견적서·계약서 PDF 가 첨부됩니다.': '※ The quotation and contract PDFs are attached.',
   '※ 견적서 PDF 가 첨부됩니다.': '※ The quotation PDF is attached.',
+  '주문 전환·배정': 'Convert & assign order',
+  '주문 상태 변경': 'Change order status',
+  '주문 치우기(관리자)': 'Clear order (admin)',
 }
 
 /**
@@ -1121,6 +1124,13 @@ export const EN_FMT: Record<string, string> = {
   '납기 한도({0})가 이미 지났습니다.': 'The delivery deadline ({0}) has already passed.',
   '이 발주서로는 납기일을 지정할 수 없습니다. 관리자에게 {0}을 요청하시면 발주일이 새로 지정되어 수락할 수 있습니다.': 'This purchase order cannot carry a delivery date. Ask an admin to {0} — a new order date is set and you can then accept.',
   '하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 {0}에 반영됩니다.': 'Constants used to auto-generate the weight distribution calculation and the specification comparison table. Changes take effect {0}.',
+  '업로드 {0}': 'Uploaded {0}',
+  '자동생성 {0}': 'Generated {0}',
+  '주문 {0} · {1}': 'Order {0} · {1}',
+  '주문 {0}': 'Order {0}',
+  '공급가 {0}': 'Net of VAT {0}',
+  '{0}행 저장 · {1}개 필드 변경(이력 기록됨)': 'Saved {0} rows · {1} fields changed (recorded in history)',
+  '옵션 {0}건 변경 · 실구매가 ₩{1}': '{0} option(s) changed · net price ₩{1}',
 }
 
 /**
