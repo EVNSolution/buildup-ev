@@ -89,6 +89,23 @@ export async function fetchQuotes(params: {
   return body.data
 }
 
+/**
+ * 견적 숨기기·되돌리기 — **관리자만.** 지우지 않고 화면에서만 감춘다.
+ * 계약서가 나간 견적은 서버가 거부한다(마스터는 예외).
+ */
+export async function setQuoteHidden(quoteId: number, hidden: boolean): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/hidden`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ hidden }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: { message?: string } } | null
+    throw new Error(body?.error?.message ?? `견적 숨김 처리 실패: ${res.status}`)
+  }
+}
+
 /** 확정 (임시저장→확정) */
 export async function confirmQuote(quoteId: number): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/confirm`, {

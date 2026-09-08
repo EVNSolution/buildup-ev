@@ -312,7 +312,7 @@ describe('견적 목록 좁히는 줄', () => {
     expect(ADMIN.match(/<OnlyAssignToggle/g)?.length, '세우는 자리가 둘이어야 한다').toBe(2);
     // 각 자리는 서로 배타적인 조건을 쓴다
     expect(ADMIN).toMatch(/view === 'list' && isMobile && \(/);
-    expect(ADMIN).toMatch(/onlyAssignControl=\{isMobile \? undefined :/);
+    expect(ADMIN).toMatch(/onlyAssignControl=\{isMobile \|\| view === 'hidden' \? undefined :/);
   });
 
   it('넓은 화면에서는 좁히는 조건끼리 모인다', () => {

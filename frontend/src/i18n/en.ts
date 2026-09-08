@@ -993,6 +993,9 @@ export const EN: Record<string, string> = {
   '주문 상태 변경': 'Change order status',
   '주문 치우기(관리자)': 'Clear order (admin)',
   '(미지정)': '(unassigned)',
+  '숨긴 견적': 'Hidden quotes',
+  '견적 숨기기': 'Hide quote',
+  '견적 숨기기 btn': 'Hide',
 }
 
 /**

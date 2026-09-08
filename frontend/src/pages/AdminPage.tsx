@@ -5,7 +5,7 @@ import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User 
 import { rolesOf } from '@shared/types/index'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
-import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview } from '../api/quotes'
+import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview, setQuoteHidden} from '../api/quotes'
 import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
 import { clampMemo, MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS } from '@shared/docs/memo'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
@@ -948,7 +948,7 @@ function CustomersTab() {
  * 같은 자리에서 고객별 서류함으로 건너갈 수 있게 둔다 — 탭을 새로 만들면
  * 최상단이 길어지고, 두 화면이 사실상 같은 질문에 답한다는 것이 안 보인다.
  */
-type QuotesView = 'list' | 'folders'
+type QuotesView = 'list' | 'folders' | 'hidden'
 
 function QuotesWithFolders() {
   const isMobile = useIsMobile()
@@ -972,27 +972,80 @@ function QuotesWithFolders() {
           items={[
             { value: 'list' as const, label: t('견적 목록') },
             { value: 'folders' as const, label: t('고객 서류함') },
+            /*
+             * 숨긴 견적 — **따로 모아서 본다.** 진행 중인 것과 섞으면 무엇이 숨겨졌는지 알 수 없다.
+             * 화면은 「견적 목록」과 똑같고 보이는 대상만 다르다(QuotesTab 이 view 로 갈린다).
+             */
+            { value: 'hidden' as const, label: t('숨긴 견적') },
           ]}
           value={view}
           onChange={setView}
           size="sm"
         />
+        {/* 숨긴 견적 화면에는 두지 않는다 — 정리하는 자리라 「배정 필요건만」이 뜻이 없다 */}
         {view === 'list' && isMobile && (
           <OnlyAssignToggle checked={onlyAssign} onChange={setOnlyAssign} />
         )}
       </div>
-      {view === 'list'
+      {view !== 'folders'
         ? (
           <QuotesTab
-            onlyAssign={onlyAssign}
+            key={view}
+            hiddenView={view === 'hidden'}
+            onlyAssign={view === 'hidden' ? false : onlyAssign}
             /* 넓은 화면에서는 좁히는 줄이 이 칸을 받아 나란히 놓는다 */
-            onlyAssignControl={isMobile ? undefined : (
+            onlyAssignControl={isMobile || view === 'hidden' ? undefined : (
               <OnlyAssignToggle checked={onlyAssign} onChange={setOnlyAssign} />
             )}
           />
         )
         : <CustomerFolders />}
     </div>
+  )
+}
+
+/**
+ * 견적 숨기기·되돌리기 — **관리자 화면에만 있다.**
+ *
+ * 액션 버튼 줄(견적서·계약서·제작 배정)은 「이 건을 진행하는」 자리다. 숨기기는 정리하는
+ * 일이라 성격이 달라, 그 줄에 끼면 진행 버튼을 누르려다 잘못 누른다. 고객명 옆 남는
+ * 자리에 조용히 둔다 — 눈에 띄되 손이 먼저 가지는 않는 위치다.
+ *
+ * ⚠️ 계약서가 나간 견적은 서버가 거부한다(마스터는 예외). 여기서 미리 막지 않고
+ *    **서버 판단을 그대로 보여 준다** — 화면이 따로 판단하면 둘이 어긋난다.
+ */
+function HideQuoteButton({ quote, hiddenView, onDone }: {
+  quote: ApiQuote; hiddenView: boolean; onDone: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function toggle() {
+    setBusy(true); setErr('')
+    try {
+      await setQuoteHidden(quote.id, !hiddenView)
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('처리 실패'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        style={busy ? BTN.rowDisabled : BTN.row}
+        disabled={busy}
+        title={hiddenView ? t('다시 보이기') : t('견적 숨기기')}
+        onClick={toggle}
+      >
+        {busy ? '…' : hiddenView ? tc('다시 보이기', 'btn') : tc('견적 숨기기', 'btn')}
+      </button>
+      {/* 거부 사유는 그 자리에서 보여 준다 — 목록 위 띠로 올리면 어느 건인지 알 수 없다 */}
+      {err && <span style={qt.hideErr}>{err}</span>}
+    </>
   )
 }
 
@@ -1006,8 +1059,10 @@ function OnlyAssignToggle({ checked, onChange }: { checked: boolean; onChange: (
   )
 }
 
-function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
+function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }: {
   onlyAssign?: boolean
+  /** 숨긴 견적만 보는 화면인가 — 목록 모양은 같고 대상만 다르다 */
+  hiddenView?: boolean
   /** 넓은 화면에서 좁히는 줄에 함께 세울 칸. 좁은 화면에서는 위 줄이 갖고 있어 비어 온다 */
   onlyAssignControl?: React.ReactNode
 }) {
@@ -1048,11 +1103,10 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
   function load() {
     setLoading(true); setErr('')
     /*
-     * 숨김 보기를 없앴다 — 「견적 숨기기」는 쓰이지 않았고 상단만 번잡하게 했다(제보).
-     * `view` 를 보내지 않으므로 **예전에 숨긴 건도 목록에 다시 나온다.**
-     * 데이터는 그대로 두고(hidden_at 컬럼은 남는다) 보여 주기만 되돌린 것이다.
+     * 「진행 중」과 「숨김」은 **섞지 않는다.** 섞으면 무엇이 숨겨졌는지 알 수 없어,
+     * 정리하려고 켠 화면이 정리에 쓸모없어진다(서버도 같은 기준 — lib/visibility.ts).
      */
-    fetchQuotes({})
+    fetchQuotes(hiddenView ? { view: 'hidden' } : {})
       .then(setQuotes)
       .catch(e => setErr(e.message))
       .finally(() => setLoading(false))
@@ -1191,7 +1245,15 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
             return (
             <div key={q.id} style={needsAssign(q) ? qtMob.cardPublic : qtMob.card}>
               <div style={qtMob.cardTop}>
-                <span style={qtMob.name}>{q.customer?.name ?? '—'}<QuoteKindTag quote={q} /></span>
+                <span style={qtMob.name}>
+                  {q.customer?.name ?? '—'}<QuoteKindTag quote={q} />
+                  {/*
+                    숨기기 — **액션 버튼 줄에 넣지 않는다.** 그 줄은 견적서·계약서처럼
+                    「이 건을 진행하는」 버튼들이고, 숨기기는 정리하는 일이라 성격이 다르다.
+                    고객명 옆 남는 자리를 쓴다(이 줄은 이름과 상태 배지뿐이라 늘 빈다).
+                  */}
+                  <HideQuoteButton quote={q} hiddenView={hiddenView} onDone={load} />
+                </span>
                 <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
                   <Badge tone={statusTone(q.status)}>{t(QUOTE_STATUS_LABELS[q.status] ?? q.status)}</Badge>
                 </Tooltip>
@@ -1324,7 +1386,13 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl }: {
                 return (
                 <tr key={q.id} style={needsAssign(q) ? qt.rowPublic : undefined}>
                   <td style={needsAssign(q) ? qt.tdPublicFirst : qt.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
-                  <td style={qt.td}>{q.customer?.name ?? '—'}</td>
+                  {/* 액션 열은 그대로 두고, 이름 칸의 남는 자리에 붙인다 */}
+                  <td style={qt.td}>
+                    <span style={qt.nameCell}>
+                      {q.customer?.name ?? '—'}
+                      <HideQuoteButton quote={q} hiddenView={hiddenView} onDone={load} />
+                    </span>
+                  </td>
                   <td style={qt.tdEmail} title={q.sales_user_id ?? ''}>
                     {q.sales_user_id ?? '—'}
                     {/* 배정만 해 놓고 영업이 아직 받지 않은 건 — 관리자가 되짚어야 하는 상태다 */}
@@ -1718,6 +1786,9 @@ const styles: Record<string, React.CSSProperties> = {
 }
 
 const qt: Record<string, React.CSSProperties> = {
+  /* 이름과 숨기기 버튼이 한 칸에 선다 — 열을 새로 만들면 표 구조가 바뀐다 */
+  nameCell: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
+  hideErr: { fontSize: 'var(--fs-caption)', color: 'var(--req)', marginLeft: 6 },
   /*
    * 날짜 머리(표) — **영업 「내 견적」과 같은 모양**이다(lv.groupRow/groupCell 와 같은 값).
    *
@@ -1840,7 +1911,7 @@ const qtMob: Record<string, React.CSSProperties> = {
     padding: '14px 16px', background: 'var(--lime-bg)', display: 'flex', flexDirection: 'column', gap: 10,
   },
   cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' as const },
-  name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)' },
+  name: { fontSize: 15, fontWeight: 700, color: 'var(--dark)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
   rows: { display: 'flex', flexDirection: 'column', gap: 6 },
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13 },
   label: { color: 'var(--muted)', fontSize: 12, flexShrink: 0, marginRight: 8 },

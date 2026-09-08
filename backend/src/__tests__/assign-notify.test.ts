@@ -128,20 +128,34 @@ describe('제작 배정 버튼', () => {
     expect(ADMIN).not.toMatch(/status === 'confirmed'.{0,40}제작 배정/s);
   });
 
-  it('🔴 「견적 숨기기」는 없앴다 — 되살아나지 않게 못박는다', () => {
+  it('🔴 「견적 숨기기」는 되살렸다 — 걷었던 이유를 되풀이하지 않는다', () => {
     /*
-     * 쓰이지 않았고 견적 목록 상단만 번잡하게 했다(제보).
-     * 화면·API 양쪽에서 걷어냈고, 목록도 숨김 여부로 거르지 않아
-     * **예전에 숨긴 건도 다시 보인다** — 화면에서 사라져 못 찾는 건이 남지 않게.
+     * 2026-09 에 한 번 걷었다. 이유는 「쓰이지 않는데 견적 목록 **상단만 번잡하다**」였다.
+     * 정리할 건이 쌓이면서 다시 필요해졌고(2026-09-08 지시), 컬럼을 지우지 않고 둔 덕에
+     * 예전 기록이 그대로 살아 있다.
      *
-     * ⚠️ `hidden_at` 컬럼과 고객 숨기기는 그대로다 — 기능을 걷었다고 기록까지 지우지 않는다.
+     * 되살리되 **걷었던 이유는 남지 않게** 한다 — 그래서 이 검사는 「없다」가 아니라
+     * 「이런 모양으로만 있다」를 지킨다:
+     *
+     *  ① 관리자 화면에만 있다 — 영업 화면(SalesPage)에는 없다.
+     *  ② 목록 상단에 버튼을 더하지 않는다 — 보기 전환의 **셋째 칸**으로 들어간다.
+     *  ③ 진행 버튼 줄에 끼지 않는다 — 액션 열이 아니라 **고객명 옆**이다.
+     *  ④ 진행 중인 것과 숨긴 것을 **섞지 않는다**(섞으면 무엇이 숨겨졌는지 모른다).
      */
-    // 주석은 뺀다 — 「왜 없앴는지」는 코드 옆에 남겨 두어야 다음 사람이 되살리지 않는다
-    const code = ADMIN.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(code, '숨기기 버튼이 되살아났다').not.toMatch(/견적 숨기기/);
-    expect(read('backend/src/routes/quotes.ts'), '숨김 라우트가 되살아났다')
-      .not.toMatch(/quotesRouter\.patch\('\/:id\/hidden'/);
-    // 목록은 숨김 여부를 조건에 넣지 않는다
-    expect(ADMIN).not.toMatch(/to: filterTo \|\| undefined, view \}/);
-  });
+    // ① 영업 화면에는 없다
+    expect(read('frontend/src/pages/SalesPage.tsx'), '영업 화면에 숨기기가 생겼다')
+      .not.toMatch(/setQuoteHidden/);
+    // ② 보기 전환의 셋째 칸
+    expect(ADMIN, '「숨긴 견적」 보기가 없다').toMatch(/value: 'hidden' as const/);
+    expect(ADMIN).toMatch(/type QuotesView = 'list' \| 'folders' \| 'hidden'/);
+    // ③ 액션 열이 아니라 이름 옆
+    expect(ADMIN, '숨기기가 이름 칸 밖으로 나갔다').toMatch(/nameCell[\s\S]{0,200}HideQuoteButton/);
+    // ④ 숨긴 것만 따로 — 섞어서 부르지 않는다
+    expect(ADMIN).toMatch(/fetchQuotes\(hiddenView \? \{ view: 'hidden' \} : \{\}\)/);
+    // 서버도 같은 기준 — 계약서가 나간 건은 거부(마스터 예외)
+    const routes = read('backend/src/routes/quotes.ts');
+    expect(routes).toMatch(/quotesRouter\.patch\('\/:id\/hidden', rbac\('ADMIN'\)/);
+    expect(routes, '계약서 나간 건을 그냥 숨긴다').toMatch(/SENT_CONTRACT_FILTER/);
+    expect(routes, '마스터 예외가 사라졌다').toMatch(/canHideAnything/);
+    });
 });
