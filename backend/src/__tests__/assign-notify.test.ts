@@ -152,10 +152,16 @@ describe('제작 배정 버튼', () => {
     expect(ADMIN, '숨기기가 이름 칸 밖으로 나갔다').toMatch(/nameCell[\s\S]{0,200}HideQuoteButton/);
     // ④ 숨긴 것만 따로 — 섞어서 부르지 않는다
     expect(ADMIN).toMatch(/fetchQuotes\(hiddenView \? \{ view: 'hidden' \} : \{\}\)/);
-    // 서버도 같은 기준 — 계약서가 나간 건은 거부(마스터 예외)
+    /*
+     * ⑤ **상태로 막지 않는다.** 계약서가 나간 건도, 계약이 끝난 건도 숨길 수 있다(2026-09-08 지시).
+     *    정리해야 하는 건은 대개 이미 무언가 나간 것들이라, 상태로 막으면 정작 필요한 것을 못 치운다.
+     *    대신 **한 번 묻고**(HideConfirm) **되돌릴 수 있게** 한다.
+     */
     const routes = read('backend/src/routes/quotes.ts');
     expect(routes).toMatch(/quotesRouter\.patch\('\/:id\/hidden', rbac\('ADMIN'\)/);
-    expect(routes, '계약서 나간 건을 그냥 숨긴다').toMatch(/SENT_CONTRACT_FILTER/);
-    expect(routes, '마스터 예외가 사라졌다').toMatch(/canHideAnything/);
+    expect(routes, '상태로 막는 조건이 되살아났다').not.toMatch(/SENT_CONTRACT_FILTER/);
+    // ⑥ 대신 화면이 한 번 묻는다 — 되돌리기(다시 보이기)는 묻지 않는다
+    expect(ADMIN, '숨기기 확인창이 없다').toMatch(/function HideConfirm/);
+    expect(ADMIN).toMatch(/hiddenView \? void run\(\) : setAsking\(true\)/);
     });
 });

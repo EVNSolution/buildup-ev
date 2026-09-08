@@ -25,7 +25,16 @@ function Bell({ on }: { on: boolean }) {
     </svg>
   )
 }
-export function PushToggle() {
+export function PushToggle({ settings = false }: {
+  /**
+   * 설정 화면에서 쓰는가 — **빈 칸을 남기지 않는다.**
+   *
+   * 대화 화면에서는 못 쓰는 환경이면 줄을 아예 띄우지 않는다(눌러도 안 되는 버튼은
+   * 없느니만 못하다). 그런데 마이페이지는 「알림」이라는 **제목이 이미 있는 칸**이라,
+   * 그 아래가 비면 고장으로 읽힌다 — 왜 없는지 적어 준다.
+   */
+  settings?: boolean
+} = {}) {
   const [cfg, setCfg] = useState<{ enabled: boolean; publicKey: string } | null>(null)
   const [st, setSt] = useState<PushState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -43,7 +52,12 @@ export function PushToggle() {
   }, [])
 
   // 서버에 VAPID 키가 없으면 줄 자체를 띄우지 않는다 — 눌러도 안 되는 버튼은 없느니만 못하다
-  if (!cfg?.enabled || !st) return null
+  if (!cfg?.enabled || !st) {
+    if (!settings) return null
+    return <span style={s.note}>{cfg && !cfg.enabled
+      ? t('이 서버에는 알림이 설정되어 있지 않습니다.')
+      : t('불러오는 중…')}</span>
+  }
 
   async function toggle() {
     setBusy(true); setErr('')
@@ -58,6 +72,8 @@ export function PushToggle() {
 
   // 못 쓰는 환경 — 눌러도 안 되는 것을 띄우느니 자리를 비운다. 이유는 title 로 남긴다
   if (st.kind === 'unsupported' || st.kind === 'denied') {
+    // 설정 화면에서는 아이콘만 두면 왜 안 되는지 알 수 없다 — 이유를 글로 적는다
+    if (settings) return <span style={s.note}>{st.why}</span>
     return <span style={s.dim} title={st.why} aria-label={st.why}><Bell on={false} /></span>
   }
 
@@ -95,6 +111,8 @@ const ICON: React.CSSProperties = {
 }
 
 const s: Record<string, React.CSSProperties> = {
+  /** 설정 화면에서 「왜 못 쓰는지」를 적는 줄 */
+  note: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.5 },
   /** 켜짐 — 브랜드색. 「지금 오고 있다」 */
   on: { ...ICON, color: 'var(--lime-ink)' },
   /** 꺼짐 — 있는 줄은 알되 재촉하지 않는 톤 */

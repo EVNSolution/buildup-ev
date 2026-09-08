@@ -24,7 +24,6 @@ import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
-import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import { stepsFor } from '@buildup-ev/shared/process';
 import { clampMemo } from '@buildup-ev/shared/docs/memo';
 import { optionsFromSelections } from '../services/order-options.js';
@@ -232,9 +231,12 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
  *  · 숨기기는 **관리자 화면에만** 있다(영업 화면에는 없다).
  *  · 목록 상단에 버튼을 더하지 않는다 — 「숨긴 견적」은 보기 전환의 셋째 칸으로 들어간다.
  *
- * ⚠️ **계약서가 나간 견적은 숨길 수 없다.** 고객이 이미 받아 본 것이고 서명이 진행 중일 수
- *    있다 — 고객 숨기기와 **같은 기준**이다(lib/hide-rules.ts).
- *    다만 **마스터는 무엇이든** 숨길 수 있다: 잘못 나간 것까지 정리할 사람이 하나는 필요하다.
+ * ⚠️ **상태로 막지 않는다.** 계약서가 나간 건도, 계약이 끝난 건도 숨길 수 있다(2026-09-08 지시).
+ *    정리해야 하는 건은 대개 이미 무언가 나간 것들이라, 상태로 막으면 정작 필요한 것을 못 치운다.
+ *
+ *    대신 **되돌릴 수 있게** 하고(「숨긴 견적」에서 다시 보이기) 화면에서 **한 번 묻는다.**
+ *    지우는 것이 아니라 감추는 것이므로 이 정도가 맞다 — 기록은 그대로 남는다.
+ *    (고객 숨기기는 그대로다: 고객을 숨기면 그 고객의 견적이 통째로 딸려 가 파장이 다르다)
  */
 quotesRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
@@ -250,17 +252,6 @@ quotesRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): Prom
   try {
     const q = await prisma.quote.findUnique({ where: { id }, select: { id: true } });
     if (!q) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
-
-    if (hidden && !canHideAnything(req.auth)) {
-      const sent = await prisma.purchaseContract.count({
-        where: { quote_id: id, ...SENT_CONTRACT_FILTER },
-      });
-      if (sent > 0) {
-        res.status(409).json({ error: { code: 'NOT_HIDABLE',
-          message: '계약서가 발송된 견적은 숨길 수 없습니다.' } });
-        return;
-      }
-    }
 
     const updated = await prisma.quote.update({
       where: { id },

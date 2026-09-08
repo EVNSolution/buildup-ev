@@ -996,6 +996,12 @@ export const EN: Record<string, string> = {
   '숨긴 견적': 'Hidden quotes',
   '견적 숨기기': 'Hide quote',
   '견적 숨기기 btn': 'Hide',
+  '알림': 'Notifications',
+  '숨기기': 'Hide',
+  '목록에서만 사라집니다 — 견적·계약·서류는 그대로 남습니다.': 'It only leaves the list — the quote, contract and documents all remain.',
+  '「숨긴 견적」에서 언제든 다시 보이게 할 수 있습니다.': 'You can unhide it at any time from “Hidden quotes”.',
+  '배정·전자서명·스캔본 등 처리가 필요한 일이 생기면 알려 드립니다.': 'We notify you when something needs attention — assignments, e-signatures, scanned copies.',
+  '이 서버에는 알림이 설정되어 있지 않습니다.': 'Notifications are not configured on this server.',
 }
 
 /**
@@ -1136,6 +1142,7 @@ export const EN_FMT: Record<string, string> = {
   '{0}행 저장 · {1}개 필드 변경(이력 기록됨)': 'Saved {0} rows · {1} fields changed (recorded in history)',
   '옵션 {0}건 변경 · 실구매가 ₩{1}': '{0} option(s) changed · net price ₩{1}',
   '{0}행': '{0} rows',
+  '{0} 견적을 숨깁니다': 'Hide the quote for {0}',
 }
 
 /**

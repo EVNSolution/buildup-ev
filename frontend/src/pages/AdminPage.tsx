@@ -1019,9 +1019,15 @@ function HideQuoteButton({ quote, hiddenView, onDone }: {
 }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  /*
+   * **한 번 묻는다.** 상태로 막지 않기로 했으므로(계약 나간 건도 숨을 수 있다) 실수로 누르는
+   * 것을 여기서 막는다. 되돌릴 수 있는 일이라 무겁게 굴지는 않는다 — 한 번이면 된다.
+   * 되돌리기(다시 보이기)는 묻지 않는다: 감춘 것을 도로 꺼내는 것뿐이다.
+   */
+  const [asking, setAsking] = useState(false)
 
-  async function toggle() {
-    setBusy(true); setErr('')
+  async function run() {
+    setAsking(false); setBusy(true); setErr('')
     try {
       await setQuoteHidden(quote.id, !hiddenView)
       onDone()
@@ -1039,13 +1045,38 @@ function HideQuoteButton({ quote, hiddenView, onDone }: {
         style={busy ? BTN.rowDisabled : BTN.row}
         disabled={busy}
         title={hiddenView ? t('다시 보이기') : t('견적 숨기기')}
-        onClick={toggle}
+        onClick={() => (hiddenView ? void run() : setAsking(true))}
       >
         {busy ? '…' : hiddenView ? tc('다시 보이기', 'btn') : tc('견적 숨기기', 'btn')}
       </button>
       {/* 거부 사유는 그 자리에서 보여 준다 — 목록 위 띠로 올리면 어느 건인지 알 수 없다 */}
       {err && <span style={qt.hideErr}>{err}</span>}
+      {asking && <HideConfirm quote={quote} onYes={run} onClose={() => setAsking(false)} />}
     </>
+  )
+}
+
+/** 숨기기 확인 — **무엇을 숨기는지**와 **되돌릴 수 있다는 것**을 함께 적는다 */
+function HideConfirm({ quote, onYes, onClose }: {
+  quote: ApiQuote; onYes: () => void; onClose: () => void
+}) {
+  useEscapeClose(onClose)
+  const who = quote.customer?.name ?? quote.quote_no ?? `#${quote.id}`
+  return (
+    <div style={modal.overlay} onClick={onClose}>
+      <div style={modal.box} onClick={e => e.stopPropagation()}>
+        <div style={modal.title}>{tf('{0} 견적을 숨깁니다', who)}</div>
+        <div style={modal.desc}>
+          {t('목록에서만 사라집니다 — 견적·계약·서류는 그대로 남습니다.')}
+          <br />
+          {t('「숨긴 견적」에서 언제든 다시 보이게 할 수 있습니다.')}
+        </div>
+        <div style={modal.actions}>
+          <button style={modal.cancelBtn} onClick={onClose}>{t('취소')}</button>
+          <button style={modal.confirmBtn} onClick={onYes}>{t('숨기기')}</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
