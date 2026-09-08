@@ -25,6 +25,7 @@ import { nextQuoteNo } from '../services/quote-no.js';
 import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { stepsFor } from '@buildup-ev/shared/process';
+import { APPENDIX_REMARK, clampAppendix, hasAppendix } from '@buildup-ev/shared/docs/appendix';
 import { clampMemo } from '@buildup-ev/shared/docs/memo';
 import { optionsFromSelections } from '../services/order-options.js';
 
@@ -1016,6 +1017,76 @@ quotesRouter.get('/:id/order-preview', rbac('ADMIN'), async (req: Request, res):
   } });
 });
 
+/**
+ * 발주서 **임시저장** — 배정 전에 적어 둔 발주서 내용.
+ *
+ * 발주서를 적는 사람과 배정을 누르는 사람이 다를 수 있다. 예전엔 배정 팝업을 닫으면
+ * 적던 것이 전부 날아가서, 한 사람이 앉은자리에서 다 끝내야 했다.
+ *
+ * ⚠️ 아직 **주문이 아니다.** 배정을 눌러야 발주서가 나간다 — 특장사는 이것을 보지 못한다.
+ * ⚠️ 권한은 배정과 **같은 것**을 쓴다(order.confirm). 적어 둘 수 있는 사람과 배정할 수 있는
+ *    사람이 다르면, 적어는 뒀는데 아무도 못 누르는 초안이 쌓인다.
+ */
+quotesRouter.get('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+  try {
+    // 이미 배정에 쓰인 초안은 없는 것으로 본다 — 되살아나면 지난 내용을 다시 채운다
+    const draft = await prisma.poDraft.findFirst({ where: { quote_id: id, consumed_at: null } });
+    res.json({ data: draft });
+  } catch {
+    res.status(500).json({ error: { code: 'INTERNAL', message: '임시저장을 불러오지 못했습니다.' } });
+  }
+});
+
+quotesRouter.put('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+
+  const { maker_org_id, remark, custom_badge, appendix } = req.body as {
+    maker_org_id?: string | null; remark?: string; custom_badge?: boolean; appendix?: string;
+  };
+
+  const quote = await prisma.quote.findUnique({ where: { id }, select: { status: true } });
+  if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+  /*
+   * 배정이 이미 끝난 건에는 적어 둘 자리가 없다 — 발주서는 나갔고, 고칠 곳은 초안이 아니다.
+   * 반대로 계약 전(견적완료 등)에는 **허용한다**: 서명을 기다리는 동안 미리 적어 두는 것이
+   * 이 기능의 쓸모다. 배정 자체는 계약완료에서만 열린다(assign 이 따로 막는다).
+   */
+  if (quote.status === 'assigned' || quote.status === 'ordered' || quote.status === 'completed') {
+    res.status(409).json({ error: { code: 'CONFLICT', message: `이미 배정된 견적입니다 (현재 ${quote.status})` } });
+    return;
+  }
+
+  try {
+    /*
+     * 길이는 **배정과 같은 함수**로 자른다. 여기서 안 자르면 임시저장에는 들어갔는데
+     * 배정할 때 잘려, 적어 둔 사람과 배정하는 사람이 **다른 글을 본다.**
+     */
+    const clamped = {
+      maker_org_id: maker_org_id || null,
+      remark: clampMemo(remark ?? '') || null,
+      custom_badge: custom_badge === true,
+      appendix: custom_badge === true && hasAppendix(appendix) ? clampAppendix(appendix!) : null,
+      saved_at: new Date(),
+      saved_by: req.auth?.email ?? 'unknown',
+      consumed_at: null,
+    };
+    const draft = await prisma.poDraft.upsert({
+      where: { quote_id: id },
+      // 이미 쓴 초안이 있어도 **다시 열어** 덮어쓴다 — 거부돼 되돌아온 건을 다시 적는 경우다
+      update: clamped,
+      create: { quote_id: id, ...clamped },
+    });
+    res.json({ data: draft });
+  } catch {
+    res.status(500).json({ error: { code: 'INTERNAL', message: '임시저장에 실패했습니다.' } });
+  }
+});
+
 quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
@@ -1027,8 +1098,8 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     return;
   }
 
-  const { maker_org_id, remark, custom_badge } = req.body as {
-    maker_org_id?: string; remark?: string;
+  const { maker_org_id, remark, custom_badge, appendix } = req.body as {
+    maker_org_id?: string; remark?: string; appendix?: string;
     /**
      * 「커스텀」 배지 — 특장사 목록에 붙는다. **관리자가 여기서 정한다.**
      * 예전엔 비고에 뭐라도 적히면 자동으로 붙어, 납기 안내 같은 메모에도 배지가 달렸다.
@@ -1060,6 +1131,19 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     return;
   }
 
+  /*
+   * **2페이지가 있는가** — 비고의 안내 문구와 별지 저장이 **같은 답**을 보게 한 자리다.
+   *
+   * ⚠️ 둘을 따로 판단했더니 어긋났다. 커스텀 배지만 보고 안내 문구를 넣으면서 별지는
+   *    `clampAppendix(...) || null` 로 걸렀는데, 공백만 적힌 별지는 `'   '` 라 **참**이라
+   *    값으로 저장됐다. 그러면 화면은 `hasAppendix`(공백은 빈 것) 로 판단해 2페이지 탭을
+   *    닫아 두는데 1페이지는 **「2페이지(별지)를 확인하세요」라고 가리킨다** —
+   *    특장사는 넘길 장이 없는 안내만 읽는다.
+   *
+   * 안내 문구는 **가리킬 곳이 있을 때만** 넣는다.
+   */
+  const withAppendix = custom_badge === true && hasAppendix(appendix);
+
   try {
     await setQuoteStatus(id, 'assigned', req.auth?.email ?? 'unknown');
     const now = new Date();
@@ -1073,8 +1157,19 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
          */
         data: {
           quote_id: id, maker_org_id, assigned_at: now,
-          remark: clampMemo(remark ?? '') || null,
+          /*
+           * 커스텀이면 1페이지 비고는 **안내 문구 하나로 고정**한다. 그 칸은 4줄짜리라
+           * 커스텀 내용을 담지 못하고, 두 곳에 나눠 적으면 특장사가 어디를 봐야 할지 모른다.
+           * 서버가 정하는 이유: 화면이 보낸 값을 믿으면 API 를 직접 불러 딴 글을 넣을 수 있다.
+           */
+          remark: withAppendix ? APPENDIX_REMARK : (clampMemo(remark ?? '') || null),
           custom_badge: custom_badge === true,
+          /*
+           * 별지 — **커스텀일 때만** 담는다. 커스텀을 끄면 2페이지는 없는 것이므로
+           * 남겨 두면 특장사가 읽어야 할 것이 있는 줄 알고 수락이 막힌다.
+           * 길이는 화면과 **같은 함수**로 자른다 — 화면만 막으면 API 로 우회된다.
+           */
+          appendix: withAppendix ? clampAppendix(appendix!) : null,
         },
       }),
     ]);
@@ -1092,6 +1187,18 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
         order_id: order.id, code: s.code, track: s.track, status: 'pending', entered_at: now,
       })),
       skipDuplicates: true,
+    });
+
+    /*
+     * 임시저장을 **다 썼다고 표시**한다. 지우지 않는다 — 누가 적어 둔 것이 배정으로
+     * 이어졌는지가 남아야 한다(CLAUDE.md: 행을 지우지 않는다).
+     * 표시해 두지 않으면, 나중에 이 견적이 다시 배정 대기로 돌아왔을 때(특장사 거부)
+     * **옛 초안이 되살아나** 이미 한 번 쓴 내용을 다시 채운다.
+     * 초안이 없는 배정도 흔하므로 없으면 조용히 지나간다.
+     */
+    await prisma.poDraft.updateMany({
+      where: { quote_id: id, consumed_at: null },
+      data: { consumed_at: now },
     });
 
     res.json({ data: { quote: updatedQuote, order } });
