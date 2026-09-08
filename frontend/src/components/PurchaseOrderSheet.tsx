@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { t } from '../i18n'
+import { t, tf } from '../i18n'
 import type { ApiOrderOption } from '@shared/types/index'
 import { toDateInput } from '@shared/schedule/businessDays'
 import { DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
+import { APPENDIX_REMARK } from '@shared/docs/appendix'
 
 /**
  * 발주서 — **특장사가 보는 유일한 서류.**
@@ -17,6 +18,7 @@ import { DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
  */
 export function PurchaseOrderSheet({
   orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue, remark, editable,
+  page = 1, appendix, appendixEditable,
 }: {
   orderId: number
   /** 발주일 = 배정일 */
@@ -30,6 +32,16 @@ export function PurchaseOrderSheet({
   remark?: string
   /** 비고를 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
   editable?: React.ReactNode
+  /**
+   * 몇 페이지를 그릴까 — **A4 한 장이 한 페이지다.**
+   * 1 = 발주서 본문, 2 = 별지(커스텀 주문의 상세 요청사항).
+   * 두 장을 한 화면에 늘어놓지 않는다: 종이 한 장이 화면 한 장이어야 「그대로」가 성립한다.
+   */
+  page?: 1 | 2
+  /** 별지 내용 — 2페이지에 그린다 */
+  appendix?: string
+  /** 별지를 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
+  appendixEditable?: React.ReactNode
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -94,13 +106,38 @@ export function PurchaseOrderSheet({
     <div ref={wrapRef} style={s.frame}>
       <div style={{ ...s.sheet, transform: `scale(${scale})` }}>
       <div ref={contentRef} style={{ ...s.content, transform: `scale(${fit})` }}>
+      {page === 2 ? (
+        /*
+         * 별지 — **한 장을 통째로** 커스텀 요청에 내준다.
+         * 1페이지 비고 칸(4줄)에 우겨넣으면 뜻이 전달되지 않았다(제보).
+         * 머리에 무엇의 별지인지 적는다 — 장이 떨어져 나가도 어느 주문 것인지 알아야 한다.
+         */
+        <>
+          <div style={s.title}>{t('별 지')}</div>
+          <div style={s.metaGrid}>
+            <Meta label="문서번호" value={`주문 #${orderId}`} />
+            <Meta label="발주일" value={toDateInput(orderedAt)} />
+          </div>
+          <div style={s.section}>{t('커스텀 요청사항')}</div>
+          {appendixEditable
+            ? appendixEditable
+            : appendix?.trim()
+              ? <div style={s.appendix}>{appendix}</div>
+              : <div style={s.remarkEmpty}>{t('적힌 내용이 없습니다')}</div>}
+        </>
+      ) : (
+      <>
       <div style={s.title}>{t('발 주 서')}</div>
 
-      <div style={s.metaRow}>
+      {/*
+        네 칸을 **한 격자**에 담는다. 줄마다 따로 두면 라벨 폭이 줄마다 달라져
+        「문서번호」와 「발주사」가 어긋난다 — 라벨 폭을 52px 로 못 박아 맞춰 뒀는데,
+        영어는 그 폭에 안 들어가 **두 줄로 접혔다**(Document / number).
+        격자로 묶으면 열이 가장 긴 라벨에 맞춰 함께 늘어나, 어느 언어에서도 접히지 않는다.
+      */}
+      <div style={s.metaGrid}>
         <Meta label="문서번호" value={`주문 #${orderId}`} />
         <Meta label="발주일" value={toDateInput(orderedAt)} />
-      </div>
-      <div style={s.metaRow}>
         <Meta label="발주사" value="EV&Solution" />
         <Meta label="공급사" value={makerOrgName} />
       </div>
@@ -131,19 +168,27 @@ export function PurchaseOrderSheet({
       {editable
         ? editable
         : remark?.trim()
-          ? <div style={s.remark}>{remark}</div>
+          /*
+           * 비고는 사람이 적은 글이라 **그대로** 보여 준다(옮기지 않는다).
+           * 딱 하나, 커스텀 건의 고정 안내만 옮긴다 — 저 문장은 서버가 넣은 것이고
+           * **별지로 가는 유일한 안내**라, 못 읽으면 2페이지가 있는 줄도 모른다.
+           */
+          ? <div style={s.remark}>{remark.trim() === APPENDIX_REMARK ? t(APPENDIX_REMARK) : remark}</div>
           : <div style={s.remarkEmpty}>{t('특별 요청사항 없음')}</div>}
 
       <div style={s.section}>{t('특이사항')}</div>
       <ol style={s.notes}>
         <li>{t('본 발주서는 공급사의 견적서 수령 이후 발주사·공급사 간 기 협의한 사항에 따릅니다.')}</li>
         <li>
-          납기일자: 발주일로부터 {DELIVERY_DUE_BUSINESS_DAYS}일 이내 (영업일 기준)
-          {deliveryDue && <b style={s.due}> — {deliveryDue} 로 지정</b>}
+          {/* 숫자가 끼어 있어 그동안 옮겨지지 않은 채 1·3·4 항 사이에 혼자 한국어로 남아 있었다 */}
+          {tf('납기일자: 발주일로부터 {0}일 이내 (영업일 기준)', DELIVERY_DUE_BUSINESS_DAYS)}
+          {deliveryDue && <b style={s.due}>{tf(' — {0} 로 지정', deliveryDue)}</b>}
         </li>
         <li>{t('납품장소 및 검사방법: 당사 지정 장소 및 당사 검사기준에 의함. 사전 협의하여 진행함.')}</li>
         <li>{t('기타: 상기 사항 외에 발주사·공급사 간 협의에 따라 진행함.')}</li>
       </ol>
+      </>
+      )}
       </div>
       </div>
     </div>
@@ -164,10 +209,18 @@ const PAGE_PAD = 16
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div style={s.meta}>
-      <span style={s.metaLabel}>{label}</span>
+    <>
+      {/*
+        라벨은 **보여 주기만 하는 글씨**라 여기서 옮긴다(값은 데이터라 그대로 둔다).
+        호출부마다 `t()` 를 씌우지 않고 한 곳에서 처리한다 — 한 군데라도 빠지면
+        같은 줄에서 「Document number」와 「발주일」이 나란히 서게 된다.
+
+        감싸는 상자를 두지 않는다 — 라벨과 값이 **격자의 칸으로 직접** 들어가야
+        줄이 달라도 같은 열에 선다.
+      */}
+      <span style={s.metaLabel}>{t(label)}</span>
       <span style={s.metaValue}>{value}</span>
-    </div>
+    </>
   )
 }
 
@@ -227,9 +280,18 @@ const s: Record<string, React.CSSProperties> = {
     textAlign: 'center', fontSize: 15, fontWeight: 700, color: 'var(--dark)',
     letterSpacing: '.3em', paddingBottom: 'var(--sp-3)', borderBottom: '1px solid var(--line)',
   },
-  metaRow: { display: 'flex', gap: 'var(--sp-4)', flexWrap: 'wrap', marginTop: 'var(--sp-3)' },
-  meta: { flex: '1 1 160px', minWidth: 0, display: 'flex', gap: 'var(--sp-2)', alignItems: 'baseline' },
-  metaLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', width: 52, flexShrink: 0 },
+  /*
+   * 표제부 — 라벨/값이 네 칸. 라벨 열은 **가장 긴 라벨에 맞춰**(max-content) 늘어나므로
+   * 폭을 못 박지 않아도 되고, 그래서 어느 언어에서도 접히지 않는다.
+   * 값 열(1fr)이 남는 폭을 나눠 가진다.
+   */
+  metaGrid: {
+    display: 'grid', gridTemplateColumns: 'max-content 1fr max-content 1fr',
+    columnGap: 'var(--sp-2)', rowGap: 'var(--sp-2)', alignItems: 'baseline',
+    marginTop: 'var(--sp-3)',
+  },
+  // 라벨은 **접지 않는다** — 접히면 값과 높이가 어긋나 표제부가 들쭉날쭉해진다
+  metaLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
   metaValue: { fontSize: 'var(--fs-sheet)', color: 'var(--dark)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
   section: {
     fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)',
@@ -242,6 +304,11 @@ const s: Record<string, React.CSSProperties> = {
   remark: {
     whiteSpace: 'pre-wrap' as const, fontSize: 'var(--fs-sheet)', lineHeight: 1.6,
     color: 'var(--dark)', padding: 'var(--sp-2) 0',
+  },
+  /** 별지 본문 — 한 장을 채운다. 줄바꿈은 적은 그대로(pre-wrap) */
+  appendix: {
+    whiteSpace: 'pre-wrap' as const, wordBreak: 'keep-all' as const,
+    fontSize: 'var(--fs-sheet)', lineHeight: 1.7, minHeight: 320,
   },
   remarkEmpty: { fontSize: 'var(--fs-sheet)', color: 'var(--muted)', padding: 'var(--sp-2) 0' },
   pending: {

@@ -10,6 +10,10 @@
  *    원·없음·서울특별시·일반인처럼 코드가 값으로 비교하는 말도 여기 **번역은 있다**(화면용).
  */
 export const EN: Record<string, string> = {
+  // 상태 배지의 「임시저장」(Draft)과 다른 말 — 버튼에서는 **적어 두는 동작**이다
+  '임시저장 btn': 'Save draft',
+  '임시저장에 실패했습니다.': 'Could not save the draft.',
+  '까지 due': '',
   '# · 특장사': '# · Upfitter',
   '(VAT 포함)': '(VAT incl.)',
   '(개월 · 이율)': '(months · rate)',
@@ -51,7 +55,6 @@ export const EN: Record<string, string> = {
   '· 축소본': '· Resized copy',
   '· 특장 견적에만': '· Body quotes only',
   '· 특장사 주문 목록에 배지로 뜹니다': '· Shown as a badge on the upfitter\'s order list',
-  '· 특장사가 보는 그대로': '· Exactly as the upfitter sees it',
   '· 필수': '· Required',
   '·계약서': '· contract',
   '— 조직 선택 —': '— Select an organization —',
@@ -1002,6 +1005,15 @@ export const EN: Record<string, string> = {
   '「숨긴 견적」에서 언제든 다시 보이게 할 수 있습니다.': 'You can unhide it at any time from “Hidden quotes”.',
   '배정·전자서명·스캔본 등 처리가 필요한 일이 생기면 알려 드립니다.': 'We notify you when something needs attention — assignments, e-signatures, scanned copies.',
   '이 서버에는 알림이 설정되어 있지 않습니다.': 'Notifications are not configured on this server.',
+  '별 지': 'APPENDIX',
+  '커스텀 요청사항': 'Custom request',
+  '적힌 내용이 없습니다': 'Nothing written',
+  '별지에 적힌 내용이 없습니다': 'The appendix is empty',
+  '커스텀 주문 건입니다. 2페이지(별지)를 확인하세요.': 'This is a custom order. Please read page 2 (Appendix).',
+  '커스텀 주문의 상세 요청사항을 적습니다.': 'Write the detailed custom request here.',
+  '커스텀 주문은 별지(2페이지)를 적어야 배정할 수 있습니다': 'A custom order needs the appendix (page 2) before it can be assigned',
+  '별지(2페이지)를 확인했습니다': 'I have read the appendix (page 2)',
+  '별지(2페이지)를 확인해야 수락할 수 있습니다': 'You must read the appendix (page 2) before accepting',
 }
 
 /**
@@ -1009,6 +1021,11 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '임시저장했습니다 ({0})': 'Draft saved ({0})',
+  '{0} 님이 적어 둔 내용입니다 ({1})': 'Draft saved by {0} ({1})',
+  '{0}영업일 · ': '{0} business days · by ',
+  '납기일자: 발주일로부터 {0}일 이내 (영업일 기준)': 'Delivery date: within {0} business days of the order date',
+  ' — {0} 로 지정': ' — set to {0}',
   '(그 뒤 새로 만들어진 {-1}개 항목은 그대로 두었습니다)': '({-1} items created after that point were left as they are)',
   '(동일 이름·휴대폰으로 {-1}건 등록 — 가장 최근 것 기준)': '({-1} records share this name and mobile — using the most recent)',
   'CRM(WARP)에서 {-1} 을(를) 불러와 빈 칸을 채웠습니다. 다르면 고쳐 주세요.{-1}': 'Loaded {-1} from the CRM (WARP) to fill the blanks. Correct it if anything differs.{-1}',

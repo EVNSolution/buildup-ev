@@ -139,12 +139,14 @@ export async function assignQuote(
   quoteId: number, makerOrgId: string, remark?: string,
   /** 「커스텀」 배지 — 특장사 목록에 붙는다. 관리자가 배정하며 정한다 */
   customBadge?: boolean,
+  /** 발주서 별지(2페이지) — 커스텀 주문의 상세 요청사항 */
+  appendix?: string,
 ): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/assign`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '', custom_badge: customBadge === true }),
+    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '', custom_badge: customBadge === true, appendix: appendix ?? '' }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
@@ -372,3 +374,42 @@ export async function assignSalesQuote(quoteId: number, salesUserId: string): Pr
   return body.data!
 }
 
+
+/**
+ * 발주서 **임시저장** — 배정 전에 적어 둔 발주서 내용.
+ *
+ * 적는 사람과 배정을 누르는 사람이 다를 수 있다. 팝업을 닫으면 적던 것이 날아가던 것을
+ * 여기 담아 두고, 다른 관리자가 그 팝업을 열 때 그대로 이어 받는다.
+ */
+export interface PoDraft {
+  quote_id: number
+  maker_org_id: string | null
+  remark: string | null
+  custom_badge: boolean
+  appendix: string | null
+  saved_at: string
+  /** 누가 적어 뒀는지 — 이어 받는 사람이 물어볼 데가 있어야 한다 */
+  saved_by: string
+}
+
+/** 없으면 null — 아직 아무도 적어 두지 않았거나, 이미 배정에 쓰인 것이다 */
+export async function fetchPoDraft(quoteId: number): Promise<PoDraft | null> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/po-draft`, { credentials: 'include' })
+  if (!res.ok) return null    // 초안은 없어도 되는 것이라 실패를 화면에 띄우지 않는다
+  const body = await res.json() as { data?: PoDraft | null }
+  return body.data ?? null
+}
+
+export async function savePoDraft(quoteId: number, draft: {
+  maker_org_id: string | null; remark: string; custom_badge: boolean; appendix: string
+}): Promise<PoDraft> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/po-draft`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(draft),
+  })
+  const body = await res.json().catch(() => null) as { data?: PoDraft; error?: { message?: string } } | null
+  if (!res.ok || !body?.data) throw new Error(body?.error?.message ?? `임시저장 실패: ${res.status}`)
+  return body.data
+}

@@ -13,7 +13,8 @@
     "./schedule": "./schedule/businessDays.ts",
     "./process": "./process/steps.ts",
     "./process/due": "./process/due.ts",
-    "./docs/memo": "./docs/memo.ts"
+    "./docs/memo": "./docs/memo.ts",
+    "./docs/appendix": "./docs/appendix.ts"
   },
   "scripts": {
     "test": "vitest run",

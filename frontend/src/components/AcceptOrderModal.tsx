@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { t , tf} from '../i18n'
+import { t, tc, tf } from '../i18n'
 import type { ApiOrderOption } from '@shared/types/index'
 import { checkDeliveryDue, deliveryDueLimit, fromDateInput, toDateInput, DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
 import { fetchOrderDetail } from '../api/orders'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
+import { PageTabs } from './ui/PageTabs'
+import { hasAppendix } from '@shared/docs/appendix'
+import { ackAppendix } from '../api/orders'
 import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
@@ -17,11 +20,9 @@ import { useEscapeClose } from '../lib/escClose'
  *
  * 특장사가 보는 서류는 발주서뿐이다(계약서·견적서는 서버에서 막았다).
  */
-export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, busy, error, onAccept, onClose, onReject, readOnly = false }: {
+export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error, onAccept, onClose, onReject, readOnly = false }: {
   orderId: number
   makerOrgName: string
-  /** 발주서 비고 — 이 주문만의 요청사항. 수락 전에 반드시 보이는 자리다 */
-  remark?: string
   /** 납기 한도의 기산점 = 배정일(발주일) */
   orderedAt: string
   busy: boolean
@@ -56,12 +57,35 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
   const [modelCode, setModelCode] = useState('')
   const [options, setOptions] = useState<ApiOrderOption[]>([])
   const [loadErr, setLoadErr] = useState('')
+  /*
+   * 별지(2페이지) — 커스텀 주문의 상세 요청사항.
+   * **읽었다는 표시 없이는 수락할 수 없다.** 「읽었다」를 기계가 알 방법이 없어
+   * 2페이지를 연 뒤 명시적으로 체크하게 한다 — 열어 본 것만으로는 통과시키지 않는다.
+   */
+  const [appendix, setAppendix] = useState('')
+  /*
+   * 비고 — **여기서 받아 온다.** 예전엔 부모가 넘기는 값이었는데 **두 호출부 어디도 넘기지 않아**,
+   * 특장사가 보는 발주서의 비고 칸이 언제나 「특별 요청사항 없음」이었다(빈 값의 대체 문구).
+   * 커스텀 건에서는 그 칸이 「2페이지(별지)를 확인하세요」라고 가리키는 자리라, 비어 있으면
+   * **별지로 가는 유일한 안내가 사라진다.**
+   * 사양·별지와 같은 응답에서 함께 꺼내 쓴다 — 받아 오는 곳이 하나면 어긋날 일이 없다.
+   */
+  const [remark, setRemark] = useState('')
+  const [page, setPage] = useState<1 | 2>(1)
+  const [acked, setAcked] = useState(false)
 
   // 발주 내용(사양)은 목록 응답에 없다 — 팝업을 열 때 받아온다
   useEffect(() => {
     let alive = true
     fetchOrderDetail(orderId)
-      .then(d => { if (alive) { setModelCode(d.model_code); setOptions(d.options) } })
+      .then(d => {
+        if (!alive) return
+        setModelCode(d.model_code); setOptions(d.options)
+        setRemark(d.remark ?? '')
+        setAppendix(d.appendix ?? '')
+        // 이미 확인한 주문이면 다시 묻지 않는다 — 확인은 한 번이면 된다
+        if (d.appendix_ack_at) setAcked(true)
+      })
       .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [orderId])
@@ -75,15 +99,24 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
    * 관리자가 다시 배정하면 발주일이 새로 찍혀 창이 열린다.
    */
   const windowClosed = limit < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 1)
-  const canAccept = !!parsed && check?.ok === true && !busy
+  /*
+   * 별지가 있으면 **확인 체크 없이는 수락할 수 없다.** 별지가 비어 있으면 막지 않는다 —
+   * 이 기능이 생기기 전에 배정된 커스텀 주문은 별지가 없어서, 소급 적용하면 영영 못 받는다.
+   */
+  const appendixOk = !hasAppendix(appendix) || acked
+  const canAccept = !!parsed && check?.ok === true && !busy && appendixOk
 
   return (
     <div style={m.overlay} onClick={onClose}>
       <div style={m.box} onClick={e => e.stopPropagation()}>
         {/* 제목은 「수락」이 아니라 주문 번호만 — 이 팝업은 보고 나서 수락·거부를 고르는 자리다 */}
         <div style={m.title}>
-          주문 #{orderId}
+          {tf('주문 #{0}', orderId)}
           {readOnly && <span style={m.viewTag}> {t('· 조회 전용')}</span>}
+          {/* 별지가 있는 주문만 장 넘기기가 나온다 — 없으면 넘길 장이 없다 */}
+          {hasAppendix(appendix) && (
+            <span style={m.pages}><PageTabs page={page} onChange={setPage} hasAppendix /></span>
+          )}
         </div>
 
         <div style={m.scroll}>
@@ -98,14 +131,32 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
                 options={options}
                 deliveryDue={due}
                 remark={remark}
+                page={page}
+                appendix={appendix}
               />
             )}
+          {/*
+            별지 확인 — **수락의 조건**이다. 2페이지를 열어야 체크가 나온다:
+            1페이지만 보고 체크할 수 있으면 「읽었다」는 말이 거짓이 된다.
+            서버도 같은 것을 본다 — 화면만 막으면 API 를 직접 불러 우회된다.
+          */}
+          {!readOnly && hasAppendix(appendix) && page === 2 && (
+            <label style={m.ackRow}>
+              <input type="checkbox" checked={acked} disabled={busy} onChange={e => setAcked(e.target.checked)} />
+              <span>{t('별지(2페이지)를 확인했습니다')}</span>
+            </label>
+          )}
 
           <div style={m.dueBlock}>
             <div style={m.dueHead}>
-              <span style={m.dueLabel}>납기일{!readOnly && <span style={m.req}> {t('· 필수')}</span>}</span>
+              <span style={m.dueLabel}>{t('납기일')}{!readOnly && <span style={m.req}> {t('· 필수')}</span>}</span>
+              {/*
+                날짜는 **굵게** 둔다 — 여기서 눈이 멈추는 값이다. 그래서 한 문장으로 옮기지 못하고
+                앞뒤로 나눈다. 영어는 「by」가 날짜 **앞**에 오므로 그 말을 앞조각에 넣고,
+                뒷조각은 비운다(한국어의 「까지」가 갈 자리다).
+              */}
               <span style={m.dueHint}>
-                {DELIVERY_DUE_BUSINESS_DAYS}영업일 · <b>{toDateInput(limit)}</b>까지
+                {tf('{0}영업일 · ', DELIVERY_DUE_BUSINESS_DAYS)}<b>{toDateInput(limit)}</b>{tc('까지', 'due')}
               </span>
             </div>
             {/*
@@ -163,7 +214,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
               <button
                 style={canAccept ? BTN.primary : BTN.disabled}
                 disabled={!canAccept}
-                onClick={() => parsed && onAccept?.(due)}
+                title={!appendixOk ? t('별지(2페이지)를 확인해야 수락할 수 있습니다') : undefined}
+                onClick={() => { if (parsed) { void ackAppendix(orderId).catch(() => {}); onAccept?.(due) } }}
               >
                 {busy ? t('처리 중') : t('수락')}
               </button>
@@ -184,6 +236,13 @@ export function AcceptOrderModal({ orderId, makerOrgName, remark, orderedAt, bus
 }
 
 const m: Record<string, React.CSSProperties> = {
+  /** 제목 줄 오른쪽의 장 넘기기 — 제목보다 커지지 않게 */
+  pages: { marginLeft: 'var(--sp-3)', verticalAlign: 'middle' },
+  /** 별지 확인 — 발주서 바로 아래, 수락 버튼 위. 읽고 나서 누르는 순서가 자리로 드러난다 */
+  ackRow: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
+    marginTop: 'var(--sp-3)', fontSize: 'var(--fs-label)', cursor: 'pointer',
+  },
   /** 조회 전용 표시 — 제목 옆에 작게. 무엇을 할 수 없는 자리인지 먼저 말한다 */
   viewTag: { fontSize: 'var(--fs-label)', fontWeight: 400, color: 'var(--muted)' },
   viewNote: { fontSize: 'var(--fs-label)', color: 'var(--muted)', padding: 'var(--sp-2) 0' },

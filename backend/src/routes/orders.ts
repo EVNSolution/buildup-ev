@@ -7,6 +7,7 @@ import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue } from '@buildup-ev/shared/process';
+import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
 export const ordersRouter = Router();
 
@@ -248,6 +249,9 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           // 발주서를 상세에서도 다시 그릴 수 있게 — 수락한 뒤에 확인할 방법이 없었다
           remark: order.remark,
           custom_badge: order.custom_badge,
+          // 별지(2페이지) — 사양 탭의 「커스텀 요청사항」과 서류 탭 2페이지가 이 값을 쓴다
+          appendix: order.appendix,
+          appendix_ack_at: order.appendix_ack_at,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,
         },
@@ -437,6 +441,37 @@ ordersRouter.patch('/:id/cancel', rbac('ADMIN'), requirePermission('order.remove
   }
 });
 
+/**
+ * PATCH /orders/:id/appendix-ack — **별지를 읽었다**는 표시.
+ *
+ * 특장사가 2페이지를 열고 「확인했습니다」를 누르면 여기로 온다. 누가 언제 확인했는지가
+ * 남아야 나중에 「못 봤다」는 이야기가 나올 때 근거가 된다.
+ * 되돌리는 길은 두지 않는다 — 확인한 사실 자체는 지울 것이 아니다.
+ */
+ordersRouter.patch('/:id/appendix-ack', rbac('ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
+  try {
+    const order = await prisma.order.findUnique({ where: { id }, select: { id: true, maker_org_id: true, appendix_ack_at: true } });
+    if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    if (ownOrgOnly(req.auth!) && order.maker_org_id !== req.auth!.org_code) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 확인할 수 있습니다' } });
+      return;
+    }
+    // 이미 확인했으면 그대로 둔다 — 처음 확인한 시각이 기록이다
+    if (!order.appendix_ack_at) {
+      await prisma.order.update({
+        where: { id },
+        data: { appendix_ack_at: new Date(), appendix_ack_by: req.auth?.email ?? 'unknown' },
+      });
+    }
+    res.json({ data: { ok: true } });
+  } catch {
+    res.status(500).json({ error: { code: 'INTERNAL', message: '별지 확인 처리 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── PATCH /orders/:id/accept — 특장사 주문 수락 (배정→주문, 제작 착수) ──────
 // 배정된 특장사가 주문을 수락하면 견적 상태 assigned→ordered. 이후 진행은 단계 표가 갖는다.
 
@@ -458,6 +493,20 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
     }
     if (ownOrgOnly(req.auth!) && order.maker_org_id !== req.auth!.org_code) {
       res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 수락할 수 있습니다' } });
+      return;
+    }
+    /*
+     * **별지를 확인하지 않으면 수락할 수 없다.**
+     *
+     * 「읽었다」를 기계가 알 방법이 없어 화면에서 명시적으로 체크하게 하고, 그 결과를
+     * 여기서 다시 본다 — 화면에서만 막으면 이 API 를 직접 불러 우회된다.
+     *
+     * ⚠️ 별지가 **비어 있으면 막지 않는다.** 이 기능이 생기기 전에 배정된 커스텀 주문은
+     *    별지가 없어서, 소급 적용하면 특장사가 영영 수락하지 못한다.
+     */
+    if (hasAppendix(order.appendix) && !order.appendix_ack_at) {
+      res.status(409).json({ error: { code: 'APPENDIX_UNREAD',
+        message: '발주서 별지(2페이지)를 확인해야 수락할 수 있습니다.' } });
       return;
     }
     if (order.quote.status !== 'assigned') {
