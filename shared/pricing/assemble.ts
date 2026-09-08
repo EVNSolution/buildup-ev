@@ -19,6 +19,51 @@ const DOOR: Record<string, string> = {
 const PART: Record<string, string> = { PART_NET: 'NET', PART_REEFER: 'MOVE' };
 
 /**
+ * 단가 조회기 — **없는 단가와 0원을 구분한다.**
+ *
+ * ⚠️ 예전에는 `map[code] ?? 0` 이었다. 단가표에 **행이 없는** 사양도 0원으로 계산돼
+ *    견적이 그대로 나갔다. 실제로 미닫이(`DOPT_*_COUPANG`)와 저상 스포일러(`SPL_LOW`)는
+ *    운영 DB 에 행이 없어, 고르면 그 값이 **0원으로 고객에게 나가고 있었다.**
+ *
+ *    0원과 「정해지지 않음」은 다른 말이다. 0원은 0으로 **정해 둔 것**이고(계약상 무상 등),
+ *    행이 없는 것은 **아직 아무도 값을 정하지 않은 것**이다. 앞은 팔 수 있고 뒤는 팔 수 없다.
+ *
+ * 조회한 것 중 행이 없던 코드를 `missing` 에 모은다. 화면과 서버가 **같은 함수**를 쓴다 —
+ * 한쪽만 막으면 「화면엔 금액이 보이는데 저장은 거부되는」 견적이 된다.
+ */
+export function makePriceLookup(map: Record<string, number>): {
+  price: (code: string) => number;
+  missing: string[];
+} {
+  const missing: string[] = [];
+  const price = (code: string): number => {
+    // 고르지 않은 항목은 조회 자체가 아니다 — 빈 코드로 들어온다
+    if (!code) return 0;
+    const v = map[code];
+    if (v === undefined) {
+      if (!missing.includes(code)) missing.push(code);
+      return 0;
+    }
+    return v;
+  };
+  return { price, missing };
+}
+
+/**
+ * 단가 복합코드가 **어느 문항에서 나왔는지** — 사람에게 무엇이 미책정인지 말하려면 필요하다.
+ * 「DOPT_REEFER_LOW_COUPANG 단가 없음」은 영업이 읽고 고칠 수 없는 말이다.
+ */
+export function groupOfPriceCode(code: string): string {
+  if (code.startsWith('TOP_'))  return 'TOP';
+  if (code.startsWith('DOPT_')) return 'DOORTYPE';
+  if (code.startsWith('DADD_')) return 'DOORADD';
+  if (code.startsWith('PART_')) return 'PARTITION';
+  if (code.startsWith('SPL_'))  return 'SPOILER';
+  if (code === 'TEMP_O')        return 'TEMP';
+  return 'TRIM';
+}
+
+/**
  * 개별 옵션값의 '자체 공급단가'(부가세 별도). 표시용 — ×1.1 하면 부가세 포함가.
  * 탑 높이 종속 옵션은 현재 선택(body/top)을 반영해 복합코드로 조회.
  */

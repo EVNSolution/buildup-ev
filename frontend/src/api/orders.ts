@@ -96,7 +96,7 @@ export async function cancelOrder(orderId: number, reason: string): Promise<void
 }
 
 /**
- * 별지를 읽었다는 표시 — 특장사가 2페이지를 열고 「확인했습니다」를 누르면 보낸다.
+ * 커스텀 요청사항을 읽었다는 표시 — 특장사가 「확인했습니다」를 누르면 보낸다.
  * 누가 언제 확인했는지가 남아야 나중에 「못 봤다」는 이야기가 나올 때 근거가 된다.
  */
 export async function ackAppendix(orderId: number): Promise<void> {

@@ -3,13 +3,18 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * 발주서 **별지**(2페이지) — 커스텀 주문의 상세 요청사항.
+ * 발주서 **커스텀 요청사항** — 커스텀 주문의 상세 요청.
  *
- * 비고(1페이지)는 양식에 맞춰 4줄·40자로 묶여 있다. 커스텀 건은 설명할 것이 많아
- * 그 칸에 우겨넣으면 **뜻이 전달되지 않았다**(제보). 한 장을 통째로 내주고,
- * 1페이지에는 「별지를 보라」고만 적는다.
+ * 비고는 양식의 한 칸이라 4줄·40자로 묶여 있다. 커스텀 건은 설명할 것이 많아
+ * 그 칸에 우겨넣으면 **뜻이 전달되지 않았다**(제보). 그래서 서류 **맨 아래**에
+ * 따로 칸을 두고, 비고에는 「아래를 보라」고만 적는다.
  *
- * 이 검사가 지키는 것은 **강제가 새지 않는 것**이다. 별지를 만들어 놓고 특장사가
+ * ⚠️ 예전엔 이걸 「별지(2페이지)」로 뺐다. 발주서를 A4 한 장에 가두고 있었기 때문인데,
+ *    그러다 보니 별지도 한 장을 넘기면 안 돼 30줄·40자로 다시 묶어야 했고
+ *    **분량이 계속 골칫거리**가 됐다(제보). 지금 발주서는 아래로 이어진다 —
+ *    장을 나눌 이유도, 줄 수를 정할 이유도 없다.
+ *
+ * 이 검사가 지키는 것은 **강제가 새지 않는 것**이다. 칸을 만들어 놓고 특장사가
  * 안 읽고 수락하면 아무것도 달라지지 않는다.
  */
 const ROOT = path.resolve(__dirname, '../../..');
@@ -22,14 +27,14 @@ const ACCEPT = read('frontend/src/components/AcceptOrderModal.tsx');
 const SHEET = read('frontend/src/components/PurchaseOrderSheet.tsx');
 const DETAIL = read('frontend/src/components/OrderDetail.tsx');
 
-describe('발주서 별지', () => {
+describe('발주서 커스텀 요청사항', () => {
   it('소스를 실제로 읽었다', () => {
     // 파싱이 깨지면 「빠진 것이 없다」가 거짓으로 초록이 된다
     expect(ORDERS.length).toBeGreaterThan(1000);
     expect(ADMIN.length).toBeGreaterThan(1000);
   });
 
-  it('🔴 별지를 확인하지 않으면 수락할 수 없다 — 서버가 막는다', () => {
+  it('🔴 커스텀 요청사항을 확인하지 않으면 수락할 수 없다 — 서버가 막는다', () => {
     /*
      * 화면에서만 막으면 이 API 를 직접 불러 우회된다. 「읽었다」는 표시가 없으면
      * 서버가 거절해야 강제가 성립한다.
@@ -41,7 +46,7 @@ describe('발주서 별지', () => {
     expect(ORDERS).toMatch(/ordersRouter\.patch\('\/:id\/appendix-ack'/);
   });
 
-  it('🔴 별지가 비어 있으면 막지 않는다 — 기존 주문이 갇히면 안 된다', () => {
+  it('🔴 요청사항이 비어 있으면 막지 않는다 — 기존 주문이 갇히면 안 된다', () => {
     /*
      * 이 기능이 생기기 전에 배정된 커스텀 주문은 별지가 없다. 커스텀 배지만 보고 막으면
      * 그 주문들을 특장사가 **영영 수락하지 못한다.** 조건은 배지가 아니라 별지의 유무다.
@@ -63,7 +68,13 @@ describe('발주서 별지', () => {
      * 화면이 그 문장을 못 알아보고, 영어로 보는 특장사에게 한국어 안내가 그대로 나간다.
      */
     const shared = read('shared/docs/appendix.ts');
-    expect(shared).toMatch(/export const APPENDIX_REMARK = '커스텀 주문 건입니다\. 2페이지\(별지\)를 확인하세요\.'/);
+    expect(shared).toMatch(/export const APPENDIX_REMARK = '커스텀 주문 건입니다\. 아래 커스텀 요청사항을 확인하세요\.'/);
+    /*
+     * 가리킬 수 없는 곳을 가리키지 않는다 — 2페이지는 이제 없다.
+     * (주석에는 「예전엔 2페이지였다」가 남아 있으므로 **문구 자체**만 본다)
+     */
+    const remark = shared.slice(shared.indexOf('export const APPENDIX_REMARK'));
+    expect(remark.split('\n')[0], '없는 페이지를 가리킨다').not.toMatch(/페이지/);
     expect(QUOTES, '서버가 문구를 따로 적었다').not.toMatch(/remark: [^\n]*'커스텀 주문 건입니다/);
     expect(SHEET, '화면이 문구를 따로 적었다').not.toMatch(/'커스텀 주문 건입니다/);
     // 화면은 **그 상수와 견주어** 알아본다 — 비고 전체를 옮기면 사람이 적은 글까지 건드린다
@@ -91,27 +102,61 @@ describe('발주서 별지', () => {
     expect(assign, '별지가 배지를 다시 본다').not.toMatch(/appendix: custom_badge === true/);
   });
 
-  it('🔴 커스텀인데 별지가 비면 배정할 수 없다', () => {
+  it('🔴 추가한 것은 **삭제**할 수 있다', () => {
+    /*
+     * 추가만 있고 되돌릴 길이 없으면 잘못 연 사람이 갇힌다(제보).
+     *
+     * ⚠️ 삭제하면 **작성한 내용도 함께 지운다.** 칸만 접고 값을 남기면 화면에는 없는데
+     *    발주서에는 실리는 글이 된다 — 아무도 그걸 모른 채 특장사에게 나간다.
+     *    그래서 작성한 것이 있으면 한 번 묻는다.
+     */
+    expect(ADMIN, '추가하는 길이 없다').toMatch(/setAppendixOpen\(true\)/);
+    expect(ADMIN, '삭제하는 길이 없다').toMatch(/setAppendix\(''\); setAppendixOpen\(false\)/);
+    expect(ADMIN).toMatch(/if \(appendix\.trim\(\)\) \{ setAppendixAsking\(true\); return \}/);
+  });
+
+  it('🔴 같은 조작에는 **같은 말**을 쓴다', () => {
+    /*
+     * 숨긴 것을 도로 꺼내는 조작이 견적에서는 「다시 보이기」, 고객에서는 또 「다시 보이기」였다.
+     * 둘 다 **되돌리기**로 모은다 — 같은 일에 이름이 둘이면 다른 기능처럼 읽힌다.
+     */
+    expect(ADMIN, '옛 이름이 남아 있다').not.toMatch(/'다시 보이기'/);
+    expect(ADMIN).toMatch(/tc\('되돌리기', 'btn'\)/);
+    // 「빼기」 같은 임시어 대신 삭제를 쓴다
+    expect(ADMIN, '「빼기」가 남아 있다').not.toMatch(/'빼기'|빼기'\)/);
+  });
+
+  it('🔴 커스텀인데 요청사항이 비면 배정할 수 없다', () => {
     // 배지만 달고 설명이 없으면 특장사는 「무엇이 다른지」를 알 길이 없다
     expect(ADMIN).toMatch(/const needsAppendix = customBadge && !hasAppendix\(appendix\)/);
     expect(ADMIN).toMatch(/const canAssign = !!selected && !loading && !needsAppendix/);
   });
 
-  it('🔴 확인 체크는 2페이지를 열어야 나온다', () => {
+  it('🔴 확인 체크는 **그 칸 아래**에 붙는다', () => {
     /*
-     * 1페이지만 보고 체크할 수 있으면 「읽었다」가 거짓이 된다.
-     * 열어 본 것만으로 통과시키지 않는 이유도 같다 — 열자마자 닫아도 통과가 된다.
+     * 읽어야 할 글과 「읽었다」는 표시가 떨어져 있으면, 글을 안 보고 체크하게 된다.
+     * 서류 안, 커스텀 요청사항 바로 아래에 둔다 — 읽고 나서 누르는 순서가 자리로 드러난다.
      */
-    expect(ACCEPT).toMatch(/hasAppendix\(appendix\) && page === 2 && \(/);
+    expect(ACCEPT).toMatch(/appendixFooter=\{!readOnly && hasAppendix\(appendix\) &&/);
+    // 조회 전용에는 체크가 없다 — 관리자가 대신 「읽었다」고 해 줄 수는 없다
+    expect(ACCEPT).toMatch(/!readOnly && hasAppendix/);
   });
 
-  it('🔴 한 장은 한 장이다 — 두 페이지를 함께 그리지 않는다', () => {
+  it('🔴 발주서는 **아래로 이어진다** — 한 장에 가두지 않는다', () => {
     /*
-     * 발주서는 「특장사가 보는 그대로」가 전부다. 스크롤로 이어 붙이면 장 구분이 사라져
-     * 무엇이 별지인지 알 수 없다. `page` 로 **바꿔 끼운다.**
+     * 예전엔 A4 한 장에 가두고 넘치면 통째로 축소해 담았다. 그래서 내용이 길수록
+     * 글씨가 작아졌고, 적을 수 있는 분량을 곳곳에서 막아야 했다.
+     *
+     * ⚠️ 그렇다고 **양식을 흘려보내지는 않는다.** 폭은 늘 `BASE_W` 로 조판하고 화면 폭에
+     *    맞춰 축소한다 — 폭까지 풀면 좁은 화면에서 표 머리글이 겹치고 값이 잘린다(제보).
+     *    푸는 것은 **높이뿐**이다.
      */
-    expect(SHEET).toMatch(/page\?: 1 \| 2/);
-    expect(SHEET).toMatch(/\{page === 2 \? \(/);
+    expect(SHEET, '페이지 개념이 되살아났다').not.toMatch(/page\?: 1 \| 2/);
+    expect(SHEET, '높이를 다시 가뒀다').not.toMatch(/const BASE_H/);
+    // 폭 조판과 축소는 그대로다
+    expect(SHEET).toMatch(/const BASE_W = \d+/);
+    expect(SHEET).toMatch(/frame\.clientWidth \/ BASE_W/);
+    expect(SHEET).toMatch(/transform: `scale\(\$\{scale\}\)`/);
   });
 
   it('🔴 1페이지 비고가 특장사에게 **실제로** 닿는다', () => {
@@ -138,13 +183,29 @@ describe('발주서 별지', () => {
     expect(DETAIL).toMatch(/\? <div style=\{det\.remarkBody\}>\{detail\.appendix\}<\/div>/);
   });
 
-  it('별지는 한 장을 넘기지 않는다', () => {
-    // 넘치면 발주서가 축소돼 글씨가 작아지고 결국 못 읽는다 — 받을 때 막는다
+  it('🔴 배정 전에는 문서번호를 지어내지 않는다', () => {
+    /*
+     * 배정 전 미리보기에는 주문이 아직 없어 `orderId=0` 이 들어온다. 그대로 찍으면
+     * 「주문 #0」이 되어 **0번이라는 문서가 있는 것처럼** 읽힌다(제보).
+     * 번호는 배정하는 순간 붙는다 — 그때까지는 없다고 말한다.
+     */
+    expect(SHEET).toMatch(/orderId > 0 \? `\$\{t\('주문'\)\} #\$\{orderId\}` : t\('\(배정 시 발급\)'\)/);
+    expect(SHEET, '문서번호를 두 장이 따로 만들고 있다')
+      .not.toMatch(/label="문서번호" value=\{`주문 #/);
+  });
+
+  it('🔴 분량을 양식으로 묶지 않는다 — 사고만 막는다', () => {
+    /*
+     * 줄 수·글자 수 제한은 **A4 한 장에 맞추려고** 있던 것이다. 그 제약이 사라졌으니
+     * 사람이 적는 글의 길이를 우리가 정할 이유가 없다.
+     * 남는 상한 하나는 양식 때문이 아니라 **파일을 통째로 밀어 넣는 경우**를 막으려는 것이다.
+     */
     const shared = read('shared/docs/appendix.ts');
-    expect(shared).toMatch(/APPENDIX_MAX_LINES/);
+    expect(shared, '줄 수 제한이 되살아났다').not.toMatch(/APPENDIX_MAX_LINES/);
+    expect(shared, '한 줄 글자 수 제한이 되살아났다').not.toMatch(/APPENDIX_MAX_LINE_CHARS/);
+    expect(shared).toMatch(/APPENDIX_MAX_CHARS = 20_000/);
     expect(shared).toMatch(/export function clampAppendix/);
-    // 화면과 서버가 **같은 함수**를 쓴다
-    expect(ADMIN).toMatch(/clampAppendix\(e\.target\.value\)/);
+    // 서버는 여전히 상한을 본다 — 화면만 막으면 API 로 우회된다
     expect(QUOTES).toMatch(/clampAppendix\(appendix!\)/);
   });
 });

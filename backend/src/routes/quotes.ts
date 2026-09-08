@@ -10,7 +10,8 @@ import { generateQuotePdf, QuotePdfError } from '../services/quote-pdf.js';
 import { renderContractPdfForQuote, ContractDocError } from '../services/contract-docgen.js';
 import { readFrozenDoc, isFrozen, FROZEN_MESSAGE, collectContractFilePaths, deleteContractFiles } from '../services/doc-freeze.js';
 import {
-  calcPrice, calcQuote, assembleOptionSum, CAR_TRIM_LABEL_MAX, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
+  calcPrice, calcQuote, assembleOptionSum, makePriceLookup, groupOfPriceCode,
+  CAR_TRIM_LABEL_MAX, TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
   dieselDeducts, toDieselStatus,
   checkCustomOptions, readCustomOptions, type CustomOption,
   type PricingParams,
@@ -26,6 +27,7 @@ import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { stepsFor } from '@buildup-ev/shared/process';
 import { APPENDIX_REMARK, clampAppendix, hasAppendix } from '@buildup-ev/shared/docs/appendix';
+import { contractLines, normalizePoLines, checkPoLines } from '@buildup-ev/shared/docs/po-lines';
 import { clampMemo } from '@buildup-ev/shared/docs/memo';
 import { optionsFromSelections } from '../services/order-options.js';
 
@@ -73,6 +75,57 @@ function takeCustomOptions(raw: unknown, res: Response): CustomOption[] | null {
   return check.options;
 }
 
+/**
+ * 단가가 정해지지 않은 사양이 섞였다 — **견적을 낼 수 없다.**
+ *
+ * 0원과 다른 말이다. 0원은 0으로 정해 둔 것이고(계약상 무상 등), 이건 아직 아무도
+ * 값을 정하지 않은 것이다. 조용히 0원으로 넘기면 그 금액이 견적서·계약서까지 그대로 간다.
+ *
+ * 영업이 읽고 고칠 수 있게 **문항 이름**으로 말한다 —
+ * 「DOPT_REEFER_LOW_COUPANG 단가 없음」은 아무도 못 고친다.
+ */
+export class UnpricedSelectionError extends Error {
+  constructor(readonly codes: string[], readonly selections: Record<string, string>) {
+    super('단가가 정해지지 않은 사양이 있습니다');
+    this.name = 'UnpricedSelectionError';
+  }
+  /** 어떤 문항에서 났는지 — 그 문항에서 고른 값의 코드를 돌려준다(이름은 라우트가 붙인다) */
+  selectedCodes(): string[] {
+    const out: string[] = [];
+    for (const c of this.codes) {
+      const g = groupOfPriceCode(c);
+      const picked = this.selections[g];
+      if (picked && !out.includes(picked)) out.push(picked);
+    }
+    return out;
+  }
+}
+
+/**
+ * 미책정 사양 → 영업이 읽는 422.
+ *
+ * 코드가 아니라 **고른 값의 이름**으로 말한다(「미닫이」). 이름은 옵션 표에서 가져오고,
+ * 없으면 코드를 그대로 쓴다 — 이름을 못 찾았다고 오류를 삼키면 안 된다.
+ */
+async function respondUnpriced(e: UnpricedSelectionError, res: Response): Promise<void> {
+  let names = e.selectedCodes();
+  if (prisma && names.length) {
+    const rows = await prisma.optionValue.findMany({
+      where: { code: { in: names } }, select: { code: true, name: true },
+    });
+    const byCode = new Map(rows.map(r => [r.code, r.name]));
+    names = names.map(c => byCode.get(c) ?? c);
+  }
+  res.status(422).json({
+    error: {
+      code: 'UNSUPPORTED',
+      message: names.length
+        ? `단가가 정해지지 않은 사양이 있습니다: ${names.join(' · ')}`
+        : '단가가 정해지지 않은 사양이 있습니다',
+    },
+  });
+}
+
 async function buildParams(
   model_code: string,
   selections: Record<string, string>,
@@ -93,7 +146,12 @@ async function buildParams(
 
   const priceMap: Record<string, number> = {};
   for (const op of optionPrices) priceMap[op.value_code] = op.supply_price;
-  const price = (code: string) => priceMap[code] ?? 0;
+  /*
+   * **단가가 없는 사양은 0원이 아니다.** 예전엔 `priceMap[code] ?? 0` 이라
+   * 행이 없는 사양도 0원으로 계산돼 견적이 그대로 저장됐다 — 고객에게 나가는 값이다.
+   * 조회 결과는 아래에서 확인한다(`unpricedSelections`).
+   */
+  const { price, missing } = makePriceLookup(priceMap);
 
   const taxMap: Record<string, number> = {};
   for (const t of taxRows) taxMap[t.param_key] = Number(t.value);
@@ -105,6 +163,15 @@ async function buildParams(
     // 단가표에 없는 사양(영업 직접 입력) — 공급가로 되돌려 합계에 들어간다
     extra?.custom_options ?? [],
   );
+  /*
+   * 단가가 정해지지 않은 사양이 하나라도 있으면 **여기서 멈춘다.**
+   * 조용히 0원으로 넘기면 그 금액이 견적서·계약서까지 그대로 간다.
+   *
+   * ⚠️ 조립(`assembleOptionSum`) **뒤에** 본다 — 어떤 복합코드를 실제로 조회했는지는
+   *    조립을 해 봐야 안다(고르지 않은 문항은 조회조차 하지 않는다).
+   */
+  if (missing.length) throw new UnpricedSelectionError(missing, selections);
+
   // 특장만 견적이면 차량가와 보조금이 없다 — 트림을 0으로 두면 나머지는 자연히 따라간다
   const bodyOnly = extra?.body_only === true;
   const trim_price = bodyOnly ? 0 : rawTrim;
@@ -235,7 +302,7 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
  * ⚠️ **상태로 막지 않는다.** 계약서가 나간 건도, 계약이 끝난 건도 숨길 수 있다(2026-09-08 지시).
  *    정리해야 하는 건은 대개 이미 무언가 나간 것들이라, 상태로 막으면 정작 필요한 것을 못 치운다.
  *
- *    대신 **되돌릴 수 있게** 하고(「숨긴 견적」에서 다시 보이기) 화면에서 **한 번 묻는다.**
+ *    대신 **되돌릴 수 있게** 하고(「숨긴 견적」에서 되돌리기) 화면에서 **한 번 묻는다.**
  *    지우는 것이 아니라 감추는 것이므로 이 정도가 맞다 — 기록은 그대로 남는다.
  *    (고객 숨기기는 그대로다: 고객을 숨기면 그 고객의 견적이 통째로 딸려 가 파장이 다르다)
  */
@@ -298,6 +365,8 @@ quotesRouter.post('/calculate', rbac('SALES'), async (req: Request, res): Promis
     }
     res.json({ data: result });
   } catch (e) {
+    // 미책정 사양은 서버 오류가 아니다 — 무엇을 고쳐야 하는지 말해 준다
+    if (e instanceof UnpricedSelectionError) { await respondUnpriced(e, res); return; }
     console.error('[POST /quotes/calculate]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '견적 계산 중 오류가 발생했습니다.' } });
   }
@@ -691,7 +760,17 @@ quotesRouter.post('/', rbac('SALES'), requirePermission('quote.create'), async (
   if (customSave === null) return;
 
   const calcYear = year ?? new Date().getFullYear();
-  const params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override, custom_options: customSave });
+  /*
+   * 미책정 사양이 섞이면 **저장하지 않는다.** 여기서 안 막으면 0원짜리 줄이 들어간
+   * 견적이 그대로 남고, 견적서·계약서까지 그 금액으로 나간다.
+   */
+  let params;
+  try {
+    params = await buildParams(model_code, selections, customer, calcYear, { promotion_zeroed, promotion_discount, local_subsidy_off, body_only, vehicle_only, car_price_override, custom_options: customSave });
+  } catch (e) {
+    if (e instanceof UnpricedSelectionError) { await respondUnpriced(e, res); return; }
+    throw e;
+  }
   const result = calcPrice(params);
 
   // 저장되는 실구매가는 **총견적서 기준**(견적서 PDF·화면과 동일 규칙).
@@ -1008,12 +1087,33 @@ quotesRouter.get('/:id/order-preview', rbac('ADMIN'), async (req: Request, res):
   });
   if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
   const inp = (quote.inputs ?? {}) as Record<string, unknown>;
+  /*
+   * 발주서 **공급가 표** — 고른 특장사의 계약 단가로 채운다.
+   *
+   * 특장사를 정해야 값이 나온다(단가는 계약마다 다르다). 아직 안 골랐으면 빈 표를 준다 —
+   * 아무 특장사의 값이나 보여 주면 **틀린 금액을 보고 배정하게 된다.**
+   * 계약에 없는 사양은 줄이 만들어지지 않는다. 그런 줄은 관리자가 직접 적는다.
+   */
+  const makerOrgId = String(req.query['maker_org_id'] ?? '');
+  const priceRows = makerOrgId
+    ? await prisma.makerPrice.findMany({ where: { maker_org_id: makerOrgId, active: true } })
+    : [];
+  const poLines = contractLines(
+    (quote.selections ?? {}) as Record<string, string>,
+    priceRows.map(r => ({
+      label: r.label, group_code: r.group_code, value_code: r.value_code, top_code: r.top_code,
+      section: r.section, work_by: r.work_by, unit: r.unit, qty: r.qty,
+      unit_price: r.unit_price, sort_order: r.sort_order, memo: r.memo,
+    })),
+  );
+
   res.json({ data: {
     model_code: quote.model_code,
     customer_name: quote.customer?.name ?? '',
     // 영업이 남긴 메모 — 배정 화면에서 **읽기만** 한다(고치는 자리는 견적 수정이다)
     sales_memo: (inp['memo'] as string | undefined) ?? '',
     options: await optionsFromSelections((quote.selections ?? {}) as Record<string, string>),
+    po_lines: poLines,
   } });
 });
 
@@ -1045,8 +1145,9 @@ quotesRouter.put('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confir
   const id = Number(req.params['id']);
   if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
 
-  const { maker_org_id, remark, custom_badge, appendix } = req.body as {
+  const { maker_org_id, remark, custom_badge, appendix, po_lines } = req.body as {
     maker_org_id?: string | null; remark?: string; custom_badge?: boolean; appendix?: string;
+    po_lines?: unknown;
   };
 
   const quote = await prisma.quote.findUnique({ where: { id }, select: { status: true } });
@@ -1071,6 +1172,11 @@ quotesRouter.put('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confir
       remark: clampMemo(remark ?? '') || null,
       custom_badge: custom_badge === true,
       appendix: custom_badge === true && hasAppendix(appendix) ? clampAppendix(appendix!) : null,
+      /*
+       * **직접 적은 줄만** 담는다. 계약 줄은 팝업을 열 때 그 특장사의 단가표에서 다시 만들어지므로
+       * 여기 담아 두면 낡은 값이 되살아난다(그 사이 계약이 갱신됐을 수 있다).
+       */
+      po_lines: normalizePoLines(po_lines).filter(l => l.source === 'MANUAL') as unknown as Prisma.InputJsonValue,
       saved_at: new Date(),
       saved_by: req.auth?.email ?? 'unknown',
       consumed_at: null,
@@ -1098,8 +1204,8 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     return;
   }
 
-  const { maker_org_id, remark, custom_badge, appendix } = req.body as {
-    maker_org_id?: string; remark?: string; appendix?: string;
+  const { maker_org_id, remark, custom_badge, appendix, po_lines } = req.body as {
+    maker_org_id?: string; remark?: string; appendix?: string; po_lines?: unknown;
     /**
      * 「커스텀」 배지 — 특장사 목록에 붙는다. **관리자가 여기서 정한다.**
      * 예전엔 비고에 뭐라도 적히면 자동으로 붙어, 납기 안내 같은 메모에도 배지가 달렸다.
@@ -1144,6 +1250,36 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
    */
   const withAppendix = custom_badge === true && hasAppendix(appendix);
 
+  /*
+   * 발주서 **공급가 표** — 배정하는 순간의 줄들을 그대로 얼려 둔다.
+   *
+   * ⚠️ **계약 줄은 서버가 다시 만든다.** 화면이 보낸 계약 단가를 믿으면 API 를 직접 불러
+   *    6,700,000 짜리 항목을 1 원으로 적어 보낼 수 있다 — 화면의 「고칠 수 없음」은
+   *    사람이 타이핑하지 못하게 막을 뿐이다. 계약 단가는 계약이 정하는 값이지
+   *    보내는 쪽이 정하는 값이 아니다.
+   * ⚠️ 관리자가 직접 적은 줄(MANUAL)만 화면에서 받는다 — 계약에 없는 사양이라 정본이 없다.
+   * ⚠️ 금액(`amount`)은 보낸 값을 믿지 않고 **단가×수량으로 다시 센다** —
+   *    어긋나면 표가 스스로 거짓말을 한다(`normalizePoLines`).
+   * ⚠️ 얼려 두는 이유: 발주서는 특장사에게 나가는 문서다. 나중에 단가표를 고쳤다고
+   *    지난 발주서 금액이 따라 바뀌면 특장사가 받은 종이와 화면이 어긋난다.
+   */
+  const priceRows = await prisma.makerPrice.findMany({ where: { maker_org_id, active: true } });
+  const contract = contractLines(
+    (quote.selections ?? {}) as Record<string, string>,
+    priceRows.map(r => ({
+      label: r.label, group_code: r.group_code, value_code: r.value_code, top_code: r.top_code,
+      section: r.section, work_by: r.work_by, unit: r.unit, qty: r.qty,
+      unit_price: r.unit_price, sort_order: r.sort_order, memo: r.memo,
+    })),
+  );
+  const manual = normalizePoLines(po_lines).filter(l => l.source === 'MANUAL');
+  const lines = [...contract, ...manual];
+  const lineCheck = checkPoLines(lines);
+  if (!lineCheck.ok) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: `발주서 금액표 ${lineCheck.row}번째 줄을 확인해 주세요` } });
+    return;
+  }
+
   try {
     await setQuoteStatus(id, 'assigned', req.auth?.email ?? 'unknown');
     const now = new Date();
@@ -1170,6 +1306,8 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
            * 길이는 화면과 **같은 함수**로 자른다 — 화면만 막으면 API 로 우회된다.
            */
           appendix: withAppendix ? clampAppendix(appendix!) : null,
+          // 빈 표는 넣지 않는다 — 「줄이 없는 표」와 「표가 없다」를 구분한다
+          ...(lines.length ? { po_lines: lines as unknown as Prisma.InputJsonValue } : {}),
         },
       }),
     ]);

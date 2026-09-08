@@ -1,3 +1,4 @@
+import type { PoLine } from '@shared/docs/po-lines'
 import type { PricingOk, QuoteResult, CustomOption } from '@shared/pricing/core'
 import { t } from '../i18n'
 import type { QuotePriceExtras } from '@shared/pricing/quote-request'
@@ -120,33 +121,44 @@ export async function confirmQuote(quoteId: number): Promise<void> {
 
 /** 배정 (확정→배정, 특장사 선정 + 주문 생성) */
 /** 배정 전에 보여 줄 발주서 자료 — 특장사가 수락할 때 보는 것과 **같은 사양** */
-export async function fetchOrderPreview(quoteId: number): Promise<{
+/**
+ * 배정 화면이 보는 발주 내용.
+ *
+ * `makerOrgId` 를 주면 **그 특장사의 계약 단가**로 공급가 표가 채워진다.
+ * 안 주면 표는 비어서 온다 — 아무 특장사의 값이나 보여 주면 **틀린 금액을 보고 배정하게 된다.**
+ */
+export async function fetchOrderPreview(quoteId: number, makerOrgId?: string): Promise<{
   model_code: string
   customer_name: string
   sales_memo: string
   options: { id: number; group_code: string; group_name: string; value_code: string; value_name: string }[]
+  po_lines: PoLine[]
 }> {
-  const res = await fetch(`/api/v1/quotes/${quoteId}/order-preview`, { credentials: 'include' })
+  const q = makerOrgId ? `?maker_org_id=${encodeURIComponent(makerOrgId)}` : ''
+  const res = await fetch(`/api/v1/quotes/${quoteId}/order-preview${q}`, { credentials: 'include' })
   if (!res.ok) throw new Error(t('발주 내용을 불러오지 못했습니다'))
   const b = await res.json() as { data: {
     model_code: string; customer_name: string; sales_memo: string
     options: { id: number; group_code: string; group_name: string; value_code: string; value_name: string }[]
+    po_lines?: PoLine[]
   } }
-  return b.data
+  return { ...b.data, po_lines: b.data.po_lines ?? [] }
 }
 
 export async function assignQuote(
   quoteId: number, makerOrgId: string, remark?: string,
   /** 「커스텀」 배지 — 특장사 목록에 붙는다. 관리자가 배정하며 정한다 */
   customBadge?: boolean,
-  /** 발주서 별지(2페이지) — 커스텀 주문의 상세 요청사항 */
+  /** 발주서 커스텀 요청사항 — 서류 맨 아래 칸 */
   appendix?: string,
+  /** 발주서 공급가 표 — 배정하는 순간의 줄들. 서버가 그대로 얼려 둔다 */
+  poLines?: readonly PoLine[],
 ): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/assign`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '', custom_badge: customBadge === true, appendix: appendix ?? '' }),
+    body: JSON.stringify({ maker_org_id: makerOrgId, remark: remark ?? '', custom_badge: customBadge === true, appendix: appendix ?? '', po_lines: poLines ?? [] }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
@@ -387,6 +399,8 @@ export interface PoDraft {
   remark: string | null
   custom_badge: boolean
   appendix: string | null
+  /** 발주서 공급가 표 — 적어 두던 줄들 */
+  po_lines: PoLine[] | null
   saved_at: string
   /** 누가 적어 뒀는지 — 이어 받는 사람이 물어볼 데가 있어야 한다 */
   saved_by: string
@@ -402,6 +416,7 @@ export async function fetchPoDraft(quoteId: number): Promise<PoDraft | null> {
 
 export async function savePoDraft(quoteId: number, draft: {
   maker_org_id: string | null; remark: string; custom_badge: boolean; appendix: string
+  po_lines: readonly PoLine[]
 }): Promise<PoDraft> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/po-draft`, {
     method: 'PUT',

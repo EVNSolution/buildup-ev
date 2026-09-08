@@ -226,6 +226,44 @@ async function main() {
     console.log(`  door_unit_price: ${doors.length}`);
   }
 
+  // ── maker_price (특장사 공급단가) ──────────────────────────────────────
+  /*
+   * 우리가 특장사에 **지급하는** 값이다(고객 견적가와 다른 축). 근거는 특장사별
+   * 기본거래계약서 [별첨1] 단가표.
+   *
+   * ⚠️ upsert 만 한다 — 관리자가 화면에서 고친 값을 시드가 되돌리면 안 된다.
+   *    계약이 갱신되면 CSV 를 고쳐 다시 시드하는 것이 정본 경로다.
+   */
+  const makerPrices = csv('maker_price.csv').map(r => ({
+    maker_org_id: r['maker_org_id']!,
+    label:        r['label']!,
+    group_code:   opt(r['group_code']),
+    value_code:   opt(r['value_code']),
+    top_code:     opt(r['top_code']),
+    section:      r['section']!,
+    work_by:      r['work_by']!,
+    unit:         r['unit'] || 'EA',
+    qty:          num(r['qty']) ?? 1,
+    unit_price:   num(r['unit_price']) ?? 0,
+    sort_order:   num(r['sort_order']) ?? 0,
+    active:       bool(r['active']),
+    memo:         opt(r['memo']),
+  }));
+  for (const mp of makerPrices) {
+    await prisma.makerPrice.upsert({
+      where: {
+        maker_org_id_group_code_value_code_top_code: {
+          maker_org_id: mp.maker_org_id,
+          group_code: mp.group_code ?? null,
+          value_code: mp.value_code ?? null,
+          top_code:   mp.top_code ?? null,
+        },
+      },
+      update: mp, create: mp,
+    });
+  }
+  if (makerPrices.length) console.log(`  maker_price: ${makerPrices.length}`);
+
   // ── region ────────────────────────────────────────────────────────────
   const regions = csv('region.csv').map(r => ({
     name:    r['name']!,

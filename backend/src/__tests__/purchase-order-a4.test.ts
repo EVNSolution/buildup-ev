@@ -61,8 +61,20 @@ describe('배정 팝업', () => {
 });
 
 describe('발주서', () => {
-  it('A4 비율(210:297)을 지킨다', () => {
-    expect(read(SHEET)).toMatch(/aspectRatio: '210 \/ 297'/);
+  it('🔴 서류는 **아래로 이어진다** — 한 장에 가두지 않는다', () => {
+    /*
+     * ⚠️ 여기 있던 「A4 비율(210:297)을 지킨다」를 **바꿔 썼다.**
+     *
+     *    한 장에 가두니 내용이 길수록 통째로 축소돼 글씨가 작아졌고, 그래서 적을 수 있는
+     *    분량을 곳곳에서 막아야 했다(비고 4줄 · 커스텀 요청사항 30줄 · 아예 2페이지로 분리).
+     *    **분량이 계속 골칫거리**가 됐다는 제보로 한 장 제약을 걷어냈다.
+     *
+     *    비율을 지키던 이유(「출력했을 때와 다른 서류가 된다」)는 인쇄를 붙일 때 다시 본다.
+     *    지금 이 서류는 화면에서 읽고 승인하는 것이고, 잘리거나 작아지는 쪽이 더 나쁘다.
+     */
+    const src = read(SHEET);
+    expect(src, '높이를 다시 가뒀다').not.toMatch(/aspectRatio: '210 \/ 297'/);
+    expect(src, 'A4 높이 상수가 되살아났다').not.toMatch(/const BASE_H/);
   });
 
   it('세로 flex 안에서 눌리지 않는다', () => {
@@ -90,36 +102,47 @@ describe('발주서', () => {
 describe('발주서 내용', () => {
   const SRC = read(SHEET);
 
-  it('🔴 한 장을 넘치면 잘라 내지 않고 줄여서 담는다', () => {
+  it('🔴 내용을 잘라 내지 않는다', () => {
     /*
-     * `overflow: hidden` 으로 넘치는 만큼을 잘랐더니 특이사항 3·4 항이 소리 없이
-     * 사라졌다 — 읽는 사람은 **없는 줄 안다**(사진 제보). 서류에서 이건 사고다.
-     * 종이에 맞춰 인쇄할 때처럼 글씨를 조금 줄여 한 장에 담는다(실측 배율 0.982).
+     * 예전엔 `overflow: hidden` 으로 넘치는 만큼을 잘랐다. 특이사항 3·4 항이 소리 없이
+     * 사라졌고, 읽는 사람은 **없는 줄 안다**(사진 제보). 그다음엔 잘라 내는 대신 세로로
+     * 줄여 담았는데, 이번엔 길수록 글씨가 작아졌다.
+     *
+     * 지금은 **자르지도 줄이지도 않는다** — 길면 길어지고, 부모가 스크롤한다.
      */
-    expect(SRC).toMatch(/setFit\(natural > room \? room \/ natural : 1\)/);
-    expect(SRC).toMatch(/transform: `scale\(\$\{fit\}\)`/);
+    for (const name of ['frame', 'sheet']) {
+      expect(styleBlock(SRC, name), `${name} 이 내용을 잘라 내고 있다`).not.toMatch(/overflow: 'hidden'/);
+    }
+    // 표제부 값도 잘리지 않는다 — 「브레…」로 잘리면 어느 회사인지 알 수 없다
+    expect(styleBlock(SRC, 'metaValue'), '값을 …로 자르고 있다').not.toMatch(/textOverflow/);
+    expect(SRC, '세로로 다시 줄이고 있다').not.toMatch(/setFit\(/);
   });
 
   it('🔴 재는 값과 손대는 값이 서로 물리지 않는다', () => {
     /*
-     * 처음엔 `scrollHeight / fit` 로 되돌려 읽었다. 그러면 배율을 바꿀 때마다 측정값이
-     * 조금씩 달라져 **끝없이 다시 그렸다**(Maximum update depth exceeded — 화면이 백지가 됐다).
-     * `scrollHeight` 는 transform 의 영향을 받지 않으므로 되돌릴 필요가 없다.
-     */
-    /*
+     * 축소 배율과 자리 높이를 한 effect 에서 함께 정한다. 잰 값으로 높이를 바꾸는데
+     * 그 높이가 다시 측정에 끼면 **끝없이 다시 그린다**(예전에 화면이 백지가 됐다).
+     *
+     * `scrollHeight` 는 transform 의 영향을 받지 않으므로 축소해도 값이 흔들리지 않고,
+     * 폭은 **바깥틀**(frame)에서 재므로 안쪽 높이 변화에 물리지 않는다.
+     *
      * ⚠️ **주석은 빼고 본다.** 「왜 이렇게 하면 안 되는가」를 적어 둔 주석에 검사가 걸려
      *    멀쩡한 코드에서 실패했다 — 이 저장소에서 두 번째다.
      */
     const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(code, '측정값을 배율로 되돌리고 있다').not.toMatch(/scrollHeight \/ \(?fit/);
-    // 의존성 없는 effect 는 매 렌더 재구독하며 같은 고리를 만든다
-    const i = SRC.indexOf('const natural = el.scrollHeight');
-    expect(SRC.slice(i, i + 400)).toMatch(/\}, \[\]\)/);
+    expect(code, '폭을 서류 자신에게서 잰다 — 높이 변화와 물린다')
+      .toMatch(/frame\.clientWidth \/ BASE_W/);
+    expect(code, '축소된 값을 되돌려 읽고 있다').not.toMatch(/scrollHeight \/ \(?scale/);
+    const i = SRC.indexOf('const frame = wrapRef.current');
+    expect(SRC.slice(i, i + 900)).toMatch(/\}, \[\]\)/);
   });
 
-  it('담기는 높이는 종이 안쪽 여백을 뺀 값이다', () => {
-    // 여백을 빼지 않으면 「들어간다」고 판단해 놓고 실제로는 마지막 줄이 걸린다
-    expect(SRC).toMatch(/const room = BASE_H - PAGE_PAD \* 2/);
-    expect(SRC).toMatch(/padding: PAGE_PAD/);
+  it('축소된 만큼만 자리를 차지한다', () => {
+    /*
+     * `transform` 은 레이아웃 높이를 바꾸지 않는다. 그대로 두면 축소해 놓고도
+     * **원래 높이만큼 빈자리**가 남아 서류 아래가 휑해진다.
+     */
+    expect(SRC).toMatch(/setHeight\(sheet\.scrollHeight \* k\)/);
+    expect(SRC).toMatch(/\.\.\.s\.frame, height/);
   });
 });

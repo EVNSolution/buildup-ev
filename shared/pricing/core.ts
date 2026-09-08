@@ -14,6 +14,7 @@ import { noVatRefund } from './vat-refund.js';
 
 export {
   assembleOptionSum, optionBreakdown, valueUnitPrice, doorAddUnitPrice,
+  makePriceLookup, groupOfPriceCode,
   TAKBAE_RATE, DIESEL_CONVERSION_SUBSIDY,
 } from './assemble.js';
 

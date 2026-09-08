@@ -61,7 +61,18 @@ afterAll(async () => {
   await prisma.accessControl.deleteMany({ where: { module_code: { in: [MODULE, 'account.manage'] }, subject_ref: { in: [ADMIN, KEEPER] } } });
   await prisma.accessControl.deleteMany({ where: { module_code: MODULE } });
   await prisma.user.deleteMany({ where: { email: { in: [ADMIN, KEEPER] } } });
-  await prisma.featureModule.deleteMany({ where: { code: MODULE } });
+  /*
+   * ⚠️ 모듈은 **지우지 않고 꺼 둔다.**
+   *
+   *    다른 시험들은 「모든 모듈을 켠 계정」을 만든다(`featureModule.findMany()` → 전부 grant).
+   *    그 사이에 이 시험의 임시 모듈이 있으면 그 계정에도 권한 행이 하나 생기는데,
+   *    바로 위에서 지운 **뒤에** 끼어들면 모듈을 지우는 순간 외래키에 걸린다
+   *    (`access_control_module_code_fkey` — 병렬로 돌 때 가끔 파일 전체가 빨개졌다).
+   *
+   *    끄기만 하면 그 경합이 아예 없어지고, 남은 행은 다음 시험에 아무 영향도 주지 않는다.
+   *    「지우지 말고 상태로 관리한다」는 이 저장소의 규칙과도 같은 방향이다.
+   */
+  await prisma.featureModule.updateMany({ where: { code: MODULE }, data: { active: false } });
 });
 
 describe.runIf(live)('역할 기본값을 바꿔도 기존 계정은 그대로다', () => {

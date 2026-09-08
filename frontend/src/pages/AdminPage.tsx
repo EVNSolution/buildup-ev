@@ -7,10 +7,11 @@ import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUser
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview, setQuoteHidden, fetchPoDraft, savePoDraft } from '../api/quotes'
 import type { PoDraft } from '../api/quotes'
+import { PoLineEditor } from '../components/PoLineEditor'
+import type { PoLine } from '@shared/docs/po-lines'
 import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
 import { clampMemo, MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS } from '@shared/docs/memo'
-import { clampAppendix, hasAppendix, APPENDIX_MAX_LINES } from '@shared/docs/appendix'
-import { PageTabs } from '../components/ui/PageTabs'
+import { hasAppendix } from '@shared/docs/appendix'
 import { fetchCustomers, setCustomerHidden, type AdminCustomer } from '../api/customers'
 import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
@@ -108,7 +109,7 @@ function isEnabled(ac: AccessControl[], type: 'role' | 'user', ref: string, code
  */
 interface ConfirmModalProps {
   quoteId: number; makerOrgs: Org[]; loading: boolean; error: string
-  onConfirm: (makerOrgId: string, remark: string, customBadge: boolean, appendix: string) => void; onClose: () => void
+  onConfirm: (makerOrgId: string, remark: string, customBadge: boolean, appendix: string, poLines: PoLine[]) => void; onClose: () => void
 }
 function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }: ConfirmModalProps) {
   // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
@@ -126,8 +127,19 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
    * 발주서 장 넘기기 — 커스텀을 켜면 2페이지(별지)가 생긴다.
    * 커스텀을 끄면 별지는 없는 것이므로 1페이지로 돌려놓는다(빈 장을 보여 줄 이유가 없다).
    */
-  const [page, setPage] = useState<1 | 2>(1)
+  /*
+   * 커스텀 요청사항 칸이 열려 있는가. 적어 둔 내용이 있으면 처음부터 열어 둔다 —
+   * 이어 받았을 때 접혀 있으면 **적어 둔 글이 없는 줄 안다.**
+   */
+  const [appendixOpen, setAppendixOpen] = useState(false)
+  /** 「삭제」를 눌렀을 때 한 번 묻는 중 — 작성한 글을 실수로 날리지 않게 */
+  const [appendixAsking, setAppendixAsking] = useState(false)
   const [appendix, setAppendix] = useState('')
+  /*
+   * 발주서 **공급가 표** — 특장사에 지급할 금액.
+   * 계약 단가 줄은 특장사를 고르면 서버가 채워 주고, 계약에 없는 줄은 관리자가 직접 적는다.
+   */
+  const [poLines, setPoLines] = useState<PoLine[]>([])
   /*
    * 커스텀인데 별지가 비면 배정을 막는다 — 커스텀 배지만 달고 설명이 없으면
    * 특장사는 「무엇이 다른지」를 알 길이 없다. 커스텀이 아니면 별지는 없는 것이라 상관없다.
@@ -147,13 +159,23 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
   const [savedAt, setSavedAt] = useState('')
   const [saveErr, setSaveErr] = useState('')
 
+  /*
+   * 특장사가 바뀌면 **계약 단가를 다시 받는다** — 단가는 계약마다 다르다.
+   *
+   * ⚠️ 관리자가 직접 적은 줄(`MANUAL`)은 **남긴다.** 특장사를 바꿨다고 손으로 적은 것이
+   *    사라지면 다시 적어야 한다. 바뀌는 것은 계약 줄뿐이다.
+   */
   useEffect(() => {
     let alive = true
-    fetchOrderPreview(quoteId)
-      .then(d => { if (alive) setPreview(d) })
+    fetchOrderPreview(quoteId, selected || undefined)
+      .then(d => {
+        if (!alive) return
+        setPreview(d)
+        setPoLines(prev => [...d.po_lines, ...prev.filter(l => l.source === 'MANUAL')])
+      })
       .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
-  }, [quoteId])
+  }, [quoteId, selected])
 
   /*
    * 적어 둔 것 불러오기 — **팝업을 열 때 한 번**이다.
@@ -169,6 +191,9 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
       setRemark(d.remark ?? '')
       setCustomBadge(d.custom_badge)
       setAppendix(d.appendix ?? '')
+      if (d.appendix?.trim()) setAppendixOpen(true)
+      // 적어 둔 금액표가 있으면 그것이 최신이다 — 계약 줄은 특장사가 정해지면 다시 채워진다
+      if (d.po_lines?.length) setPoLines(d.po_lines)
     })
     return () => { alive = false }
   }, [quoteId])
@@ -177,7 +202,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
     setSaving(true); setSaveErr('')
     try {
       const d = await savePoDraft(quoteId, {
-        maker_org_id: selected || null, remark, custom_badge: customBadge, appendix,
+        maker_org_id: selected || null, remark, custom_badge: customBadge, appendix, po_lines: poLines,
       })
       setDraft(d)
       setSavedAt(d.saved_at)
@@ -223,7 +248,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
             <input
               type="checkbox"
               checked={customBadge}
-              onChange={e => { setCustomBadge(e.target.checked); if (!e.target.checked) setPage(1) }}
+              onChange={e => setCustomBadge(e.target.checked)}
             />
             <span>{t('「커스텀」 표시')}</span>
             <span style={modal.readonly}>{t('· 특장사 주문 목록에 배지로 뜹니다')}</span>
@@ -233,14 +258,6 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
 
           {preview && (
             <>
-              {/*
-                예전엔 여기에 「발주서 · 특장사가 보는 그대로」가 있었다. 바로 아래에
-                발주서가 통째로 그려지는데, 그것이 발주서라는 사실을 말로 한 번 더 얹은 줄이었다.
-                남는 것은 **어느 장을 보고 있는지**뿐이고, 그건 장이 둘일 때(커스텀)만 뜻이 있다.
-              */}
-              {customBadge && (
-                <div style={modal.pages}><PageTabs page={page} onChange={setPage} hasAppendix /></div>
-              )}
               <PurchaseOrderSheet
                 orderId={0}
                 orderedAt={new Date()}
@@ -248,15 +265,13 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
                 modelCode={preview.model_code}
                 options={preview.options}
                 deliveryDue=""
-                remark={customBadge ? t('커스텀 주문 건입니다. 2페이지(별지)를 확인하세요.') : remark}
-                page={page}
+                remark={remark}
                 appendix={appendix}
-                /*
-                 * 커스텀이면 1페이지 비고는 **잠긴다.** 그 칸은 4줄짜리라 커스텀 내용을
-                 * 담지 못하고, 두 곳에 나눠 적게 하면 특장사가 어디를 봐야 할지 모른다.
-                 * 적는 자리는 별지 하나로 모은다.
-                 */
-                editable={customBadge ? undefined : (
+                poEditor={
+                  <PoLineEditor lines={poLines} onChange={setPoLines} disabled={loading} />
+                }
+                /* 비고는 양식의 한 칸이라 4줄 규칙을 지킨다 — 길게 적을 것은 아래 칸으로 간다 */
+                editable={
                   <textarea
                     style={modal.remarkInput}
                     rows={MEMO_MAX_LINES}
@@ -264,16 +279,53 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
                     value={remark}
                     onChange={e => setRemark(clampMemo(e.target.value))}
                   />
-                )}
-                appendixEditable={
-                  <textarea
-                    style={modal.appendixInput}
-                    rows={APPENDIX_MAX_LINES}
-                    placeholder={t('커스텀 주문의 상세 요청사항을 적습니다.')}
-                    value={appendix}
-                    onChange={e => setAppendix(clampAppendix(e.target.value))}
-                  />
                 }
+                /*
+                 * 커스텀 요청사항 — **접어 둔다.** 대부분의 발주는 이 칸이 필요 없는데
+                 * 늘 펼쳐 두면 「여기도 적어야 하나」로 읽힌다. 필요한 사람만 열어 적는다.
+                 * 열고 나면 길이를 재지 않는다 — 서류가 아래로 이어져 잘리지 않는다.
+                 */
+                appendixEditable={appendixOpen ? (
+                  <>
+                    <textarea
+                      style={modal.appendixInput}
+                      rows={8}
+                      placeholder={t('커스텀 주문의 상세 요청사항을 적습니다.')}
+                      value={appendix}
+                      onChange={e => setAppendix(e.target.value)}
+                    />
+                    {/*
+                      삭제 — 추가만 있고 되돌릴 길이 없으면 잘못 연 사람이 갇힌다.
+                      ⚠️ 삭제하면 **작성한 내용도 함께 지운다.** 칸만 접고 값을 남기면 화면에는
+                         없는데 발주서에는 실리는 글이 된다. 그래서 작성한 것이 있으면 한 번 묻는다.
+                    */}
+                    {appendixAsking ? (
+                      <div style={modal.appendixConfirm}>
+                        <span>{t('작성한 내용이 함께 삭제됩니다. 삭제할까요?')}</span>
+                        <button type="button" style={modal.appendixNo} onClick={() => setAppendixAsking(false)}>
+                          {t('취소')}
+                        </button>
+                        <button
+                          type="button" style={modal.appendixYes}
+                          onClick={() => { setAppendix(''); setAppendixOpen(false); setAppendixAsking(false) }}
+                        >{t('삭제')}</button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button" style={modal.appendixClose}
+                        onClick={() => {
+                          if (appendix.trim()) { setAppendixAsking(true); return }
+                          setAppendixOpen(false)
+                        }}
+                      >{t('커스텀 요청사항 삭제')}</button>
+                    )}
+                  </>
+                ) : undefined}
+                appendixFooter={appendixOpen ? undefined : (
+                  <button type="button" style={modal.addAppendix} onClick={() => setAppendixOpen(true)}>
+                    {t('+ 커스텀 주문내용 추가')}
+                  </button>
+                )}
               />
             </>
           )}
@@ -308,7 +360,7 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
             style={!canAssign ? modal.confirmBtnDisabled : modal.confirmBtn}
             disabled={!canAssign}
             title={needsAppendix ? t('커스텀 주문은 별지(2페이지)를 적어야 배정할 수 있습니다') : undefined}
-            onClick={() => onConfirm(selected, customBadge ? '' : remark, customBadge, appendix)}
+            onClick={() => onConfirm(selected, customBadge ? '' : remark, customBadge, appendix, poLines)}
           >{loading ? t('처리 중…') : t('제작 배정')}</button>
         </div>
       </div>
@@ -1034,7 +1086,7 @@ function CustomersTab() {
                             ? t('고객과 함께 숨긴 견적을 되돌립니다')
                             : t('고객과 그 견적을 화면에서만 감춥니다. 지우지 않습니다'))}
                           onClick={() => toggle(c)}
-                        >{busy === c.id ? '…' : (c.hidden_at ? tc('다시 보이기', 'btn') : tc('고객 숨기기', 'btn'))}</button>
+                        >{busy === c.id ? '…' : (c.hidden_at ? tc('되돌리기', 'btn') : tc('고객 숨기기', 'btn'))}</button>
                       )
                     })()}
                   </td>
@@ -1130,7 +1182,7 @@ function HideQuoteButton({ quote, hiddenView, onDone }: {
   /*
    * **한 번 묻는다.** 상태로 막지 않기로 했으므로(계약 나간 건도 숨을 수 있다) 실수로 누르는
    * 것을 여기서 막는다. 되돌릴 수 있는 일이라 무겁게 굴지는 않는다 — 한 번이면 된다.
-   * 되돌리기(다시 보이기)는 묻지 않는다: 감춘 것을 도로 꺼내는 것뿐이다.
+   * 되돌리기는 묻지 않는다: 감춘 것을 도로 꺼내는 것뿐이다.
    */
   const [asking, setAsking] = useState(false)
 
@@ -1157,10 +1209,10 @@ function HideQuoteButton({ quote, hiddenView, onDone }: {
         type="button"
         style={busy ? qt.hideLinkBusy : qt.hideLink}
         disabled={busy}
-        title={hiddenView ? t('다시 보이기') : t('견적 숨기기')}
+        title={hiddenView ? t('되돌리기') : t('견적 숨기기')}
         onClick={() => (hiddenView ? void run() : setAsking(true))}
       >
-        {busy ? '…' : hiddenView ? tc('다시 보이기', 'btn') : tc('견적 숨기기', 'btn')}
+        {busy ? '…' : hiddenView ? tc('되돌리기', 'btn') : tc('견적 숨기기', 'btn')}
       </button>
       {/* 거부 사유는 그 자리에서 보여 준다 — 목록 위 띠로 올리면 어느 건인지 알 수 없다 */}
       {err && <span style={qt.hideErr}>{err}</span>}
@@ -1274,11 +1326,11 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
    */
 
   // 제작 배정 (계약완료→배정) — 특장사 선택 모달
-  async function handleAssign(makerOrgId: string, remark: string, customBadge: boolean, appendix: string) {
+  async function handleAssign(makerOrgId: string, remark: string, customBadge: boolean, appendix: string, poLines: PoLine[]) {
     if (!confirmingId) return
     setConfirmLoading(true); setConfirmError('')
     try {
-      await assignQuote(confirmingId, makerOrgId, remark, customBadge, appendix)
+      await assignQuote(confirmingId, makerOrgId, remark, customBadge, appendix, poLines)
       setConfirmingId(null); load()
     } catch (e: unknown) {
       setConfirmError(e instanceof Error ? e.message : t('배정 실패'))
@@ -2129,7 +2181,35 @@ const modal: Record<string, React.CSSProperties> = {
    * `label` 의 음수 margin 을 쓰지 않는 이유: 저건 라벨과 아래 칸을 붙이려던 값이라
    * 탭만 남으면 발주서를 파고든다.
    */
-  pages: { display: 'flex' },
+  /*
+   * 「+ 커스텀 주문내용 추가」 — 서류 **맨 아래 꽉 찬 줄.**
+   * 폭을 꽉 채운 이유: 서류의 한 칸을 여는 동작이라 서류 폭과 같아야 「여기가 늘어난다」로 읽힌다.
+   */
+  /** 삭제 — 칸 바로 아래, 조용한 글씨. 추가 버튼과 달리 눈에 덜 띄어야 한다 */
+  appendixClose: {
+    alignSelf: 'flex-start', background: 'none', border: 'none', padding: '4px 0',
+    font: 'inherit', fontSize: 'var(--fs-caption)', color: 'var(--muted)',
+    textDecoration: 'underline', cursor: 'pointer',
+  },
+  appendixConfirm: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap',
+    padding: 'var(--sp-2) 0', fontSize: 'var(--fs-caption)', color: 'var(--body)',
+  },
+  appendixNo: {
+    background: 'none', border: 'var(--hairline)', borderRadius: 6, padding: '2px 10px',
+    font: 'inherit', fontSize: 'var(--fs-caption)', color: 'var(--muted)', cursor: 'pointer',
+  },
+  appendixYes: {
+    background: 'none', border: 'none', padding: '2px 4px',
+    font: 'inherit', fontSize: 'var(--fs-caption)', color: 'var(--req)',
+    textDecoration: 'underline', cursor: 'pointer',
+  },
+  addAppendix: {
+    width: '100%', boxSizing: 'border-box', marginTop: 'var(--sp-4)',
+    background: 'none', border: '1px dashed var(--line)', borderRadius: 6,
+    padding: 'var(--sp-3)', font: 'inherit', fontSize: 'var(--fs-caption)',
+    color: 'var(--muted)', cursor: 'pointer',
+  },
   /** 별지 입력 — 한 장을 채우는 칸이라 비고보다 훨씬 크다 */
   appendixInput: {
     width: '100%', minHeight: 300, resize: 'vertical' as const,

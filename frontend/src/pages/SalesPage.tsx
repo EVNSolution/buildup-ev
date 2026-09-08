@@ -4,7 +4,7 @@ import { t , tc, tf} from '../i18n'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf, reservePdfTab, openPdfIn, closeReservedTab } from '../lib/openPdf'
 import { computeHidden, computeDisabledGroups, sanitizeSelections } from '../lib/optionRules'
-import { buildLiveTotal, liveCustomOptions } from '../lib/liveQuote'
+import { buildLiveTotal, liveCustomOptions, unpricedSelections } from '../lib/liveQuote'
 import { mapBizType, customerEditValues, isBodyOnly, isVehicleOnly } from '../lib/quoteCustomer'
 import type { CustomerInfo, ApiPricingBundle, ApiQuote, ApiOrder } from '@shared/types/index'
 import type { PricingResult, PricingOk } from '@shared/pricing/core'
@@ -930,6 +930,22 @@ export function SalesPage() {
      */
     const custom = checkCustomOptions(customOptions)
     if (!custom.ok) { setSaveError(customOptionError(custom)); return }
+
+    /*
+     * **단가가 정해지지 않은 사양이 있으면 저장하지 않는다.**
+     * 0원과 다른 말이다 — 0원은 0으로 정해 둔 것이고, 이건 아직 아무도 값을 정하지 않은 것이다.
+     * 예전엔 구분하지 않아 미닫이처럼 값이 없는 사양이 **0원으로 계산돼 고객에게 나갔다.**
+     * 서버도 같은 것을 본다 — 여기서 먼저 말해 주지 않으면 「금액은 보이는데 저장만 거부」가 된다.
+     */
+    const unpriced = unpricedSelections(bundle, selections)
+    if (unpriced.length) {
+      // 코드가 아니라 **고른 값의 이름**으로 말한다 — 「DOOR_COUPANG」은 아무도 못 고친다
+      const names = unpriced
+        .map(c => bundle?.groups.flatMap(g => g.values).find(v => v.code === c)?.name ?? c)
+        .join(' · ')
+      setSaveError(tf('단가가 정해지지 않은 사양이 있어 저장할 수 없습니다: {0}', names))
+      return
+    }
 
     setIsSaving(true)
     setSaveError('')

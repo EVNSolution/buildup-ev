@@ -31,3 +31,37 @@ export async function authFixtureReady(...emails: string[]): Promise<boolean> {
   if (!prisma) return true;
   return (await prisma.user.count({ where: { email: { in: emails } } })) === emails.length;
 }
+
+/**
+ * **시험이 쓰는 계정을 스스로 마련한다.**
+ *
+ * ⚠️ `db/seed/user.csv` 는 머리글만 있는 빈 파일이다 — 실계정은 커밋하지 않는다(그게 맞다).
+ *    그래서 시드를 아무리 돌려도 `sales1@evnsolution.com` 같은 계정은 로컬에 생기지 않고,
+ *    통합시험은 **남의 DB 에만 있는 계정**에 기대고 있었다.
+ *
+ *    인증은 시험용 우회로 통과하지만 **소유권 검사는 행이 없으면 막힌다**(영업은 자기 견적만).
+ *    그래서 새로 받은 사람의 로컬에서는 늘 몇 개가 빨갛고, 빨간불이 일상이 되면
+ *    **진짜 회귀가 그 사이에 섞여도 아무도 모른다.**
+ *
+ * ⚠️ **있는 계정은 건드리지 않는다.** 같은 주소가 실제로 쓰이고 있을 수 있으므로
+ *    없을 때만 만든다 — 이름·역할·소속을 덮어써서 남의 계정을 바꾸지 않는다.
+ */
+export async function ensureFixtureUsers(
+  ...users: { email: string; role: 'SALES' | 'ADMIN' | 'MAKER'; org_code: string }[]
+): Promise<boolean> {
+  const { prisma } = await import('../lib/prisma.js');
+  if (!prisma) return false;
+  for (const u of users) {
+    const found = await prisma.user.findUnique({ where: { email: u.email }, select: { email: true } });
+    if (found) continue;
+    await prisma.user.create({
+      data: {
+        email: u.email, role: u.role, org_code: u.org_code,
+        name: '시험용', extra_roles: [], active: true, status: 'active',
+        // 로그인은 하지 않는다 — 시험은 쿠키를 직접 만들어 쓴다
+        password_hash: 'x',
+      },
+    });
+  }
+  return true;
+}
