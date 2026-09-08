@@ -414,6 +414,11 @@ export interface ApiOrderMakerDetail {
   appendix?: string | null;
   /** 특장사가 별지를 확인한 시각. 별지가 있으면 이 값 없이는 수락할 수 없다 */
   appendix_ack_at?: string | null;
+  /**
+   * 발주서 **공급가 표** — 특장사에 지급할 금액의 줄들. 배정 때 얼려 둔 그대로다.
+   * ⚠️ 다시 계산하지 않는다 — 단가표를 나중에 고쳐도 이미 나간 발주서 금액은 그대로여야 한다.
+   */
+  po_lines?: unknown;
   /** 배정된 특장사 이름 — 발주서를 다시 그리는 데 필요하다 */
   maker_org_name?: string | null;
   delivery_due?: string | null;

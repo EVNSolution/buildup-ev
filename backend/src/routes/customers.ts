@@ -100,7 +100,7 @@ customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void>
   }
 });
 
-// ── PATCH /customers/:id/hidden — 숨기기 / 다시 보이기 ──────────────────────
+// ── PATCH /customers/:id/hidden — 숨기기 / 되돌리기 ────────────────────────
 /**
  * 지우지 않고 화면에서만 감춘다. **WARP 에 연결되지 않은 고객만** 가능하다.
  *
@@ -182,7 +182,7 @@ customersRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): P
         }),
     ]);
 
-    console.info(`[customers] 고객 ${id}(${c.name}) ${hidden ? '숨김' : '다시 보이기'} — ${by} · 견적 ${quotes.count}건 동반`);
+    console.info(`[customers] 고객 ${id}(${c.name}) ${hidden ? '숨김' : '되돌리기'} — ${by} · 견적 ${quotes.count}건 동반`);
     res.json({ data: { ...updated, quotes_affected: quotes.count } });
   } catch (e) {
     console.error('[PATCH /customers/:id/hidden]', e);

@@ -4,6 +4,7 @@ import type { ApiOrderOption } from '@shared/types/index'
 import { toDateInput } from '@shared/schedule/businessDays'
 import { DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
 import { APPENDIX_REMARK } from '@shared/docs/appendix'
+import { poTotal, type PoLine } from '@shared/docs/po-lines'
 
 /**
  * 발주서 — **특장사가 보는 유일한 서류.**
@@ -17,8 +18,8 @@ import { APPENDIX_REMARK } from '@shared/docs/appendix'
  *    지금 발주 내용은 **사양**이고, 이 주문만의 요청은 **비고**다.
  */
 export function PurchaseOrderSheet({
-  orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue, remark, editable,
-  page = 1, appendix, appendixEditable,
+  orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue, remark, editable, poLines, poEditor,
+  appendix, appendixEditable, appendixFooter,
 }: {
   /**
    * 주문 번호 = 발주서의 문서번호.
@@ -27,6 +28,13 @@ export function PurchaseOrderSheet({
    *    「주문 #0」이 되어 **0번이라는 문서가 있는 것처럼** 읽힌다(제보).
    *    번호는 배정하는 순간 붙으므로, 그때까지는 없다고 말한다.
    */
+  /**
+   * 발주서 **공급가 표** — 특장사에 지급할 금액. 계약 단가 줄 + 관리자가 적은 줄.
+   * 없으면 표 자체를 그리지 않는다 — 빈 표는 「0원짜리 발주」로 읽힌다.
+   */
+  poLines?: readonly PoLine[]
+  /** 배정 화면에서 관리자가 표를 고칠 수 있게 넣는 편집기. 특장사 화면에서는 없다 */
+  poEditor?: React.ReactNode
   orderId: number
   /** 발주일 = 배정일 */
   orderedAt: Date
@@ -39,101 +47,52 @@ export function PurchaseOrderSheet({
   remark?: string
   /** 비고를 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
   editable?: React.ReactNode
-  /**
-   * 몇 페이지를 그릴까 — **A4 한 장이 한 페이지다.**
-   * 1 = 발주서 본문, 2 = 별지(커스텀 주문의 상세 요청사항).
-   * 두 장을 한 화면에 늘어놓지 않는다: 종이 한 장이 화면 한 장이어야 「그대로」가 성립한다.
-   */
-  page?: 1 | 2
-  /** 별지 내용 — 2페이지에 그린다 */
+  /** 커스텀 요청사항 — 서류 **맨 아래** 칸. 길면 길어지는 대로 둔다 */
   appendix?: string
-  /** 별지를 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
+  /** 커스텀 요청사항을 **적는** 자리(배정 팝업)면 입력칸을 여기 끼운다 */
   appendixEditable?: React.ReactNode
+  /** 그 칸 아래에 붙이는 것(수락 화면의 「확인했습니다」 체크) */
+  appendixFooter?: React.ReactNode
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
-  /**
-   * 내용이 A4 한 장보다 길 때 **줄여서 담는 배율**.
-   *
-   * 예전에는 `overflow: hidden` 으로 넘치는 만큼을 잘랐다. 그러면 특이사항 3·4 항이
-   * 소리 없이 사라진다 — 읽는 사람은 **없는 줄 안다**(사진 제보). 서류에서 이건 사고다.
-   * 종이에 맞춰 인쇄할 때처럼, 잘라 내지 말고 글씨를 조금 줄여 한 장에 담는다.
-   */
-  const [fit, setFit] = useState(1)
+  const [height, setHeight] = useState(0)
 
   /**
-   * **A4 비율은 줄여서 맞추지, 늘려서 맞추지 않는다.**
+   * **양식은 늘 `BASE_W` 폭으로 조판하고, 남는 폭에 맞춰 통째로 축소한다.**
    *
-   * `aspect-ratio` 만 걸어 봤더니 PC(504px 폭)에서는 정확히 A4였는데 휴대폰(347px 폭)에서는
-   * 0.516 까지 찌그러졌다. 폭이 좁으면 글이 더 접혀 내용이 길어지고, `aspect-ratio` 는
-   * **선호 크기일 뿐**이라 내용이 길면 상자가 그냥 늘어나기 때문이다.
-   *
-   * 그래서 서류는 늘 `BASE_W` 폭으로 조판하고, 남는 폭에 맞춰 **통째로 축소**한다.
-   * 실제 종이를 멀리서 보는 것과 같아서, 화면이 좁아져도 비율도 줄바꿈도 그대로다.
+   * 폭에 따라 그냥 흘려보내면 좁은 화면에서 글이 접혀 표 머리글이 겹치고 값이 잘린다
+   * (「Unit price」가 두 줄, 「Amount」와 「Notes」가 붙어 버렸다 — 제보).
+   * 실제 종이를 멀리서 보는 것과 같아, 화면이 좁아져도 비율도 줄바꿈도 그대로다.
    *
    * `zoom` 이 아니라 `transform` 인 이유: iOS 는 입력칸의 **지정된** 글씨 크기로 초점 확대
    * 여부를 판단한다. `transform` 은 지정값을 건드리지 않으므로 16px 규칙이 그대로 살아 있다.
+   *
+   * ⚠️ 높이는 **재지 않고 따라간다.** 예전엔 A4 한 장(`BASE_H`)에 가두고 넘치면 세로로도
+   *    줄여 담았다. 그래서 내용이 길수록 글씨가 작아졌고, 적을 수 있는 분량을 곳곳에서
+   *    막아야 했다(비고 4줄 · 별지 30줄 · 커스텀은 아예 2페이지). 이제 아래로 이어진다.
    */
   useLayoutEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const measure = () => setScale(el.clientWidth / BASE_W)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  /*
-   * 내용이 한 장에 들어가는지 재고, 넘치면 그만큼 줄인다.
-   *
-   * ⚠️ `scrollHeight` 는 **transform 의 영향을 받지 않는다** — 줄여 놓아도 늘 「원래 크기의
-   *    내용 높이」가 나온다. 그래서 잰 값으로 배율을 바꿔도 다음 측정이 흔들리지 않는다.
-   *
-   *    처음엔 이걸 모르고 `scrollHeight / fit` 로 되돌려 읽었는데, 그러면 배율을 바꿀 때마다
-   *    측정값이 조금씩 달라져 **끝없이 다시 그렸다**(Maximum update depth exceeded).
-   *    자를 대는 값과 손대는 값이 서로 물리면 안 된다.
-   */
-  useLayoutEffect(() => {
-    const el = contentRef.current
-    if (!el) return
+    const frame = wrapRef.current
+    const sheet = sheetRef.current
+    if (!frame || !sheet) return
     const measure = () => {
-      const natural = el.scrollHeight
-      const room = BASE_H - PAGE_PAD * 2
-      setFit(natural > room ? room / natural : 1)
+      const k = Math.min(1, frame.clientWidth / BASE_W)
+      setScale(k)
+      // 축소된 만큼만 자리를 차지한다 — `transform` 은 레이아웃 높이를 바꾸지 않는다
+      setHeight(sheet.scrollHeight * k)
     }
     measure()
     const ro = new ResizeObserver(measure)
-    ro.observe(el)
+    ro.observe(frame)
+    ro.observe(sheet)
     return () => ro.disconnect()
   }, [])
 
   return (
-    <div ref={wrapRef} style={s.frame}>
-      <div style={{ ...s.sheet, transform: `scale(${scale})` }}>
-      <div ref={contentRef} style={{ ...s.content, transform: `scale(${fit})` }}>
-      {page === 2 ? (
-        /*
-         * 별지 — **한 장을 통째로** 커스텀 요청에 내준다.
-         * 1페이지 비고 칸(4줄)에 우겨넣으면 뜻이 전달되지 않았다(제보).
-         * 머리에 무엇의 별지인지 적는다 — 장이 떨어져 나가도 어느 주문 것인지 알아야 한다.
-         */
-        <>
-          <div style={s.title}>{t('별 지')}</div>
-          <div style={s.metaGrid}>
-            <Meta label="문서번호" value={docNo(orderId)} />
-            <Meta label="발주일" value={toDateInput(orderedAt)} />
-          </div>
-          <div style={s.section}>{t('커스텀 요청사항')}</div>
-          {appendixEditable
-            ? appendixEditable
-            : appendix?.trim()
-              ? <div style={s.appendix}>{appendix}</div>
-              : <div style={s.remarkEmpty}>{t('적힌 내용이 없습니다')}</div>}
-        </>
-      ) : (
-      <>
+    <div ref={wrapRef} style={{ ...s.frame, height }}>
+      <div ref={sheetRef} style={{ ...s.sheet, transform: `scale(${scale})` }}>
       <div style={s.title}>{t('발 주 서')}</div>
 
       {/*
@@ -166,6 +125,18 @@ export function PurchaseOrderSheet({
       </table>
 
       {/*
+        공급가 표 — 계약서 [별첨3] 발주서 양식이 요구하는 표다.
+        `No. | 품목명 | 단위 | 발주수량 | 단가 | 공급가액 | 비고`, 기본형/추가옵션 두 구역.
+
+        ⚠️ **VAT 별도**라고 반드시 적는다. 계약 단가표가 별도 기준이라, 안 적으면
+           특장사와 우리가 서로 다른 금액을 말하게 된다.
+        ⚠️ 줄이 하나도 없으면 표를 아예 그리지 않는다 — 빈 표는 「0원짜리 발주」로 읽힌다.
+      */}
+      {poEditor
+        ? poEditor
+        : poLines && poLines.length > 0 && <PoTable lines={poLines} />}
+
+      {/*
         비고 — **이 주문만의 요청사항.** 관리자가 배정할 때 적고, 특장사는 수락 전에 읽는다.
         줄바꿈·띄어쓰기를 적은 그대로 보여준다(`pre-wrap`) — 「윗줄은 A, 아랫줄은 B」처럼
         줄로 뜻을 나눈 글이 한 줄로 붙으면 다른 말이 된다.
@@ -178,7 +149,7 @@ export function PurchaseOrderSheet({
           /*
            * 비고는 사람이 적은 글이라 **그대로** 보여 준다(옮기지 않는다).
            * 딱 하나, 커스텀 건의 고정 안내만 옮긴다 — 저 문장은 서버가 넣은 것이고
-           * **별지로 가는 유일한 안내**라, 못 읽으면 2페이지가 있는 줄도 모른다.
+           * **아래 칸으로 가는 유일한 안내**라, 못 읽으면 그런 칸이 있는 줄도 모른다.
            */
           ? <div style={s.remark}>{remark.trim() === APPENDIX_REMARK ? t(APPENDIX_REMARK) : remark}</div>
           : <div style={s.remarkEmpty}>{t('특별 요청사항 없음')}</div>}
@@ -194,25 +165,99 @@ export function PurchaseOrderSheet({
         <li>{t('납품장소 및 검사방법: 당사 지정 장소 및 당사 검사기준에 의함. 사전 협의하여 진행함.')}</li>
         <li>{t('기타: 상기 사항 외에 발주사·공급사 간 협의에 따라 진행함.')}</li>
       </ol>
-      </>
+
+      {/*
+        커스텀 요청사항 — **서류 맨 아래 칸.**
+
+        예전엔 이걸 「별지」라는 2페이지로 뺐다. 발주서를 A4 한 장에 맞추느라 비고가 4줄뿐이라
+        커스텀 내용을 담지 못했기 때문이다. 그런데 한 장에 맞추려다 보니 별지도 한 장을 넘기면
+        안 됐고(30줄·40자), 결국 **분량 때문에 골치**가 됐다(제보).
+
+        지금은 서류가 아래로 이어진다 — 길면 길어지는 대로 두고, 보는 사람은 스크롤한다.
+        그러니 장을 나눌 이유가 없다. 적은 것이 있을 때만 나온다.
+      */}
+      {(appendixEditable || appendix?.trim()) && (
+        <>
+          <div style={s.section}>{t('커스텀 요청사항')}</div>
+          {appendixEditable ?? <div style={s.appendix}>{appendix}</div>}
+        </>
       )}
-      </div>
+      {appendixFooter}
       </div>
     </div>
   )
 }
 
 /**
- * 서류를 조판하는 기준 폭(px). 화면 폭이 아니라 **늘 이 폭으로 그린 뒤 축소**한다.
- *
- * 560px 을 고른 이유: 실측해 보니 내용 높이가 A4 높이(792px)에 여유 있게 들어간다.
- * 더 좁게 잡으면 글이 접혀 내용이 A4 아래로 넘치고, 넘친 만큼은 잘려 보이지 않게 된다.
+ * 서류의 **최대 폭**(px). 자리가 넓어도 이보다 키우지 않는다 —
+ * 서류에는 실물 크기가 있어서, 남는다고 늘리면 화면을 가득 채운 이상한 종이가 된다(제보).
  */
 const BASE_W = 560
-/** A4 는 210 × 297 mm. 기준 폭에 대응하는 높이. */
-const BASE_H = Math.round(BASE_W * 297 / 210)
-/** 종이의 안쪽 여백(px) — `s.sheet` 의 padding 과 같은 값이어야 담기는 높이를 옳게 잰다. */
+/** 종이의 안쪽 여백(px) */
 const PAGE_PAD = 16
+
+/**
+ * 공급가 표 — 계약서 [별첨3] 양식 그대로.
+ *
+ * 구역 제목(「기본형 사양」/「추가 옵션 사양」)은 줄이 있을 때만 나온다.
+ * 빈 구역 제목만 떠 있으면 「여기 뭔가 빠졌나」로 읽힌다.
+ */
+export function PoTable({ lines }: { lines: readonly PoLine[] }) {
+  const base = lines.filter(l => l.section === 'BASE')
+  const opt  = lines.filter(l => l.section !== 'BASE')
+  const total = poTotal(lines)
+  let no = 0
+  const row = (l: PoLine) => {
+    no += 1
+    return (
+      <tr key={`${l.label}-${no}`}>
+        <td style={po.tdNo}>{no}</td>
+        <td style={po.td}>{l.label}</td>
+        <td style={po.tdMid}>{l.unit}</td>
+        <td style={po.tdNum}>{l.qty}</td>
+        <td style={po.tdNum}>{l.unit_price.toLocaleString()}</td>
+        <td style={po.tdNum}>{l.amount.toLocaleString()}</td>
+        <td style={po.tdMemo}>{l.memo ?? ''}</td>
+      </tr>
+    )
+  }
+  const groupRow = (label: string) => (
+    <tr><td style={po.tdGroup} colSpan={7}>{label}</td></tr>
+  )
+  return (
+    <>
+      {/* 합계를 표 위에 한 번 더 — 계약서 양식이 그렇다. 먼저 눈에 들어와야 하는 값이다 */}
+      <div style={po.headBar}>
+        <span>{t('공급가액')} <span style={po.vatNote}>({t('VAT 별도')})</span></span>
+        <b>₩{total.toLocaleString()}</b>
+      </div>
+      <table style={po.table}>
+        <thead>
+          <tr>
+            <th style={po.thNo}>No.</th>
+            <th style={po.th}>{t('품목명')}</th>
+            <th style={po.thMid}>{t('단위')}</th>
+            <th style={po.thNum}>{t('발주수량')}</th>
+            <th style={po.thNum}>{t('단가')}</th>
+            <th style={po.thNum}>{t('공급가액')}</th>
+            <th style={po.thMemo}>{t('비고')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {base.length > 0 && groupRow(t('기본형 사양'))}
+          {base.map(row)}
+          {opt.length > 0 && groupRow(t('추가 옵션 사양'))}
+          {opt.map(row)}
+          <tr>
+            <td style={po.tdTotal} colSpan={5}>{t('합계')}</td>
+            <td style={po.tdTotalNum}>{total.toLocaleString()}</td>
+            <td style={po.tdMemo}>KRW</td>
+          </tr>
+        </tbody>
+      </table>
+    </>
+  )
+}
 
 /** 아직 배정하지 않았으면 번호가 없다 — 「주문 #0」은 0번 문서가 있는 것처럼 읽힌다 */
 function docNo(orderId: number): string {
@@ -242,6 +287,41 @@ function Meta({ label, value }: { label: string; value: string }) {
  * 특장사가 받아 보는 발주서와 이질감이 컸다(사진 제보).
  * 입력칸도 이 값을 물려받아 **적을 때와 읽을 때가 같은 글씨**가 된다.
  */
+/**
+ * 공급가 표 — 서류 안의 표라 **선이 있어야** 표로 읽힌다(사양표는 선 없이 두 칸이라 다르다).
+ * 숫자는 오른쪽 정렬 + `tabular-nums` — 자릿수가 흔들리면 금액을 눈으로 못 비빈다.
+ */
+const po: Record<string, React.CSSProperties> = {
+  headBar: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+    marginTop: 'var(--sp-4)', padding: 'var(--sp-2) var(--sp-3)',
+    border: '1px solid var(--line)', fontSize: 'var(--fs-sheet)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  vatNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
+  table: {
+    width: '100%', borderCollapse: 'collapse', marginTop: 'var(--sp-2)',
+    fontSize: 'var(--fs-sheet)', tableLayout: 'fixed',
+  },
+  th:     { border: '1px solid var(--line)', padding: '3px 5px', fontWeight: 700, textAlign: 'left' },
+  thNo:   { border: '1px solid var(--line)', padding: '3px 5px', fontWeight: 700, width: '7%' },
+  thMid:  { border: '1px solid var(--line)', padding: '3px 5px', fontWeight: 700, width: '9%' },
+  thNum:  { border: '1px solid var(--line)', padding: '3px 5px', fontWeight: 700, textAlign: 'right', width: '15%' },
+  thMemo: { border: '1px solid var(--line)', padding: '3px 5px', fontWeight: 700, textAlign: 'left', width: '20%' },
+  // 구역 제목 줄 — 계약서 양식의 「기본형 사양」/「추가 옵션 사양」
+  tdGroup: {
+    border: '1px solid var(--line)', padding: '3px 5px', textAlign: 'center',
+    fontWeight: 700, background: 'var(--surface-2, #f6f6f6)',
+  },
+  td:     { border: '1px solid var(--line)', padding: '3px 5px', overflowWrap: 'anywhere' },
+  tdNo:   { border: '1px solid var(--line)', padding: '3px 5px', textAlign: 'center' },
+  tdMid:  { border: '1px solid var(--line)', padding: '3px 5px', textAlign: 'center' },
+  tdNum:  { border: '1px solid var(--line)', padding: '3px 5px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  tdMemo: { border: '1px solid var(--line)', padding: '3px 5px', fontSize: 'var(--fs-caption)', color: 'var(--muted)', overflowWrap: 'anywhere' },
+  tdTotal:    { border: '1px solid var(--line)', padding: '3px 5px', textAlign: 'center', fontWeight: 700 },
+  tdTotalNum: { border: '1px solid var(--line)', padding: '3px 5px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+}
+
 const s: Record<string, React.CSSProperties> = {
   // 서류처럼 보이게 — 화면 요소가 아니라 '받은 문서'로 읽혀야 한다
   /**
@@ -266,28 +346,27 @@ const s: Record<string, React.CSSProperties> = {
      * 서류는 실물 크기가 있다 — 자리가 남는다고 키울 이유가 없다.
      */
     width: '100%', maxWidth: BASE_W,
-    aspectRatio: '210 / 297', position: 'relative', overflow: 'hidden',
-    // ⚠️ 세로 flex 안에 놓이면 남는 높이에 맞춰 **눌린다** — 실측 0.956(A4 는 0.707).
-    //    비율은 서류의 정체성이라 남는 자리에 맞춰 양보하지 않는다. 넘치면 부모가 스크롤한다.
+    position: 'relative',
+    // ⚠️ 세로 flex 안에서 남는 높이에 맞춰 눌리지 않게 — 높이는 내용이 정한다
     flexShrink: 0,
   },
   /**
-   * 서류 본체 — 늘 `BASE_W × BASE_H` 로 그리고 바깥틀에 맞게 축소된다.
-   * 크기를 고정해야 축소 배율 하나로 비율이 정확히 보존된다.
+   * 서류 본체 — **높이를 정하지 않는다.**
+   *
+   * 예전엔 A4 한 장(`BASE_W × BASE_H`)에 고정하고, 넘치면 통째로 축소해 담았다.
+   * 그래서 내용이 길수록 글씨가 작아졌고, 적을 수 있는 분량을 곳곳에서 막아야 했다
+   * (비고 4줄 · 별지 30줄 · 커스텀은 아예 2페이지로 분리). 결국 **분량이 계속 골칫거리**가 됐다.
+   *
+   * 지금은 아래로 이어진다. 길면 길어지는 대로 두고 보는 사람이 스크롤한다 —
+   * 글씨 크기는 늘 같고, 잘리는 것도 없다.
    */
   sheet: {
     position: 'absolute', top: 0, left: 0,
-    width: BASE_W, height: BASE_H, transformOrigin: 'top left',
+    width: BASE_W, transformOrigin: 'top left',
+    boxSizing: 'border-box',
     border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
-    padding: PAGE_PAD, boxSizing: 'border-box',
+    padding: PAGE_PAD,
   },
-  /**
-   * 종이 안의 내용 — 한 장을 넘치면 **줄여서 담는다.**
-   *
-   * 가운데를 기준으로 줄여 좌우 여백이 고르게 남는다. 위에서부터 줄이면 아래쪽에만
-   * 빈자리가 몰려 「덜 그려졌나」로 읽힌다.
-   */
-  content: { transformOrigin: 'top center', width: '100%' },
   title: {
     textAlign: 'center', fontSize: 15, fontWeight: 700, color: 'var(--dark)',
     letterSpacing: '.3em', paddingBottom: 'var(--sp-3)', borderBottom: '1px solid var(--line)',
@@ -304,7 +383,14 @@ const s: Record<string, React.CSSProperties> = {
   },
   // 라벨은 **접지 않는다** — 접히면 값과 높이가 어긋나 표제부가 들쭉날쭉해진다
   metaLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' as const },
-  metaValue: { fontSize: 'var(--fs-sheet)', color: 'var(--dark)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
+  /*
+   * 값은 **잘리지 않고 접힌다.** 예전엔 `text-overflow: ellipsis` 로 「브레…」처럼 잘랐는데,
+   * 서류에서 이름이 잘리면 어느 회사인지 알 수 없다. 높이 제약이 없어졌으니 접으면 된다.
+   */
+  metaValue: {
+    fontSize: 'var(--fs-sheet)', color: 'var(--dark)', fontWeight: 600,
+    minWidth: 0, overflowWrap: 'anywhere',
+  },
   section: {
     fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--muted)',
     marginTop: 'var(--sp-4)', paddingBottom: 'var(--sp-1)', borderBottom: 'var(--hairline)',
@@ -317,7 +403,7 @@ const s: Record<string, React.CSSProperties> = {
     whiteSpace: 'pre-wrap' as const, fontSize: 'var(--fs-sheet)', lineHeight: 1.6,
     color: 'var(--dark)', padding: 'var(--sp-2) 0',
   },
-  /** 별지 본문 — 한 장을 채운다. 줄바꿈은 적은 그대로(pre-wrap) */
+  /** 커스텀 요청사항 본문 — 길면 길어지는 대로. 줄바꿈은 적은 그대로(pre-wrap) */
   appendix: {
     whiteSpace: 'pre-wrap' as const, wordBreak: 'keep-all' as const,
     fontSize: 'var(--fs-sheet)', lineHeight: 1.7, minHeight: 320,

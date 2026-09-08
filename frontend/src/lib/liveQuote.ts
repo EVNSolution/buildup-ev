@@ -1,6 +1,6 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, bodyOnlyParams, vehicleOnlyParams, noVatRefund, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, rowState } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, makePriceLookup, groupOfPriceCode, bodyOnlyParams, vehicleOnlyParams, noVatRefund, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, rowState } from '@shared/pricing/core'
 import type { CustomOption, CustomOptionDraft } from '@shared/pricing/core'
 
 /**
@@ -55,6 +55,32 @@ export interface LiveTotalArgs {
   customOptions?: readonly CustomOptionDraft[]
   /** 영업 화면의 저장된 고객(영업용 번호판·면세구분). 공개 화면은 없음 */
   customer?: Pick<CustomerInfo, 'has_biz_plate' | 'tax_exempt_type'> | null
+}
+
+/**
+ * **단가가 정해지지 않은 사양** — 있으면 그 문항에서 고른 값의 코드들.
+ *
+ * ⚠️ 0원과 다른 말이다. 0원은 0으로 정해 둔 것이고(계약상 무상 등), 여기서 걸리는 것은
+ *    단가표에 **행 자체가 없는** 사양이다. 예전엔 둘을 구분하지 않아 미닫이처럼 값이 없는
+ *    사양이 **0원으로 계산돼 고객에게 나갔다.**
+ *
+ * 서버도 저장할 때 같은 것을 본다(`UnpricedSelectionError`). 화면이 모르면
+ * 「금액은 보이는데 저장만 거부되는」 견적이 되므로 **여기서 먼저** 말해 준다.
+ */
+export function unpricedSelections(
+  bundle: ApiPricingBundle | null | undefined,
+  selections: Record<string, string>,
+): string[] {
+  if (!bundle || Object.keys(selections).length === 0) return []
+  const { price, missing } = makePriceLookup(bundle.option_prices)
+  // 조회를 실제로 시켜 봐야 어떤 복합코드가 필요한지 알 수 있다(고르지 않은 문항은 조회조차 없다)
+  assembleOptionSum(selections, price, [], [])
+  const picked: string[] = []
+  for (const code of missing) {
+    const v = selections[groupOfPriceCode(code)]
+    if (v && !picked.includes(v)) picked.push(v)
+  }
+  return picked
 }
 
 export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {

@@ -4,8 +4,8 @@ import type { ApiOrderOption } from '@shared/types/index'
 import { checkDeliveryDue, deliveryDueLimit, fromDateInput, toDateInput, DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
 import { fetchOrderDetail } from '../api/orders'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
-import { PageTabs } from './ui/PageTabs'
 import { hasAppendix } from '@shared/docs/appendix'
+import type { PoLine } from '@shared/docs/po-lines'
 import { ackAppendix } from '../api/orders'
 import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
@@ -58,20 +58,24 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
   const [options, setOptions] = useState<ApiOrderOption[]>([])
   const [loadErr, setLoadErr] = useState('')
   /*
-   * 별지(2페이지) — 커스텀 주문의 상세 요청사항.
+   * 커스텀 요청사항 — 서류 맨 아래 칸.
    * **읽었다는 표시 없이는 수락할 수 없다.** 「읽었다」를 기계가 알 방법이 없어
-   * 2페이지를 연 뒤 명시적으로 체크하게 한다 — 열어 본 것만으로는 통과시키지 않는다.
+   * 그 칸 아래에서 **명시적으로** 체크하게 한다 — 스크롤이 지나갔다고 읽은 것은 아니다.
    */
   const [appendix, setAppendix] = useState('')
   /*
    * 비고 — **여기서 받아 온다.** 예전엔 부모가 넘기는 값이었는데 **두 호출부 어디도 넘기지 않아**,
    * 특장사가 보는 발주서의 비고 칸이 언제나 「특별 요청사항 없음」이었다(빈 값의 대체 문구).
-   * 커스텀 건에서는 그 칸이 「2페이지(별지)를 확인하세요」라고 가리키는 자리라, 비어 있으면
-   * **별지로 가는 유일한 안내가 사라진다.**
-   * 사양·별지와 같은 응답에서 함께 꺼내 쓴다 — 받아 오는 곳이 하나면 어긋날 일이 없다.
+   * 커스텀 건에서는 그 칸이 「아래 커스텀 요청사항을 확인하세요」라고 가리키는 자리라,
+   * 비어 있으면 **그리로 가는 유일한 안내가 사라진다.**
+   * 사양·요청사항과 같은 응답에서 함께 꺼내 쓴다 — 받아 오는 곳이 하나면 어긋날 일이 없다.
    */
   const [remark, setRemark] = useState('')
-  const [page, setPage] = useState<1 | 2>(1)
+  /*
+   * 발주서 **공급가 표** — 배정 때 얼려 둔 그대로 받아 그린다.
+   * 여기서 다시 계산하지 않는다: 특장사가 받은 종이와 화면이 어긋나면 안 된다.
+   */
+  const [poLines, setPoLines] = useState<PoLine[]>([])
   const [acked, setAcked] = useState(false)
 
   // 발주 내용(사양)은 목록 응답에 없다 — 팝업을 열 때 받아온다
@@ -83,6 +87,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         setModelCode(d.model_code); setOptions(d.options)
         setRemark(d.remark ?? '')
         setAppendix(d.appendix ?? '')
+        setPoLines(Array.isArray(d.po_lines) ? d.po_lines as PoLine[] : [])
         // 이미 확인한 주문이면 다시 묻지 않는다 — 확인은 한 번이면 된다
         if (d.appendix_ack_at) setAcked(true)
       })
@@ -100,8 +105,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
    */
   const windowClosed = limit < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 1)
   /*
-   * 별지가 있으면 **확인 체크 없이는 수락할 수 없다.** 별지가 비어 있으면 막지 않는다 —
-   * 이 기능이 생기기 전에 배정된 커스텀 주문은 별지가 없어서, 소급 적용하면 영영 못 받는다.
+   * 커스텀 요청사항이 있으면 **확인 체크 없이는 수락할 수 없다.** 비어 있으면 막지 않는다 —
+   * 이 기능 전에 배정된 커스텀 주문은 그 칸이 없어서, 소급 적용하면 영영 못 받는다.
    */
   const appendixOk = !hasAppendix(appendix) || acked
   const canAccept = !!parsed && check?.ok === true && !busy && appendixOk
@@ -113,10 +118,6 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         <div style={m.title}>
           {tf('주문 #{0}', orderId)}
           {readOnly && <span style={m.viewTag}> {t('· 조회 전용')}</span>}
-          {/* 별지가 있는 주문만 장 넘기기가 나온다 — 없으면 넘길 장이 없다 */}
-          {hasAppendix(appendix) && (
-            <span style={m.pages}><PageTabs page={page} onChange={setPage} hasAppendix /></span>
-          )}
         </div>
 
         <div style={m.scroll}>
@@ -131,21 +132,22 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 options={options}
                 deliveryDue={due}
                 remark={remark}
-                page={page}
                 appendix={appendix}
+                poLines={poLines}
+                /*
+                 * 커스텀 요청사항을 **읽었다는 표시** — 서류 안, 그 칸 바로 아래에 둔다.
+                 * 예전엔 이게 2페이지(별지)라 「그 장을 열어야 체크가 나온다」로 강제했는데,
+                 * 이제 서류가 한 장으로 이어져 그 칸이 눈앞에 있다. 체크는 그 자리에 붙인다.
+                 */
+                appendixFooter={!readOnly && hasAppendix(appendix) && (
+                  <label style={m.ackRow}>
+                    <input type="checkbox" checked={acked} disabled={busy}
+                      onChange={e => setAcked(e.target.checked)} />
+                    <span>{t('커스텀 요청사항을 확인했습니다')}</span>
+                  </label>
+                )}
               />
             )}
-          {/*
-            별지 확인 — **수락의 조건**이다. 2페이지를 열어야 체크가 나온다:
-            1페이지만 보고 체크할 수 있으면 「읽었다」는 말이 거짓이 된다.
-            서버도 같은 것을 본다 — 화면만 막으면 API 를 직접 불러 우회된다.
-          */}
-          {!readOnly && hasAppendix(appendix) && page === 2 && (
-            <label style={m.ackRow}>
-              <input type="checkbox" checked={acked} disabled={busy} onChange={e => setAcked(e.target.checked)} />
-              <span>{t('별지(2페이지)를 확인했습니다')}</span>
-            </label>
-          )}
 
           <div style={m.dueBlock}>
             <div style={m.dueHead}>
@@ -214,7 +216,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
               <button
                 style={canAccept ? BTN.primary : BTN.disabled}
                 disabled={!canAccept}
-                title={!appendixOk ? t('별지(2페이지)를 확인해야 수락할 수 있습니다') : undefined}
+                title={!appendixOk ? t('커스텀 요청사항을 확인해야 수락할 수 있습니다') : undefined}
                 onClick={() => { if (parsed) { void ackAppendix(orderId).catch(() => {}); onAccept?.(due) } }}
               >
                 {busy ? t('처리 중') : t('수락')}
@@ -238,7 +240,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
 const m: Record<string, React.CSSProperties> = {
   /** 제목 줄 오른쪽의 장 넘기기 — 제목보다 커지지 않게 */
   pages: { marginLeft: 'var(--sp-3)', verticalAlign: 'middle' },
-  /** 별지 확인 — 발주서 바로 아래, 수락 버튼 위. 읽고 나서 누르는 순서가 자리로 드러난다 */
+  /** 커스텀 요청사항 확인 — 그 칸 바로 아래. 읽고 나서 누르는 순서가 자리로 드러난다 */
   ackRow: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
     marginTop: 'var(--sp-3)', fontSize: 'var(--fs-label)', cursor: 'pointer',

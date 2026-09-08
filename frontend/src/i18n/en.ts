@@ -10,6 +10,20 @@
  *    원·없음·서울특별시·일반인처럼 코드가 값으로 비교하는 말도 여기 **번역은 있다**(화면용).
  */
 export const EN: Record<string, string> = {
+  '되돌리기 btn': 'Undo',
+  '커스텀 요청사항 삭제': 'Delete custom request',
+  '작성한 내용이 함께 삭제됩니다. 삭제할까요?': 'This also deletes what you wrote. Delete it?',
+  '+ 커스텀 주문내용 추가': '+ Add custom request',
+  '공급가액': 'Amount',
+  'VAT 별도': 'excl. VAT',
+  '품목명': 'Item',
+  '발주수량': 'Qty',
+  '합계': 'Total',
+  '기본형 사양': 'Base specification',
+  '추가 옵션 사양': 'Additional options',
+  '계약': 'Contract',
+  '+ 항목 추가': '+ Add item',
+  '특장사를 고르면 계약 단가가 채워집니다. 계약에 없는 항목은 직접 적어 주세요.': 'Contract prices fill in once you pick an upfitter. Add anything not covered by the contract yourself.',
   '(배정 시 발급)': '(issued on assignment)',
   '주문': 'Order',
   // 상태 배지의 「임시저장」(Draft)과 다른 말 — 버튼에서는 **적어 두는 동작**이다
@@ -1010,12 +1024,11 @@ export const EN: Record<string, string> = {
   '별 지': 'APPENDIX',
   '커스텀 요청사항': 'Custom request',
   '적힌 내용이 없습니다': 'Nothing written',
-  '별지에 적힌 내용이 없습니다': 'The appendix is empty',
-  '커스텀 주문 건입니다. 2페이지(별지)를 확인하세요.': 'This is a custom order. Please read page 2 (Appendix).',
+  '커스텀 주문 건입니다. 아래 커스텀 요청사항을 확인하세요.': 'This is a custom order. Please read the custom request below.',
   '커스텀 주문의 상세 요청사항을 적습니다.': 'Write the detailed custom request here.',
   '커스텀 주문은 별지(2페이지)를 적어야 배정할 수 있습니다': 'A custom order needs the appendix (page 2) before it can be assigned',
-  '별지(2페이지)를 확인했습니다': 'I have read the appendix (page 2)',
-  '별지(2페이지)를 확인해야 수락할 수 있습니다': 'You must read the appendix (page 2) before accepting',
+  '커스텀 요청사항을 확인했습니다': 'I have read the custom request',
+  '커스텀 요청사항을 확인해야 수락할 수 있습니다': 'You must read the custom request before accepting',
 }
 
 /**
@@ -1023,6 +1036,8 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '한 장에 담기는 줄은 {0}개까지입니다.': 'A single page holds up to {0} rows.',
+  '단가가 정해지지 않은 사양이 있어 저장할 수 없습니다: {0}': 'Cannot save — no price has been set for: {0}',
   '임시저장했습니다 ({0})': 'Draft saved ({0})',
   '{0} 님이 적어 둔 내용입니다 ({1})': 'Draft saved by {0} ({1})',
   '{0}영업일 · ': '{0} business days · by ',

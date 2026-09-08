@@ -14,8 +14,8 @@ import { PdfModal } from './PdfModal'
 import { OrderStepsPanel } from './OrderStepsPanel'
 import { OrderChatTab } from './OrderChatTab'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
-import { PageTabs } from './ui/PageTabs'
 import { hasAppendix } from '@shared/docs/appendix'
+import type { PoLine } from '@shared/docs/po-lines'
 import { OrderRemoveModal } from './OrderRemoveModal'
 import { safeLeft, safeRight, safeScrollBottom } from '../styles/safeArea'
 import { fetchUnread } from '../api/stepComments'
@@ -420,8 +420,6 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
-  /* 서류 탭의 발주서 — **기본은 1페이지.** 별지는 눌러서 넘겨 본다 */
-  const [poPage, setPoPage] = useState<1 | 2>(1)
   /** 삭제 확인 팝업 — 바로 지우지 않는다 */
   const [removing, setRemoving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -645,8 +643,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
             줄바꿈·띄어쓰기는 적은 그대로 보여준다.
           */}
           {/*
-            커스텀 건은 **별지에 적힌 내용을 그대로** 보여 준다. 발주서 1페이지 비고에는
-            「별지를 보라」는 안내만 들어가므로, 여기까지 그 안내를 옮기면 아무 데서도
+            커스텀 건은 **적힌 내용을 그대로** 보여 준다. 발주서 비고에는
+            「아래를 보라」는 안내만 들어가므로, 여기까지 그 안내를 옮기면 아무 데서도
             내용을 못 읽는다. 제목도 「비고」가 아니라 무엇인지 그대로 적는다.
           */}
           <div style={det.remarkHead}>
@@ -667,12 +665,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
             발주서 — **수락하고 나면 다시 볼 방법이 없었다**(수락 팝업에서만 보였다).
             납기·비고를 나중에 확인할 일이 잦으므로 서류 탭 맨 위에 그대로 둔다.
           */}
-          {/* 기본은 1페이지 — 별지가 있는 주문만 장 넘기기가 나온다 */}
           <div style={det.poHead}>
             {t('발주서')}
-            {hasAppendix(detail.appendix) && (
-              <span style={det.poPages}><PageTabs page={poPage} onChange={setPoPage} hasAppendix /></span>
-            )}
           </div>
           <PurchaseOrderSheet
             orderId={detail.id}
@@ -682,8 +676,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
             options={detail.options}
             deliveryDue={detail.delivery_due?.slice(0, 10) ?? ''}
             remark={detail.remark ?? ''}
-            page={poPage}
             appendix={detail.appendix ?? ''}
+            poLines={Array.isArray(detail.po_lines) ? detail.po_lines as PoLine[] : []}
           />
           <div style={det.poGap} />
           <DocsTab

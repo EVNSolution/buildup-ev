@@ -133,18 +133,22 @@ describe.runIf(live)('발주서 임시저장', () => {
     expect(res.body?.data?.remark).toBe('납기 협의 요망');
   }, 30_000);
 
-  it('🔴 길이는 배정과 **같은 규칙**으로 자른다', async () => {
+  it('🔴 상한은 배정과 **같은 규칙**이다', async () => {
     /*
-     * 여기서 안 자르면 임시저장에는 들어갔는데 배정할 때 잘려,
+     * 두 곳의 규칙이 다르면 임시저장에는 들어갔는데 배정할 때 잘려,
      * 적어 둔 사람과 배정하는 사람이 **다른 글을 본다.**
+     *
+     * ⚠️ 줄 수·글자 수 제한은 없앴다(A4 한 장에 맞추려던 것). 남는 것은 넉넉한 총 상한뿐이다.
      */
     const quoteId = await newQuote();
-    const huge = Array.from({ length: 60 }, (_, i) => `${i + 1}행 ${'가'.repeat(80)}`).join('\n');
+    const long = Array.from({ length: 60 }, (_, i) => `${i + 1}행 ${'가'.repeat(80)}`).join('\n');
     const res = await request(app).put(`/api/v1/quotes/${quoteId}/po-draft`).set('Cookie', cookieA)
-      .send({ maker_org_id: MAKER_ORG, custom_badge: true, appendix: huge });
-    const lines = (res.body?.data?.appendix ?? '').split('\n');
-    expect(lines.length).toBe(30);
-    expect(Math.max(...lines.map((l: string) => l.length))).toBe(40);
+      .send({ maker_org_id: MAKER_ORG, custom_badge: true, appendix: long });
+    expect(res.body?.data?.appendix, '적어 둔 글이 잘렸다').toBe(long);
+
+    const flood = await request(app).put(`/api/v1/quotes/${quoteId}/po-draft`).set('Cookie', cookieA)
+      .send({ maker_org_id: MAKER_ORG, custom_badge: true, appendix: '가'.repeat(30_000) });
+    expect((flood.body?.data?.appendix ?? '').length).toBe(20_000);
   }, 30_000);
 
   it('🔴 커스텀이 아니면 별지는 담기지 않는다 — 배정과 같은 판단', async () => {

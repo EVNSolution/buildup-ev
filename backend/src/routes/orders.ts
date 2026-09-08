@@ -251,6 +251,8 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           custom_badge: order.custom_badge,
           // 별지(2페이지) — 사양 탭의 「커스텀 요청사항」과 서류 탭 2페이지가 이 값을 쓴다
           appendix: order.appendix,
+          // 발주서 공급가 표 — 배정 때 얼려 둔 그대로. 다시 계산하지 않는다
+          po_lines: order.po_lines ?? null,
           appendix_ack_at: order.appendix_ack_at,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,

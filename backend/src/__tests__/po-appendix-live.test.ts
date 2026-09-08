@@ -157,7 +157,7 @@ describe.runIf(live)('발주서 별지 — 실제 API', () => {
 
   it('🔴 커스텀이면 1페이지 비고는 서버가 정한다 — 보낸 값을 믿지 않는다', async () => {
     const order = await assign({ custom_badge: true, appendix: '측면 도어 폭 1200mm', remark: '화면을 거치지 않고 넣은 딴 글' });
-    expect(order.remark).toBe('커스텀 주문 건입니다. 2페이지(별지)를 확인하세요.');
+    expect(order.remark).toBe('커스텀 주문 건입니다. 아래 커스텀 요청사항을 확인하세요.');
     expect(order.appendix).toBe('측면 도어 폭 1200mm');
   }, 30_000);
 
@@ -172,12 +172,24 @@ describe.runIf(live)('발주서 별지 — 실제 API', () => {
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
   }, 30_000);
 
-  it('🔴 한 장을 넘는 별지는 서버가 자른다 — 화면만 막으면 우회된다', async () => {
-    const huge = Array.from({ length: 60 }, (_, i) => `${i + 1}행 ${'가'.repeat(80)}`).join('\n');
-    const order = await assign({ custom_badge: true, appendix: huge });
-    const lines = (order.appendix ?? '').split('\n');
-    expect(lines.length).toBe(30);
-    expect(Math.max(...lines.map(l => l.length))).toBe(40);
+  it('🔴 분량을 양식으로 묶지 않는다 — 긴 요청도 그대로 실린다', async () => {
+    /*
+     * ⚠️ 여기 있던 「한 장을 넘는 별지는 서버가 자른다(30줄·40자)」를 **바꿔 썼다.**
+     *    그 제한은 발주서를 A4 한 장에 맞추려고 있던 것이다. 서류가 아래로 이어지게 되면서
+     *    사람이 적는 글의 길이를 우리가 정할 이유가 없어졌다(제보: 분량 때문에 골치).
+     *
+     *    남는 상한은 양식 때문이 아니라 **파일을 통째로 밀어 넣는 경우**를 막으려는 것이다.
+     */
+    const long = Array.from({ length: 60 }, (_, i) => `${i + 1}행 ${'가'.repeat(80)}`).join('\n');
+    const order = await assign({ custom_badge: true, appendix: long });
+    expect(order.appendix, '적은 글이 잘렸다').toBe(long);
+    expect((order.appendix ?? '').split('\n').length).toBe(60);
+  }, 30_000);
+
+  it('🔴 넉넉한 상한은 남아 있다 — 통째로 밀어 넣는 것은 막는다', async () => {
+    const flood = '가'.repeat(30_000);
+    const order = await assign({ custom_badge: true, appendix: flood });
+    expect((order.appendix ?? '').length).toBe(20_000);
   }, 30_000);
 
   it('🔴 남의 조직 주문의 별지는 확인할 수 없다', async () => {

@@ -28,8 +28,9 @@ model Org {
   active Boolean @default(true)
 
   users        User[]
-  quote_orgs   Quote[] @relation("QuoteOrg")
-  maker_orders Order[] @relation("OrderMakerOrg")
+  quote_orgs   Quote[]      @relation("QuoteOrg")
+  maker_orders Order[]      @relation("OrderMakerOrg")
+  maker_prices MakerPrice[] @relation("MakerPriceOrg")
 
   @@map("org")
 }
@@ -486,6 +487,55 @@ model Quote {
   @@map("quote")
 }
 
+/// **특장사 공급단가** — 우리가 특장사에 **지급하는** 값. 고객 견적가(`option_price`)와 다른 축이다.
+///
+/// 근거는 특장사별 기본거래계약서의 [별첨1] 단가표다(예: 브레인특장 2026-07-29).
+/// 계약으로 정해진 값이라 **발주서에 그 값 그대로** 실린다 — 관리자가 매번 적지 않는다.
+///
+/// ⚠️ 단가는 특장사마다 다르다. 같은 「슬라이딩 도어 변경」도 계약이 다르면 값이 다르다.
+/// ⚠️ 계약에 없는 사양은 여기 행이 없다. 그런 줄은 발주서에서 **관리자가 직접 적는다**
+///    (0원으로 채워 넣지 않는다 — 없는 값과 0원은 다른 말이다).
+model MakerPrice {
+  id           Int    @id @default(autoincrement())
+  maker_org_id String @db.VarChar(30)
+
+  /// 발주서 「품목명」에 그대로 찍히는 이름 — 계약서 [별첨1] 문구를 쓴다
+  label String @db.VarChar(120)
+
+  /// 우리 옵션과의 연결 — 어떤 선택에서 이 줄이 생기는가.
+  /// `group_code` 만 있고 `value_code` 가 없으면 그 문항의 **모든 값**에 걸린다(기본형처럼).
+  group_code String? @db.VarChar(40)
+  value_code String? @db.VarChar(40)
+  /// 탑 높이 — 같은 옵션도 저상/표준 단가가 다르다(계약서). 공통이면 null.
+  top_code   String? @db.VarChar(40)
+
+  /// 발주서의 두 구역 — BASE=기본형 사양 · OPTION=추가 옵션 사양
+  section String @db.VarChar(10)
+
+  /// **누가 하는 일인가.**
+  /// MAKER = 특장사가 작업한다 → 발주서에 실린다.
+  /// EVN   = 특장 인도 뒤 EV& 가 직접 추가작업한다 → **발주서에 실리지 않는다**(특장사에 지급할 값이 아니다).
+  work_by String @db.VarChar(10)
+
+  /// 단위(SET/EA)와 그 선택이면 몇 개인가 — 슬라이딩 도어 변경은 좌·우 2개다
+  unit String @default("EA") @db.VarChar(10)
+  qty  Int    @default(1)
+
+  /// VAT **별도** 단가. 계약 단가라 고정이다
+  unit_price Int
+
+  sort_order Int     @default(0)
+  active     Boolean @default(true)
+  /// 근거 — 어느 계약서 몇 년치인지. 나중에 값을 의심할 때 볼 곳이다
+  memo       String? @db.VarChar(300)
+
+  maker_org Org @relation("MakerPriceOrg", fields: [maker_org_id], references: [code])
+
+  /// 같은 특장사·같은 선택·같은 탑에 단가는 하나뿐이다 — 여럿이면 어느 값이 맞는지 알 수 없다
+  @@unique([maker_org_id, group_code, value_code, top_code])
+  @@map("maker_price")
+}
+
 /// 발주서 **임시저장** — 배정 전에 적어 둔 발주서 내용.
 ///
 /// 발주서를 적는 사람과 배정을 누르는 사람이 다를 수 있다. 예전엔 배정 팝업을 닫으면
@@ -508,6 +558,8 @@ model PoDraft {
   custom_badge Boolean   @default(false)
   /// 발주서 **별지**(2페이지)
   appendix     String?   @db.Text
+  /// 발주서 **공급가 표** — 적어 두던 줄들. 배정 화면과 같은 모양이다
+  po_lines     Json?
   /// 누가 언제 — 이어 받는 사람이 「누가 적어 둔 것인지」를 알아야 물어볼 수 있다
   saved_at     DateTime  @default(now())
   saved_by     String    @db.VarChar(120)
@@ -567,6 +619,17 @@ model Order {
   /// ⚠️ 화면에서만 막으면 API 를 직접 불러 우회된다. 수락 라우트가 서버에서 다시 본다.
   appendix_ack_at DateTime?
   appendix_ack_by String?   @db.VarChar(120)
+
+  /// 발주서 **공급가 표** — 배정하는 순간의 줄들을 그대로 얼려 둔다.
+  ///
+  /// `[{ label, unit, qty, unit_price, amount, memo, source }]`
+  ///   · source='CONTRACT' = `maker_price` 에서 자동으로 온 줄(계약 단가)
+  ///   · source='MANUAL'   = 계약에 없어 관리자가 직접 적은 줄
+  ///
+  /// ⚠️ **다시 계산하지 않는다.** 발주서는 이미 특장사에게 나간 문서다. 단가표를 나중에
+  ///    고쳤다고 지난 발주서 금액이 따라 바뀌면, 특장사가 받은 종이와 화면이 어긋난다
+  ///    (계약서 PDF 를 바이트로 얼려 두는 것과 같은 이유).
+  po_lines Json?
 
   /// 「커스텀」 배지 — 특장사 주문 목록에 붙는다. **관리자가 배정할 때 정한다.**
   /// 예전엔 비고에 뭐라도 적히면 자동으로 붙었는데, 납기 안내처럼 커스텀과 무관한
