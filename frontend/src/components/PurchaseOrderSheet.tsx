@@ -20,6 +20,13 @@ export function PurchaseOrderSheet({
   orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue, remark, editable,
   page = 1, appendix, appendixEditable,
 }: {
+  /**
+   * 주문 번호 = 발주서의 문서번호.
+   *
+   * ⚠️ 배정 **전** 미리보기에는 아직 주문이 없어 `0` 이 들어온다. 그대로 찍으면
+   *    「주문 #0」이 되어 **0번이라는 문서가 있는 것처럼** 읽힌다(제보).
+   *    번호는 배정하는 순간 붙으므로, 그때까지는 없다고 말한다.
+   */
   orderId: number
   /** 발주일 = 배정일 */
   orderedAt: Date
@@ -115,7 +122,7 @@ export function PurchaseOrderSheet({
         <>
           <div style={s.title}>{t('별 지')}</div>
           <div style={s.metaGrid}>
-            <Meta label="문서번호" value={`주문 #${orderId}`} />
+            <Meta label="문서번호" value={docNo(orderId)} />
             <Meta label="발주일" value={toDateInput(orderedAt)} />
           </div>
           <div style={s.section}>{t('커스텀 요청사항')}</div>
@@ -136,7 +143,7 @@ export function PurchaseOrderSheet({
         격자로 묶으면 열이 가장 긴 라벨에 맞춰 함께 늘어나, 어느 언어에서도 접히지 않는다.
       */}
       <div style={s.metaGrid}>
-        <Meta label="문서번호" value={`주문 #${orderId}`} />
+        <Meta label="문서번호" value={docNo(orderId)} />
         <Meta label="발주일" value={toDateInput(orderedAt)} />
         <Meta label="발주사" value="EV&Solution" />
         <Meta label="공급사" value={makerOrgName} />
@@ -206,6 +213,11 @@ const BASE_W = 560
 const BASE_H = Math.round(BASE_W * 297 / 210)
 /** 종이의 안쪽 여백(px) — `s.sheet` 의 padding 과 같은 값이어야 담기는 높이를 옳게 잰다. */
 const PAGE_PAD = 16
+
+/** 아직 배정하지 않았으면 번호가 없다 — 「주문 #0」은 0번 문서가 있는 것처럼 읽힌다 */
+function docNo(orderId: number): string {
+  return orderId > 0 ? `${t('주문')} #${orderId}` : t('(배정 시 발급)')
+}
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (

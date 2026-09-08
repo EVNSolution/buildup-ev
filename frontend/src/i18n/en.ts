@@ -10,6 +10,8 @@
  *    원·없음·서울특별시·일반인처럼 코드가 값으로 비교하는 말도 여기 **번역은 있다**(화면용).
  */
 export const EN: Record<string, string> = {
+  '(배정 시 발급)': '(issued on assignment)',
+  '주문': 'Order',
   // 상태 배지의 「임시저장」(Draft)과 다른 말 — 버튼에서는 **적어 두는 동작**이다
   '임시저장 btn': 'Save draft',
   '임시저장에 실패했습니다.': 'Could not save the draft.',

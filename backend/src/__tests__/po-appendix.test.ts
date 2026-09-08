@@ -138,6 +138,17 @@ describe('발주서 별지', () => {
     expect(DETAIL).toMatch(/\? <div style=\{det\.remarkBody\}>\{detail\.appendix\}<\/div>/);
   });
 
+  it('🔴 배정 전에는 문서번호를 지어내지 않는다', () => {
+    /*
+     * 배정 전 미리보기에는 주문이 아직 없어 `orderId=0` 이 들어온다. 그대로 찍으면
+     * 「주문 #0」이 되어 **0번이라는 문서가 있는 것처럼** 읽힌다(제보).
+     * 번호는 배정하는 순간 붙는다 — 그때까지는 없다고 말한다.
+     */
+    expect(SHEET).toMatch(/orderId > 0 \? `\$\{t\('주문'\)\} #\$\{orderId\}` : t\('\(배정 시 발급\)'\)/);
+    expect(SHEET, '문서번호를 두 장이 따로 만들고 있다')
+      .not.toMatch(/label="문서번호" value=\{`주문 #/);
+  });
+
   it('별지는 한 장을 넘기지 않는다', () => {
     // 넘치면 발주서가 축소돼 글씨가 작아지고 결국 못 읽는다 — 받을 때 막는다
     const shared = read('shared/docs/appendix.ts');
