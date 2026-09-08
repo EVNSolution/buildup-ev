@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
+import { PushToggle } from '../components/PushToggle'
 import { useAuth } from '../contexts/AuthContext'
 import { Segmented } from '../components/ui/Segmented'
 import { BTN } from '../styles/buttons'
@@ -74,6 +75,17 @@ export function MyPage() {
             onChange={setLang}
           />
           <p style={s.help}>{t('이 기기에 저장됩니다. 다른 기기에서는 다시 골라 주세요.')}</p>
+        </section>
+
+        {/*
+          알림 — **기기마다 따로**다. 브라우저 구독이라 이 기기에서 켠 것이 다른 기기에
+          따라가지 않는다. 그래서 언어(이 기기에 저장)와 같은 자리에 둔다.
+          컴포넌트는 대화 화면에서 쓰던 것을 그대로 쓴다 — 두 곳이 다르게 동작하면 안 된다.
+        */}
+        <section style={s.card}>
+          <h2 style={s.cardTitle}>{t('알림')}</h2>
+          <PushToggle settings />
+          <p style={s.help}>{t('배정·전자서명·스캔본 등 처리가 필요한 일이 생기면 알려 드립니다.')}</p>
         </section>
 
         <section style={s.card}>

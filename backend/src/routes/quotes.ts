@@ -24,7 +24,6 @@ import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
-import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import { stepsFor } from '@buildup-ev/shared/process';
 import { clampMemo } from '@buildup-ev/shared/docs/memo';
 import { optionsFromSelections } from '../services/order-options.js';
@@ -221,15 +220,49 @@ quotesRouter.get('/', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise
   }
 });
 
-/*
- * 「견적 숨기기」는 **없앴다**(2026-09).
+/**
+ * 「견적 숨기기」 — **지우지 않고 화면에서만 감춘다.**
  *
- * 쓰이지 않았고 견적 목록 상단만 번잡하게 했다(제보). 목록도 더 이상 숨김 여부로 거르지
- * 않으므로 **예전에 숨긴 건도 다시 보인다** — 화면에서 사라져 못 찾는 건이 남지 않게.
+ * 2026-09 에 한 번 걷었다가 되살렸다. 그때 걷은 이유는 「쓰이지 않는데 목록 상단만
+ * 번잡하다」였는데, 정리할 건이 쌓이면서 다시 필요해졌다. 컬럼을 지우지 않고 두었기에
+ * **예전에 숨긴 기록이 그대로 살아 있다**(CLAUDE.md — 지우지 말고 남긴다).
  *
- * ⚠️ `hidden_at`·`hidden_by` **컬럼은 지우지 않는다.** 누가 언제 숨겼는지는 기록이고,
- *    기능을 걷었다고 기록까지 지울 이유가 없다(CLAUDE.md — 지우지 말고 남긴다).
+ * 걷을 때의 문제는 되풀이하지 않는다:
+ *  · 숨기기는 **관리자 화면에만** 있다(영업 화면에는 없다).
+ *  · 목록 상단에 버튼을 더하지 않는다 — 「숨긴 견적」은 보기 전환의 셋째 칸으로 들어간다.
+ *
+ * ⚠️ **상태로 막지 않는다.** 계약서가 나간 건도, 계약이 끝난 건도 숨길 수 있다(2026-09-08 지시).
+ *    정리해야 하는 건은 대개 이미 무언가 나간 것들이라, 상태로 막으면 정작 필요한 것을 못 치운다.
+ *
+ *    대신 **되돌릴 수 있게** 하고(「숨긴 견적」에서 다시 보이기) 화면에서 **한 번 묻는다.**
+ *    지우는 것이 아니라 감추는 것이므로 이 정도가 맞다 — 기록은 그대로 남는다.
+ *    (고객 숨기기는 그대로다: 고객을 숨기면 그 고객의 견적이 통째로 딸려 가 파장이 다르다)
  */
+quotesRouter.patch('/:id/hidden', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 견적 id' } }); return; }
+
+  const hidden = (req.body as { hidden?: unknown })?.hidden;
+  if (typeof hidden !== 'boolean') {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: 'hidden 은 true 또는 false' } }); return;
+  }
+
+  const by = req.auth?.email ?? 'unknown';
+  try {
+    const q = await prisma.quote.findUnique({ where: { id }, select: { id: true } });
+    if (!q) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+
+    const updated = await prisma.quote.update({
+      where: { id },
+      data: hidden ? { hidden_at: new Date(), hidden_by: by } : { hidden_at: null, hidden_by: null },
+      select: { id: true, hidden_at: true, hidden_by: true },
+    });
+    res.json({ data: updated });
+  } catch {
+    res.status(500).json({ error: { code: 'INTERNAL', message: '견적 숨김 처리 중 오류가 발생했습니다.' } });
+  }
+});
 
 // ── POST /quotes/calculate — 미저장 계산 ─────────────────────────────────
 
