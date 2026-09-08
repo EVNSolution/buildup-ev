@@ -25,8 +25,10 @@ CREATE TABLE IF NOT EXISTS "maker_price" (
     CONSTRAINT "maker_price_pkey" PRIMARY KEY ("id")
 );
 
--- 같은 특장사·같은 선택·같은 탑에 단가는 하나뿐이다 — 여럿이면 어느 값이 맞는지 알 수 없다
-CREATE UNIQUE INDEX IF NOT EXISTS "maker_price_org_group_value_top_key"
+-- 같은 특장사·같은 선택·같은 탑에 단가는 하나뿐이다 — 여럿이면 어느 값이 맞는지 알 수 없다.
+-- ⚠️ 이름은 Prisma 가 `@@unique` 에서 만드는 것과 **같아야** 한다. 다르면 배포 전 검증이
+--    「인덱스 이름이 바뀌었다」는 drift 로 잡는다(실제로 CI 에서 걸렸다).
+CREATE UNIQUE INDEX IF NOT EXISTS "maker_price_maker_org_id_group_code_value_code_top_code_key"
     ON "maker_price" ("maker_org_id", "group_code", "value_code", "top_code");
 
 DO $$
