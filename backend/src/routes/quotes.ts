@@ -27,7 +27,7 @@ import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
 import { visibilityWhere, viewOf, VISIBLE } from '../lib/visibility.js';
 import { stepsFor } from '@buildup-ev/shared/process';
 import { APPENDIX_REMARK, clampAppendix, hasAppendix } from '@buildup-ev/shared/docs/appendix';
-import { contractLines, normalizePoLines, checkPoLines } from '@buildup-ev/shared/docs/po-lines';
+import { contractLines, autoLines, normalizePoLines, checkPoLines, unpricedLines, type PoLine } from '@buildup-ev/shared/docs/po-lines';
 import { clampMemo } from '@buildup-ev/shared/docs/memo';
 import { optionsFromSelections } from '../services/order-options.js';
 
@@ -107,6 +107,35 @@ export class UnpricedSelectionError extends Error {
  * 코드가 아니라 **고른 값의 이름**으로 말한다(「미닫이」). 이름은 옵션 표에서 가져오고,
  * 없으면 코드를 그대로 쓴다 — 이름을 못 찾았다고 오류를 삼키면 안 된다.
  */
+/**
+ * 발주서 공급가 표를 만든다 — **미리보기와 배정이 같은 함수를 쓴다.**
+ * 두 곳이 따로 만들면 보고 누른 표와 저장되는 표가 달라진다.
+ *
+ * 세 갈래다:
+ *   · 계약 단가가 있는 줄 → 값이 채워진 채로, 고칠 수 없다
+ *   · 특장사 일인데 단가가 없거나 아직 분류하지 않은 옵션 → **금액만 빈 칸**으로 저절로 생긴다
+ *   · EV& 가 직접 하는 일 → 실리지 않는다
+ */
+async function buildPoLines(
+  makerOrgId: string,
+  selections: Record<string, string>,
+  options: readonly { group_code: string; value_code: string; value_name: string; category: string | null }[],
+): Promise<PoLine[]> {
+  if (!prisma) return [];
+  const rows = (await prisma.makerPrice.findMany({ where: { maker_org_id: makerOrgId, active: true } }))
+    .map(r => ({
+      label: r.label, group_code: r.group_code, value_code: r.value_code, top_code: r.top_code,
+      section: r.section, work_by: r.work_by, unit: r.unit, qty: r.qty,
+      unit_price: r.unit_price, sort_order: r.sort_order, memo: r.memo,
+    }));
+  const picked = options.map(o => ({
+    group_code: o.group_code, value_code: o.value_code, value_name: o.value_name,
+    // 「차량옵션」(트림)은 우리가 지급하는 차량이라 특장사 발주서에 실리지 않는다
+    is_body: o.category !== '차량옵션' && o.category !== '내부',
+  }));
+  return [...contractLines(selections, rows), ...autoLines(picked, rows, selections)];
+}
+
 async function respondUnpriced(e: UnpricedSelectionError, res: Response): Promise<void> {
   let names = e.selectedCodes();
   if (prisma && names.length) {
@@ -1095,24 +1124,18 @@ quotesRouter.get('/:id/order-preview', rbac('ADMIN'), async (req: Request, res):
    * 계약에 없는 사양은 줄이 만들어지지 않는다. 그런 줄은 관리자가 직접 적는다.
    */
   const makerOrgId = String(req.query['maker_org_id'] ?? '');
-  const priceRows = makerOrgId
-    ? await prisma.makerPrice.findMany({ where: { maker_org_id: makerOrgId, active: true } })
+  const sel = (quote.selections ?? {}) as Record<string, string>;
+  const options = await optionsFromSelections(sel);
+  const poLines = makerOrgId
+    ? await buildPoLines(makerOrgId, sel, options)
     : [];
-  const poLines = contractLines(
-    (quote.selections ?? {}) as Record<string, string>,
-    priceRows.map(r => ({
-      label: r.label, group_code: r.group_code, value_code: r.value_code, top_code: r.top_code,
-      section: r.section, work_by: r.work_by, unit: r.unit, qty: r.qty,
-      unit_price: r.unit_price, sort_order: r.sort_order, memo: r.memo,
-    })),
-  );
 
   res.json({ data: {
     model_code: quote.model_code,
     customer_name: quote.customer?.name ?? '',
     // 영업이 남긴 메모 — 배정 화면에서 **읽기만** 한다(고치는 자리는 견적 수정이다)
     sales_memo: (inp['memo'] as string | undefined) ?? '',
-    options: await optionsFromSelections((quote.selections ?? {}) as Record<string, string>),
+    options,
     po_lines: poLines,
   } });
 });
@@ -1263,17 +1286,39 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
    * ⚠️ 얼려 두는 이유: 발주서는 특장사에게 나가는 문서다. 나중에 단가표를 고쳤다고
    *    지난 발주서 금액이 따라 바뀌면 특장사가 받은 종이와 화면이 어긋난다.
    */
-  const priceRows = await prisma.makerPrice.findMany({ where: { maker_org_id, active: true } });
-  const contract = contractLines(
-    (quote.selections ?? {}) as Record<string, string>,
-    priceRows.map(r => ({
-      label: r.label, group_code: r.group_code, value_code: r.value_code, top_code: r.top_code,
-      section: r.section, work_by: r.work_by, unit: r.unit, qty: r.qty,
-      unit_price: r.unit_price, sort_order: r.sort_order, memo: r.memo,
-    })),
-  );
-  const manual = normalizePoLines(po_lines).filter(l => l.source === 'MANUAL');
-  const lines = [...contract, ...manual];
+  const sel = (quote.selections ?? {}) as Record<string, string>;
+  const poOptions = await optionsFromSelections(sel);
+  const built = await buildPoLines(maker_org_id, sel, poOptions);
+  const sent = normalizePoLines(po_lines);
+
+  /*
+   * 서버가 만든 줄에 **금액만** 얹는다.
+   *   · 계약 줄(CONTRACT) — 보낸 값을 아예 보지 않는다. 계약이 정한 값이다.
+   *   · 저절로 생긴 줄(AUTO) — 품목명·단위·수량은 옵션이 정하고, **금액만** 받는다.
+   *   · 손으로 더한 줄(MANUAL) — 어느 옵션에도 매이지 않아 통째로 받는다.
+   */
+  const byRef = new Map(sent.filter(l => l.ref).map(l => [l.ref!, l]));
+  const filled = built.map(l => {
+    if (l.source !== 'AUTO') return l;
+    const given = byRef.get(l.ref ?? '');
+    if (!given) return l;
+    const qty = given.qty > 0 ? given.qty : l.qty;
+    return { ...l, qty, unit_price: given.unit_price, amount: given.unit_price * qty };
+  });
+  const manual = sent.filter(l => l.source === 'MANUAL');
+  const lines = [...filled, ...manual];
+
+  /*
+   * 금액이 안 채워진 줄이 있으면 **배정하지 않는다.**
+   * 0 원짜리 줄이 실린 발주서는 특장사에게 「무상으로 해 주기로 했다」로 읽힌다.
+   */
+  const blank = unpricedLines(lines);
+  if (blank.length) {
+    res.status(400).json({ error: { code: 'BAD_INPUT',
+      message: `발주서 금액을 적어야 합니다: ${blank.map(l => l.label).join(' · ')}` } });
+    return;
+  }
+
   const lineCheck = checkPoLines(lines);
   if (!lineCheck.ok) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: `발주서 금액표 ${lineCheck.row}번째 줄을 확인해 주세요` } });
@@ -1517,5 +1562,84 @@ quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Prom
   } catch (e) {
     console.error('[GET /quotes/:id]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '견적 조회 중 오류가 발생했습니다.' } });
+  }
+});
+
+
+// ── 특장사 공급단가 ────────────────────────────────────────────────────────
+/**
+ * 특장사에 **지급하는** 단가표. 고객 견적가(`option_price`)와 다른 축이다.
+ *
+ * ⚠️ 행은 **옵션마다 하나씩 미리 있다.** 여기서 만들거나 지우지 않는다 —
+ *    아무 코드로나 행을 만들 수 있으면 어느 선택에도 걸리지 않는 유령 줄이 쌓이고,
+ *    「이 옵션은 누가 하기로 했더라」를 표에서 답할 수 없게 된다.
+ *    고칠 수 있는 것은 **분류(work_by)·단가·품목명·단위·수량**뿐이다.
+ */
+quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const orgId = String(req.params['orgId'] ?? '');
+  try {
+    const rows = await prisma.makerPrice.findMany({
+      where: { maker_org_id: orgId },
+      orderBy: { sort_order: 'asc' },
+      include: { option: { select: { name: true, group: { select: { name: true } } } } },
+    });
+    res.json({ data: rows.map(r => ({
+      id: r.id, label: r.label, group_code: r.group_code, value_code: r.value_code,
+      top_code: r.top_code, section: r.section, work_by: r.work_by,
+      unit: r.unit, qty: r.qty, unit_price: r.unit_price, active: r.active, memo: r.memo,
+      // 어느 옵션의 줄인지 — 코드만 보여 주면 무엇을 고치는지 알 수 없다
+      option_name: r.option?.name ?? null,
+      group_name: r.option?.group?.name ?? null,
+    })) });
+  } catch (e) {
+    console.error('[GET /quotes/maker-prices]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '단가표를 불러오지 못했습니다.' } });
+  }
+});
+
+quotesRouter.patch('/maker-prices/:id', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 id' } }); return; }
+
+  const { work_by, unit_price, label, unit, qty, active } = req.body as {
+    work_by?: string; unit_price?: number | null; label?: string;
+    unit?: string; qty?: number; active?: boolean;
+  };
+  if (work_by !== undefined && !['MAKER', 'EVN', 'NONE'].includes(work_by)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '분류는 MAKER · EVN · NONE 중 하나입니다' } });
+    return;
+  }
+  /*
+   * 단가는 **비울 수 있다**(계약에 값이 없다). 0 으로 채워 두지 않는다 —
+   * 0 원은 「무상으로 해 주기로 했다」는 뜻이 되어 특장사에게 그대로 나간다.
+   */
+  const price = unit_price === null || unit_price === undefined || unit_price === ('' as unknown)
+    ? null
+    : Math.max(0, Math.trunc(Number(unit_price)));
+  if (price !== null && !Number.isFinite(price)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '단가는 숫자여야 합니다' } });
+    return;
+  }
+
+  try {
+    // 옵션과의 연결(group_code·value_code·top_code)은 **고치지 않는다** — 행이 옵션에 매여 있다
+    const row = await prisma.makerPrice.update({
+      where: { id },
+      data: {
+        ...(work_by !== undefined ? { work_by } : {}),
+        ...(unit_price !== undefined ? { unit_price: price } : {}),
+        ...(label !== undefined ? { label: String(label).slice(0, 120) } : {}),
+        ...(unit !== undefined ? { unit: String(unit).slice(0, 10) || 'EA' } : {}),
+        ...(qty !== undefined ? { qty: Math.max(1, Math.trunc(Number(qty) || 1)) } : {}),
+        ...(active !== undefined ? { active: active === true } : {}),
+      },
+    });
+    console.info(`[maker_price] ${row.maker_org_id} ${row.value_code} → ${row.work_by} ${row.unit_price ?? '(미책정)'} — ${req.auth?.email ?? 'unknown'}`);
+    res.json({ data: { id: row.id } });
+  } catch (e) {
+    console.error('[PATCH /quotes/maker-prices]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '단가를 고치지 못했습니다.' } });
   }
 });

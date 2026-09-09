@@ -4,8 +4,13 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace=frontend"],
-      "port": 5173
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--workspace=frontend"
+      ],
+      "port": 5173,
+      "autoPort": false
     }
   ]
 }

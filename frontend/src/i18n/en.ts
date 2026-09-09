@@ -10,6 +10,22 @@
  *    원·없음·서울특별시·일반인처럼 코드가 값으로 비교하는 말도 여기 **번역은 있다**(화면용).
  */
 export const EN: Record<string, string> = {
+  '특장사 단가': 'Upfitter rates',
+  '분류': 'Assigned to',
+  'EV& 직접': 'EV& in-house',
+  '계약 미책정': 'No contract price',
+  '공통': 'Both',
+  '수량': 'Qty',
+  '우리가 특장사에 지급하는 단가입니다. 고객 견적가와 다릅니다.': 'What we pay the upfitter. This is not the customer quote price.',
+  '항목은 옵션에 맞춰 미리 만들어져 있습니다. 여기서는 값만 고칩니다.': 'Rows are created to match the options. Here you only edit their values.',
+  '단가표를 불러오지 못했습니다': 'Could not load the rate table',
+  '단가를 고치지 못했습니다': 'Could not save the rate',
+  '특장사 목록을 불러오지 못했습니다': 'Could not load the upfitter list',
+  '선택 옵션': 'From options',
+  '(이름 없음)': '(unnamed)',
+  '발주서 금액을 적어야 배정할 수 있습니다': 'You must enter the purchase-order amounts before assigning',
+  '커스텀 주문은 요청사항을 적어야 배정할 수 있습니다': 'A custom order needs its request written before assigning',
+  '특장사를 고르면 계약 단가가 채워집니다. 계약에 없는 항목은 금액 칸이 저절로 생깁니다.': 'Contract prices fill in once you pick an upfitter. Items not covered by the contract get an amount field automatically.',
   '되돌리기 btn': 'Undo',
   '커스텀 요청사항 삭제': 'Delete custom request',
   '작성한 내용이 함께 삭제됩니다. 삭제할까요?': 'This also deletes what you wrote. Delete it?',
@@ -23,7 +39,6 @@ export const EN: Record<string, string> = {
   '추가 옵션 사양': 'Additional options',
   '계약': 'Contract',
   '+ 항목 추가': '+ Add item',
-  '특장사를 고르면 계약 단가가 채워집니다. 계약에 없는 항목은 직접 적어 주세요.': 'Contract prices fill in once you pick an upfitter. Add anything not covered by the contract yourself.',
   '(배정 시 발급)': '(issued on assignment)',
   '주문': 'Order',
   // 상태 배지의 「임시저장」(Draft)과 다른 말 — 버튼에서는 **적어 두는 동작**이다
@@ -1036,6 +1051,8 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '계약 단가가 없는 항목 {0}개는 배정할 때마다 금액을 적어야 합니다: {1}': '{0} item(s) have no contract price — you will enter an amount each time you assign: {1}',
+  '금액을 적어야 배정할 수 있습니다: {0}': 'Enter amounts before assigning: {0}',
   '한 장에 담기는 줄은 {0}개까지입니다.': 'A single page holds up to {0} rows.',
   '단가가 정해지지 않은 사양이 있어 저장할 수 없습니다: {0}': 'Cannot save — no price has been set for: {0}',
   '임시저장했습니다 ({0})': 'Draft saved ({0})',

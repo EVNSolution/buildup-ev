@@ -1,12 +1,18 @@
 code,name,surface,sort_order,active
 quote.create,견적 생성,영업,1,Y
 quote.confirm,견적서 확정·생성,"영업,관리자",2,Y
-order.confirm,주문 전환·배정,관리자,3,Y
-view.all,전체 조회,"영업,관리자",4,Y
-order.view,주문 진행 조회,"영업,관리자,특장사",5,Y
-order.control,주문 상태 변경,"관리자,특장사",6,Y
-subsidy.manage,보조금 관리,관리자,7,Y
-account.manage,계정 관리,관리자,8,Y
-doc.view,서류 조회,"관리자,특장사",9,Y
+quote.edit,견적 수정·복제,"영업,관리자",3,Y
+quote.delete,견적 삭제,관리자,4,Y
+doc.send.email,메일 발송,"영업,관리자",5,Y
+doc.send.sign,전자서명 발송,"영업,관리자",6,Y
+order.confirm,주문 전환·배정,관리자,7,Y
+order.view,주문 진행 조회,"영업,관리자,특장사",8,Y
+order.control,주문 상태 변경,"관리자,특장사",9,Y
+doc.view,구조변경 서류 조회,"관리자,특장사",10,Y
 notify.assign,제작 배정 알림 메일,관리자,10,Y
+notify.push,앱 알림,공통,11,Y
 order.remove,주문 치우기(관리자),관리자,11,Y
+stats.own,내 실적 조회,"영업,관리자",11,Y
+stats.all,전체 실적 조회,관리자,12,Y
+basedata.manage,옵션DB·무게상수 관리,관리자,13,Y
+account.manage,계정 관리,관리자,14,Y

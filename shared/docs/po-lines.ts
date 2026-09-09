@@ -27,9 +27,16 @@ export interface PoLine {
   /**
    * 이 줄이 어디서 왔는가.
    *   CONTRACT = 계약 단가표에서 자동으로 온 줄 — 관리자가 금액을 고치지 않는다
-   *   MANUAL   = 계약에 없어 관리자가 직접 적은 줄
+   *   AUTO     = 고른 옵션 때문에 **저절로 생긴** 줄. 계약에 단가가 없어(또는 아직 분류하지
+   *              않아) 금액만 비어 있다. 품목명은 옵션 이름이라 고치지 않는다.
+   *   MANUAL   = 관리자가 손으로 더한 줄. 어느 옵션에도 매이지 않아 이름부터 적는다.
    */
-  source: 'CONTRACT' | 'MANUAL';
+  source: 'CONTRACT' | 'AUTO' | 'MANUAL';
+  /**
+   * 이 줄이 어느 선택에서 나왔는가 — `AUTO` 줄만 갖는다.
+   * 저장할 때 같은 줄을 두 번 만들지 않으려고 쓴다.
+   */
+  ref?: string;
 }
 
 /** 단가표 한 행 — DB(`maker_price`)에서 그대로 온다 */
@@ -39,13 +46,32 @@ export interface MakerPriceRow {
   value_code: string | null;
   top_code: string | null;
   section: string;
-  /** MAKER=특장사 작업(발주서에 실린다) · EVN=EV& 직접 추가작업(실리지 않는다) */
+  /**
+   * 누가 하는 일인가.
+   *   MAKER = 특장사 작업 → 발주서에 실린다
+   *   EVN   = EV& 가 직접 → 실리지 않는다(특장사에 지급할 값이 아니다)
+   *   NONE  = 할 일이 없다(「없음」·기본형 포함 사양) → 실리지 않는다
+   */
   work_by: string;
   unit: string;
   qty: number;
-  unit_price: number;
+  /** 계약에 단가가 없으면 `null` — 그러면 발주서에 **금액만 빈 칸으로** 뜬다 */
+  unit_price: number | null;
   sort_order: number;
   memo: string | null;
+}
+
+/** 고른 옵션 하나 — 발주서에 실릴 후보다 */
+export interface SelectedOption {
+  group_code: string;
+  value_code: string;
+  /** 발주서 품목명이 된다 */
+  value_name: string;
+  /**
+   * 특장사에 맡기는 축인가. 차량 트림처럼 **우리가 지급하는** 것은 발주서에 실리지 않는다
+   * (계약 제7조 — 베이스 차량은 갑이 을에게 지급한다).
+   */
+  is_body: boolean;
 }
 
 /**
@@ -66,6 +92,7 @@ export function contractLines(
 
   for (const r of rows) {
     if (r.work_by !== 'MAKER') continue;
+    if (r.unit_price == null) continue;              // 단가가 없는 줄은 `autoLines` 가 만든다
     // 탑 높이가 지정된 단가는 그 높이일 때만 — 저상 단가를 표준형 발주서에 실으면 안 된다
     if (r.top_code && r.top_code !== top) continue;
     if (!r.group_code) continue;
@@ -82,11 +109,70 @@ export function contractLines(
     section: r.section === 'BASE' ? 'BASE' : 'OPTION',
     unit: r.unit,
     qty: r.qty,
-    unit_price: r.unit_price,
-    amount: r.unit_price * r.qty,
+    unit_price: r.unit_price!,
+    amount: r.unit_price! * r.qty,
     ...(r.memo ? { memo: r.memo } : {}),
     source: 'CONTRACT' as const,
   }));
+}
+
+/**
+ * **금액만 비어 있는 줄을 저절로 만든다.**
+ *
+ * 고른 옵션 중 특장사에 맡기는 것인데 계약 단가가 없으면, 관리자가 「+ 항목 추가」를 눌러
+ * 품목명부터 타이핑하게 두지 않는다 — 무엇을 적어야 하는지 화면이 먼저 안다.
+ * 관리자는 **금액만** 채운다.
+ *
+ * 줄이 생기는 경우는 둘이다:
+ *   · `work_by='MAKER'` 인데 `unit_price` 가 비었다 — 특장사 일인데 계약에 값이 없다
+ *   · 단가표에 **행이 아예 없다** — 아직 어느 쪽 일인지 정하지 않았다.
+ *     조용히 빠뜨리느니 빈 칸으로 띄운다(정리는 「특장사 단가」 화면에서 한다).
+ *
+ * `work_by` 가 `EVN`(우리가 한다)이나 `NONE`(할 일이 없다)이면 나오지 않는다.
+ */
+export function autoLines(
+  options: readonly SelectedOption[],
+  rows: readonly MakerPriceRow[],
+  selections: Record<string, string>,
+): PoLine[] {
+  const top = selections['TOP'] ?? '';
+  const out: PoLine[] = [];
+
+  for (const o of options) {
+    // 차량 쪽 선택(트림 등)은 특장사와 무관하다
+    if (!o.is_body) continue;
+
+    const match = rows.find(r =>
+      r.group_code === o.group_code
+      && (!r.value_code || r.value_code === o.value_code)
+      && (!r.top_code || r.top_code === top));
+
+    if (match) {
+      if (match.work_by !== 'MAKER') continue;       // EV& 가 하는 일 — 발주서에 안 실린다
+      if (match.unit_price != null) continue;        // 계약 단가가 있으면 `contractLines` 가 만든다
+    }
+
+    out.push({
+      label: match?.label || o.value_name,
+      section: 'OPTION',
+      unit: match?.unit || 'EA',
+      qty: match?.qty ?? 1,
+      unit_price: 0,
+      amount: 0,
+      source: 'AUTO',
+      ref: `${o.group_code}:${o.value_code}`,
+      ...(match ? {} : { memo: '' }),
+    });
+  }
+  return out;
+}
+
+/**
+ * 금액이 아직 안 채워진 줄 — **이대로 배정하면 0 원짜리 발주서가 나간다.**
+ * 0 원은 「무상으로 해 주기로 했다」는 뜻이 되어 버린다.
+ */
+export function unpricedLines(lines: readonly PoLine[]): PoLine[] {
+  return lines.filter(l => l.unit_price <= 0);
 }
 
 /** 합계 — VAT 별도. 표에 찍히는 값이라 여기서 한 번만 센다 */
@@ -127,7 +213,8 @@ export function normalizePoLines(raw: unknown): PoLine[] {
       // 화면이 보낸 합계는 믿지 않는다 — 단가×수량과 어긋나면 표가 스스로 거짓말을 한다
       amount: unit_price * qty,
       ...(memo ? { memo } : {}),
-      source: o['source'] === 'CONTRACT' ? 'CONTRACT' : 'MANUAL',
+      source: o['source'] === 'CONTRACT' ? 'CONTRACT' : o['source'] === 'AUTO' ? 'AUTO' : 'MANUAL',
+      ...(o['ref'] ? { ref: String(o['ref']).slice(0, 80) } : {}),
     };
   });
 }
