@@ -239,12 +239,21 @@ async function main() {
     label:        r['label']!,
     group_code:   opt(r['group_code']),
     value_code:   opt(r['value_code']),
-    top_code:     opt(r['top_code']),
+    /*
+     * 탑 높이를 안 가리면 **빈 문자열**로 둔다(NULL 이 아니다).
+     *
+     * ⚠️ Postgres 는 유일 인덱스에서 NULL 을 **서로 다른 값으로** 본다. NULL 로 두면
+     *    「같은 옵션·같은 탑에 단가는 하나뿐」이라는 제약이 그 줄들에는 걸리지 않아
+     *    같은 자리에 행이 여럿 생길 수 있다 — 어느 값이 맞는지 알 수 없게 된다.
+     *    (Prisma 도 복합 유일키 조회에 NULL 을 받지 않는다)
+     */
+    top_code:     r['top_code'] ?? '',
     section:      r['section']!,
     work_by:      r['work_by']!,
     unit:         r['unit'] || 'EA',
     qty:          num(r['qty']) ?? 1,
-    unit_price:   num(r['unit_price']) ?? 0,
+    // 빈 칸은 **계약에 단가가 없다**는 뜻이다 — 0 원(무상)과 다른 말이라 null 로 둔다
+    unit_price:   num(r['unit_price']),
     sort_order:   num(r['sort_order']) ?? 0,
     active:       bool(r['active']),
     memo:         opt(r['memo']),
@@ -254,9 +263,9 @@ async function main() {
       where: {
         maker_org_id_group_code_value_code_top_code: {
           maker_org_id: mp.maker_org_id,
-          group_code: mp.group_code ?? null,
-          value_code: mp.value_code ?? null,
-          top_code:   mp.top_code ?? null,
+          group_code: mp.group_code ?? '',
+          value_code: mp.value_code ?? '',
+          top_code:   mp.top_code,
         },
       },
       update: mp, create: mp,

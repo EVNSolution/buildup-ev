@@ -8,7 +8,8 @@ import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview, setQuoteHidden, fetchPoDraft, savePoDraft } from '../api/quotes'
 import type { PoDraft } from '../api/quotes'
 import { PoLineEditor } from '../components/PoLineEditor'
-import type { PoLine } from '@shared/docs/po-lines'
+import { MakerPriceTab } from '../components/MakerPriceTab'
+import { unpricedLines, type PoLine } from '@shared/docs/po-lines'
 import { PurchaseOrderSheet } from '../components/PurchaseOrderSheet'
 import { clampMemo, MEMO_MAX_LINES, MEMO_MAX_LINE_CHARS } from '@shared/docs/memo'
 import { hasAppendix } from '@shared/docs/appendix'
@@ -87,7 +88,7 @@ const MODULE_DESC: Record<string, string> = {
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
-type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb'
+type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb' | 'makerprice'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -145,7 +146,12 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
    * 특장사는 「무엇이 다른지」를 알 길이 없다. 커스텀이 아니면 별지는 없는 것이라 상관없다.
    */
   const needsAppendix = customBadge && !hasAppendix(appendix)
-  const canAssign = !!selected && !loading && !needsAppendix
+  /*
+   * 금액이 안 채워진 줄이 있으면 배정하지 않는다 — 0 원짜리 줄이 실린 발주서는
+   * 특장사에게 「무상으로 해 주기로 했다」로 읽힌다. 서버도 같은 것을 본다.
+   */
+  const needsPrice = unpricedLines(poLines).length > 0
+  const canAssign = !!selected && !loading && !needsAppendix && !needsPrice
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof fetchOrderPreview>> | null>(null)
   const [loadErr, setLoadErr] = useState('')
 
@@ -171,7 +177,20 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
       .then(d => {
         if (!alive) return
         setPreview(d)
-        setPoLines(prev => [...d.po_lines, ...prev.filter(l => l.source === 'MANUAL')])
+        /*
+         * 서버가 만든 줄(계약·자동)로 갈아 끼우고, **손으로 더한 줄만** 남긴다.
+         * ⚠️ 자동 줄에 이미 적어 둔 금액은 옮겨 붙인다 — 특장사를 바꿨다고 적던 금액이
+         *    사라지면 다시 적어야 한다. 계약 단가가 생긴 줄은 그 값이 이긴다.
+         */
+        setPoLines(prev => {
+          const typed = new Map(prev.filter(l => l.ref && l.unit_price > 0).map(l => [l.ref!, l]))
+          const next = d.po_lines.map(l => {
+            if (l.source !== 'AUTO') return l
+            const had = typed.get(l.ref ?? '')
+            return had ? { ...l, unit_price: had.unit_price, amount: had.unit_price * l.qty } : l
+          })
+          return [...next, ...prev.filter(l => l.source === 'MANUAL')]
+        })
       })
       .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
@@ -359,7 +378,8 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
           <button
             style={!canAssign ? modal.confirmBtnDisabled : modal.confirmBtn}
             disabled={!canAssign}
-            title={needsAppendix ? t('커스텀 주문은 별지(2페이지)를 적어야 배정할 수 있습니다') : undefined}
+            title={needsAppendix ? t('커스텀 주문은 요청사항을 적어야 배정할 수 있습니다')
+              : needsPrice ? t('발주서 금액을 적어야 배정할 수 있습니다') : undefined}
             onClick={() => onConfirm(selected, customBadge ? '' : remark, customBadge, appendix, poLines)}
           >{loading ? t('처리 중…') : t('제작 배정')}</button>
         </div>
@@ -1843,6 +1863,8 @@ export function AdminPage() {
     { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
     { key: 'weights',  label: t('무게상수'),  show: perm.basedata },
     { key: 'optiondb', label: t('옵션DB'),    show: perm.basedata },
+    // 특장사에 **지급하는** 단가 — 고객 견적가(옵션DB)와 다른 축이라 탭을 나눈다
+    { key: 'makerprice', label: t('특장사 단가'), show: perm.basedata },
   ] as const).filter(t => t.show)
 
   // 보고 있던 탭이 감춰지면(권한이 도중에 꺼지면) 첫 탭으로 되돌린다.
@@ -1937,6 +1959,7 @@ export function AdminPage() {
           />
         )}
         {activeTab === 'optiondb' && <OptionDbTab only={['option_price', 'subsidy_local', 'subsidy_national', 'tax_config', 'installment_rate']} />}
+        {activeTab === 'makerprice' && <MakerPriceTab />}
       </div>
     </div>
   )

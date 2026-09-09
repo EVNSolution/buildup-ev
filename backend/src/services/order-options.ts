@@ -12,6 +12,12 @@ export interface ResolvedOption {
   group_name: string;
   value_code: string;
   value_name: string;
+  /**
+   * 옵션 분류 — 「특장」·「옵션」은 특장사에 맡기는 축이고, 「차량옵션」(트림)은 차량 쪽이다.
+   * 발주서는 특장사에 **지급하는** 서류라, 우리가 지급하는 차량은 실리지 않는다
+   * (계약 제7조 — 베이스 차량은 갑이 을에게 지급한다).
+   */
+  category: string | null;
 }
 
 /** 견적의 selections 를 사양 목록으로 편다. 이름을 못 찾는 코드는 버린다 */
@@ -23,13 +29,16 @@ export async function optionsFromSelections(
   if (valueCodes.length === 0) return [];
   const values = await prisma.optionValue.findMany({
     where: { code: { in: valueCodes } },
-    include: { group: { select: { code: true, name: true } } },
+    include: { group: { select: { code: true, name: true, category: true } } },
   });
   const vMap = new Map(values.map(v => [v.code, v]));
   return Object.entries(selections)
     .filter(([, vCode]) => vMap.has(vCode))
     .map(([gCode, vCode], idx) => {
       const v = vMap.get(vCode)!;
-      return { id: idx, group_code: gCode, group_name: v.group.name, value_code: vCode, value_name: v.name };
+      return {
+        id: idx, group_code: gCode, group_name: v.group.name,
+        value_code: vCode, value_name: v.name, category: v.group.category,
+      };
     });
 }

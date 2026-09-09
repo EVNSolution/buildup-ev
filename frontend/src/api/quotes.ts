@@ -428,3 +428,50 @@ export async function savePoDraft(quoteId: number, draft: {
   if (!res.ok || !body?.data) throw new Error(body?.error?.message ?? `임시저장 실패: ${res.status}`)
   return body.data
 }
+
+
+// ── 특장사 공급단가 ────────────────────────────────────────────────────────
+
+export interface MakerPriceRowApi {
+  id: number
+  label: string
+  group_code: string | null
+  value_code: string | null
+  top_code: string | null
+  section: string
+  /** MAKER=특장사 작업 · EVN=EV& 직접 · NONE=할 일 없음 */
+  work_by: string
+  unit: string
+  qty: number
+  /** 계약에 단가가 없으면 null — 발주서에서 그때그때 적는다 */
+  unit_price: number | null
+  active: boolean
+  memo: string | null
+  option_name: string | null
+  group_name: string | null
+}
+
+export async function fetchMakerPrices(orgId: string): Promise<MakerPriceRowApi[]> {
+  const res = await fetch(`/api/v1/quotes/maker-prices/${encodeURIComponent(orgId)}`, { credentials: 'include' })
+  if (!res.ok) throw new Error(t('단가표를 불러오지 못했습니다'))
+  const b = await res.json() as { data: MakerPriceRowApi[] }
+  return b.data
+}
+
+/**
+ * 값만 고친다 — 옵션과의 연결(어느 선택의 줄인가)은 여기서 바꾸지 않는다.
+ * 행은 옵션마다 하나씩 미리 있고, 만들거나 지우지 않는다.
+ */
+export async function saveMakerPrice(id: number, patch: {
+  work_by?: string; unit_price?: number | null; label?: string; unit?: string; qty?: number; active?: boolean
+}): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/maker-prices/${id}`, {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? t('단가를 고치지 못했습니다'))
+  }
+}

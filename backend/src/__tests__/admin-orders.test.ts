@@ -160,10 +160,21 @@ describe.skipIf(shouldSkip || !AUTH_OK)('관리자 관제 — 확정·배정·�
   });
 
   it('배정 성공 — quote.assigned + order 생성 + maker_org 배정', async () => {
+    /*
+     * 계약 단가가 없는 옵션은 발주서에 **금액만 빈 칸으로** 뜨고, 비어 있으면 배정이 막힌다.
+     * 여기서 볼 것은 그게 아니라 배정 자체라, 미리보기에서 받은 그 줄들에 금액을 채워 보낸다.
+     */
+    const prev = await request(app)
+      .get(`/api/v1/quotes/${quoteId}/order-preview?maker_org_id=${MAKER_ORG}`)
+      .set('Cookie', ADMIN_COOKIE);
+    const auto = (prev.body.data.po_lines as { source: string; qty: number }[])
+      .filter(l => l.source === 'AUTO')
+      .map(l => ({ ...l, unit_price: 100_000, amount: 100_000 * l.qty }));
+
     const res = await request(app)
       .patch(`/api/v1/quotes/${quoteId}/assign`)
       .set('Cookie', ADMIN_COOKIE)
-      .send({ maker_org_id: MAKER_ORG })
+      .send({ maker_org_id: MAKER_ORG, po_lines: auto })
       .expect(200);
 
     const { quote, order } = res.body.data;
