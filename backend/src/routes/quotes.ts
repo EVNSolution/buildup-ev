@@ -1575,7 +1575,7 @@ quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Prom
  *    「이 옵션은 누가 하기로 했더라」를 표에서 답할 수 없게 된다.
  *    고칠 수 있는 것은 **분류(work_by)·단가·품목명·단위·수량**뿐이다.
  */
-quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('basedata.edit'), async (req: Request, res): Promise<void> => {
+quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const orgId = String(req.params['orgId'] ?? '');
   try {
@@ -1598,7 +1598,7 @@ quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('based
   }
 });
 
-quotesRouter.patch('/maker-prices/:id', rbac('ADMIN'), requirePermission('basedata.edit'), async (req: Request, res): Promise<void> => {
+quotesRouter.patch('/maker-prices/:id', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = Number(req.params['id']);
   if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 id' } }); return; }

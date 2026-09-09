@@ -179,9 +179,14 @@ const s: Record<string, React.CSSProperties> = {
   field: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   fieldLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)', flexShrink: 0 },
   desc: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', margin: 0 },
+  /*
+   * 고르는 칸은 **글자가 다 보여야** 한다. 좁으면 「특장사」가 「사」로 잘려
+   * 무엇이 골라져 있는지 알 수 없다(실측 — 표를 좁은 화면에서 밀어 봤다).
+   */
   select: {
     font: 'inherit', fontSize: 'var(--fs-label)', padding: '4px 6px',
     border: 'var(--hairline)', borderRadius: 4, background: '#fff',
+    minWidth: 96,
   },
   input: {
     width: '100%', minWidth: 0, boxSizing: 'border-box', font: 'inherit',
@@ -196,7 +201,8 @@ const s: Record<string, React.CSSProperties> = {
   },
   // 표가 넓다 — 화면을 밀지 않고 **표 안에서** 가로로 넘긴다
   tableWrap: { overflowX: 'auto', minWidth: 0 },
-  table: { borderCollapse: 'collapse', fontSize: 'var(--fs-label)', minWidth: 760 },
+  // 칸이 눌리지 않는 폭 — 좁은 화면에서는 표 안에서 가로로 넘긴다
+  table: { borderCollapse: 'collapse', fontSize: 'var(--fs-label)', minWidth: 900 },
   th: { border: 'var(--hairline)', padding: '5px 7px', textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap' },
   thMid: { border: 'var(--hairline)', padding: '5px 7px', textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' },
   thNum: { border: 'var(--hairline)', padding: '5px 7px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' },

@@ -1,14 +1,27 @@
 subject_type,subject_ref,module_code,enabled,memo
 role,SALES,quote.create,Y,
 role,SALES,quote.confirm,Y,
+role,SALES,quote.edit,Y,
 role,SALES,order.view,Y,
+role,SALES,doc.send.email,Y,
+role,SALES,doc.send.sign,Y,
+role,SALES,stats.own,Y,
 role,ADMIN,quote.confirm,Y,
+role,ADMIN,quote.edit,Y,
+role,ADMIN,quote.delete,N,계정별로 켠다
 role,ADMIN,order.confirm,Y,
-role,ADMIN,view.all,Y,
 role,ADMIN,order.view,Y,
-role,ADMIN,subsidy.manage,Y,
-role,ADMIN,account.manage,Y,
+role,ADMIN,order.control,N,계정별로 켠다
+role,ADMIN,order.remove,Y,
 role,ADMIN,doc.view,Y,
+role,ADMIN,doc.send.email,Y,
+role,ADMIN,doc.send.sign,Y,
+role,ADMIN,notify.push,Y,
+role,ADMIN,stats.own,Y,
+role,ADMIN,stats.all,Y,
+role,ADMIN,basedata.manage,N,계정별로 켠다
+role,ADMIN,account.manage,N,계정별로 켠다
 role,MAKER,order.view,Y,
 role,MAKER,order.control,Y,
 role,MAKER,doc.view,Y,
+role,MAKER,notify.push,Y,
