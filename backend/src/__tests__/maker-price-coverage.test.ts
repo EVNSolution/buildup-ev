@@ -113,7 +113,12 @@ describe('특장사 단가표 — 옵션과의 맞물림', () => {
   it('🔴 행은 옵션에 **묶여 있다** — 아무 코드로나 만들 수 없다', () => {
     const schema = read('backend/prisma/schema.prisma');
     expect(schema, '옵션값과의 외래키가 없다')
-      .toMatch(/option\s+OptionValue\?\s+@relation\("MakerPriceValue", fields: \[value_code\], references: \[code\]\)/);
+      .toMatch(/option\s+OptionValue\?\s+@relation\("MakerPriceValue", fields: \[value_code\], references: \[code\], onDelete: Restrict\)/);
+    /*
+     * `onDelete` 를 적지 않으면 Prisma 기본값(SetNull)이 되어, 옵션을 지웠을 때
+     * `value_code` 가 NULL 인 **유령 줄**이 남는다. 지우기를 막는 쪽이 맞다 —
+     * 옵션은 지우지 않고 `active` 로 끄는 것이 이 저장소의 방식이다.
+     */
     // 고치는 API 도 연결을 건드리지 않는다
     const routes = read('backend/src/routes/quotes.ts');
     const patch = routes.slice(routes.indexOf("quotesRouter.patch('/maker-prices/:id'"));
