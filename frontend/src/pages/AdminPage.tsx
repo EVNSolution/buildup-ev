@@ -125,10 +125,6 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
    */
   const [customBadge, setCustomBadge] = useState(false)
   /*
-   * 발주서 장 넘기기 — 커스텀을 켜면 2페이지(별지)가 생긴다.
-   * 커스텀을 끄면 별지는 없는 것이므로 1페이지로 돌려놓는다(빈 장을 보여 줄 이유가 없다).
-   */
-  /*
    * 커스텀 요청사항 칸이 열려 있는가. 적어 둔 내용이 있으면 처음부터 열어 둔다 —
    * 이어 받았을 때 접혀 있으면 **적어 둔 글이 없는 줄 안다.**
    */
@@ -142,8 +138,8 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
    */
   const [poLines, setPoLines] = useState<PoLine[]>([])
   /*
-   * 커스텀인데 별지가 비면 배정을 막는다 — 커스텀 배지만 달고 설명이 없으면
-   * 특장사는 「무엇이 다른지」를 알 길이 없다. 커스텀이 아니면 별지는 없는 것이라 상관없다.
+   * 커스텀인데 요청사항이 비면 배정을 막는다 — 커스텀 배지만 달고 설명이 없으면
+   * 특장사는 「무엇이 다른지」를 알 길이 없다. 커스텀이 아니면 그 칸은 없는 것이라 상관없다.
    */
   const needsAppendix = customBadge && !hasAppendix(appendix)
   /*
@@ -2233,7 +2229,7 @@ const modal: Record<string, React.CSSProperties> = {
     padding: 'var(--sp-3)', font: 'inherit', fontSize: 'var(--fs-caption)',
     color: 'var(--muted)', cursor: 'pointer',
   },
-  /** 별지 입력 — 한 장을 채우는 칸이라 비고보다 훨씬 크다 */
+  /** 커스텀 요청사항 입력 — 길게 적는 칸이라 비고보다 훨씬 크다 */
   appendixInput: {
     width: '100%', minHeight: 300, resize: 'vertical' as const,
     fontSize: 'var(--fs-sheet)', lineHeight: 1.7, padding: 'var(--sp-3)',
