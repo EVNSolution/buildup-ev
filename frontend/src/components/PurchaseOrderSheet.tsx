@@ -19,7 +19,7 @@ import { poTotal, type PoLine } from '@shared/docs/po-lines'
  */
 export function PurchaseOrderSheet({
   orderId, orderedAt, makerOrgName, modelCode, options, deliveryDue, remark, editable, poLines, poEditor,
-  appendix, appendixEditable, appendixFooter,
+  appendix, appendixEditable, appendixFooter, dueLimitDays,
 }: {
   /**
    * 주문 번호 = 발주서의 문서번호.
@@ -53,6 +53,11 @@ export function PurchaseOrderSheet({
   appendixEditable?: React.ReactNode
   /** 그 칸 아래에 붙이는 것(수락 화면의 「확인했습니다」 체크) */
   appendixFooter?: React.ReactNode
+  /**
+   * 이 발주의 납기 한도(영업일). **배정할 때 얼려 둔 값**을 받는다 —
+   * 상수를 늘려도 이미 나간 발주서의 「N일 이내」 문구가 소급해 바뀌지 않는다.
+   */
+  dueLimitDays?: number
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -159,7 +164,7 @@ export function PurchaseOrderSheet({
         <li>{t('본 발주서는 공급사의 견적서 수령 이후 발주사·공급사 간 기 협의한 사항에 따릅니다.')}</li>
         <li>
           {/* 숫자가 끼어 있어 그동안 옮겨지지 않은 채 1·3·4 항 사이에 혼자 한국어로 남아 있었다 */}
-          {tf('납기일자: 발주일로부터 {0}일 이내 (영업일 기준)', DELIVERY_DUE_BUSINESS_DAYS)}
+          {tf('납기일자: 발주일로부터 {0}일 이내 (영업일 기준)', dueLimitDays ?? DELIVERY_DUE_BUSINESS_DAYS)}
           {deliveryDue && <b style={s.due}>{tf(' — {0} 로 지정', deliveryDue)}</b>}
         </li>
         <li>{t('납품장소 및 검사방법: 당사 지정 장소 및 당사 검사기준에 의함. 사전 협의하여 진행함.')}</li>

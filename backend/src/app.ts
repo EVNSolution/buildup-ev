@@ -15,6 +15,7 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
 import { weightConstantsRouter } from './routes/weight-constants.js';
+import { holidaysRouter } from './routes/holidays.js';
 import { optionDbRouter } from './routes/option-db.js';
 import { statsRouter } from './routes/stats.js';
 import { contractsRouter } from './routes/contracts.js';
@@ -86,6 +87,7 @@ export function createApp() {
   app.use('/api/v1/users', usersRouter);
   app.use('/api/v1/access-control', accessControlRouter);
   app.use('/api/v1/weight-constants', weightConstantsRouter);
+  app.use('/api/v1/holidays', holidaysRouter);
   app.use('/api/v1/option-db', optionDbRouter); // 기준데이터 CRUD + 감사이력 (ADMIN 전용)
   app.use('/api/v1/stats', statsRouter);        // 영업 성과 (SALES=본인만 / ADMIN=전체)
   app.use('/api/v1/feature-modules', featureModulesRouter);

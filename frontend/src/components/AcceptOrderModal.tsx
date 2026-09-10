@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { t, tc, tf } from '../i18n'
 import type { ApiOrderOption } from '@shared/types/index'
 import { checkDeliveryDue, deliveryDueLimit, fromDateInput, toDateInput, DELIVERY_DUE_BUSINESS_DAYS } from '@shared/schedule/businessDays'
+import { loadHolidays } from '../lib/holidays'
 import { fetchOrderDetail } from '../api/orders'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { hasAppendix } from '@shared/docs/appendix'
@@ -47,7 +48,18 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
     const d = new Date(orderedAt)
     return new Date(d.getFullYear(), d.getMonth(), d.getDate())
   }, [orderedAt])
-  const limit = useMemo(() => deliveryDueLimit(base), [base])
+  /*
+   * 이 발주의 한도(영업일). 배정할 때 얼려 둔 값을 받아 쓴다 —
+   * 상수를 20으로 늘려도 15일 시절에 나간 발주서의 달력은 그대로다.
+   */
+  const [limitDays, setLimitDays] = useState(DELIVERY_DUE_BUSINESS_DAYS)
+  /*
+   * 공휴일 달력이 도착하면 한도를 **다시 센다.** 달력이 늦게 오면 연휴가 빠지지 않은
+   * 짧은 한도가 잠깐 그려지고, 그 사이에 고른 날짜가 서버에서 거절된다.
+   */
+  const [calReady, setCalReady] = useState(false)
+  useEffect(() => { void loadHolidays().then(() => setCalReady(true)) }, [])
+  const limit = useMemo(() => deliveryDueLimit(base, limitDays), [base, limitDays, calReady])
 
   const [rejecting, setRejecting] = useState(false)
 
@@ -90,13 +102,14 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         setPoLines(Array.isArray(d.po_lines) ? d.po_lines as PoLine[] : [])
         // 이미 확인한 주문이면 다시 묻지 않는다 — 확인은 한 번이면 된다
         if (d.appendix_ack_at) setAcked(true)
+        if (typeof d.due_limit_days === 'number') setLimitDays(d.due_limit_days)
       })
       .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [orderId])
 
   const parsed = fromDateInput(due)
-  const check = parsed ? checkDeliveryDue(parsed, base) : null
+  const check = parsed ? checkDeliveryDue(parsed, base, limitDays) : null
   /*
    * 한도가 **이미 지난** 발주 — 고를 수 있는 날짜가 하나도 없다.
    * 이때 화면에 빈 달력만 두면 「왜 아무것도 안 눌리지」로 끝나고 주문이 멈춘다.
@@ -134,6 +147,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 remark={remark}
                 appendix={appendix}
                 poLines={poLines}
+                dueLimitDays={limitDays}
                 /*
                  * 커스텀 요청사항을 **읽었다는 표시** — 서류 안, 그 칸 바로 아래에 둔다.
                  * 예전엔 이게 2페이지(별지)라 「그 장을 열어야 체크가 나온다」로 강제했는데,
@@ -158,7 +172,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 뒷조각은 비운다(한국어의 「까지」가 갈 자리다).
               */}
               <span style={m.dueHint}>
-                {tf('{0}영업일 · ', DELIVERY_DUE_BUSINESS_DAYS)}<b>{toDateInput(limit)}</b>{tc('까지', 'due')}
+                {tf('{0}영업일 · ', limitDays)}<b>{toDateInput(limit)}</b>{tc('까지', 'due')}
               </span>
             </div>
             {/*
@@ -178,7 +192,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
             ) : (
               <>
                 {/* 고를 수 있는 날짜만 그린다 — 눌러 보고 나서 안 된다는 걸 알게 하지 않는다 */}
-                <DueDatePicker orderedAt={base} value={due} onChange={setDue} />
+                <DueDatePicker orderedAt={base} value={due} onChange={setDue} limitDays={limitDays} holidaysReady={calReady} />
                 <div style={m.picked}>
                   {due ? <>{t('납기일')} <b>{due}</b></> : t('납기일을 선택하십시오')}
                 </div>

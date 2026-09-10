@@ -5,7 +5,8 @@ import { prisma } from '../lib/prisma.js';
 import { assertOrderQuoteOwner } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
-import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
+import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
+import { loadHolidays } from '../services/holidays.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue } from '@buildup-ev/shared/process';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
@@ -253,6 +254,8 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           appendix: order.appendix,
           // 발주서 공급가 표 — 배정 때 얼려 둔 그대로. 다시 계산하지 않는다
           po_lines: order.po_lines ?? null,
+          // 납기 한도(영업일) — 배정 때 얼려 둔 값. 화면이 이 값으로 달력을 그린다
+          due_limit_days: order.due_limit_days ?? DELIVERY_DUE_BUSINESS_DAYS,
           appendix_ack_at: order.appendix_ack_at,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,
@@ -541,7 +544,17 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
     }
     // 기산점은 **배정일**(= 발주일). 없으면 주문 생성일로 대신한다.
     const orderedAt = order.assigned_at ?? order.created_at;
-    const check = checkDeliveryDue(due, orderedAt);
+    /*
+     * 달력을 최신으로 물린 뒤 판정한다. 관리자가 임시공휴일을 넣었는데 서버가
+     * 옛 달력으로 거절하면, 화면에서 고를 수 있는 날이 저장되지 않는다.
+     */
+    await loadHolidays();
+    /*
+     * 한도는 **이 주문에 얼려 둔 값**을 쓴다. 상수를 20으로 늘려도 15일 시절에
+     * 나간 발주서(「15일 이내」가 문서에 찍혀 있다)의 판정이 바뀌지 않는다.
+     */
+    const limitDays = order.due_limit_days ?? DELIVERY_DUE_BUSINESS_DAYS;
+    const check = checkDeliveryDue(due, orderedAt, limitDays);
     if (!check.ok) {
       res.status(400).json({ error: { code: 'BAD_INPUT', message: check.reason } });
       return;

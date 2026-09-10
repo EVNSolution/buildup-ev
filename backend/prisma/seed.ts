@@ -273,6 +273,25 @@ async function main() {
   }
   if (makerPrices.length) console.log(`  maker_price: ${makerPrices.length}`);
 
+  /*
+   * 공휴일 — **덮어쓰기만 하고 지우지 않는다.**
+   *
+   * 관리자가 화면에서 임시공휴일을 넣어 둘 수 있는 표다. seed 가 지워 버리면
+   * 그 사람이 넣은 날이 사라지고, 납기 계산이 조용히 틀어진다.
+   * (운영에는 migration 이 이미 넣어 두었다 — 여기 값은 로컬 개발용이다)
+   */
+  const holidays = csv('holiday.csv').map(r => ({
+    day:    new Date(`${r['day']}T00:00:00Z`),
+    name:   String(r['name'] ?? ''),
+    source: String(r['source'] ?? 'manual'),
+    active: bool(r['active']),
+    memo:   opt(r['memo']),
+  }));
+  for (const h of holidays) {
+    await prisma.holiday.upsert({ where: { day: h.day }, update: h, create: h });
+  }
+  if (holidays.length) console.log(`  holiday: ${holidays.length}`);
+
   // ── region ────────────────────────────────────────────────────────────
   const regions = csv('region.csv').map(r => ({
     name:    r['name']!,
