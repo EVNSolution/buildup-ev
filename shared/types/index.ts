@@ -353,7 +353,7 @@ export interface ApiOrder {
    * 예전엔 비고에 뭐라도 적히면 자동으로 붙어, 납기 안내 같은 메모에도 배지가 달렸다.
    */
   custom_badge?: boolean;
-  /** 별지가 있는가 — 목록에서 「2페이지 있음」을 표시할 때 쓴다 */
+  /** 커스텀 주문인가 — 목록에 배지로 표시한다 */
   appendix?: string | null;
   created_at: string;
   quote: {
@@ -405,14 +405,14 @@ export interface ApiOrderMakerDetail {
   options: ApiOrderOption[];
   documents: ApiDocument[];
   vehicle_info?: OrderVehicleInfo | null;
-  /** 발주서 비고 — 이 주문만의 요청사항. 커스텀 건에서는 「별지를 보라」는 안내만 들어간다 */
+  /** 발주서 비고 — 이 주문만의 요청사항. 커스텀 건에서는 「아래 커스텀 요청사항을 보라」는 안내만 들어간다 */
   remark?: string | null;
   /**
-   * 발주서 **별지**(2페이지) — 커스텀 주문의 상세 요청사항.
+   * 발주서 **커스텀 요청사항** — 서류 맨 아래 칸(예전의 「별지 2페이지」).
    * 비고는 1페이지 양식에 맞춰 4줄로 묶여 있어 긴 글을 담지 못한다.
    */
   appendix?: string | null;
-  /** 특장사가 별지를 확인한 시각. 별지가 있으면 이 값 없이는 수락할 수 없다 */
+  /** 특장사가 커스텀 요청사항을 확인한 시각. 적힌 것이 있으면 이 값 없이는 수락할 수 없다 */
   appendix_ack_at?: string | null;
   /**
    * 발주서 **공급가 표** — 특장사에 지급할 금액의 줄들. 배정 때 얼려 둔 그대로다.
