@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "order_checklist" (
     "submitted_at" TIMESTAMP(3),
     "submitted_by" VARCHAR(120),
     "created_at"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "order_checklist_order_fkey" FOREIGN KEY ("order_id")
+    CONSTRAINT "order_checklist_order_id_fkey" FOREIGN KEY ("order_id")
         REFERENCES "order"("id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "order_checklist_unique" ON "order_checklist"("order_id", "step_code");
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS "order_checklist_line" (
     "memo"         VARCHAR(300),
     "checked_at"   TIMESTAMP(3),
     "checked_by"   VARCHAR(120),
-    CONSTRAINT "order_checklist_line_checklist_fkey" FOREIGN KEY ("checklist_id")
+    CONSTRAINT "order_checklist_line_checklist_id_fkey" FOREIGN KEY ("checklist_id")
         REFERENCES "order_checklist"("id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
 CREATE INDEX IF NOT EXISTS "order_checklist_line_idx" ON "order_checklist_line"("checklist_id", "seq");
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "order_checklist_line_log" (
     "memo"    VARCHAR(300),
     "at"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "by"      VARCHAR(120) NOT NULL,
-    CONSTRAINT "order_checklist_line_log_line_fkey" FOREIGN KEY ("line_id")
+    CONSTRAINT "order_checklist_line_log_line_id_fkey" FOREIGN KEY ("line_id")
         REFERENCES "order_checklist_line"("id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
 CREATE INDEX IF NOT EXISTS "order_checklist_line_log_idx" ON "order_checklist_line_log"("line_id", "id");
