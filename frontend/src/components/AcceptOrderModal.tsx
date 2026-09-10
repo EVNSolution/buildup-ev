@@ -6,7 +6,6 @@ import { fetchOrderDetail } from '../api/orders'
 import { PurchaseOrderSheet } from './PurchaseOrderSheet'
 import { hasAppendix } from '@shared/docs/appendix'
 import type { PoLine } from '@shared/docs/po-lines'
-import { ackAppendix } from '../api/orders'
 import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
@@ -27,7 +26,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
   orderedAt: string
   busy: boolean
   error: string
-  onAccept?: (deliveryDue: string) => void
+  /** 수락 — 납기일과 **커스텀 요청사항 확인 표시**를 함께 넘긴다(요청 하나로 끝낸다) */
+  onAccept?: (deliveryDue: string, appendixAck: boolean) => void
   onClose: () => void
   /** 거부 — 사유를 받아 넘긴다. 없으면 거부 버튼이 뜨지 않는다. */
   onReject?: (reason: string) => void
@@ -217,7 +217,13 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 style={canAccept ? BTN.primary : BTN.disabled}
                 disabled={!canAccept}
                 title={!appendixOk ? t('커스텀 요청사항을 확인해야 수락할 수 있습니다') : undefined}
-                onClick={() => { if (parsed) { void ackAppendix(orderId).catch(() => {}); onAccept?.(due) } }}
+                /*
+                  ⚠️ 확인 표시를 **따로 쏘지 않는다.** 예전엔 `void ackAppendix(orderId)` 로
+                     쏘고 기다리지 않은 채 곧바로 수락을 불러, 수락이 먼저 읽고 409 로
+                     튕겼다 — 체크를 했는데 「확인해야 수락할 수 있습니다」가 떴다(제보).
+                     확인은 수락 요청에 실어 보낸다.
+                */
+                onClick={() => { if (parsed) onAccept?.(due, acked) }}
               >
                 {busy ? t('처리 중') : t('수락')}
               </button>

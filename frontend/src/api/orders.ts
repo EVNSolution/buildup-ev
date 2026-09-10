@@ -20,13 +20,18 @@ export async function fetchOrders(
 /**
  * 특장사 주문 수락 (배정→주문, 제작 착수).
  * 납기일을 **함께** 보낸다 — 따로 받으면 납기 없는 주문이 생긴다.
+ *
+ * ⚠️ 커스텀 요청사항 확인 표시(`appendixAck`)도 **같은 요청에 싣는다.**
+ *    예전엔 `ackAppendix()` 를 따로 쏘고 기다리지 않은 채 곧바로 이걸 불렀다. 수락 쪽이
+ *    확인 쪽 쓰기보다 먼저 읽어 **체크를 했는데도 409 로 튕겼다**(재현: 6번 중 6번).
+ *    받는 것은 한 동작이므로 요청도 하나다.
  */
-export async function acceptOrder(orderId: number, deliveryDue: string): Promise<void> {
+export async function acceptOrder(orderId: number, deliveryDue: string, appendixAck = false): Promise<void> {
   const res = await fetch(`/api/v1/orders/${orderId}/accept`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ delivery_due: deliveryDue }),
+    body: JSON.stringify({ delivery_due: deliveryDue, appendix_ack: appendixAck }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
@@ -95,13 +100,9 @@ export async function cancelOrder(orderId: number, reason: string): Promise<void
   }
 }
 
-/**
- * 커스텀 요청사항을 읽었다는 표시 — 특장사가 「확인했습니다」를 누르면 보낸다.
- * 누가 언제 확인했는지가 남아야 나중에 「못 봤다」는 이야기가 나올 때 근거가 된다.
+/*
+ * 「확인만」 남기는 `PATCH /orders/:id/appendix-ack` 는 서버에 그대로 있다.
+ * 다만 **수락 경로에서는 쓰지 않는다** — 확인은 `acceptOrder` 요청에 실어 보낸다.
+ * 따로 쏘고 기다리지 않아 수락이 먼저 읽는 사고가 났다(재현: 6번 중 6번).
+ * 그래서 이 호출을 감싸는 함수는 두지 않는다. 다시 필요해지면 그때 만든다.
  */
-export async function ackAppendix(orderId: number): Promise<void> {
-  const res = await fetch(`/api/v1/orders/${orderId}/appendix-ack`, {
-    method: 'PATCH', credentials: 'include',
-  })
-  if (!res.ok) throw new Error(`별지 확인 실패: ${res.status}`)
-}

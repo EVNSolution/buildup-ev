@@ -249,7 +249,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           // 발주서를 상세에서도 다시 그릴 수 있게 — 수락한 뒤에 확인할 방법이 없었다
           remark: order.remark,
           custom_badge: order.custom_badge,
-          // 별지(2페이지) — 사양 탭의 「커스텀 요청사항」과 서류 탭 2페이지가 이 값을 쓴다
+          // 커스텀 요청사항 — 사양 탭과 발주서 맨 아래 칸이 이 값을 쓴다(예전의 「별지 2페이지」)
           appendix: order.appendix,
           // 발주서 공급가 표 — 배정 때 얼려 둔 그대로. 다시 계산하지 않는다
           po_lines: order.po_lines ?? null,
@@ -444,11 +444,14 @@ ordersRouter.patch('/:id/cancel', rbac('ADMIN'), requirePermission('order.remove
 });
 
 /**
- * PATCH /orders/:id/appendix-ack — **별지를 읽었다**는 표시.
+ * PATCH /orders/:id/appendix-ack — **커스텀 요청사항을 읽었다**는 표시.
  *
- * 특장사가 2페이지를 열고 「확인했습니다」를 누르면 여기로 온다. 누가 언제 확인했는지가
- * 남아야 나중에 「못 봤다」는 이야기가 나올 때 근거가 된다.
+ * 누가 언제 확인했는지가 남아야 나중에 「못 봤다」는 이야기가 나올 때 근거가 된다.
  * 되돌리는 길은 두지 않는다 — 확인한 사실 자체는 지울 것이 아니다.
+ *
+ * ⚠️ **수락하는 길에서는 이 API 를 쓰지 않는다.** 수락은 `accept` 에 `appendix_ack` 를
+ *    실어 한 요청으로 끝낸다 — 따로 쏘면 수락이 먼저 읽어 409 가 난다(그 사고가 실제로 났다).
+ *    수락과 무관하게 「확인만」 남기는 자리를 위해 이 API 는 남겨 둔다.
  */
 ordersRouter.patch('/:id/appendix-ack', rbac('ADMIN', 'MAKER'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
@@ -470,7 +473,7 @@ ordersRouter.patch('/:id/appendix-ack', rbac('ADMIN', 'MAKER'), async (req: Requ
     }
     res.json({ data: { ok: true } });
   } catch {
-    res.status(500).json({ error: { code: 'INTERNAL', message: '별지 확인 처리 중 오류가 발생했습니다.' } });
+    res.status(500).json({ error: { code: 'INTERNAL', message: '커스텀 요청사항 확인 처리 중 오류가 발생했습니다.' } });
   }
 });
 
@@ -498,17 +501,23 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
       return;
     }
     /*
-     * **별지를 확인하지 않으면 수락할 수 없다.**
+     * **커스텀 요청사항을 확인하지 않으면 수락할 수 없다.**
      *
      * 「읽었다」를 기계가 알 방법이 없어 화면에서 명시적으로 체크하게 하고, 그 결과를
      * 여기서 다시 본다 — 화면에서만 막으면 이 API 를 직접 불러 우회된다.
      *
-     * ⚠️ 별지가 **비어 있으면 막지 않는다.** 이 기능이 생기기 전에 배정된 커스텀 주문은
-     *    별지가 없어서, 소급 적용하면 특장사가 영영 수락하지 못한다.
+     * ⚠️ 확인 표시는 **이 요청에 함께 실려 온다**(`appendix_ack`).
+     *    예전엔 화면이 `appendix-ack` 를 따로 쏘고 **기다리지 않은 채** 곧바로 수락을 보냈다.
+     *    수락 쪽이 확인 쪽 쓰기보다 먼저 읽어 **체크를 했는데도 409 로 튕겼다** — 재현해 보니
+     *    6번 중 6번이었다(제보: 수락이 안 된다). 받는 것은 한 동작이므로 **요청도 하나**로 둔다.
+     *
+     * ⚠️ 요청사항이 **비어 있으면 막지 않는다.** 이 기능이 생기기 전에 배정된 커스텀 주문은
+     *    그 칸이 없어서, 소급 적용하면 특장사가 영영 수락하지 못한다.
      */
-    if (hasAppendix(order.appendix) && !order.appendix_ack_at) {
+    const ackNow = (req.body as { appendix_ack?: unknown })?.appendix_ack === true;
+    if (hasAppendix(order.appendix) && !order.appendix_ack_at && !ackNow) {
       res.status(409).json({ error: { code: 'APPENDIX_UNREAD',
-        message: '발주서 별지(2페이지)를 확인해야 수락할 수 있습니다.' } });
+        message: '발주서의 커스텀 요청사항을 확인해야 수락할 수 있습니다.' } });
       return;
     }
     if (order.quote.status !== 'assigned') {
@@ -544,9 +553,19 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
      *    그러면 마지막 사람이 고른 납기일이 앞사람 것을 덮어쓰고 수락 시각도 흔들린다.
      */
     const now = new Date();
+    /*
+     * 확인 표시도 **이 쓰기에 함께 넣는다.** 따로 쓰면 수락은 됐는데 확인 기록만 없는
+     * 상태가 생길 수 있다 — 나중에 「못 봤다」는 이야기가 나올 때 근거가 사라진다.
+     * 이미 확인한 주문이면 **처음 확인한 시각을 덮어쓰지 않는다.**
+     */
     const won = await prisma.order.updateMany({
       where: { id, accepted_at: null },
-      data: { delivery_due: toDbDate(due), accepted_at: now },
+      data: {
+        delivery_due: toDbDate(due), accepted_at: now,
+        ...(ackNow && !order.appendix_ack_at
+          ? { appendix_ack_at: now, appendix_ack_by: req.auth?.email ?? 'unknown' }
+          : {}),
+      },
     });
     if (won.count === 0) {
       res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락된 주문입니다' } });
