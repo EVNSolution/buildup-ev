@@ -124,7 +124,7 @@ const putItems = (step: string, items: { category: string; content: string }[]) 
 const getCl = (id: number, cookie: string, step = STEP) =>
   request(app).get(`/api/v1/orders/${id}/steps/${step}/checklist`).set('Cookie', cookie);
 
-const patchCl = (id: number, cookie: string, body: unknown, step = STEP) =>
+const patchCl = (id: number, cookie: string, body: object, step = STEP) =>
   request(app).patch(`/api/v1/orders/${id}/steps/${step}/checklist`).set('Cookie', cookie).send(body);
 
 /** 증빙까지 올려 두고 단계를 완료 시도 — 체크리스트 말고 다른 것에 막히지 않게 */
