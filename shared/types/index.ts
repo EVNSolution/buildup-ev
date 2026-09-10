@@ -412,6 +412,8 @@ export interface ApiOrderMakerDetail {
    * 비고는 1페이지 양식에 맞춰 4줄로 묶여 있어 긴 글을 담지 못한다.
    */
   appendix?: string | null;
+  /** 이 발주의 납기 한도(영업일) — 배정 때 얼려 둔 값 */
+  due_limit_days?: number;
   /** 특장사가 커스텀 요청사항을 확인한 시각. 적힌 것이 있으면 이 값 없이는 수락할 수 없다 */
   appendix_ack_at?: string | null;
   /**
