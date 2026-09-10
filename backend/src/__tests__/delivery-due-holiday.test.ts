@@ -152,4 +152,10 @@ describe.runIf(live)('납기 한도', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.map((h: { day: string }) => h.day)).toEqual(HOL);
   }, 30_000);
+
+  it('🔴 로그인 없이는 못 받는다 — 인증 없이 DB 를 두드릴 자리를 두지 않는다', async () => {
+    // 공휴일은 비밀이 아니지만 문을 열어 두지는 않는다(배포 뒤에 열려 있는 것을 발견했다)
+    const res = await request(app).get('/api/v1/holidays');
+    expect(res.status, '인증 없이 열려 있다').toBe(403);
+  }, 30_000);
 });
