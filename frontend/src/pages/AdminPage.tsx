@@ -39,6 +39,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
+import { ChecklistTab } from '../components/ChecklistTab'
 import { t , tc, tf} from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -88,7 +89,7 @@ const MODULE_DESC: Record<string, string> = {
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
-type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb' | 'makerprice'
+type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb' | 'makerprice' | 'checklist'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -1848,12 +1849,14 @@ export function AdminPage() {
     orders: usePermission('order.view'),
     accounts: usePermission('account.manage'),
     basedata: usePermission('basedata.manage'),
+    checklist: usePermission('checklist.manage'),
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
     { key: 'quotes',   label: t('견적 목록'), show: true },
     { key: 'customers', label: t('고객'),    show: true },
     { key: 'perf',     label: t('영업 성과'), show: perm.stats },
     { key: 'kanban',   label: t('주문 진행'), show: perm.orders },
+    { key: 'checklist', label: t('체크리스트'), show: perm.checklist },
     { key: 'files',    label: t('파일'),      show: perm.orders },
     { key: 'toggles',  label: t('기능모듈'),  show: perm.accounts },
     { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
@@ -1891,6 +1894,7 @@ export function AdminPage() {
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
         {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} />}
+        {activeTab === 'checklist' && <ChecklistTab />}
 
         {/* 주문에 딸린 사진·서류를 한자리에서 — 업로드본과 자동생성본을 갈라 본다 */}
         {activeTab === 'files' && <OrderFilesTab />}

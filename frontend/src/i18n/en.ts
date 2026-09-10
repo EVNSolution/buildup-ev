@@ -1058,6 +1058,28 @@ export const EN: Record<string, string> = {
   '바꾸기': 'Change',
   '지정': 'Set',
   '특장 제작 착수': 'Body build started',
+  '단계 목록을 불러오지 못했습니다': 'Could not load the step list',
+  '서식을 불러오지 못했습니다': 'Could not load the template',
+  '저장했습니다': 'Saved',
+  '항목 추가': 'Add item',
+  '여기를 고쳐도 이미 작성 중인 체크리스트는 바뀌지 않습니다. 작성을 시작할 때의 항목이 그 주문에 남습니다.': 'Editing this does not change checklists already in progress — each order keeps the items as they were when it started.',
+  '순번': 'No.',
+  '항목명(구분)': 'Group',
+  '아직 항목이 없습니다. 항목이 없는 단계는 체크리스트 없이 넘어갑니다.': 'No items yet. A step with no items passes without a checklist.',
+  '예) 외관': 'e.g. Exterior',
+  '예) 적재함 도장 상태에 이상이 없는가': 'e.g. Is the cargo box paint free of defects?',
+  '위로': 'Move up',
+  '아래로': 'Move down',
+  '체크리스트를 불러오지 못했습니다': 'Could not load the checklist',
+  '제출하지 못했습니다': 'Could not submit',
+  '제출 완료': 'Submitted',
+  '합격': 'Pass',
+  '불합격': 'Fail',
+  '아직': 'Not checked',
+  '제출': 'Submit',
+  '합격이 아닌 항목이 남아 있으면 제출할 수 없습니다': 'You cannot submit while any item is not a pass',
+  '제출하면 관리자에게 알림이 갑니다': 'Submitting notifies the administrators',
+  '체크리스트': 'Checklist',
 }
 
 /**
@@ -1128,6 +1150,10 @@ export const EN_FMT: Record<string, string> = {
   '「{0}」 검수 사진으로 등록': 'Register as “{0}” inspection photo',
   '숨긴 고객 {0}명': '{0} hidden',
   '{0}에게 알림이 갑니다': '{0} will be notified',
+  '{0}가 적습니다': 'Filled in by the {0}',
+  '쓰지 않는 항목 {0}개 — 지워지지 않고 남아 있습니다': '{0} retired item(s) — kept, not deleted',
+  '{0} 체크리스트': '{0} checklist',
+  '남은 항목 {0}개': '{0} item(s) left',
 }
 
 /**

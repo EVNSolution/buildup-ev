@@ -92,6 +92,17 @@ export interface StepDef {
   dueFrom?:
     | { from: 'order'; field: 'delivery_due' }
     | { from: 'step'; code: string };
+  /**
+   * 이 단계에 **체크리스트**가 붙는가 — 값은 **적는 사람**이다.
+   *
+   * 서식(무엇을 확인하는가)은 DB 에 있고 관리자가 고친다. 여기 있는 것은
+   * **규칙**이다 — 어느 단계에 붙고, 누가 적는가. 규칙까지 데이터로 내리면
+   * 「채워야 넘어간다」를 검증할 곳이 흩어진다.
+   *
+   * ⚠️ 서식이 **비어 있으면 막지 않는다.** 항목을 아직 안 정한 단계에서 완료가
+   *    막히면 진행 중인 주문이 통째로 선다. 체크리스트는 있을 때만 관문이다.
+   */
+  checklist?: Actor;
 }
 
 /**
@@ -101,7 +112,7 @@ export interface StepDef {
 export const STEPS: StepDef[] = [
   // ── 차량 ───────────────────────────────────────────────────────────────
   { code: 'car_arrived', track: 'vehicle', label: '차량 도착', actor: 'MAKER',
-    requires: [], evidence: ['inspection_photo', 'receipt'] },
+    requires: [], evidence: ['inspection_photo', 'receipt'], checklist: 'MAKER' },
   { code: 'temp_plate_returned', track: 'vehicle', label: '임시번호판 반납', actor: 'MAKER',
     requires: ['car_arrived'], evidence: ['plate_return'] },
   // 보험은 확인만 한다 — 증빙 파일은 추후(회의 확정)
@@ -134,7 +145,8 @@ export const STEPS: StepDef[] = [
   { code: 'build_started', track: 'body', label: '특장 제작 착수', actor: 'MAKER',
     requires: [], evidence: [] },
   { code: 'build_done', track: 'body', label: '특장 제작 완료', actor: 'MAKER',
-    requires: ['build_started'], evidence: [], dueFrom: { from: 'order', field: 'delivery_due' } },
+    requires: ['build_started'], evidence: [], checklist: 'MAKER',
+    dueFrom: { from: 'order', field: 'delivery_due' } },
 
   /*
    * ── 튜닝(인허가) — 등록증이 나오면 특장과 **무관하게** 시작한다 ──────────
@@ -165,8 +177,13 @@ export const STEPS: StepDef[] = [
     requires: ['inspection_booked'], evidence: ['vehicle_reg'], dueFrom: { from: 'step', code: 'inspection_booked' } },
   { code: 'docs_complete', track: 'merged', label: '서류 일체', actor: 'MAKER',
     requires: ['inspection_done'], evidence: ['docs_bundle'] },
+  /*
+   * 인도 체크리스트는 **관리자**가 적는다 — 넘겨받는 쪽이 확인하는 자리다.
+   * 이 단계가 닫히면 주문이 끝나므로, 마지막 관문이기도 하다.
+   */
   { code: 'delivered', track: 'merged', label: '인도', actor: 'SALES',
-    requires: ['inspection_done', 'docs_complete'], dateLabel: '인도일', evidence: [] },
+    requires: ['inspection_done', 'docs_complete'], dateLabel: '인도일', evidence: [],
+    checklist: 'ADMIN' },
 ];
 
 /**
@@ -439,4 +456,20 @@ export function stalledDays(enteredAt: Date | null, now: Date): number | null {
   const a = new Date(enteredAt.getFullYear(), enteredAt.getMonth(), enteredAt.getDate());
   const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000));
+}
+
+/** 체크리스트가 붙는 단계들 — 화면이 탭을 그릴 때 쓴다 */
+export const CHECKLIST_STEPS: StepDef[] = STEPS.filter(s => s.checklist);
+
+/** 체크리스트 판정 — 셋뿐이다. 「보류」는 두지 않는다(넘어갈 수 있다는 뜻이 되어 버린다) */
+export type CheckResult = 'pass' | 'fail';
+
+/**
+ * 이 체크리스트로 **다음으로 넘어갈 수 있는가.**
+ *
+ * 하나라도 안 봤거나 불합격이면 못 넘어간다. 불합격을 놔두고 넘어갈 수 있으면
+ * 체크리스트는 형식이 된다 — 고쳐서 **재검으로 합격**을 만들어야 열린다.
+ */
+export function checklistPasses(lines: { result?: string | null }[]): boolean {
+  return lines.every(l => l.result === 'pass');
 }

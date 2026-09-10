@@ -21,6 +21,7 @@ role,ADMIN,stats.own,Y,
 role,ADMIN,stats.all,Y,
 role,ADMIN,basedata.manage,N,계정별로 켠다
 role,ADMIN,account.manage,N,계정별로 켠다
+role,ADMIN,checklist.manage,N,계정별로 켠다
 role,MAKER,order.view,Y,
 role,MAKER,order.control,Y,
 role,MAKER,doc.view,Y,

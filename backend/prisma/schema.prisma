@@ -683,6 +683,7 @@ model Order {
   tuning_applications TuningApplication[]
   step_comments       OrderStepComment[]
   step_reads          OrderStepRead[]
+  checklists          OrderChecklist[]
 
   @@map("order")
 }
@@ -971,4 +972,89 @@ model Holiday {
 
   @@index([active, day], map: "holiday_active_idx")
   @@map("holiday")
+}
+
+/// 체크리스트 **서식** — 관리자가 단계별로 고친다.
+///
+/// 규칙은 코드, **서식은 데이터**다. 「채워야 넘어간다」는 규칙이라 코드에 있고,
+/// 무엇을 확인하는지는 현장에서 바뀌는 것이라 여기 있다.
+///
+/// ⚠️ 이 표를 고쳐도 **이미 작성한 체크리스트는 바뀌지 않는다.** 작성할 때
+///    그 시점의 항목을 주문에 **사본으로 얼려** 두기 때문이다(OrderChecklistLine).
+///    발주서 단가와 같은 원칙 — 3개월 전에 합격 처리한 항목의 뜻이 소급해서
+///    바뀌면 그 기록은 근거가 되지 못한다.
+model ChecklistItem {
+  id         Int      @id @default(autoincrement())
+  /// 어느 단계의 체크리스트인가 (order_step.code 와 같은 값)
+  step_code  String   @db.VarChar(40)
+  /// 화면에 뜨는 순서
+  seq        Int      @default(0)
+  /// 항목명(구분) — 「외관」·「전장」처럼 묶는 이름
+  category   String   @db.VarChar(60)
+  /// 내용 — 실제로 확인하는 것
+  content    String   @db.VarChar(300)
+  /// 끄면 **새로 만드는** 체크리스트에서 빠진다. 지우지 않는다(이미 쓴 것이 있다)
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  updated_by String?  @db.VarChar(120)
+
+  @@index([step_code, active, seq], map: "checklist_item_step_idx")
+  @@map("checklist_item")
+}
+
+/// 주문 하나의 **한 단계** 체크리스트.
+model OrderChecklist {
+  id           Int       @id @default(autoincrement())
+  order_id     Int
+  step_code    String    @db.VarChar(40)
+  /// 제출 시각 — 모든 항목을 채워 낸 때. 비어 있으면 아직 작성 중이다
+  submitted_at DateTime?
+  submitted_by String?   @db.VarChar(120)
+  created_at   DateTime  @default(now())
+
+  order Order                @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lines OrderChecklistLine[]
+
+  @@unique([order_id, step_code], map: "order_checklist_unique")
+  @@map("order_checklist")
+}
+
+/// 체크리스트 한 줄 — **작성 시점의 서식 사본 + 그때의 판정.**
+model OrderChecklistLine {
+  id           Int       @id @default(autoincrement())
+  checklist_id Int
+  seq          Int       @default(0)
+  /// 서식에서 **베껴 온** 값. 서식이 나중에 바뀌어도 이 줄은 그대로다
+  category     String    @db.VarChar(60)
+  content      String    @db.VarChar(300)
+  /// 'pass' | 'fail' | null(아직 안 봄)
+  result       String?   @db.VarChar(4)
+  memo         String?   @db.VarChar(300)
+  checked_at   DateTime?
+  checked_by   String?   @db.VarChar(120)
+
+  checklist OrderChecklist          @relation(fields: [checklist_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  logs      OrderChecklistLineLog[]
+
+  @@index([checklist_id, seq], map: "order_checklist_line_idx")
+  @@map("order_checklist_line")
+}
+
+/// 항목별 **판정 이력** — 불합격 → 조치 → 재검이 남는다.
+///
+/// 결과 칸 하나만 두면 마지막 판정만 남아 「한 번에 통과했다」와 「고쳐서 통과했다」가
+/// 같아진다. 무엇이 왜 걸렸었는지가 다음 차를 만들 때 쓰인다.
+model OrderChecklistLineLog {
+  id      Int      @id @default(autoincrement())
+  line_id Int
+  result  String   @db.VarChar(4)
+  memo    String?  @db.VarChar(300)
+  at      DateTime @default(now())
+  by      String   @db.VarChar(120)
+
+  line OrderChecklistLine @relation(fields: [line_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([line_id, id], map: "order_checklist_line_log_idx")
+  @@map("order_checklist_line_log")
 }

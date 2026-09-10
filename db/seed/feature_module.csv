@@ -16,3 +16,4 @@ stats.own,내 실적 조회,"영업,관리자",11,Y
 stats.all,전체 실적 조회,관리자,12,Y
 basedata.manage,옵션DB·무게상수 관리,관리자,13,Y
 account.manage,계정 관리,관리자,14,Y
+checklist.manage,체크리스트 서식 관리,관리자,15,Y
