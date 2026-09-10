@@ -1050,6 +1050,14 @@ export const EN: Record<string, string> = {
   '계정': 'Account',
   '언어': 'Language',
   '이 기기에 저장됩니다. 다른 기기에서는 다시 골라 주세요.': 'Saved on this device. Choose again on your other devices.',
+  '저장하지 못했습니다': 'Could not save',
+  '차량 도착 예정': 'Vehicle arrival (planned)',
+  '저장 중': 'Saving',
+  '지우기': 'Clear',
+  '아직 정해지지 않음': 'Not set yet',
+  '바꾸기': 'Change',
+  '지정': 'Set',
+  '특장 제작 착수': 'Body build started',
 }
 
 /**
@@ -1119,6 +1127,7 @@ export const EN_FMT: Record<string, string> = {
   '이 사진을 「{0}」 단계의 검수 사진으로 등록합니다': 'Register this photo as an inspection photo for “{0}”',
   '「{0}」 검수 사진으로 등록': 'Register as “{0}” inspection photo',
   '숨긴 고객 {0}명': '{0} hidden',
+  '{0}에게 알림이 갑니다': '{0} will be notified',
 }
 
 /**

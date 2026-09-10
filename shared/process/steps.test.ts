@@ -34,9 +34,9 @@ describe('카탈로그 자체가 앞뒤가 맞나', () => {
     for (const s of STEPS) walk(s.code, []);
   });
 
-  it('시작 단계는 차량 도착과 특장 제작 완료 둘뿐이다 — 두 갈래가 독립으로 시작한다', () => {
+  it('시작 단계는 차량 도착과 특장 제작 착수 둘뿐이다 — 두 갈래가 독립으로 시작한다', () => {
     expect(STEPS.filter(s => s.requires.length === 0).map(s => s.code).sort())
-      .toEqual(['build_done', 'car_arrived']);
+      .toEqual(['build_started', 'car_arrived']);
   });
 
   it('발주·수락은 단계가 아니다 — 이미 끝난 일을 두 번 관리하지 않는다', () => {
@@ -44,8 +44,23 @@ describe('카탈로그 자체가 앞뒤가 맞나', () => {
     expect(STEP_BY_CODE['po_accepted']).toBeUndefined();
   });
 
-  it('특장 트랙은 제작 완료 하나뿐이다', () => {
-    expect(stepsOfTrack('body').map(s => s.code)).toEqual(['build_done']);
+  it('🔴 특장 트랙은 착수 → 완료 둘이다', () => {
+    /*
+     * 완료 하나만 두면 「받아는 놨는데 손도 안 댔다」와 「만들고 있다」가 구분되지 않는다.
+     * 납기가 다가올 때 물어봐야 하는 것이 바로 그 차이다.
+     */
+    expect(stepsOfTrack('body').map(s => s.code)).toEqual(['build_started', 'build_done']);
+    expect(STEP_BY_CODE['build_done']!.requires).toEqual(['build_started']);
+  });
+
+  it('🔴 착수에는 증빙을 두지 않는다 — 누르는 것 자체가 미뤄지면 만든 이유가 사라진다', () => {
+    expect(STEP_BY_CODE['build_started']!.evidence).toEqual([]);
+    expect(STEP_BY_CODE['build_started']!.actor).toBe('MAKER');
+  });
+
+  it('🔴 장착은 여전히 **완료**를 기다린다 — 착수만으로는 못 단다', () => {
+    expect(STEP_BY_CODE['mounted']!.requires).toContain('build_done');
+    expect(STEP_BY_CODE['mounted']!.requires).not.toContain('build_started');
   });
 
   it('튜닝은 **등록증 수령**부터 시작한다 — 번호판을 다는 것을 기다리지 않는다', () => {

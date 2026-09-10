@@ -119,15 +119,22 @@ export const STEPS: StepDef[] = [
 
   // ── 특장 ───────────────────────────────────────────────────────────────
   /*
-   * 특장 트랙에는 **제작 완료 하나만** 둔다.
+   * 특장 트랙은 **착수와 완료 둘**이다.
    *
-   * 발주서 발행은 관리자의 일이고, 수락은 특장사가 이미 「수락 대기」에서 끝낸 일이다
-   * (납기일도 그때 함께 정한다). 그것들을 단계로 두면 상세 화면에서 다시 「완료」를 누르고
-   * 되돌릴 수 있게 되어, 이미 끝난 일을 두 번 관리하게 된다.
-   * 발주·수락·납기는 주문 자체의 기록(assigned_at·accepted_at·delivery_due)으로 남는다.
+   * 완료 하나만 두면 「받아는 놨는데 아직 손도 안 댔다」와 「만들고 있다」가 구분되지
+   * 않는다. 납기가 다가올 때 물어봐야 할 것이 바로 그 차이다 — 착수도 안 했으면
+   * 납기를 다시 이야기해야 하고, 만들고 있으면 기다리면 된다.
+   *
+   * 착수에는 **증빙을 두지 않는다.** 시작했다는 것을 사진으로 증명하라고 하면
+   * 누르는 것 자체가 미뤄지고, 그러면 이 단계를 만든 이유가 사라진다.
+   *
+   * 발주서 발행·수락·납기는 여기 없다 — 이미 끝난 일이고 주문 자체의 기록
+   * (assigned_at·accepted_at·delivery_due)으로 남는다. 단계로 두면 두 번 관리하게 된다.
    */
+  { code: 'build_started', track: 'body', label: '특장 제작 착수', actor: 'MAKER',
+    requires: [], evidence: [] },
   { code: 'build_done', track: 'body', label: '특장 제작 완료', actor: 'MAKER',
-    requires: [], evidence: [], dueFrom: { from: 'order', field: 'delivery_due' } },
+    requires: ['build_started'], evidence: [], dueFrom: { from: 'order', field: 'delivery_due' } },
 
   /*
    * ── 튜닝(인허가) — 등록증이 나오면 특장과 **무관하게** 시작한다 ──────────

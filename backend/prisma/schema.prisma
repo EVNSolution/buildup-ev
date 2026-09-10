@@ -593,22 +593,31 @@ model PoDraft {
 
 // 주문 상태 순서(앱 레벨 강제): 제작착수→구조변경→튜닝신청→안전검사→튜닝승인→인도완료
 model Order {
-  id             Int              @id @default(autoincrement())
-  quote_id       Int              @unique
-  maker_org_id   String?          @db.VarChar(30)
-  assigned_at    DateTime?
+  id                     Int              @id @default(autoincrement())
+  quote_id               Int              @unique
+  maker_org_id           String?          @db.VarChar(30)
+  assigned_at            DateTime?
   /// 특장사가 수락하며 약속한 납기일. 발주일로부터 15영업일 이내(발주서 특이사항).
   /// 1단계에서 order_step[po_accepted].planned_at 으로 옮긴다.
   /// 이 발주의 납기 한도(영업일). **배정할 때 얼려 둔다** —
   /// 상수를 바꿔도 이미 나간 발주서의 「N일 이내」 문구가 소급해 바뀌지 않는다.
-  due_limit_days Int?
-  delivery_due   DateTime?        @db.Date
+  due_limit_days         Int?
+  /// **차량이 언제 도착하는지** — 관리자가 특장사에게 알려 주는 날짜.
+  ///
+  /// 특장사가 완료 처리하는 「차량 도착」 단계와 다르다. 이건 **예정**이고,
+  /// 정하는 사람도 관리자다(차를 보내는 쪽이 안다). 수락 전이든 진행 중이든
+  /// 언제든 찍고 고칠 수 있어야 해서 단계가 아니라 주문에 둔다 —
+  /// 단계에 매달면 수락 전에는 쓸 자리가 없다.
+  car_arrival_planned_at DateTime?        @db.Date
+  car_arrival_set_by     String?          @db.VarChar(120)
+  car_arrival_set_at     DateTime?
+  delivery_due           DateTime?        @db.Date
   /// 발주 수락 시각 — 납기 한도의 기산점
-  accepted_at    DateTime?
-  created_at     DateTime         @default(now())
+  accepted_at            DateTime?
+  created_at             DateTime         @default(now())
   // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
-  vehicle_info   Json?
-  due_notices    OrderDueNotice[]
+  vehicle_info           Json?
+  due_notices            OrderDueNotice[]
 
   /// 특장사가 거부한 시각. 거부하면 배정이 풀려 다른 특장사에 다시 맡길 수 있다.
   rejected_at   DateTime?
