@@ -70,7 +70,7 @@ export function MyPage() {
             각 언어는 **그 언어로** 적는다 — 영어를 못 읽는 사람도 「한국어」는 찾을 수 있어야 한다.
           */}
           <Segmented
-            items={[{ value: 'ko', label: t('한국어') }, { value: 'en', label: 'English' }] as const}
+            items={[{ value: 'ko', label: '한국어' }, { value: 'en', label: 'English' }] as const}
             value={lang}
             onChange={setLang}
           />

@@ -154,6 +154,60 @@ describe('영문화', () => {
     expect(wrapped, `다시 짜기 전에 t() 로 감싼 조각:\n  ${wrapped.join('\n  ')}`).toEqual([]);
   });
 
+  /*
+   * ── 사전에 없는 문구 ──────────────────────────────────────────────────
+   *
+   * `t()` 는 사전에 없으면 **한국어를 그대로 돌려준다.** 화면이 깨지지 않으니
+   * 눈으로는 절대 못 잡는다 — 영어로 보는 사람에게만 한국어가 나간다.
+   * 이 검사를 붙이던 날 이미 **19개**가 그렇게 나가고 있었다
+   * (MyPage 「계정」·「언어」, Header 「일반」, SalesPage 「지연」, 대화 탭 증빙 버튼 …).
+   *
+   * 그래서 「배포 전에 잘 보자」로 두지 않고 여기서 막는다(지시: 2026-09-10).
+   *
+   * ⚠️ `tf()` 는 **EN_FMT 만** 본다. 틀을 EN 쪽에 적어 두면 번역이 사전에 있는데도
+   *    한국어가 나간다 — 실제로 「숨긴 고객 {0}명」이 그렇게 있었다.
+   */
+  const CALLS = [
+    { fn: 't', re: /\bt\('((?:[^'\\]|\\.)*)'\)/g, dict: () => keysOf(block('EN:')) },
+    // tc('원문','맥락') — 맥락 키가 없으면 보통 번역으로 떨어지므로 원문만 있으면 된다
+    { fn: 'tc', re: /\btc\('((?:[^'\\]|\\.)*)'\s*,/g, dict: () => keysOf(block('EN:')) },
+    { fn: 'tf', re: /\btf\('((?:[^'\\]|\\.)*)'\s*[,)]/g, dict: () => keysOf(block('EN_FMT')) },
+  ] as const;
+
+  it('🔴 화면에 내보내는 한국어는 전부 사전에 있다', () => {
+    const bad: string[] = [];
+    for (const { fn, re, dict } of CALLS) {
+      const have = new Set(dict().map(k => k.replace(/\\'/g, "'")));
+      for (const [rel, src] of files) {
+        for (const m of src.matchAll(re)) {
+          const ko = m[1]!.replace(/\\'/g, "'");
+          if (!/[가-힣]/.test(ko)) continue;          // 영문 라벨은 옮길 것이 없다
+          if (have.has(ko)) continue;
+          bad.push(`${rel}:${src.slice(0, m.index!).split('\n').length}  ${fn}('${ko}')`);
+        }
+      }
+    }
+    expect(bad, `사전에 없어 **영어 화면에 한국어로 나가는** 문구:\n  ${bad.join('\n  ')}`).toEqual([]);
+  });
+
+  it('사전에 없는 문구를 실제로 잡아낸다', () => {
+    // 정규식이 안 맞아 **아무것도 못 보고 초록**이 되는 것을 막는다
+    const hit = [...`t('사전에없는문구입니다')`.matchAll(CALLS[0]!.re)].map(m => m[1]);
+    expect(hit, '정규식이 t() 호출을 못 읽는다').toEqual(['사전에없는문구입니다']);
+    expect(keysOf(block('EN:'))).not.toContain('사전에없는문구입니다');
+  });
+
+  it('🔴 자리표시자는 {0}·{1} 뿐이다 — {-1} 은 영영 채워지지 않는다', () => {
+    /*
+     * tf() 가 채우는 규칙은 `/\{(\d+)\}/` 다. `{-1}` 은 숫자로 안 읽혀 **그대로 남고**,
+     * 키로도 영영 안 맞아 죽은 항목이 된다. 실제로 88개가 그렇게 쌓여 있었다.
+     */
+    const odd = [...EN_TS.matchAll(/^ {2}'((?:[^'\\]|\\.)*)':/gm)]
+      .map(m => m[1]!)
+      .filter(k => /\{-\d+\}/.test(k));
+    expect(odd, `자리표시자가 {-1} 인 사전 항목:\n  ${odd.slice(0, 10).join('\n  ')}`).toEqual([]);
+  });
+
   it('🔴 같은 역할의 버튼은 같은 크기를 쓴다', () => {
     /*
      * 영어가 길어 자리에 안 들어갈 때 **그 버튼만** 글자를 줄이고 싶어진다.
