@@ -1156,9 +1156,40 @@ quotesRouter.get('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confir
   const id = Number(req.params['id']);
   if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
   try {
-    // 이미 배정에 쓰인 초안은 없는 것으로 본다 — 되살아나면 지난 내용을 다시 채운다
     const draft = await prisma.poDraft.findFirst({ where: { quote_id: id, consumed_at: null } });
-    res.json({ data: draft });
+    if (draft) { res.json({ data: draft }); return; }
+
+    /*
+     * 초안이 없으면 **거절돼 돌아온 발주서**를 꺼내 준다.
+     *
+     * 특장사가 거부하면 배정이 풀려 이 견적은 다시 배정 대기가 된다. 그때 발주서를
+     * 처음부터 다시 적게 하면, 커스텀 요청사항과 계약에 없는 항목의 금액을 **똑같이
+     * 두 번** 적는다(제보). 고칠 수는 있어야 하되, 다시 적을 일은 없어야 한다.
+     *
+     * ⚠️ 임시저장이 아니라 **주문 행**에서 꺼낸다. 대개는 초안 없이 배정 화면에서 바로
+     *    적고 눌렀기 때문에 초안 자체가 없다.
+     * ⚠️ 특장사는 다시 고른다 — 그 특장사가 거부한 건이라 `maker_org_id` 는 비워 준다.
+     * ⚠️ 커스텀 건의 비고는 서버가 넣은 안내 문구라 돌려주지 않는다(서버가 다시 넣는다).
+     */
+    const rejected = await prisma.order.findFirst({
+      where: { quote_id: id, maker_org_id: null, canceled_at: null },
+    });
+    if (!rejected) { res.json({ data: null }); return; }
+    res.json({
+      data: {
+        quote_id: id,
+        maker_org_id: null,
+        remark: rejected.custom_badge ? '' : rejected.remark,
+        custom_badge: rejected.custom_badge,
+        appendix: rejected.appendix,
+        po_lines: rejected.po_lines ?? null,
+        saved_at: (rejected.rejected_at ?? rejected.created_at).toISOString(),
+        saved_by: rejected.rejected_by ?? '',
+        /** 거절돼 돌아온 발주서다 — 화면이 「이어 적는 중」이라고 알려 준다 */
+        from_rejected: true,
+        reject_reason: rejected.reject_reason,
+      },
+    });
   } catch {
     res.status(500).json({ error: { code: 'INTERNAL', message: '임시저장을 불러오지 못했습니다.' } });
   }
@@ -1329,35 +1360,59 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
   try {
     await setQuoteStatus(id, 'assigned', req.auth?.email ?? 'unknown');
     const now = new Date();
+    /*
+     * 같은 견적에 주문은 하나뿐이다(`order.quote_id` 가 유일). 그런데 특장사가 거부하면
+     * 그 **행은 남고** 배정만 풀린다 — 그대로 `create` 하면 유일 제약에 부딪혀
+     * 「이미 배정된 견적입니다」로 막힌다. **재배정이 아예 안 됐다**(제보로 확인).
+     *
+     * 그래서 배정이 풀린 행이 있으면 **그 행을 다시 쓴다.** 거절 기록
+     * (`rejected_at`·`reject_reason`)은 지우지 않는다 — 왜 한 번 돌아왔는지가 남는다.
+     */
+    /*
+     * 발주서에 실릴 값 — **새로 만들 때나 다시 배정할 때나 같다.**
+     * 두 벌로 적어 두면 한쪽만 고쳐져 「재배정하면 값이 다르게 들어가는」 일이 생긴다.
+     */
+    const poFields = {
+      maker_org_id, assigned_at: now,
+      /* 이 발주의 납기 한도를 **지금 값으로 얼린다** — 나중에 상수가 바뀌어도 이 발주서는 그대로다 */
+      due_limit_days: DELIVERY_DUE_BUSINESS_DAYS,
+      /*
+       * 커스텀이면 1페이지 비고는 **안내 문구 하나로 고정**한다. 그 칸은 4줄짜리라
+       * 커스텀 내용을 담지 못하고, 두 곳에 나눠 적으면 특장사가 어디를 봐야 할지 모른다.
+       * 서버가 정하는 이유: 화면이 보낸 값을 믿으면 API 를 직접 불러 딴 글을 넣을 수 있다.
+       */
+      remark: withAppendix ? APPENDIX_REMARK : (clampMemo(remark ?? '') || null),
+      custom_badge: custom_badge === true,
+      /*
+       * 커스텀 요청사항 — **커스텀일 때만** 담는다. 커스텀을 끄면 그 칸은 없는 것이므로
+       * 남겨 두면 특장사가 읽어야 할 것이 있는 줄 알고 수락이 막힌다.
+       * 길이는 화면과 **같은 함수**로 자른다 — 화면만 막으면 API 로 우회된다.
+       */
+      appendix: withAppendix ? clampAppendix(appendix!) : null,
+      /*
+       * 빈 표는 **넣지 않는다** — 「줄이 없는 표」와 「표가 없다」를 구분한다.
+       * 다만 다시 배정할 때는 옛 표를 지워 줘야 한다(줄이 사라졌는데 남아 있으면 안 된다).
+       */
+      po_lines: (lines.length ? lines : null) as unknown as Prisma.InputJsonValue,
+    };
+
+    /*
+     * 같은 견적에 주문은 하나뿐이다(`order.quote_id` 가 유일). 그런데 특장사가 거부하면
+     * 그 **행은 남고** 배정만 풀린다 — 그대로 `create` 하면 유일 제약에 부딪혀
+     * 「이미 배정된 견적입니다」로 막혔다. **재배정이 아예 안 됐다**(실제로 확인했다).
+     *
+     * 그래서 배정이 풀린 행이 있으면 **그 행을 다시 쓴다.** 거절 기록
+     * (`rejected_at`·`reject_reason`)은 지우지 않는다 — 왜 한 번 돌아왔는지가 남는다.
+     */
+    const revive = await prisma.order.findFirst({
+      where: { quote_id: id, maker_org_id: null, canceled_at: null },
+      select: { id: true },
+    });
     const [updatedQuote, order] = await prisma.$transaction([
       prisma.quote.findUnique({ where: { id } }),
-      prisma.order.create({
-        /*
-         * 비고 — 발주서에 실리는 이 주문만의 요청사항.
-         * 화면과 **같은 규칙**(clampMemo)으로 자른다. 서버에서 안 자르면 API 를 직접
-         * 부르는 경로로 긴 글이 들어와 발주서 양식이 깨진다.
-         */
-        data: {
-          quote_id: id, maker_org_id, assigned_at: now,
-          /* 이 발주의 납기 한도를 **지금 값으로 얼린다** — 나중에 상수가 바뀌어도 이 발주서는 그대로다 */
-          due_limit_days: DELIVERY_DUE_BUSINESS_DAYS,
-          /*
-           * 커스텀이면 1페이지 비고는 **안내 문구 하나로 고정**한다. 그 칸은 4줄짜리라
-           * 커스텀 내용을 담지 못하고, 두 곳에 나눠 적으면 특장사가 어디를 봐야 할지 모른다.
-           * 서버가 정하는 이유: 화면이 보낸 값을 믿으면 API 를 직접 불러 딴 글을 넣을 수 있다.
-           */
-          remark: withAppendix ? APPENDIX_REMARK : (clampMemo(remark ?? '') || null),
-          custom_badge: custom_badge === true,
-          /*
-           * 별지 — **커스텀일 때만** 담는다. 커스텀을 끄면 2페이지는 없는 것이므로
-           * 남겨 두면 특장사가 읽어야 할 것이 있는 줄 알고 수락이 막힌다.
-           * 길이는 화면과 **같은 함수**로 자른다 — 화면만 막으면 API 로 우회된다.
-           */
-          appendix: withAppendix ? clampAppendix(appendix!) : null,
-          // 빈 표는 넣지 않는다 — 「줄이 없는 표」와 「표가 없다」를 구분한다
-          ...(lines.length ? { po_lines: lines as unknown as Prisma.InputJsonValue } : {}),
-        },
-      }),
+      revive
+        ? prisma.order.update({ where: { id: revive.id }, data: poFields })
+        : prisma.order.create({ data: { quote_id: id, ...poFields } }),
     ]);
 
     /*

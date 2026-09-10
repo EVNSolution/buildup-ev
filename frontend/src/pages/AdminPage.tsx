@@ -40,6 +40,7 @@ import { Tooltip } from '../components/Tooltip'
 import { quoteStatusTip, QUOTE_TIP_WIDTH } from '../components/QuoteStatusTip'
 import { usePermission } from '../components/PermGate'
 import { ChecklistTab } from '../components/ChecklistTab'
+import { HolidayTab } from '../components/HolidayTab'
 import { t , tc, tf} from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -89,7 +90,7 @@ const MODULE_DESC: Record<string, string> = {
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
-type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb' | 'makerprice' | 'checklist'
+type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -354,10 +355,18 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
           방금 저장한 것도 같은 줄에 말한다(따로 띄우면 어느 쪽이 최신인지 알 수 없다).
         */}
         {(savedAt || draft) && (
-          <div style={modal.draftNote}>
+          <div style={draft?.from_rejected && !savedAt ? modal.rejectedNote : modal.draftNote}>
             {savedAt
               ? tf('임시저장했습니다 ({0})', new Date(savedAt).toLocaleString())
-              : tf('{0} 님이 적어 둔 내용입니다 ({1})', draft!.saved_by, new Date(draft!.saved_at).toLocaleString())}
+              : draft!.from_rejected
+                /*
+                  임시저장이 아니라 **한 번 나갔다 돌아온 발주서**다. 그렇게 말해 줘야
+                  「누가 적어 둔 초안」과 헷갈리지 않는다. 특장사는 다시 골라야 하므로
+                  그 칸만 비어 있다.
+                */
+                ? tf('특장사가 거부해 돌아온 발주서입니다 — 내용은 그대로 두었습니다. 사유: {0}',
+                     draft!.reject_reason || t('(적히지 않음)'))
+                : tf('{0} 님이 적어 둔 내용입니다 ({1})', draft!.saved_by, new Date(draft!.saved_at).toLocaleString())}
           </div>
         )}
         <div style={modal.actions}>
@@ -1861,6 +1870,7 @@ export function AdminPage() {
     { key: 'toggles',  label: t('기능모듈'),  show: perm.accounts },
     { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
     { key: 'weights',  label: t('무게상수'),  show: perm.basedata },
+    { key: 'holidays', label: t('공휴일'),    show: perm.basedata },
     { key: 'optiondb', label: t('옵션DB'),    show: perm.basedata },
     // 특장사에 **지급하는** 단가 — 고객 견적가(옵션DB)와 다른 축이라 탭을 나눈다
     { key: 'makerprice', label: t('특장사 단가'), show: perm.basedata },
@@ -1895,6 +1905,7 @@ export function AdminPage() {
         {activeTab === 'perf' && <PerfTab />}
         {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} />}
         {activeTab === 'checklist' && <ChecklistTab />}
+        {activeTab === 'holidays' && <HolidayTab />}
 
         {/* 주문에 딸린 사진·서류를 한자리에서 — 업로드본과 자동생성본을 갈라 본다 */}
         {activeTab === 'files' && <OrderFilesTab />}
@@ -2286,6 +2297,7 @@ const modal: Record<string, React.CSSProperties> = {
    */
   cancelBtnDisabled: { ...BTN.secondary, minWidth: 108, color: 'var(--muted)', opacity: 0.5, cursor: 'default' },
   /** 누가 언제 적어 뒀는지 — 버튼 줄 바로 위, 조용한 한 줄 */
+  rejectedNote: { fontSize: 'var(--fs-caption)', color: 'var(--warn)', background: 'var(--warnbg)', border: '0.5px solid var(--warn)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', marginTop: 'var(--sp-2)', lineHeight: 1.5 },
   draftNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', textAlign: 'right' as const },
   confirmBtn: { ...BTN.primary, minWidth: 108 },
   confirmBtnDisabled: { ...BTN.disabled, minWidth: 108 },

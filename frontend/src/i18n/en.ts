@@ -1080,6 +1080,19 @@ export const EN: Record<string, string> = {
   '합격이 아닌 항목이 남아 있으면 제출할 수 없습니다': 'You cannot submit while any item is not a pass',
   '제출하면 관리자에게 알림이 갑니다': 'Submitting notifies the administrators',
   '체크리스트': 'Checklist',
+  '공휴일을 불러오지 못했습니다': 'Could not load the holidays',
+  '공휴일을 받아 오지 못했습니다': 'Could not fetch the holidays',
+  '연도 고르기': 'Choose year',
+  '불러오기': 'Fetch',
+  '직접 추가': 'Add manually',
+  '여기서 고치면 다음 납기 계산부터 반영됩니다. 해가 바뀌면 여기서 넣으면 되고, 배포는 필요 없습니다.': 'Changes here apply from the next delivery-date calculation. Add next year’s dates here — no release needed.',
+  '눌러서 아래 표에 넣습니다. 넣은 뒤 저장해야 반영됩니다.': 'Click to add to the table below, then save to apply.',
+  '요일': 'Day',
+  '이 해에는 등록된 공휴일이 없습니다. 주말만 빼고 계산됩니다.': 'No holidays registered for this year — only weekends are excluded.',
+  '예) 설날': 'e.g. Lunar New Year',
+  '빼기': 'Remove',
+  '공휴일': 'Holidays',
+  '(적히지 않음)': '(not given)',
 }
 
 /**
@@ -1154,6 +1167,12 @@ export const EN_FMT: Record<string, string> = {
   '쓰지 않는 항목 {0}개 — 지워지지 않고 남아 있습니다': '{0} retired item(s) — kept, not deleted',
   '{0} 체크리스트': '{0} checklist',
   '남은 항목 {0}개': '{0} item(s) left',
+  '{0}일을 저장했습니다': 'Saved {0} day(s)',
+  '{0}년': '{0}',
+  '쉬는 날 {0}일': '{0} day(s) off',
+  '{0}년 초안': '{0} draft',
+  '쉬지 않는 날로 정한 것 {0}일 — 지워지지 않고 남아 있습니다': '{0} day(s) marked as working days — kept, not deleted',
+  '특장사가 거부해 돌아온 발주서입니다 — 내용은 그대로 두었습니다. 사유: {0}': 'Returned — the upfitter declined this order. Everything you wrote is still here. Reason: {0}',
 }
 
 /**

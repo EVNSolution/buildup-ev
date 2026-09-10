@@ -31,3 +31,52 @@ export async function loadHolidays(): Promise<void> {
   })()
   return loading
 }
+
+// ── 관리 ─────────────────────────────────────────────────────────────────────
+
+export interface HolidayRow {
+  day: string
+  name: string
+  source: string
+  active: boolean
+  memo: string | null
+  updated_by?: string | null
+  updated_at?: string
+}
+
+export interface HolidayDraft {
+  day: string
+  name: string
+  known: boolean
+  source: string
+}
+
+async function json<T>(res: Response, what: string): Promise<T> {
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(b.error?.message ?? `${what} (${res.status})`)
+  }
+  return (await res.json() as { data: T }).data
+}
+
+export async function fetchHolidayYear(year: number): Promise<HolidayRow[]> {
+  return json(await fetch(`/api/v1/holidays/admin?year=${year}`, { credentials: 'include' }), '공휴일을 불러오지 못했습니다')
+}
+
+export async function importHolidayYear(year: number): Promise<{ rows: HolidayDraft[]; source: string; note: string }> {
+  return json(await fetch(`/api/v1/holidays/import?year=${year}`, { credentials: 'include' }), '공휴일을 받아 오지 못했습니다')
+}
+
+export async function saveHolidayYear(
+  year: number, days: { day: string; name: string; memo?: string | null; source?: string }[],
+): Promise<{ saved: number }> {
+  const r = await json<{ saved: number }>(await fetch('/api/v1/holidays', {
+    method: 'PUT', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ year, days }),
+  }), '공휴일을 저장하지 못했습니다')
+  // 저장했으면 이 화면의 달력도 새로 받는다 — 방금 고친 값으로 납기를 재야 한다
+  loading = null
+  await loadHolidays()
+  return r
+}

@@ -153,6 +153,37 @@ describe.runIf(live)('납기 한도', () => {
     expect(res.body.data.map((h: { day: string }) => h.day)).toEqual(HOL);
   }, 30_000);
 
+  it('🔴 다음 해는 **화면에서** 넣을 수 있다 — 배포를 기다리지 않는다', async () => {
+    /*
+     * 2026년 값을 migration 에 넣어 두었지만 그건 시작점일 뿐이다. 해가 바뀔 때마다
+     * 배포해야 한다면 임시공휴일 하나에도 배포가 필요해진다 — 그러라고 표로 뺀 것이 아니다.
+     */
+    const YEAR = 2033;
+    const put = await request(app).put('/api/v1/holidays').set('Cookie', adminCookie)
+      .send({ year: YEAR, days: [{ day: `${YEAR}-02-14`, name: '시험 임시공휴일' }] });
+    expect(put.status, JSON.stringify(put.body)).toBe(200);
+
+    // 넣자마자 계산에 반영된다 — 고치고 나서 반영을 기다리게 하지 않는다
+    const order = await assign(new Date(YEAR, 1, 10));
+    const res = await accept(order.id, `${YEAR}-02-14`);
+    expect(res.status, '방금 넣은 공휴일이 납기로 저장됐다').toBe(400);
+    expect(res.body?.error?.message ?? '').toContain('공휴일');
+
+    // 뺀 날은 지워지지 않고 꺼진다 — 「안 쉬는 날로 정했다」도 기록이다
+    await request(app).put('/api/v1/holidays').set('Cookie', adminCookie).send({ year: YEAR, days: [] });
+    const row = await prisma!.holiday.findUnique({ where: { day: new Date(`${YEAR}-02-14T00:00:00Z`) } });
+    expect(row, '공휴일이 지워졌다').not.toBeNull();
+    expect(row!.active).toBe(false);
+
+    await prisma!.holiday.deleteMany({ where: { name: '시험 임시공휴일' } });
+  }, 60_000);
+
+  it('🔴 공휴일 표를 고치는 것은 권한이 있는 관리자만', async () => {
+    const res = await request(app).put('/api/v1/holidays').set('Cookie', makerCookie)
+      .send({ year: 2033, days: [] });
+    expect(res.status).toBe(403);
+  }, 30_000);
+
   it('🔴 로그인 없이는 못 받는다 — 인증 없이 DB 를 두드릴 자리를 두지 않는다', async () => {
     // 공휴일은 비밀이 아니지만 문을 열어 두지는 않는다(배포 뒤에 열려 있는 것을 발견했다)
     const res = await request(app).get('/api/v1/holidays');

@@ -10,6 +10,10 @@ import type { PoLine } from '@shared/docs/po-lines'
 import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
+import { CarArrivalRow } from './CarArrivalRow'
+import { rolesOf } from '@shared/types/index'
+import { useAuth } from '../contexts/AuthContext'
+import { usePermission } from './PermGate'
 
 /**
  * 주문 수락 — **발주서 확인 · 납기 지정 · 수락을 한 자리에서.**
@@ -44,6 +48,19 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
 }) {
   // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
   useEscapeClose(onClose)
+  /*
+   * 차량 도착 예정일 — **수락 대기에서도** 정할 수 있어야 한다.
+   *
+   * 관리자가 「주문 진행」에서 수락 대기 카드를 누르면 열리는 곳이 여기다(주문 상세가
+   * 아니다). 도착 예정일이 상세에만 있으면 **아직 수락 안 된 건에는 손댈 자리가 없다**
+   * — 정작 그때가 「차가 언제 갈지」를 알려 줘야 하는 때다(제보).
+   *
+   * 특장사에게는 읽기 전용으로 보인다. 납기를 고르는 자리에서 차가 언제 오는지는
+   * 알아야 하는 값이다.
+   */
+  const { session } = useAuth()
+  const isAdmin = rolesOf(session!.user).includes('ADMIN')
+  const canControl = usePermission('order.control')
   const base = useMemo(() => {
     const d = new Date(orderedAt)
     return new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -89,6 +106,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
    */
   const [poLines, setPoLines] = useState<PoLine[]>([])
   const [acked, setAcked] = useState(false)
+  const [carArrival, setCarArrival] = useState<string | null>(null)
 
   // 발주 내용(사양)은 목록 응답에 없다 — 팝업을 열 때 받아온다
   useEffect(() => {
@@ -103,6 +121,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         // 이미 확인한 주문이면 다시 묻지 않는다 — 확인은 한 번이면 된다
         if (d.appendix_ack_at) setAcked(true)
         if (typeof d.due_limit_days === 'number') setLimitDays(d.due_limit_days)
+        setCarArrival(d.car_arrival_planned_at ?? null)
       })
       .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
@@ -162,6 +181,16 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 )}
               />
             )}
+
+          {/* 차가 언제 오는지 — 납기를 고르기 전에 알아야 하는 값이다 */}
+          <div style={m.arrivalBlock}>
+            <CarArrivalRow
+              orderId={orderId}
+              value={carArrival}
+              canEdit={isAdmin && canControl}
+              onSaved={setCarArrival}
+            />
+          </div>
 
           <div style={m.dueBlock}>
             <div style={m.dueHead}>
@@ -288,6 +317,7 @@ const m: Record<string, React.CSSProperties> = {
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)', letterSpacing: 'var(--ls-tight)' },
   // 발주서가 길어도 버튼줄은 늘 보인다
   scroll: { flex: 1, minHeight: 0, overflowY: 'auto' },
+  arrivalBlock: { borderTop: 'var(--hairline)', paddingTop: 'var(--sp-2)', marginTop: 'var(--sp-3)' },
   dueBlock: { marginTop: 'var(--sp-4)' },
   dueHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)', marginBottom: 'var(--sp-2)' },
   dueLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },

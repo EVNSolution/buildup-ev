@@ -404,6 +404,14 @@ export interface PoDraft {
   saved_at: string
   /** 누가 적어 뒀는지 — 이어 받는 사람이 물어볼 데가 있어야 한다 */
   saved_by: string
+  /**
+   * **거절돼 돌아온 발주서**를 이어 적는 중인가.
+   * 임시저장이 아니라 한 번 나갔던 발주서라, 화면이 그렇게 알려 줘야 한다 —
+   * 「누가 적어 둔 초안」과 「특장사가 거부해 돌아온 건」은 다른 이야기다.
+   */
+  from_rejected?: boolean
+  /** 그때 적힌 거부 사유 */
+  reject_reason?: string | null
 }
 
 /** 없으면 null — 아직 아무도 적어 두지 않았거나, 이미 배정에 쓰인 것이다 */
