@@ -48,10 +48,10 @@ export function MakerPage() {
    * 수락 — 예전에는 `window.confirm` 한 줄이라 **무엇을 받는지 모르고** 눌렀다.
    * 이제 목록의 「내용 보기」로 사양·서류를 펴 본 뒤, 납기일을 적어 넣고 받는다.
    */
-  async function handleAccept(orderId: number, deliveryDue: string) {
+  async function handleAccept(orderId: number, deliveryDue: string, appendixAck: boolean) {
     setAcceptingId(orderId); setAcceptErr('')
     try {
-      await acceptOrder(orderId, deliveryDue)
+      await acceptOrder(orderId, deliveryDue, appendixAck)
       setAcceptTarget(null)
       load()
     } catch (e: unknown) {
@@ -94,7 +94,7 @@ export function MakerPage() {
           orderedAt={acceptTarget.assigned_at ?? acceptTarget.created_at}
           busy={acceptingId === acceptTarget.id}
           error={acceptErr}
-          onAccept={due => handleAccept(acceptTarget.id, due)}
+          onAccept={(due, ack) => handleAccept(acceptTarget.id, due, ack)}
           onReject={reason => handleReject(acceptTarget.id, reason)}
           onClose={() => setAcceptTarget(null)}
         />
