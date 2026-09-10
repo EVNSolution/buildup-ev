@@ -106,3 +106,20 @@ export async function cancelOrder(orderId: number, reason: string): Promise<void
  * 따로 쏘고 기다리지 않아 수락이 먼저 읽는 사고가 났다(재현: 6번 중 6번).
  * 그래서 이 호출을 감싸는 함수는 두지 않는다. 다시 필요해지면 그때 만든다.
  */
+
+/**
+ * 차량 도착 **예정일**을 알린다 — 관리자만.
+ * 빈 문자열을 보내면 지운다(잘못 찍었을 때 되돌릴 길).
+ */
+export async function setCarArrival(orderId: number, plannedAt: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/car-arrival`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ planned_at: plannedAt }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `도착 예정일 저장 실패: ${res.status}`)
+  }
+}

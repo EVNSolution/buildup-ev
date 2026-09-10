@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
 import { noStore } from '../lib/doc-headers.js';
 import { syncOpenContracts } from '../services/contract-sync.js';
 import type { Request, Response } from 'express';
@@ -1338,6 +1339,8 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
          */
         data: {
           quote_id: id, maker_org_id, assigned_at: now,
+          /* 이 발주의 납기 한도를 **지금 값으로 얼린다** — 나중에 상수가 바뀌어도 이 발주서는 그대로다 */
+          due_limit_days: DELIVERY_DUE_BUSINESS_DAYS,
           /*
            * 커스텀이면 1페이지 비고는 **안내 문구 하나로 고정**한다. 그 칸은 4줄짜리라
            * 커스텀 내용을 담지 못하고, 두 곳에 나눠 적으면 특장사가 어디를 봐야 할지 모른다.

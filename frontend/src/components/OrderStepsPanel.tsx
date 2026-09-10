@@ -14,6 +14,7 @@ import {
 import { shrinkImage, fmtBytes } from '../lib/imageResize'
 import { dueInfo } from '@shared/process/due'
 import { BTN } from '../styles/buttons'
+import { OrderChecklistPanel } from './OrderChecklistPanel'
 import { DocLink } from './DocLink'
 import { openPdf } from '../lib/openPdf'
 import { rolesOf } from '@shared/types/index'
@@ -359,6 +360,17 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
                           canEdit={canEdit} busy={busy === def.code + kind}
                           onPick={fs => handleUpload(def.code, kind, fs)} onDelete={handleDelete} />
                       ))}
+
+                      {/*
+                        PDI 체크리스트 — **채워야 넘어간다.**
+                        서식이 없는 단계에서는 아무것도 그리지 않는다(빈 표는 「없다」를 말해 주지 않는다).
+                      */}
+                      {def.checklist && (
+                        <OrderChecklistPanel
+                          orderId={orderId} stepCode={def.code} stepLabel={t(def.label)}
+                          onDone={load}
+                        />
+                      )}
 
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
                       {!gate.ok && <div style={s.blocked}>{gateReason(gate)}</div>}

@@ -23,6 +23,7 @@ import { dueInfo } from '@shared/process/due'
 import { useChatPoll, CHAT_POLL_IDLE_MS } from '../lib/chatPoll'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
+import { CarArrivalRow } from './CarArrivalRow'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -419,6 +420,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
   // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
+  /* 도착 예정일을 정하는 사람은 **차를 보내는 쪽**이다 — 특장사에게는 보기만 열린다 */
+  const isAdmin = rolesOf(session!.user).includes('ADMIN')
   const [detail, setDetail] = useState<ApiOrderMakerDetail | null>(null)
   /** 삭제 확인 팝업 — 바로 지우지 않는다 */
   const [removing, setRemoving] = useState(false)
@@ -522,6 +525,16 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
             <><span style={det.sep}>·</span><span>고객 {detail.customer_name}</span></>
           )}
         </div>
+        {/*
+          차량 도착 **예정일** — 어느 탭을 보고 있든 눈에 들어와야 하는 값이라 제목 아래에 둔다.
+          현장은 이 날짜에 맞춰 사람을 뺀다. 정하는 사람은 차를 보내는 쪽(관리자)이다.
+        */}
+        <CarArrivalRow
+          orderId={detail.id}
+          value={detail.car_arrival_planned_at ?? null}
+          canEdit={isAdmin && canChangeSteps}
+          onSaved={next => setDetail(d => (d ? { ...d, car_arrival_planned_at: next } : d))}
+        />
       </div>
 
       {/*

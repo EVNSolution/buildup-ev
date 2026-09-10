@@ -5,7 +5,9 @@ import { prisma } from '../lib/prisma.js';
 import { assertOrderQuoteOwner } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
-import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate } from '@buildup-ev/shared/schedule';
+import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
+import { loadHolidays } from '../services/holidays.js';
+import { notify, pushAllowed } from '../services/push.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue } from '@buildup-ev/shared/process';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
@@ -253,6 +255,10 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           appendix: order.appendix,
           // 발주서 공급가 표 — 배정 때 얼려 둔 그대로. 다시 계산하지 않는다
           po_lines: order.po_lines ?? null,
+          // 납기 한도(영업일) — 배정 때 얼려 둔 값. 화면이 이 값으로 달력을 그린다
+          due_limit_days: order.due_limit_days ?? DELIVERY_DUE_BUSINESS_DAYS,
+          // 차량 도착 **예정일** — 관리자가 찍고 특장사는 언제나 본다
+          car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
           appendix_ack_at: order.appendix_ack_at,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,
@@ -305,7 +311,14 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       }
     }
 
-    res.json({ data: { ...order, model_code: order.quote.model_code, customer_name: order.quote.customer?.name ?? null, options: resolvedOptions } });
+    res.json({ data: {
+      ...order,
+      model_code: order.quote.model_code,
+      customer_name: order.quote.customer?.name ?? null,
+      options: resolvedOptions,
+      /* DATE 컬럼은 UTC 로 읽어야 넣을 때와 짝이 맞는다 — 그냥 흘리면 하루가 밀린다 */
+      car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
+    } });
   } catch (e) {
     console.error('[GET /orders/:id]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '주문 조회 중 오류가 발생했습니다.' } });
@@ -477,6 +490,98 @@ ordersRouter.patch('/:id/appendix-ack', rbac('ADMIN', 'MAKER'), async (req: Requ
   }
 });
 
+/**
+ * PATCH /orders/:id/car-arrival — **차량이 언제 도착하는지 알려 준다.**
+ *
+ * 특장사가 완료 처리하는 「차량 도착」 단계와 다르다. 이건 **예정**이고, 정하는 사람은
+ * 차를 보내는 쪽인 **관리자**다. 그래서 특장사는 못 쓰고 보기만 한다.
+ *
+ * ⚠️ 수락 여부·진행 단계를 **묻지 않는다.** 차가 언제 가는지는 배정 직후에 정해질 수도,
+ *    제작이 한창일 때 바뀔 수도 있다. 상태로 막아 두면 정작 알려야 할 때 쓸 자리가 없다.
+ *
+ * ⚠️ 바뀌면 **다시 알린다.** 현장은 이 날짜에 맞춰 사람을 뺀다 — 조용히 바뀌면
+ *    그날 아무도 없는 공장에 차가 간다. 무엇에서 무엇으로 바뀌었는지도 함께 남긴다.
+ */
+ordersRouter.patch('/:id/car-arrival', rbac('ADMIN'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
+
+  const raw = (req.body as { planned_at?: unknown })?.planned_at;
+  /* 빈 값이면 **지운다** — 잘못 찍었을 때 되돌릴 길이 있어야 한다 */
+  const clearing = raw === null || raw === '';
+  const day = clearing ? null : (typeof raw === 'string' ? fromDateInput(raw) : null);
+  if (!clearing && !day) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '도착 예정일을 YYYY-MM-DD 로 보내야 합니다' } });
+    return;
+  }
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { id: true, maker_org_id: true, car_arrival_planned_at: true },
+    });
+    if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+
+    const beforeStr = order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null;
+    const afterStr = day ? toDateInput(day) : null;
+    if (beforeStr === afterStr) { res.json({ data: { car_arrival_planned_at: afterStr, changed: false } }); return; }
+
+    const who = req.auth?.email ?? 'unknown';
+    await prisma.order.update({
+      where: { id },
+      data: {
+        car_arrival_planned_at: day ? toDbDate(day) : null,
+        car_arrival_set_by: who,
+        car_arrival_set_at: new Date(),
+      },
+    });
+
+    /*
+     * 기록은 **그 단계의 대화**에 남긴다. 표를 따로 만들지 않는 이유는, 특장사가
+     * 이미 보고 있는 자리가 거기이기 때문이다 — 새 표를 만들면 아무도 안 보는
+     * 이력이 하나 더 생긴다. 「무엇에서 무엇으로」가 남아야 나중에 말이 갈리지 않는다.
+     */
+    const note = afterStr === null
+      ? `차량 도착 예정일을 지웠습니다 (이전 ${beforeStr})`
+      : beforeStr === null
+        ? `차량 도착 예정일: ${afterStr}`
+        : `차량 도착 예정일이 ${beforeStr} → ${afterStr} 로 바뀌었습니다`;
+    await prisma.orderStepComment.create({
+      data: {
+        order_id: id, step_code: 'car_arrived', author: who, author_role: 'SYSTEM',
+        author_name: '시스템', body: note,
+      },
+    });
+
+    /*
+     * 알림은 **배정된 특장사에게만** 간다. 관리자가 정한 값을 관리자에게 되돌려
+     * 알릴 이유가 없고, 이 날짜에 맞춰 사람을 빼는 쪽은 현장이다.
+     */
+    if (order.maker_org_id) {
+      const makers = await prisma.user.findMany({
+        where: { org_code: order.maker_org_id, active: true, status: 'active' },
+        select: { email: true },
+      });
+      const to = await pushAllowed(makers.map(m => m.email));
+      if (to.length > 0) {
+        notify(to, {
+          title: `주문 #${id} 차량 도착 예정일`,
+          body: note,
+          url: `/?order=${id}`,
+          // 같은 주문의 도착 예정 알림은 덮어쓴다 — 몇 번 고쳐도 마지막 것만 남는다
+          tag: `car-arrival-${id}`,
+        });
+      }
+    }
+
+    res.json({ data: { car_arrival_planned_at: afterStr, changed: true } });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/car-arrival]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '도착 예정일을 저장하지 못했습니다.' } });
+  }
+});
+
 // ── PATCH /orders/:id/accept — 특장사 주문 수락 (배정→주문, 제작 착수) ──────
 // 배정된 특장사가 주문을 수락하면 견적 상태 assigned→ordered. 이후 진행은 단계 표가 갖는다.
 
@@ -541,7 +646,17 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
     }
     // 기산점은 **배정일**(= 발주일). 없으면 주문 생성일로 대신한다.
     const orderedAt = order.assigned_at ?? order.created_at;
-    const check = checkDeliveryDue(due, orderedAt);
+    /*
+     * 달력을 최신으로 물린 뒤 판정한다. 관리자가 임시공휴일을 넣었는데 서버가
+     * 옛 달력으로 거절하면, 화면에서 고를 수 있는 날이 저장되지 않는다.
+     */
+    await loadHolidays();
+    /*
+     * 한도는 **이 주문에 얼려 둔 값**을 쓴다. 상수를 20으로 늘려도 15일 시절에
+     * 나간 발주서(「15일 이내」가 문서에 찍혀 있다)의 판정이 바뀌지 않는다.
+     */
+    const limitDays = order.due_limit_days ?? DELIVERY_DUE_BUSINESS_DAYS;
+    const check = checkDeliveryDue(due, orderedAt, limitDays);
     if (!check.ok) {
       res.status(400).json({ error: { code: 'BAD_INPUT', message: check.reason } });
       return;

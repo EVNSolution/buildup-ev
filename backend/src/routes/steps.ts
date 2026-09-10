@@ -21,6 +21,8 @@ import {
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
+import { checklistPasses } from '@buildup-ev/shared/process';
+import { checklistActor, openChecklist, checklistGate, notifyChecklistSubmitted } from '../services/checklist.js';
 import multer from 'multer';
 import {
   listComments, listAllComments, addComment, unreadByStep, markRead, markAllRead, COMMENT_MAX,
@@ -283,6 +285,18 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
     defs,
   );
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+
+  /*
+   * **체크리스트를 채워야 넘어간다.**
+   *
+   * 불합격을 놔두고 넘어갈 수 있으면 체크리스트는 형식이 된다 — 고쳐서
+   * **재검으로 합격**을 만들어야 열린다(항목별 이력이 남는다).
+   *
+   * ⚠️ 서식이 비어 있는 단계는 막지 않는다. 항목을 아직 안 정했는데 완료가 막히면
+   *    진행 중인 주문이 통째로 선다 — 체크리스트는 있을 때만 관문이다.
+   */
+  const cl = await checklistGate(id, code);
+  if (!cl.ok) { res.status(409).json({ error: { code: 'CHECKLIST_INCOMPLETE', message: cl.reason } }); return; }
 
   /*
    * ⚠️ 예전엔 여기서 「전자서명이 완료되고 서명본을 내려받았는가」를 확인했다.
@@ -794,4 +808,131 @@ stepsRouter.post('/:id/steps/:code/comments/read', rbac('ADMIN', 'SALES', 'MAKER
     if ('err' in r) { denyOrder(res, r.err); return; }
     await markRead(id, String(req.params['code']), req.auth!.email);
     res.json({ data: { ok: true } });
+  }));
+
+// ── 주문 체크리스트 ────────────────────────────────────────────────────────
+
+/**
+ * GET /orders/:id/steps/:code/checklist — 그 단계의 체크리스트.
+ *
+ * 처음 열면 **그때의 서식을 사본으로 얼려** 만든다. 서식이 비어 있으면 만들지 않고
+ * `null` 을 돌려준다 — 낼 것이 없는 빈 체크리스트가 생기면 완료가 영영 막힌다.
+ */
+stepsRouter.get('/:id/steps/:code/checklist', rbac('ADMIN', 'SALES', 'MAKER'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = orderId(req);
+    const code = String(req.params['code'] ?? '');
+    if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+
+    const actor = checklistActor(code);
+    if (!actor) { res.json({ data: null }); return; }
+    const cl = await openChecklist(id, code);
+    if (!cl) { res.json({ data: null }); return; }
+    const logs = await prisma!.orderChecklistLineLog.findMany({
+      where: { line: { checklist_id: cl.id } },
+      orderBy: { id: 'asc' },
+    });
+    res.json({
+      data: {
+        step_code: code,
+        /** 적는 사람 — 이 역할이 아니면 화면에서 보기만 한다 */
+        actor,
+        submitted_at: cl.submitted_at?.toISOString() ?? null,
+        submitted_by: cl.submitted_by,
+        lines: cl.lines.map(l => ({
+          id: l.id, seq: l.seq, category: l.category, content: l.content,
+          result: l.result, memo: l.memo,
+          checked_at: l.checked_at?.toISOString() ?? null, checked_by: l.checked_by,
+          /* 조치 후 재검이 남는다 — 「한 번에 통과」와 「고쳐서 통과」는 다른 이야기다 */
+          logs: logs.filter(g => g.line_id === l.id)
+            .map(g => ({ result: g.result, memo: g.memo, at: g.at.toISOString(), by: g.by })),
+        })),
+      },
+    });
+  }));
+
+/**
+ * PATCH /orders/:id/steps/:code/checklist — 항목을 판정한다.
+ *
+ * 한 줄씩 저장한다. 다 채우면 `submit: true` 로 제출하며, 그때 관리자에게 알림이 간다.
+ *
+ * ⚠️ 판정은 **덮어쓰지 않고 쌓는다.** 결과 칸 하나만 두면 마지막 판정만 남아
+ *    「한 번에 통과했다」와 「고쳐서 통과했다」가 같아진다.
+ */
+stepsRouter.patch('/:id/steps/:code/checklist', rbac('ADMIN', 'MAKER'), requirePermission('order.control'),
+  guard(async (req: Request, res: Response): Promise<void> => {
+    const id = orderId(req);
+    const code = String(req.params['code'] ?? '');
+    if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
+    const r = await loadOrder(id, req);
+    if ('err' in r) { denyOrder(res, r.err); return; }
+
+    const actor = checklistActor(code);
+    if (!actor) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '체크리스트가 붙지 않는 단계입니다' } }); return; }
+    /*
+     * **적는 사람이 정해져 있다.** 차량 도착·특장 제작은 만든 쪽이 보고, 인도는
+     * 넘겨받는 쪽이 본다. 아무나 적을 수 있으면 「누가 확인했나」가 흐려진다.
+     */
+    const roles: string[] = req.auth!.roles ?? [req.auth!.role];
+    if (!roles.includes(actor)) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: '이 체크리스트를 적는 역할이 아닙니다' } }); return;
+    }
+
+    const cl = await openChecklist(id, code);
+    if (!cl) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '이 단계의 체크리스트 서식이 아직 없습니다' } }); return; }
+
+    const body = req.body as { lines?: unknown; submit?: unknown };
+    const inLines = Array.isArray(body.lines) ? body.lines as { id?: number; result?: string; memo?: string }[] : [];
+    const mine = new Map(cl.lines.map(l => [l.id, l]));
+    const who = req.auth?.email ?? 'unknown';
+    const now = new Date();
+
+    for (const raw of inLines) {
+      const line = typeof raw.id === 'number' ? mine.get(raw.id) : undefined;
+      if (!line) continue;                                  // 남의 줄은 무시한다
+      const result = raw.result === 'pass' || raw.result === 'fail' ? raw.result : null;
+      if (!result) continue;
+      const memo = typeof raw.memo === 'string' ? raw.memo.trim().slice(0, 300) : null;
+      // 같은 판정을 같은 메모로 다시 보내면 이력을 늘리지 않는다
+      if (line.result === result && (line.memo ?? null) === (memo || null)) continue;
+      await prisma!.$transaction([
+        prisma!.orderChecklistLine.update({
+          where: { id: line.id },
+          data: { result, memo: memo || null, checked_at: now, checked_by: who },
+        }),
+        prisma!.orderChecklistLineLog.create({
+          data: { line_id: line.id, result, memo: memo || null, by: who },
+        }),
+      ]);
+    }
+
+    const after = await prisma!.orderChecklist.findUniqueOrThrow({
+      where: { id: cl.id }, include: { lines: { select: { result: true } } },
+    });
+    const allPass = checklistPasses(after.lines);
+
+    if (body.submit === true) {
+      if (!allPass) {
+        res.status(409).json({ error: { code: 'CHECKLIST_INCOMPLETE', message: '합격이 아닌 항목이 남아 있어 제출할 수 없습니다' } });
+        return;
+      }
+      if (!after.submitted_at) {
+        await prisma!.orderChecklist.update({
+          where: { id: cl.id }, data: { submitted_at: now, submitted_by: who },
+        });
+        await notifyChecklistSubmitted(id, code, who);
+      }
+    } else if (!allPass && after.submitted_at) {
+      /*
+       * 제출한 뒤에 불합격이 생기면 **제출을 거둔다.** 그대로 두면 「제출됨」인데
+       * 안에는 불합격이 있는 상태가 남아, 관문이 무엇을 보는지 흐려진다.
+       */
+      await prisma!.orderChecklist.update({
+        where: { id: cl.id }, data: { submitted_at: null, submitted_by: null },
+      });
+    }
+
+    res.json({ data: { ok: true, all_pass: allPass } });
   }));
