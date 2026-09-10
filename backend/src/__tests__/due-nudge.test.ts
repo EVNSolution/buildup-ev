@@ -135,4 +135,48 @@ describe('대화 사진 → 증빙', () => {
   it('🔴 타입이 사실을 감추지 않는다 — 파일 종류에는 chat 도 온다', () => {
     expect(read('frontend/src/api/steps.ts')).toMatch(/kind: EvidenceKind \| 'chat'/);
   });
+
+  /*
+   * 단계별 창에만 그 버튼이 있었다. 전체 대화 탭에서 사진을 보고도 증빙으로 넣으려면
+   * 단계 탭으로 옮겨 그 단계를 찾아 다시 열어야 했다(제보). 두 자리 모두에 둔다.
+   */
+  const TAB = () => read('frontend/src/components/OrderChatTab.tsx');
+
+  it('🔴 전체 대화 탭에서도 사진을 증빙으로 넣을 수 있다', () => {
+    expect(TAB(), '전체 대화 탭에 증빙 등록이 없다').toMatch(/promoteChatPhoto\(/);
+  });
+
+  it('🔴 넣는 곳은 **그 글이 달린 단계**다 — 입력칸에서 고른 단계가 아니다', () => {
+    /*
+     * 입력칸의 `step` 은 「다음에 쓸 글」의 단계다. 그걸로 넣으면 A 단계 사진이
+     * B 단계 증빙으로 들어간다 — 글마다 어느 단계 이야기인지 이미 붙어 있다.
+     */
+    expect(TAB()).toMatch(/promote\(c\.step_code, c\.image_file_id!\)/);
+    expect(TAB(), '입력칸에서 고른 단계로 넣고 있다').not.toMatch(/promote\(step,/);
+  });
+
+  it('🔴 어느 단계로 들어가는지 버튼에 적는다', () => {
+    // 시간순으로 섞여 있어 단계 이름이 없으면 어디로 들어가는지 알 수 없다
+    expect(TAB()).toMatch(/검수 사진으로 등록', label\.get\(c\.step_code\)/);
+  });
+
+  it('🔴 조회만 하는 역할에는 두지 않는다 — 눌러 봐야 403 이다', () => {
+    // 서버가 ADMIN·MAKER 만 받는다. 영업에게 보여 주면 누르고 나서야 안 된다는 걸 안다
+    expect(read('backend/src/routes/steps.ts')).toMatch(/files\/from-chat', rbac\('ADMIN', 'MAKER'\)/);
+    expect(TAB()).toMatch(/canWrite && c\.image_file_id && \(/);
+    expect(read('frontend/src/components/StepChat.tsx')).toMatch(/canWrite && c\.image_file_id && \(/);
+  });
+
+  it('🔴 사진이 그려진 뒤 목록을 다시 내린다 — 버튼이 화면 밖에 머물렀다', () => {
+    /*
+     * 목록을 바닥으로 내리는 것은 글 수가 바뀔 때 한 번뿐이다. 그 뒤에 사진이
+     * 자리를 차지하면 마지막 글의 아래끝이 밖으로 밀린다 — 사진 밑에 붙는
+     * 「검수 사진으로 등록」이 **실측 40px 만큼** 보이지 않았다.
+     */
+    for (const f of ['frontend/src/components/OrderChatTab.tsx', 'frontend/src/components/StepChat.tsx']) {
+      expect(read(f), `${f}: 사진 로드 뒤 다시 내리지 않는다`).toMatch(/onLoad=\{stickBottom\}/);
+      // 위를 읽고 있는 사람을 끌어내리지 않는다
+      expect(read(f)).toMatch(/scrollHeight - el\.scrollTop - el\.clientHeight > 120/);
+    }
+  });
 });

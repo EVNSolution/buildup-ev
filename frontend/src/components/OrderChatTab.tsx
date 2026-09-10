@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { t } from '../i18n'
+import { t, tf } from '../i18n'
 import { fetchAllComments, postComment, commentImageUrl, type StepComment } from '../api/stepComments'
+import { promoteChatPhoto } from '../api/steps'
 import { PhotoViewer } from './PhotoViewer'
 import { useChatPoll, pollDelay, lastMessageAt, lastId, appendComments } from '../lib/chatPoll'
 import { PushToggle } from './PushToggle'
@@ -15,6 +16,11 @@ import { ChatComposer } from './ChatComposer'
  *
  * 쓸 때는 **어느 단계 이야기인지 먼저 고른다.** 고른 단계로 저장되므로
  * 그 단계의 창(단계 → 대화)에서도 같은 글이 시간순으로 보인다.
+ *
+ * 사진은 여기서도 **그 자리에서 증빙이 된다.** 단계별 창에만 그 버튼이 있어서,
+ * 이 탭에서 사진을 보고도 증빙으로 넣으려면 단계 탭으로 옮겨 그 단계를 찾아
+ * 다시 열어야 했다(제보). 글마다 어느 단계 이야기인지 이미 붙어 있으므로,
+ * **그 단계로** 넣으면 된다 — 어디로 들어가는지는 버튼에 단계 이름으로 적는다.
  */
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: '관리자', MAKER: '특장사', SALES: '영업', SYSTEM: '시스템',
@@ -46,6 +52,9 @@ export function OrderChatTab(
   const [err, setErr] = useState('')
   /** 크게 보고 있는 사진(order_file id). null 이면 안 보고 있다 */
   const [viewing, setViewing] = useState<number | null>(null)
+  /** 증빙으로 넣는 중인 사진 · 이미 넣은 사진 — 버튼이 두 번 눌리지 않게 */
+  const [promoting, setPromoting] = useState<number | null>(null)
+  const [promoted, setPromoted] = useState<Set<number>>(new Set())
   /*
    * 붙일 사진 — 보내기 전에 **줄여서** 올린다. 요즘 폰 사진은 한 장에 5MB 를 넘고,
    * 대화에 그대로 쌓이면 현장에서 목록을 여는 것만으로 데이터를 다 쓴다.
@@ -132,6 +141,35 @@ export function OrderChatTab(
     [steps],
   )
 
+  /*
+   * 사진이 **늦게 그려지면 그만큼 아래가 길어진다.** 목록을 바닥으로 내리는 것은
+   * 글 수가 바뀔 때 한 번뿐이라, 그 뒤에 사진이 자리를 차지하면 마지막 글의 아래끝이
+   * 화면 밖에 남는다 — 사진 밑에 붙는 「검수 사진으로 등록」이 **보이지 않았다**(실측 40px).
+   * 사진이 다 그려진 뒤 한 번 더 내린다. 다만 위를 읽고 있는 사람은 끌어내리지 않는다.
+   */
+  function stickBottom() {
+    const el = listRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight > 120) return
+    el.scrollTop = el.scrollHeight
+  }
+
+  /**
+   * 대화 사진 → **그 글이 달린 단계**의 검수 사진.
+   *
+   * 넣는 곳을 따로 고르게 하지 않는다. 글을 쓸 때 이미 단계를 골랐고, 그 사진은
+   * 그 단계 이야기다 — 여기서 또 고르게 하면 잘못 든 증빙이 생긴다.
+   */
+  async function promote(stepCode: string, fileId: number) {
+    setPromoting(fileId); setErr('')
+    try {
+      await promoteChatPhoto(orderId, stepCode, fileId)
+      setPromoted(prev => new Set(prev).add(fileId))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('증빙으로 등록하지 못했습니다'))
+    } finally { setPromoting(null) }
+  }
+
   async function send() {
     const body = text.trim()
     if ((body === '' && !image) || step === '' || busy) return
@@ -189,11 +227,28 @@ export function OrderChatTab(
                       onClick={() => setViewing(c.image_file_id!)}
                       aria-label={t('사진 크게 보기')}
                     >
-                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} />
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} onLoad={stickBottom} />
                     </button>
                   )}
                   {c.body}
                 </div>
+                {/*
+                  단계별 창과 **같은 자리, 같은 문구**. 다만 여기서는 어느 단계로
+                  들어가는지 보이지 않으므로 단계 이름을 버튼에 적는다.
+                  쓸 권한이 없는 역할(영업)에는 두지 않는다 — 서버가 어차피 막는다.
+                */}
+                {canWrite && c.image_file_id && (
+                  <button
+                    style={mine ? { ...s.promote, alignSelf: 'flex-end' } : s.promote}
+                    disabled={promoting === c.image_file_id}
+                    onClick={() => void promote(c.step_code, c.image_file_id!)}
+                    title={tf('이 사진을 「{0}」 단계의 검수 사진으로 등록합니다', label.get(c.step_code) ?? c.step_code)}
+                  >
+                    {promoted.has(c.image_file_id) ? t('✓ 검수 사진으로 등록됨')
+                      : promoting === c.image_file_id ? t('등록 중…')
+                      : tf('「{0}」 검수 사진으로 등록', label.get(c.step_code) ?? c.step_code)}
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -279,6 +334,16 @@ const s: Record<string, React.CSSProperties> = {
   errLine: { color: 'var(--req)', fontSize: 'var(--fs-caption)', padding: '0 var(--sp-4) var(--sp-2)' },
   /** 종 한 칸 — 줄을 통째로 쓰지 않게 높이를 종 크기에 맞춘다 */
   bellRow: { flex: 'none', display: 'flex', justifyContent: 'flex-start', padding: '2px var(--sp-2) 0' },
+  /**
+   * 사진을 증빙으로 넣는 줄 — 말풍선 **바로 아래**에 붙는다.
+   * 사진이 오른쪽 말풍선이면 버튼도 오른쪽이다(단계별 창과 같은 규칙).
+   */
+  promote: {
+    marginTop: 4, alignSelf: 'flex-start',
+    border: '0.5px solid var(--lime)', background: 'transparent', color: 'var(--lime-ink)',
+    borderRadius: 999, padding: '3px 10px', fontSize: 'var(--fs-caption)',
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
   /** 말풍선 안 사진을 감싸는 버튼 — 테두리·배경 없이 사진만 보이게 */
   photoBtn: { display: 'block', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer' },
   photo: {
