@@ -65,6 +65,19 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
   const [promoting, setPromoting] = useState<number | null>(null)
   const [promoted, setPromoted] = useState<Set<number>>(new Set())
 
+  /*
+   * 사진이 **늦게 그려지면 그만큼 아래가 길어진다.** 목록을 바닥으로 내리는 것은
+   * 글 수가 바뀔 때 한 번뿐이라, 그 뒤에 사진이 자리를 차지하면 마지막 글의 아래끝이
+   * 화면 밖에 남는다 — 사진 밑에 붙는 「검수 사진으로 등록」이 **보이지 않았다**(실측 40px).
+   * 사진이 다 그려진 뒤 한 번 더 내린다. 다만 위를 읽고 있는 사람은 끌어내리지 않는다.
+   */
+  function stickBottom() {
+    const el = listRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight > 120) return
+    el.scrollTop = el.scrollHeight
+  }
+
   async function promote(fileId: number) {
     setPromoting(fileId); setErr('')
     try {
@@ -219,7 +232,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                       onClick={() => setViewing(c.image_file_id!)}
                       aria-label={t('사진 크게 보기')}
                     >
-                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} />
+                      <img src={commentImageUrl(orderId, c.image_file_id)} alt={t('첨부 사진')} style={s.photo} onLoad={stickBottom} />
                     </button>
                   )}
                   {c.body}
@@ -229,7 +242,7 @@ export function StepChat({ orderId, stepCode, stepLabel, canWrite, onClose, onRe
                   업로드의 번거로움이다. 대화에는 사진을 곧잘 올리므로, 한 번 더 올릴 일을 없앤다.
                   사진 증빙을 받는 단계에서만 뜬다(서류 증빙은 원본이 필요해 안 된다).
                 */}
-                {c.image_file_id && (
+                {canWrite && c.image_file_id && (
                   <button
                     style={mine ? { ...s.promote, alignSelf: 'flex-end' } : s.promote}
                     disabled={promoting === c.image_file_id}
