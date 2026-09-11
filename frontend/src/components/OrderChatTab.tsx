@@ -45,6 +45,7 @@ export function OrderChatTab(
 ) {
   const [rows, setRows] = useState<StepComment[] | null>(null)
   const [steps, setSteps] = useState<{ code: string; label: string }[]>([])
+  const [labels, setLabels] = useState<{ code: string; label: string }[]>([])
   const [me, setMe] = useState('')
   const [step, setStep] = useState('')
   const [text, setText] = useState('')
@@ -78,7 +79,7 @@ export function OrderChatTab(
         if (!alive) return
         // 첫 조회라 단계 목록이 함께 온다(증분 조회에는 안 온다)
         const steps = d.steps ?? []
-        setRows(d.comments); setSteps(steps); setMe(d.me)
+        setRows(d.comments); setSteps(steps); setLabels(d.labels ?? []); setMe(d.me)
         /*
          * 알림을 눌러 들어왔으면 **그 단계**를 고른 채로 연다 — 알림이 말하는 내용이
          * 그 단계에 있으므로 바로 이어서 답할 수 있다.
@@ -137,8 +138,8 @@ export function OrderChatTab(
   }, [])
 
   const label = useMemo(
-    () => new Map(steps.map(s2 => [s2.code, s2.label])),
-    [steps],
+    () => new Map([...labels, ...steps].map(s2 => [s2.code, t(s2.label)])),
+    [steps, labels],
   )
 
   /*
@@ -272,7 +273,7 @@ export function OrderChatTab(
           */
           above={
             <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label={t('단계 고르기')}>
-              {steps.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
+              {steps.map(o => <option key={o.code} value={o.code}>{t(o.label)}</option>)}
             </select>
           }
         />

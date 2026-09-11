@@ -339,6 +339,12 @@ export interface ApiOrder {
   id: number;
   quote_id: number;
   maker_org_id: string | null;
+  /**
+   * 마지막으로 거부한 특장사. `maker_org_id` 가 비어 있고 이 값이 있으면 **거부돼 돌아간 건**이다 —
+   * 그 특장사 화면에는 「거부됨」으로 남아 관리자와 이야기를 이어간다.
+   */
+  rejected_by_org?: string | null;
+  reject_reason?: string | null;
   assigned_at: string | null;
   /** 단계 진행 요약 — 옛 `status`(6단계 문자열)를 대신한다 */
   steps?: ApiOrderStepSummary;
@@ -417,6 +423,9 @@ export interface ApiOrderMakerDetail {
    * 특장사가 완료 처리하는 「차량 도착」 단계와 다르다(이건 예정).
    */
   car_arrival_planned_at?: string | null;
+  /** 거부돼 돌아간 건인가 — 수락·거부 대신 「거부됨」과 대화만 보여 준다 */
+  rejected?: boolean;
+  reject_reason?: string | null;
   /** 이 발주의 납기 한도(영업일) — 배정 때 얼려 둔 값 */
   due_limit_days?: number;
   /** 특장사가 커스텀 요청사항을 확인한 시각. 적힌 것이 있으면 이 값 없이는 수락할 수 없다 */

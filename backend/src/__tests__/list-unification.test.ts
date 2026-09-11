@@ -43,7 +43,13 @@ describe('주문 목록', () => {
 
   it('어디에도 안 걸리는 상태는 사라지지 않는다', () => {
     // 진행 중이 「나머지 전부」여야 예상 밖의 상태도 목록에 남는다
-    expect(SECTIONS).toMatch(/const active\s*=\s*orders\.filter\(o => o\.quote\.status !== 'assigned' && !finished\(o\)\)/);
+    /*
+     * 거부됨이 따로 구획을 갖게 됐다(2026-09-11). 진행 중은 여전히 「나머지 전부」이고,
+     * 거부된 건은 **자기 구획에** 보인다 — 어느 쪽이든 목록에서 사라지는 건은 없다.
+     */
+    expect(SECTIONS).toMatch(/const active\s*=\s*orders\.filter\(o => o\.quote\.status !== 'assigned' && !finished\(o\) && !rejected\(o\)\)/);
+    expect(SECTIONS).toMatch(/const refused = orders\.filter\(rejected\)/);
+    expect(SECTIONS, '거부된 건을 걸러 놓고 그리지 않는다').toMatch(/orders=\{refused\}/);
   });
 });
 
@@ -357,6 +363,13 @@ describe('수락 대기 발주서', () => {
     const maker = read('frontend/src/pages/MakerPage.tsx');
     expect(maker).toContain('onAccept=');
     expect(maker).toContain('onReject=');
-    expect(maker).not.toContain('readOnly');
+    /*
+     * 조회 전용은 **거부된 건에만** 걸린다(2026-09-11 — 거부해도 발주서와 대화는 남는다).
+     * 수락 대기 건까지 잠기면 아무도 받지 못하는 주문이 생긴다 — 그래서 조건을 못 박는다.
+     */
+    const ro = maker.match(/readOnly=\{([^}]*)\}/g) ?? [];
+    expect(ro, '특장사 화면에 조건 없는 조회 전용이 붙었다').toEqual([
+      'readOnly={acceptTarget.maker_org_id == null && !!acceptTarget.rejected_by_org}',
+    ]);
   });
 });

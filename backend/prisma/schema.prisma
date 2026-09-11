@@ -608,6 +608,10 @@ model Order {
   /// 정하는 사람도 관리자다(차를 보내는 쪽이 안다). 수락 전이든 진행 중이든
   /// 언제든 찍고 고칠 수 있어야 해서 단계가 아니라 주문에 둔다 —
   /// 단계에 매달면 수락 전에는 쓸 자리가 없다.
+  /// **마지막으로 거부한 특장사.** 거부하면 배정(`maker_org_id`)이 풀리는데, 그 특장사가
+  /// 「거부됨」으로 이 건을 계속 보고 관리자와 이야기할 수 있어야 한다(날짜를 맞춰 다시
+  /// 배정하려면 대화가 필요하다). 다른 특장사로 재배정되면 그 특장사에게서 사라진다.
+  rejected_by_org        String?          @db.VarChar(30)
   car_arrival_planned_at DateTime?        @db.Date
   car_arrival_set_by     String?          @db.VarChar(120)
   car_arrival_set_at     DateTime?
@@ -902,11 +906,15 @@ model OrderStepComment {
   body          String   @db.VarChar(2000)
   /// 붙인 사진 — order_file 의 id. 저장·내려받기는 증빙과 같은 길을 쓴다(kind='chat').
   image_file_id Int?
+  /// **어느 특장사와의 대화인가.** 거부돼 다른 특장사로 넘어가면 대화도 갈라야 한다 —
+  /// 특장사끼리 사정·단가 이야기가 섞이면 안 된다(지시: 2026-09-11). 관리자는 전부 본다.
+  maker_org_id  String?  @db.VarChar(30)
   created_at    DateTime @default(now())
 
   order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([order_id, step_code, id], map: "order_step_comment_thread_idx")
+  @@index([order_id, maker_org_id], map: "order_step_comment_org_idx")
   @@map("order_step_comment")
 }
 

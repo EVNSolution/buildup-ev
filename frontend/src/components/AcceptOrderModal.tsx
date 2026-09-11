@@ -11,6 +11,7 @@ import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
 import { CarArrivalRow } from './CarArrivalRow'
+import { OrderChatTab } from './OrderChatTab'
 import { rolesOf } from '@shared/types/index'
 import { useAuth } from '../contexts/AuthContext'
 import { usePermission } from './PermGate'
@@ -107,6 +108,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
   const [poLines, setPoLines] = useState<PoLine[]>([])
   const [acked, setAcked] = useState(false)
   const [carArrival, setCarArrival] = useState<string | null>(null)
+  /** 거부돼 돌아간 건 — 수락·거부 대신 사유와 대화만 보여 준다 */
+  const [refused, setRefused] = useState<{ reason: string | null } | null>(null)
 
   // 발주 내용(사양)은 목록 응답에 없다 — 팝업을 열 때 받아온다
   useEffect(() => {
@@ -122,6 +125,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         if (d.appendix_ack_at) setAcked(true)
         if (typeof d.due_limit_days === 'number') setLimitDays(d.due_limit_days)
         setCarArrival(d.car_arrival_planned_at ?? null)
+        setRefused(d.rejected ? { reason: d.reject_reason ?? null } : null)
       })
       .catch(e => { if (alive) setLoadErr(e instanceof Error ? e.message : t('발주 내용을 불러오지 못했습니다')) })
     return () => { alive = false }
@@ -153,6 +157,18 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         </div>
 
         <div style={m.scroll}>
+          {/*
+            거부됨 — 맨 위에 적는다. 이 발주서를 왜 다시 보고 있는지부터 알아야
+            아래 대화가 무엇에 대한 것인지 읽힌다.
+          */}
+          {refused && (
+            <div style={m.refused}>
+              <b>{t('거부됨')}</b> — {refused.reason || t('(적히지 않음)')}
+              <div style={m.refusedHint}>
+                {t('아래 대화에서 날짜를 맞추면 관리자가 다시 배정합니다. 같은 곳으로 다시 배정되면 수락 대기로 돌아옵니다.')}
+              </div>
+            </div>
+          )}
           {loadErr
             ? <div style={m.err}>{loadErr}</div>
             : (
@@ -208,7 +224,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
               조회 전용에서는 **고르는 칸을 두지 않는다.** 고를 수 있게 두고 서버가 막으면
               「눌러 봤는데 안 된다」로 끝난다 — 할 수 없는 일은 애초에 보이지 않아야 한다.
             */}
-            {readOnly && (
+            {readOnly && !refused && (
               <div style={m.viewNote}>
                 {t('납기일은 배정된 특장사가 수락하면서 정합니다.')}
               </div>
@@ -227,6 +243,22 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
                 </div>
               </>
             )}
+          </div>
+
+          {/*
+            **수락 전 대화** — 발주 협의.
+
+            20영업일 안에 못 맞추는 건은 여기서 날짜를 맞춘다: 거부 → 대화 → 재배정
+            (지시: 2026-09-11). 수락 전에는 진행 단계가 없으니 대화만 오간다.
+            수락하면 이 대화가 주문 상세 「대화」 탭 맨 앞에 **그대로 이어져** 보인다.
+          */}
+          <div style={m.chatHead}>{t('발주 협의')}</div>
+          <div style={m.chatBox}>
+            <OrderChatTab
+              orderId={orderId}
+              canWrite={isAdmin || rolesOf(session!.user).includes('MAKER')}
+              initialStep="po"
+            />
           </div>
         </div>
 
@@ -317,6 +349,21 @@ const m: Record<string, React.CSSProperties> = {
   title: { fontSize: 16, fontWeight: 700, color: 'var(--dark)', letterSpacing: 'var(--ls-tight)' },
   // 발주서가 길어도 버튼줄은 늘 보인다
   scroll: { flex: 1, minHeight: 0, overflowY: 'auto' },
+  refused: {
+    fontSize: 'var(--fs-label)', color: 'var(--warn)', background: 'var(--warnbg)',
+    border: '0.5px solid var(--warn)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-3)',
+    marginBottom: 'var(--sp-3)', lineHeight: 1.5,
+  },
+  refusedHint: { fontSize: 'var(--fs-caption)', color: 'var(--body)', marginTop: 4 },
+  chatHead: {
+    marginTop: 'var(--sp-4)', marginBottom: 'var(--sp-2)',
+    fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--dark)',
+  },
+  /* 대화창은 제 높이를 가져야 목록이 안에서 스크롤된다 — 바깥 팝업이 같이 밀리지 않게 */
+  chatBox: {
+    height: 360, display: 'flex', flexDirection: 'column',
+    border: 'var(--hairline)', borderRadius: 'var(--r-sm)', overflow: 'hidden', background: '#fff',
+  },
   arrivalBlock: { borderTop: 'var(--hairline)', paddingTop: 'var(--sp-2)', marginTop: 'var(--sp-3)' },
   dueBlock: { marginTop: 'var(--sp-4)' },
   dueHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)', marginBottom: 'var(--sp-2)' },

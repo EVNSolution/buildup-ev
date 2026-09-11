@@ -473,3 +473,17 @@ export type CheckResult = 'pass' | 'fail';
 export function checklistPasses(lines: { result?: string | null }[]): boolean {
   return lines.every(l => l.result === 'pass');
 }
+
+/**
+ * **발주 협의** — 수락 전에 오가는 대화의 자리.
+ *
+ * 단계가 아니다(완료할 것이 없다). 다만 대화는 단계 코드에 매달려 있으므로 이름을 하나
+ * 준다. 수락 뒤에는 「대화」 탭에서 다른 단계 이야기와 **한 줄로 이어져** 보인다 —
+ * 거부 → 날짜 조율 → 재배정 → 수락까지가 한 흐름으로 읽혀야 한다(지시: 2026-09-11).
+ */
+export const PO_THREAD = { code: 'po', label: '발주 협의' } as const;
+
+/** 대화를 남길 수 있는 자리인가 — 단계이거나 발주 협의 */
+export function isChatThread(code: string): boolean {
+  return code === PO_THREAD.code || STEP_BY_CODE[code] != null;
+}

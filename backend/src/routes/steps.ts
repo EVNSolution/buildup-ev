@@ -21,7 +21,7 @@ import {
 } from '@buildup-ev/shared/process';
 import { fromDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
 import { keepsOriginal, EVIDENCE_LABEL } from '@buildup-ev/shared/process';
-import { checklistPasses } from '@buildup-ev/shared/process';
+import { checklistPasses, PO_THREAD } from '@buildup-ev/shared/process';
 import { checklistActor, openChecklist, checklistGate, notifyChecklistSubmitted } from '../services/checklist.js';
 import multer from 'multer';
 import {
@@ -99,12 +99,19 @@ function denyOrder(res: Response, err: 503 | 404 | 403): void {
   res.status(err).json({ error: map[err] });
 }
 
-async function loadOrder(id: number, req: Request): Promise<LoadResult> {
+async function loadOrder(
+  id: number, req: Request,
+  /**
+   * **대화에서만** 거부한 특장사를 들인다. 거부한 건은 단계를 누르거나 증빙을 올릴
+   * 일이 없다 — 날짜를 맞추려고 관리자와 이야기할 뿐이다. 그래서 대화 라우트만 이 값을 켠다.
+   */
+  opts: { allowRejected?: boolean } = {},
+): Promise<LoadResult> {
   if (!prisma) return { err: 503 };
   const order = await prisma.order.findUnique({
     where: { id },
     select: {
-      id: true, quote_id: true, maker_org_id: true, assigned_at: true, created_at: true,
+      id: true, quote_id: true, maker_org_id: true, rejected_by_org: true, assigned_at: true, created_at: true,
       accepted_at: true, delivery_due: true,
       // 특장만 여부는 견적 입력에 남아 있다(견적서를 다시 뽑아도 같은 금액이 나와야 해서)
       // 고객 이름은 **올린 파일 이름**에 들어간다(19.여준성_특장장착.jpg)
@@ -117,6 +124,8 @@ async function loadOrder(id: number, req: Request): Promise<LoadResult> {
   if (!isAdmin(auth)) {
     const mine =
       (auth.roles.includes('MAKER') && order.maker_org_id === auth.org_code) ||
+      (opts.allowRejected === true && auth.roles.includes('MAKER')
+        && order.maker_org_id === null && order.rejected_by_org === auth.org_code) ||
       (auth.roles.includes('SALES') && order.quote?.sales_user_id === auth.email);
     if (!mine) return { err: 403 };
   }
@@ -667,9 +676,9 @@ async function stepExists(orderId: number, code: string): Promise<boolean> {
 stepsRouter.get('/:id/step-comments/unread', rbac('ADMIN', 'SALES', 'MAKER'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params['id']);
-    const r = await loadOrder(id, req);
+    const r = await loadOrder(id, req, { allowRejected: true });
     if ('err' in r) { denyOrder(res, r.err); return; }
-    res.json({ data: await unreadByStep(id, req.auth!.email) });
+    res.json({ data: await unreadByStep(id, req.auth!.email, chatScope(req)) });
   }));
 
 /**
@@ -683,7 +692,7 @@ stepsRouter.get('/:id/step-comments/unread', rbac('ADMIN', 'SALES', 'MAKER'),
 stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params['id']);
-    const r = await loadOrder(id, req);
+    const r = await loadOrder(id, req, { allowRejected: true });
     if ('err' in r) { denyOrder(res, r.err); return; }
     /*
      * `?after=<마지막으로 받은 id>` — **그 뒤에 생긴 것만** 준다.
@@ -693,14 +702,33 @@ stepsRouter.get('/:id/step-comments', rbac('ADMIN', 'SALES', 'MAKER'),
     const after = Number(req.query['after']);
     const incremental = Number.isInteger(after) && after > 0;
     if (!incremental) {
-      await markAllRead(id, req.auth!.email).catch(() => { /* 표시 실패로 조회를 막지 않는다 */ });
+      await markAllRead(id, req.auth!.email, chatScope(req)).catch(() => { /* 표시 실패로 조회를 막지 않는다 */ });
     }
-    const defs = stepsFor(r.order.body_only);
+    /*
+     * 쓸 수 있는 자리 — **수락 전에는 「발주 협의」 하나뿐**이다. 진행 단계는 수락한 뒤에야
+     * 의미가 있다(지시: 수락 전에는 단계 설정 없이 대화만). 수락 뒤에는 발주 협의가
+     * 맨 앞에 남아 거부 → 조율 → 재배정 → 수락이 한 줄로 이어져 읽힌다.
+     */
+    const accepted = r.order.accepted_at != null && r.order.maker_org_id != null;
+    const threads = [
+      { code: PO_THREAD.code, label: PO_THREAD.label },
+      ...(accepted ? stepsFor(r.order.body_only).map(d => ({ code: d.code, label: d.label })) : []),
+    ];
     res.json({ data: {
-      comments: await listAllComments(id, incremental ? after : undefined),
+      comments: await listAllComments(id, incremental ? after : undefined, chatScope(req)),
       me: req.auth!.email,
       // 화면이 코드 대신 이름을 보여 주고, 쓸 때 고를 수 있게 목록도 함께 준다
-      ...(incremental ? {} : { steps: defs.map(d => ({ code: d.code, label: d.label })) }),
+      ...(incremental ? {} : {
+        steps: threads,
+        /*
+         * 이름표는 **쓸 수 있는 자리보다 넓게** 준다. 수락 전이라도 「차량 도착」 자리에
+         * 시스템이 남긴 글(도착 예정일)이 있을 수 있다 — 이름이 없으면 코드가 그대로 찍힌다.
+         */
+        labels: [
+          { code: PO_THREAD.code, label: PO_THREAD.label },
+          ...stepsFor(r.order.body_only).map(d => ({ code: d.code, label: d.label })),
+        ],
+      }),
     } });
   }));
 
@@ -709,11 +737,11 @@ stepsRouter.get('/:id/steps/:code/comments', rbac('ADMIN', 'SALES', 'MAKER'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params['id']);
     const code = String(req.params['code']);
-    const r = await loadOrder(id, req);
+    const r = await loadOrder(id, req, { allowRejected: true });
     if ('err' in r) { denyOrder(res, r.err); return; }
     // `?after=<마지막으로 받은 id>` — 그 뒤에 생긴 것만
     const after = Number(req.query['after']);
-    const rows = await listComments(id, code, Number.isInteger(after) && after > 0 ? after : undefined);
+    const rows = await listComments(id, code, Number.isInteger(after) && after > 0 ? after : undefined, chatScope(req));
     await markRead(id, code, req.auth!.email).catch(() => { /* 표시 실패로 조회를 막지 않는다 */ });
     res.json({ data: { comments: rows, me: req.auth!.email } });
   }));
@@ -731,8 +759,16 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'), upload.sin
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params['id']);
     const code = String(req.params['code']);
-    const r = await loadOrder(id, req);
+    const r = await loadOrder(id, req, { allowRejected: true });
     if ('err' in r) { denyOrder(res, r.err); return; }
+    /*
+     * 거부한 특장사는 **발주 협의에만** 쓸 수 있다. 진행 단계에 글을 남길 일이 없고,
+     * 거기 남기면 다음에 이 건을 받는 특장사의 단계 자리에 엉뚱한 이야기가 붙는다.
+     */
+    if (r.order.maker_org_id === null && code !== PO_THREAD.code) {
+      res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '거부된 건은 발주 협의에만 글을 남길 수 있습니다' } });
+      return;
+    }
 
     const body = String((req.body as { body?: unknown })?.body ?? '').trim();
     // 사진만 보내는 것도 허용한다 — 「이 상태입니다」 한 장으로 끝나는 이야기가 있다
@@ -746,7 +782,8 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'), upload.sin
       });
       return;
     }
-    if (!(await stepExists(id, code))) {
+    // 발주 협의는 단계가 아니라 행이 없다 — 그 자리만 따로 들인다
+    if (code !== PO_THREAD.code && !(await stepExists(id, code))) {
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '없는 단계입니다' } });
       return;
     }
@@ -790,7 +827,7 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'), upload.sin
     }) : null;
     const row = await addComment({
       orderId: id, stepCode: code,
-      stepLabel: STEP_BY_CODE[code]?.label ?? code,
+      stepLabel: code === PO_THREAD.code ? PO_THREAD.label : (STEP_BY_CODE[code]?.label ?? code),
       author: auth.email,
       authorRole: auth.roles.includes('MAKER') && !isAdmin(auth) ? 'MAKER' : (isAdmin(auth) ? 'ADMIN' : 'SALES'),
       authorName: me?.name ?? null,
@@ -804,11 +841,20 @@ stepsRouter.post('/:id/steps/:code/comments', rbac('ADMIN', 'MAKER'), upload.sin
 stepsRouter.post('/:id/steps/:code/comments/read', rbac('ADMIN', 'SALES', 'MAKER'),
   guard(async (req: Request, res: Response): Promise<void> => {
     const id = Number(req.params['id']);
-    const r = await loadOrder(id, req);
+    const r = await loadOrder(id, req, { allowRejected: true });
     if ('err' in r) { denyOrder(res, r.err); return; }
     await markRead(id, String(req.params['code']), req.auth!.email);
     res.json({ data: { ok: true } });
   }));
+
+/**
+ * 이 사람이 볼 대화의 범위 — **특장사면 자기 조직과의 대화만**, 관리자·영업은 전부.
+ * 거부돼 다른 특장사로 넘어간 건에서 앞 특장사와의 이야기가 새 특장사에게 보이면 안 된다.
+ */
+function chatScope(req: Request): string | null {
+  const a = req.auth!;
+  return !isAdmin(a) && a.roles.includes('MAKER') ? a.org_code : null;
+}
 
 // ── 주문 체크리스트 ────────────────────────────────────────────────────────
 
