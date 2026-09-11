@@ -92,6 +92,11 @@ export function MakerPage() {
           orderId={acceptTarget.id}
           makerOrgName={session?.org.name ?? session?.org.code ?? ''}
           orderedAt={acceptTarget.assigned_at ?? acceptTarget.created_at}
+          /*
+            거부한 건은 **보기와 대화만** — 수락·거부는 관리자가 다시 배정해야 열린다.
+            같은 곳으로 다시 배정되면 수락 대기로 돌아와 이 팝업이 다시 수락 화면이 된다.
+          */
+          readOnly={acceptTarget.maker_org_id == null && !!acceptTarget.rejected_by_org}
           busy={acceptingId === acceptTarget.id}
           error={acceptErr}
           onAccept={(due, ack) => handleAccept(acceptTarget.id, due, ack)}
@@ -142,6 +147,8 @@ export function MakerPage() {
                   **내용을 안 보고 수락하는 길**이 남는다.
                 */
                 onPendingOpen={id => { setAcceptErr(''); setAcceptTarget(orders.find(o => o.id === id) ?? null) }}
+                /* 거부됨도 같은 팝업 — 발주서를 다시 보며 대화한다(수락·거부 버튼은 없다) */
+                onRejectedOpen={id => { setAcceptErr(''); setAcceptTarget(orders.find(o => o.id === id) ?? null) }}
               />
             )}
           </>

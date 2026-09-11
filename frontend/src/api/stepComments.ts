@@ -57,11 +57,14 @@ export async function fetchAllComments(orderId: number, after?: number): Promise
   comments: StepComment[]
   me: string
   steps?: { code: string; label: string }[]
+  /** 이름표 — 쓸 수 있는 자리보다 넓다(수락 전이라도 시스템이 남긴 단계 글이 있을 수 있다) */
+  labels?: { code: string; label: string }[]
 }> {
   const q = after != null && after > 0 ? `?after=${after}` : ''
   const res = await fetch(`/api/v1/orders/${orderId}/step-comments${q}`, { credentials: 'include' })
   const b = await jsonOrThrow(res, t('대화 이력 조회')) as { data: {
     comments: StepComment[]; me: string; steps?: { code: string; label: string }[]
+    labels?: { code: string; label: string }[]
   } }
   return b.data
 }

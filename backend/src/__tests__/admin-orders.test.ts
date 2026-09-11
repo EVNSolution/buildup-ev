@@ -211,8 +211,14 @@ describe.skipIf(shouldSkip || !AUTH_OK)('관리자 관제 — 확정·배정·�
       .get('/api/v1/orders')
       .set('Cookie', MAKER_COOKIE)
       .expect(200);
-    const orders = res.body.data as { maker_org_id: string }[];
-    expect(orders.every(o => o.maker_org_id === MAKER_ORG)).toBe(true);
+    const orders = res.body.data as { maker_org_id: string | null; rejected_by_org?: string | null }[];
+    /*
+     * **남의 조직 주문은 절대 안 보인다.** 자기에게 배정된 건, 또는 자기가 거부해
+     * 아직 다른 곳에 안 넘어간 건(「거부됨」 — 2026-09-11)만 보인다.
+     */
+    expect(orders.every(o =>
+      o.maker_org_id === MAKER_ORG || (o.maker_org_id === null && o.rejected_by_org === MAKER_ORG),
+    ), '남의 조직 주문이 보인다').toBe(true);
     expect(orders.length).toBeGreaterThanOrEqual(1);
   });
 

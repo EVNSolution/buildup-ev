@@ -39,7 +39,15 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     where.quote = { sales_user_id: auth.email };
   } else if (!isAdmin(auth)) {
     const scopes: Prisma.OrderWhereInput[] = [];
-    if (auth.roles.includes('MAKER')) scopes.push({ maker_org_id: auth.org_code });
+    if (auth.roles.includes('MAKER')) {
+      scopes.push({ maker_org_id: auth.org_code });
+      /*
+       * **거부한 건도 보인다** — 「거부됨」으로. 날짜를 맞춰 다시 받으려면 그 자리에서
+       * 관리자와 이야기해야 한다. 다른 특장사로 재배정되면 `maker_org_id` 가 채워져
+       * 이 조건에서 빠진다 — 그 특장사에게서 사라진다(지시: 2026-09-11).
+       */
+      scopes.push({ maker_org_id: null, rejected_by_org: auth.org_code });
+    }
     if (auth.roles.includes('SALES')) scopes.push({ quote: { sales_user_id: auth.email } });
     if (scopes.length === 1) Object.assign(where, scopes[0]);
     else if (scopes.length > 1) where.OR = scopes;
@@ -202,7 +210,13 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
         res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
         return;
       }
-      if (order.maker_org_id !== auth.org_code) {
+      /*
+       * 자기 조직에 배정된 건, 또는 **자기가 거부해 아직 다른 곳에 안 넘어간 건.**
+       * 거부한 발주서를 다시 보며 날짜를 이야기할 수 있어야 한다. 다른 특장사로 넘어가면
+       * `maker_org_id` 가 채워져 이 조건에서 빠진다.
+       */
+      const rejectedByMe = order.maker_org_id === null && order.rejected_by_org === auth.org_code;
+      if (order.maker_org_id !== auth.org_code && !rejectedByMe) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
         return;
       }
@@ -257,6 +271,9 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           po_lines: order.po_lines ?? null,
           // 납기 한도(영업일) — 배정 때 얼려 둔 값. 화면이 이 값으로 달력을 그린다
           due_limit_days: order.due_limit_days ?? DELIVERY_DUE_BUSINESS_DAYS,
+          /* 거부해 돌아간 건인가 — 화면이 수락·거부 대신 「거부됨」과 대화만 보여 준다 */
+          rejected: order.maker_org_id === null && order.rejected_by_org != null,
+          reject_reason: order.reject_reason,
           // 차량 도착 **예정일** — 관리자가 찍고 특장사는 언제나 본다
           car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
           appendix_ack_at: order.appendix_ack_at,
@@ -316,6 +333,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       model_code: order.quote.model_code,
       customer_name: order.quote.customer?.name ?? null,
       options: resolvedOptions,
+      rejected: order.maker_org_id === null && order.rejected_by_org != null,
       /* DATE 컬럼은 UTC 로 읽어야 넣을 때와 짝이 맞는다 — 그냥 흘리면 하루가 밀린다 */
       car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
     } });
@@ -385,6 +403,12 @@ ordersRouter.patch('/:id/reject', rbac('ADMIN', 'MAKER'), requirePermission('ord
       where: { id },
       data: {
         rejected_at: new Date(), rejected_by: req.auth?.email ?? 'unknown', reject_reason: reason,
+        /*
+         * **누가 거부했는지 남긴다.** 배정은 풀리지만 그 특장사는 이 건을 「거부됨」으로
+         * 계속 보고 관리자와 이야기해야 한다 — 날짜를 맞춰 다시 배정하려면 대화가 필요하다.
+         * 다른 특장사로 재배정되면 이 특장사에게서는 사라진다.
+         */
+        rejected_by_org: order.maker_org_id,
         // 배정을 푼다 — 다른 특장사에 다시 맡길 수 있어야 한다
         maker_org_id: null, assigned_at: null, delivery_due: null,
       },
@@ -519,7 +543,7 @@ ordersRouter.patch('/:id/car-arrival', rbac('ADMIN'), requirePermission('order.c
   try {
     const order = await prisma.order.findUnique({
       where: { id },
-      select: { id: true, maker_org_id: true, car_arrival_planned_at: true },
+      select: { id: true, maker_org_id: true, rejected_by_org: true, car_arrival_planned_at: true },
     });
     if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
 
@@ -551,6 +575,8 @@ ordersRouter.patch('/:id/car-arrival', rbac('ADMIN'), requirePermission('order.c
       data: {
         order_id: id, step_code: 'car_arrived', author: who, author_role: 'SYSTEM',
         author_name: '시스템', body: note,
+        // 지금 대화 상대인 특장사의 스레드에 남긴다 — 특장사별로 대화를 가른다
+        maker_org_id: order.maker_org_id ?? order.rejected_by_org,
       },
     });
 

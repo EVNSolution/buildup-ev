@@ -1093,6 +1093,9 @@ export const EN: Record<string, string> = {
   '빼기': 'Remove',
   '공휴일': 'Holidays',
   '(적히지 않음)': '(not given)',
+  '거부됨': 'Declined',
+  '아래 대화에서 날짜를 맞추면 관리자가 다시 배정합니다. 같은 곳으로 다시 배정되면 수락 대기로 돌아옵니다.': 'Agree on a date in the chat below and an administrator will reassign it. If it comes back to you, it returns to Awaiting acceptance.',
+  '발주 협의': 'Order discussion',
 }
 
 /**

@@ -51,7 +51,13 @@ describe('대화 탭 — 시간순 한 줄', () => {
   it('쓸 때 고를 단계 목록을 함께 준다 — 화면이 코드를 짐작하지 않게', () => {
     const routes = read('backend/src/routes/steps.ts');
     const i = routes.indexOf("stepsRouter.get('/:id/step-comments'");
-    expect(routes.slice(i, routes.indexOf('}));', i))).toMatch(/steps:\s*defs\.map/);
+    const body = routes.slice(i, routes.indexOf('}));', i));
+    /*
+     * 목록은 **발주 협의 + 진행 단계**다(2026-09-11 — 수락 전에도 대화한다).
+     * 모양은 바뀌었지만 지키는 것은 같다: 서버가 코드와 이름을 함께 준다.
+     */
+    expect(body).toMatch(/steps:\s*threads/);
+    expect(body).toMatch(/stepsFor\(r\.order\.body_only\)\.map\(d => \(\{ code: d\.code, label: d\.label \}\)\)/);
   });
 
   it('🔴 대화 탭에서 쓴 글도 같은 테이블·같은 step_code 로 들어간다', () => {

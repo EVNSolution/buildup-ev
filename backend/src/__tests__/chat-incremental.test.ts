@@ -20,8 +20,9 @@ describe('증분 조회 — 새로 생긴 것만', () => {
     expect(svc).toMatch(/function afterId/);
     expect(svc).toMatch(/id: \{ gt: after \}/);
     // 두 조회 모두 받아야 한다 — 한쪽만 고치면 그 화면만 계속 전부 받는다
-    expect(svc).toMatch(/listComments\(orderId: number, stepCode: string, after\?: number\)/);
-    expect(svc).toMatch(/listAllComments\(orderId: number, after\?: number\)/);
+    // 특장사별로 가르는 인자(org)가 뒤에 붙었다(2026-09-11) — `after` 를 받는 것은 그대로다
+    expect(svc).toMatch(/listComments\(orderId: number, stepCode: string, after\?: number[,)]/);
+    expect(svc).toMatch(/listAllComments\(orderId: number, after\?: number[,)]/);
   });
 
   it('🔴 `after` 는 정수·양수일 때만 먹는다 — 손댄 주소로 깨지지 않게', () => {
@@ -34,7 +35,7 @@ describe('증분 조회 — 새로 생긴 것만', () => {
      * 그대로 도로 쓴다. 화면은 처음 받은 것을 그대로 갖고 있으면 된다.
      */
     const routes = read('backend/src/routes/steps.ts');
-    expect(routes).toMatch(/incremental \? \{\} : \{ steps:/);
+    expect(routes).toMatch(/incremental \? \{\} : \{\s*steps:/);
   });
 
   it('🔴 화면이 마지막으로 받은 id 를 기준으로 묻는다', () => {
@@ -128,7 +129,8 @@ describe('안 읽은 대화 표시', () => {
     const svc = read('backend/src/services/step-comments.ts');
     expect(svc).toMatch(/export async function markAllRead/);
     const routes = read('backend/src/routes/steps.ts');
-    expect(routes).toMatch(/if \(!incremental\) \{[\s\S]{0,200}markAllRead\(id, req\.auth!\.email\)/);
+    // 특장사면 자기 조직과의 대화만 읽음으로 표시한다(2026-09-11) — 여는 순간 표시하는 것은 그대로다
+    expect(routes).toMatch(/if \(!incremental\) \{[\s\S]{0,200}markAllRead\(id, req\.auth!\.email[,)]/);
     // 증분 조회마다 같은 쓰기를 반복하지 않는다
     expect(routes).toMatch(/incremental/);
   });

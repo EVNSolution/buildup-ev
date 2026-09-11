@@ -1797,6 +1797,8 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
         onOpen={setSelectedOrderId}
         /* 수락 대기는 특장사와 같은 자리 — 발주서를 띄운다(조회 전용) */
         onPendingOpen={id => setViewingPo(orders.find(o => o.id === id) ?? null)}
+        /* 거부됨 — 발주서와 그 특장사와의 대화를 연다. 날짜를 맞춰 견적 목록에서 다시 배정한다 */
+        onRejectedOpen={id => setViewingPo(orders.find(o => o.id === id) ?? null)}
       />
       {viewingPo && (
         <AcceptOrderModal

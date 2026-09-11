@@ -15,10 +15,14 @@ import { daysSince, isAcceptOverdue } from '@shared/schedule/businessDays'
  *    모든 단계를 끝낸 건도 계속 그 자리에 남아 있었다(제보). 끝난 것이 섞여 있으면
  *    「지금 할 일이 몇 건인가」를 목록에서 셀 수 없다.
  *
- * ⚠️ 어디에도 안 걸리는 상태는 **진행 중에 둔다.** 거부·취소로 되돌아간 건처럼
- *    예상 밖의 상태가 생겨도 목록에서 사라지지 않아야 한다 — 안 보이는 주문이 제일 나쁘다.
+ * ⚠️ 어디에도 안 걸리는 상태는 **진행 중에 둔다.** 예상 밖의 상태가 생겨도 목록에서
+ *    사라지지 않아야 한다 — 안 보이는 주문이 제일 나쁘다.
+ *
+ * **거부됨**은 따로 둔다. 거부하면 배정이 풀려 견적은 배정 대기로 돌아가지만, 그 건을
+ * 날짜를 맞춰 다시 받으려면 관리자와 이야기해야 한다(지시: 2026-09-11). 예전엔 이 건이
+ * 「어디에도 안 걸리는 상태」로 **진행 중에 섞여** 떠 있었다.
  */
-export function OrderSections({ orders, onOpen, onPendingOpen }: {
+export function OrderSections({ orders, onOpen, onPendingOpen, onRejectedOpen }: {
   orders: ApiOrder[]
   /** 카드를 눌렀을 때 — 주문 상세를 연다 */
   onOpen: (id: number) => void
@@ -27,6 +31,8 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
    * 없으면 `onOpen` 을 쓴다 — 관리자는 그냥 상세를 연다.
    */
   onPendingOpen?: (id: number) => void
+  /** 거부됨 카드 — 발주서와 대화를 연다(수락·거부 버튼은 없다). 없으면 수락 대기와 같게 연다 */
+  onRejectedOpen?: (id: number) => void
 }) {
   /**
    * 접어 둔 구획. **끝난 것만 접힌 채로 시작한다** — 시간이 갈수록 완료만 쌓이는데,
@@ -54,9 +60,12 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
     o.quote.status === 'completed'
     || (!!o.steps && o.steps.total > 0 && o.steps.done >= o.steps.total)
 
-  const pending = orders.filter(o => o.quote.status === 'assigned' && !finished(o))
-  const done    = orders.filter(finished)
-  const active  = orders.filter(o => o.quote.status !== 'assigned' && !finished(o))
+  /** 거부돼 돌아간 건 — 배정이 풀렸고 누가 거부했는지 남아 있다. 다시 배정되면 빠진다 */
+  const rejected = (o: ApiOrder) => o.maker_org_id == null && !!o.rejected_by_org
+  const pending = orders.filter(o => o.quote.status === 'assigned' && !finished(o) && !rejected(o))
+  const refused = orders.filter(rejected)
+  const done    = orders.filter(o => finished(o) && !rejected(o))
+  const active  = orders.filter(o => o.quote.status !== 'assigned' && !finished(o) && !rejected(o))
 
   if (orders.length === 0) return <div style={s.empty}>{t('배정된 주문이 없습니다.')}</div>
 
@@ -73,6 +82,16 @@ export function OrderSections({ orders, onOpen, onPendingOpen }: {
           onCardClick={onPendingOpen ?? onOpen}
         />
       </Section>
+
+      {/*
+        거부됨 — 건이 있을 때만 줄을 만든다. 늘 비어 있는 구획이 하나 더 있으면
+        「지금 할 일」을 읽는 데 방해만 된다.
+      */}
+      {refused.length > 0 && (
+        <Section title={t('거부됨')} open={!closed.has('거부됨')} onToggle={() => toggle(t('거부됨'))} rows={refused}>
+          <OrderStepsBoard orders={refused} mode="pending" onCardClick={onRejectedOpen ?? onPendingOpen ?? onOpen} />
+        </Section>
+      )}
 
       <Section title={t('진행 중')} open={!closed.has('진행 중')} onToggle={() => toggle(t('진행 중'))} rows={active}>
         <OrderStepsBoard orders={active} onCardClick={onOpen} />

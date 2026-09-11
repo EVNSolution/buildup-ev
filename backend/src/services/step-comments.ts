@@ -41,11 +41,33 @@ function afterId(after?: number): { id?: { gt: number } } {
   return after != null && Number.isInteger(after) && after > 0 ? { id: { gt: after } } : {};
 }
 
+/**
+ * **특장사별로 대화를 가른다.** `org` 를 주면 그 특장사와 나눈 대화만 고른다.
+ *
+ * 거부돼 다른 특장사로 넘어간 건에서 앞 특장사와의 이야기(사정·단가)가 새 특장사에게
+ * 보이면 안 된다(지시: 2026-09-11). 관리자·영업은 `org` 없이 불러 **전부** 본다.
+ */
+function ofOrg(org?: string | null): { maker_org_id?: string } {
+  return org ? { maker_org_id: org } : {};
+}
+
+/**
+ * 이 주문의 대화가 **지금 누구와의 것인가** — 배정된 특장사, 없으면 거부한 특장사.
+ * 거부된 건에서도 관리자와 그 특장사가 이야기를 이어가야 한다.
+ */
+export async function threadOrgOf(orderId: number): Promise<string | null> {
+  if (!prisma) return null;
+  const o = await prisma.order.findUnique({
+    where: { id: orderId }, select: { maker_org_id: true, rejected_by_org: true },
+  });
+  return o?.maker_org_id ?? o?.rejected_by_org ?? null;
+}
+
 /** 한 단계의 대화 — 오래된 것부터. 채팅이라 위에서 아래로 읽는다 */
-export async function listComments(orderId: number, stepCode: string, after?: number): Promise<CommentRow[]> {
+export async function listComments(orderId: number, stepCode: string, after?: number, org?: string | null): Promise<CommentRow[]> {
   if (!prisma) return [];
   return prisma.orderStepComment.findMany({
-    where: { order_id: orderId, step_code: stepCode, ...afterId(after) },
+    where: { order_id: orderId, step_code: stepCode, ...afterId(after), ...ofOrg(org) },
     orderBy: { id: 'asc' },
     select: {
       id: true, step_code: true, author: true, author_role: true,
@@ -60,10 +82,10 @@ export async function listComments(orderId: number, stepCode: string, after?: nu
  * 단계별로 흩어 보면 전체 흐름이 안 읽힌다. 어느 단계 이야기인지는 각 글에 붙여 두고,
  * 순서는 오간 그대로 둔다 — 이력을 읽는다는 것은 시간을 따라 읽는다는 뜻이다.
  */
-export async function listAllComments(orderId: number, after?: number): Promise<CommentRow[]> {
+export async function listAllComments(orderId: number, after?: number, org?: string | null): Promise<CommentRow[]> {
   if (!prisma) return [];
   return prisma.orderStepComment.findMany({
-    where: { order_id: orderId, ...afterId(after) },
+    where: { order_id: orderId, ...afterId(after), ...ofOrg(org) },
     orderBy: { id: 'asc' },
     select: {
       id: true, step_code: true, author: true, author_role: true,
@@ -79,12 +101,12 @@ export async function listAllComments(orderId: number, after?: number): Promise<
  * 「누가 답했나」 하고 열어 보게 된다.
  */
 export async function unreadByStep(
-  orderId: number, userEmail: string,
+  orderId: number, userEmail: string, org?: string | null,
 ): Promise<Record<string, number>> {
   if (!prisma) return {};
   const [comments, reads] = await Promise.all([
     prisma.orderStepComment.findMany({
-      where: { order_id: orderId, author: { not: userEmail } },
+      where: { order_id: orderId, author: { not: userEmail }, ...ofOrg(org) },
       select: { step_code: true, created_at: true },
     }),
     prisma.orderStepRead.findMany({
@@ -124,10 +146,10 @@ export async function markRead(
  *
  * 글이 오간 단계만 표시한다 — 이야기가 없던 단계까지 건드릴 이유가 없다.
  */
-export async function markAllRead(orderId: number, userEmail: string): Promise<void> {
+export async function markAllRead(orderId: number, userEmail: string, org?: string | null): Promise<void> {
   if (!prisma) return;
   const steps = await prisma.orderStepComment.findMany({
-    where: { order_id: orderId },
+    where: { order_id: orderId, ...ofOrg(org) },
     distinct: ['step_code'],
     select: { step_code: true },
   });
@@ -160,9 +182,11 @@ export async function addComment(args: {
 }): Promise<CommentRow> {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
   const body = args.body.trim().slice(0, COMMENT_MAX);
+  /* 이 글이 **어느 특장사와의 대화**인지 새긴다 — 나중에 다른 곳으로 넘어가도 섞이지 않게 */
+  const org = await threadOrgOf(args.orderId);
   const row = await prisma.orderStepComment.create({
     data: {
-      order_id: args.orderId, step_code: args.stepCode,
+      order_id: args.orderId, step_code: args.stepCode, maker_org_id: org,
       author: args.author, author_role: args.authorRole,
       author_name: args.authorName, body,
       image_file_id: args.imageFileId ?? null,
@@ -196,29 +220,52 @@ async function notifyOthers(
   try {
     const order = await prisma.order.findUnique({
       where: { id: args.orderId },
-      select: { id: true, maker_org_id: true },
+      select: { id: true, maker_org_id: true, rejected_by_org: true },
     });
     if (!order) return;
+    /*
+     * 알릴 특장사 = **지금 이 대화의 상대.** 배정된 곳, 없으면 거부한 곳이다.
+     * 거부된 건에서 관리자가 날짜를 물었는데 거부한 특장사가 모르면 대화가 이어지지 않는다.
+     */
+    const org = order.maker_org_id ?? order.rejected_by_org;
 
     const [makers, participants, admins] = await Promise.all([
-      order.maker_org_id
+      org
         ? prisma.user.findMany({
-            where: { org_code: order.maker_org_id, active: true, status: 'active' },
+            where: { org_code: org, active: true, status: 'active' },
             select: { email: true },
           })
         : Promise.resolve([] as { email: string }[]),
       prisma.orderStepComment.findMany({
-        where: { order_id: args.orderId, step_code: args.stepCode },
+        /* 이 스레드에 글을 쓴 사람 — 단, **같은 특장사와의 대화** 안에서만. 앞 특장사 사람이 울리면 안 된다 */
+        where: { order_id: args.orderId, step_code: args.stepCode, ...ofOrg(org) },
         select: { author: true },
         distinct: ['author'],
       }),
       adminRecipients(),
     ]);
 
+    /*
+     * 「관리자 쪽」 받는 사람은 **정말 관리자인 계정만** 남긴다.
+     *
+     * ⚠️ `adminRecipients` 는 「배정 알림」 기능모듈만 보고 역할은 보지 않는다. 특장사 계정에
+     *    그 모듈이 켜져 있으면 **다른 특장사와의 대화 알림**까지 받게 된다 — 대화를 특장사별로
+     *    가른 뜻이 알림에서 샌다(시험에서 실제로 새는 것을 봤다).
+     */
+    const realAdmins = admins.length
+      ? (await prisma.user.findMany({
+          where: {
+            email: { in: admins },
+            OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }, { is_master: true }],
+          },
+          select: { email: true },
+        })).map(u => u.email)
+      : [];
+
     const candidates = [...new Set([
       ...makers.map((m) => m.email),
       ...participants.map((p) => p.author),
-      ...admins,
+      ...realAdmins,
     ])].filter((e) => e !== args.author);
     // 기능모듈 「앱 알림」이 켜진 계정만 — 기기 구독은 그 다음 조건이다
     const to = await pushAllowed(candidates);
