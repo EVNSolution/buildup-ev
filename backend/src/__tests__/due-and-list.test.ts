@@ -98,15 +98,14 @@ describe('처리 필요 견적 — 기본은 접힘', () => {
  * **화면 전체는 확대되지도, 밀리지도 않는다.**
  */
 describe('확대·바깥 스크롤 차단', () => {
-  it('🔴 두 손가락 확대를 막는다 — meta 만으로는 아이폰에서 안 막힌다', () => {
+  it('🔴 두 번 탭 확대는 막는다 — 두 손가락 확대는 휴대폰에서 된다(mobile-pinch-zoom.test.ts)', () => {
     /*
-     * `user-scalable=no` 는 iOS 10 부터 무시된다. 사파리는 확대 제스처를
-     * `gesture*` 이벤트로 따로 주므로 그것을 막아야 실제로 멈춘다.
+     * 예전에는 두 손가락 확대도 막았다. 2026-09-13 요청으로 **휴대폰·태블릿에서는 허용**하고
+     * 마우스 기기(맥 사파리 트랙패드)만 막는다. 자세한 검사는 mobile-pinch-zoom.test.ts.
      */
     const vp = read('frontend/src/lib/viewport.ts');
-    expect(vp).toMatch(/export function useNoPinchZoom/);
-    expect(vp).toMatch(/gesturestart/);
-    expect(read('frontend/src/App.tsx')).toMatch(/useNoPinchZoom\(\)/);
+    expect(vp).toMatch(/export function useDesktopNoPinchZoom/);
+    expect(read('frontend/src/App.tsx')).toMatch(/useDesktopNoPinchZoom\(\)/);
     // 더블탭 확대는 CSS 가 막는다. `none` 이면 안쪽 칸 스크롤까지 죽는다
     const css = read('frontend/src/styles/globals.css');
     expect(css).toMatch(/touch-action: manipulation/);

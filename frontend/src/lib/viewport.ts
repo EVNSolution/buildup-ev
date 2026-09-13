@@ -8,14 +8,34 @@ import { useEffect } from 'react'
  * 실제로 보이는 높이는 `visualViewport.height` 다 — 키보드가 올라오면 그만큼 준다.
  *
  * ⚠️ `visualViewport.offsetTop` 은 브라우저가 페이지를 밀어 올린 양이다. 초점 확대가
- *    일어나면 여기에 값이 실린다. 우리는 확대 자체를 막지만(입력칸 글꼴 16px 이상),
- *    혹시 밀려도 그만큼 빼서 화면 안에 남게 한다.
+ *    일어나면 여기에 값이 실린다. 초점 확대는 입력칸 글꼴(16px 이상)로 막고,
+ *    혹시 밀려도 그만큼 빼서 화면 안에 남게 한다. 손가락 확대 중에는 아예 재지 않는다.
  */
 
-/** 지금 실제로 보이는 화면 높이(화면 픽셀). 키보드가 올라오면 줄어든다. */
+/**
+ * **손가락으로 확대한 상태인가.**
+ *
+ * 확대하면 `visualViewport.height`·`offsetTop` 은 물론 아이폰에서는 `innerWidth` 까지
+ * **확대 배율만큼 줄어든다.** 그 값으로 앱 높이를 다시 잡으면 확대하는 순간 앱이
+ * 쪼그라든다(390×844 에서 2.2 배 확대 → 앱 높이 844 → 602px, 실측).
+ * 확대는 **보이는 창만 키우는 것**이지 화면 크기가 바뀐 게 아니므로, 그동안은 재지 않는다.
+ */
+export function isPinchZoomed(): boolean {
+  const vv = window.visualViewport
+  // 1 보다 클 때만 — 기기에 따라 기본 배율이 1 에서 살짝 어긋나면 영영 재지 못하게 된다
+  return !!vv && vv.scale > 1.01
+}
+
+/** 확대되기 직전에 잰 높이 — 확대 중에는 이 값을 그대로 쓴다 */
+let lastUnzoomedHeight: number | null = null
+
+/** 지금 실제로 보이는 화면 높이(화면 픽셀). 키보드가 올라오면 줄어든다. 확대 중에는 확대 전 값. */
 export function visibleHeight(): number {
   const vv = window.visualViewport
-  return vv ? vv.height + vv.offsetTop : window.innerHeight
+  if (!vv) return window.innerHeight
+  if (isPinchZoomed()) return lastUnzoomedHeight ?? window.innerHeight
+  lastUnzoomedHeight = vv.height + vv.offsetTop
+  return lastUnzoomedHeight
 }
 
 /**
@@ -52,6 +72,9 @@ export function onVisibleHeightChange(fn: () => void): () => void {
 export function useAppHeight(): void {
   useEffect(() => {
     const set = () => {
+      // 손가락으로 확대한 동안은 그대로 둔다 — 확대 배율만큼 줄어든 값으로 앱을 다시 짜면
+      // 확대하는 순간 화면이 쪼그라든다. 원래 크기로 돌아오면 그때 다시 잰다.
+      if (isPinchZoomed()) return
       const visible = visibleHeight()
       const de = document.documentElement
       de.style.setProperty('--app-h', `${Math.round(visible)}px`)
@@ -88,23 +111,25 @@ export function useAppHeight(): void {
 }
 
 /**
- * **손가락으로 화면을 확대하지 못하게 한다.**
+ * **두 손가락 확대는 휴대폰·태블릿에서만 된다.** 마우스 기기(맥 사파리 트랙패드)는 막는다.
  *
- * 이 앱은 화면 하나가 한 화면에 맞게 짜여 있다(주문 상세·대화·컨피규레이터 모두
- * 바깥은 안 움직이고 안쪽 칸만 스크롤된다). 거기서 확대가 되면 레이아웃이 어긋난 채
- * 화면 밖으로 밀려 나가 되돌리기 어렵다(사진 제보).
+ * 예전에는 모든 기기에서 막았다 — 확대하면 앱 높이가 쪼그라들어 화면이 무너졌기 때문이다.
+ * 그 원인은 `useAppHeight` 가 확대 중에 재지 않게 해서 없앴다. 이제 손가락 기기에서는
+ * 글씨가 작아 읽기 힘든 분이 **직접 벌려서** 키울 수 있다.
  *
- * ⚠️ `<meta viewport>` 의 `user-scalable=no` 만으로는 **아이폰에서 안 막힌다** —
- *    iOS 10 부터 무시한다. 사파리는 확대 제스처를 `gesture*` 이벤트로 따로 주므로
- *    그것을 막아야 실제로 멈춘다. 더블탭 확대는 `touch-action` 이 맡는다.
- *
- * ⚠️ 확대를 막는 것은 **접근성을 깎는 선택**이다. 그래서 글자 자체를 작게 두지 않는다 —
- *    입력칸은 16px 이상, 버튼은 44px 이상을 지킨다(globals.css).
+ * ⚠️ **손가락으로 벌리지 않았는데 확대되는 일은 없어야 한다.** 그 경로는 따로 막혀 있다.
+ *    - 두 번 탭 확대 → `touch-action: manipulation`(globals.css)
+ *    - 입력칸 초점 확대(아이폰) → 입력칸 글꼴 `--fs-input`(globals.css)
+ *    - 가로로 돌렸을 때 글자 부풀림(아이폰) → `text-size-adjust: 100%`(globals.css)
+ *    `<meta viewport>` 에 `maximum-scale=1` 을 넣어 막지 않는다 — 안드로이드와
+ *    카카오톡 안 브라우저(아이폰)에서는 손가락 확대까지 같이 막힌다.
  */
-export function useNoPinchZoom(): void {
+export function useDesktopNoPinchZoom(): void {
   useEffect(() => {
+    // 손가락 기기면 아무것도 막지 않는다
+    if (window.matchMedia?.('(pointer: coarse)').matches) return
     const stop = (e: Event) => e.preventDefault()
-    // 사파리 전용 — 두 손가락 확대
+    // 사파리 전용 — 트랙패드 두 손가락 확대
     document.addEventListener('gesturestart', stop)
     document.addEventListener('gesturechange', stop)
     document.addEventListener('gestureend', stop)
