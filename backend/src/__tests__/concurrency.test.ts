@@ -24,6 +24,7 @@ const request = (await import('supertest')).default;
 const { createApp } = await import('../app.js');
 const { prisma } = await import('../lib/prisma.js');
 const { authCookie } = await import('./helpers.js');
+const { businessDue } = await import('./due-helper.js');
 
 const app = createApp();
 const live = !!prisma;
@@ -118,10 +119,8 @@ describe.runIf(live)('같은 버튼을 동시에 누르면', () => {
       data: { quote_id: quoteId, maker_org_id: org?.code ?? 'ORG_BRAIN', assigned_at: new Date() },
       select: { id: true },
     });
-    /* 주말이면 400 이라 경합을 보기도 전에 막힌다 — 평일로 민다 */
-    const d = new Date(Date.now() + 20 * 864e5);
-    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-    const due = d.toISOString().slice(0, 10);
+    /* 주말·공휴일이면 400 이라 경합을 보기도 전에 막힌다 — 서버와 같은 달력으로 영업일을 고른다 */
+    const due = await businessDue();
     const results = await Promise.all(Array.from({ length: N }, () =>
       request(app).patch(`/api/v1/orders/${order.id}/accept`).set('Cookie', adminCookie).send({ delivery_due: due })));
     const t = tally(results);

@@ -24,6 +24,7 @@ const request = (await import('supertest')).default;
 const { createApp } = await import('../app.js');
 const { prisma } = await import('../lib/prisma.js');
 const { authCookie } = await import('./helpers.js');
+const { businessDue } = await import('./due-helper.js');
 
 const app = createApp();
 const live = !!prisma;
@@ -73,12 +74,6 @@ afterAll(async () => {
   await prisma.user.deleteMany({ where: { email: { in: [ADMIN, MAKER] } } });
 });
 
-function weekdayDue(): string {
-  const d = new Date(Date.now() + 20 * 864e5);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 async function assignCustom(appendix = '적재함 좌측벽 12mm 합판 보강') {
   const q = await prisma!.quote.create({
     data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', customer_id: customerId, final_price: 50_000_000 },
@@ -95,7 +90,7 @@ describe.runIf(live)('커스텀 주문 수락', () => {
   it('🔴 확인을 실으면 한 번에 수락된다 — 따로 쏘지 않는다', async () => {
     const order = await assignCustom();
     const res = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue(), appendix_ack: true });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue(), appendix_ack: true });
     expect(res.status, `수락이 막혔다: ${JSON.stringify(res.body)}`).toBe(200);
 
     const after = await prisma!.order.findUniqueOrThrow({ where: { id: order.id } });
@@ -111,7 +106,7 @@ describe.runIf(live)('커스텀 주문 수락', () => {
   it('🔴 확인을 싣지 않으면 여전히 막힌다 — 화면만 믿지 않는다', async () => {
     const order = await assignCustom();
     const res = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue() });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue() });
     expect(res.status, `막히지 않았다: ${JSON.stringify(res.body)}`).toBe(409);
     expect(res.body?.error?.code).toBe('APPENDIX_UNREAD');
     const q = await prisma!.quote.findUniqueOrThrow({ where: { id: order.quote_id }, select: { status: true } });
@@ -124,7 +119,7 @@ describe.runIf(live)('커스텀 주문 수락', () => {
     const first = (await prisma!.order.findUniqueOrThrow({ where: { id: order.id } })).appendix_ack_at;
     await new Promise(r => setTimeout(r, 30));
     const res = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue(), appendix_ack: true });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue(), appendix_ack: true });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     const after = await prisma!.order.findUniqueOrThrow({ where: { id: order.id } });
     expect(after.appendix_ack_at?.getTime()).toBe(first?.getTime());
@@ -134,7 +129,7 @@ describe.runIf(live)('커스텀 주문 수락', () => {
     const order = await assignCustom('   ');
     expect(order.appendix, '공백뿐인 요청사항이 값으로 저장됐다').toBeNull();
     const res = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue() });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue() });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
   }, 30_000);
 

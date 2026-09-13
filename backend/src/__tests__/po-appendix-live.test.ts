@@ -19,6 +19,7 @@ const request = (await import('supertest')).default;
 const { createApp } = await import('../app.js');
 const { prisma } = await import('../lib/prisma.js');
 const { authCookie } = await import('./helpers.js');
+const { businessDue } = await import('./due-helper.js');
 
 const app = createApp();
 const live = !!prisma;
@@ -85,12 +86,6 @@ async function newContractedQuote(): Promise<number> {
 }
 
 /** 납기일 — 주말이면 400 이라 별지를 보기도 전에 막힌다 */
-function weekdayDue(): string {
-  const d = new Date(Date.now() + 20 * 864e5);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
 async function assign(body: Record<string, unknown>) {
   const quoteId = await newContractedQuote();
   const res = await request(app).patch(`/api/v1/quotes/${quoteId}/assign`)
@@ -105,7 +100,7 @@ describe.runIf(live)('발주서 별지 — 실제 API', () => {
     const order = await assign({ custom_badge: true, appendix: '적재함 좌측벽 12mm 합판 보강' });
 
     const blocked = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue() });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue() });
     expect(blocked.status, `막히지 않았다: ${JSON.stringify(blocked.body)}`).toBe(409);
     expect(blocked.body?.error?.code).toBe('APPENDIX_UNREAD');
 
@@ -118,7 +113,7 @@ describe.runIf(live)('발주서 별지 — 실제 API', () => {
     expect(ack.status, JSON.stringify(ack.body)).toBe(200);
 
     const ok = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue() });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue() });
     expect(ok.status, `확인했는데도 막혔다: ${JSON.stringify(ok.body)}`).toBe(200);
   }, 30_000);
 
@@ -151,7 +146,7 @@ describe.runIf(live)('발주서 별지 — 실제 API', () => {
     expect(order.remark, '없는 2페이지를 가리키고 있다').toBe('납기 협의 요망');
 
     const ok = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue() });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue() });
     expect(ok.status, `별지가 없는데 막혔다: ${JSON.stringify(ok.body)}`).toBe(200);
   }, 30_000);
 
@@ -168,7 +163,7 @@ describe.runIf(live)('발주서 별지 — 실제 API', () => {
     expect(order.remark, '커스텀이 아닌데 비고를 덮어썼다').toBe('납기 협의 요망');
 
     const ok = await request(app).patch(`/api/v1/orders/${order.id}/accept`)
-      .set('Cookie', makerCookie).send({ delivery_due: weekdayDue() });
+      .set('Cookie', makerCookie).send({ delivery_due: await businessDue() });
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
   }, 30_000);
 
