@@ -73,7 +73,8 @@ tuningRouter.get('/:id/tuning', rbac('ADMIN', 'SALES', 'MAKER'),
   async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
-    if (!(await assertOrderQuoteOwner(req, res, id))) return;
+    // 특장사도 보는 경로 — 겸직 계정은 자기 조직 배정 주문으로도 통과한다
+    if (!(await assertOrderQuoteOwner(req, res, id, { maker: true }))) return;
     try {
       const [a, recipient] = await Promise.all([getLatestTuning(id), tuningRecipient(id)]);
       res.json({ recipient, data: a ? {
@@ -95,7 +96,8 @@ tuningRouter.get('/:id/tuning/signed', rbac('ADMIN', 'SALES', 'MAKER'),
   async (req: Request, res: Response): Promise<void> => {
     const id = orderId(req);
     if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT' } }); return; }
-    if (!(await assertOrderQuoteOwner(req, res, id))) return;
+    // 특장사도 보는 경로 — 겸직 계정은 자기 조직 배정 주문으로도 통과한다
+    if (!(await assertOrderQuoteOwner(req, res, id, { maker: true }))) return;
     try {
       const filePath = await ensureTuningSignedPdf(id);
       if (!filePath || !existsSync(filePath)) {
