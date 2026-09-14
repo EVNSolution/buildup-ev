@@ -10,7 +10,7 @@ import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fr
 import { loadHolidays } from '../services/holidays.js';
 import { orderDetailDims } from '../services/dimension-preset.js';
 import { notify, appRecipients } from '../services/push.js';
-import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD } from '@buildup-ev/shared/process';
+import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD, laneSpots, TRACKS } from '@buildup-ev/shared/process';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
 export const ordersRouter = Router();
@@ -146,9 +146,27 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
         .sort((a, b) => (byCodeDoneAt(steps, a.code) ?? 0) - (byCodeDoneAt(steps, b.code) ?? 0))
         .pop();
 
+      /*
+       * 현황판 — 트랙마다 지금 서 있는 칸. 그 칸이 약속한 날(납기·검사 예정일)을 넘겼으면 late.
+       * 선행을 끝낸 행만 넘긴다 — 카탈로그에서 빠진 옛 단계는 셈에서 뺀다(위 done 과 같은 기준).
+       */
+      const spots = laneSpots(defs, steps.filter(r => applicable.has(r.code)), o.accepted_at ?? o.assigned_at ?? o.created_at);
+      const lanes = Object.fromEntries(TRACKS.map(tr => {
+        const sp = spots[tr];
+        if (!sp) return [tr, null];
+        const d = defs.find(x => x.code === sp.code)!;
+        const due = !d.dueFrom ? null
+          : d.dueFrom.from === 'order'
+            ? (o.delivery_due ? o.delivery_due.toISOString().slice(0, 10) : null)
+            : (byCode.get(d.dueFrom.code)?.planned_at?.toISOString().slice(0, 10) ?? null);
+        return [tr, { ...sp, late: isOverdue(sp.code, { code: sp.code, status: 'pending' }, due, now, done, defs) }];
+      }));
+
       return {
         ...o,
         steps: {
+          lanes,
+          finished: applicable.size > 0 && done.size >= applicable.size,
           done: done.size,
           total: applicable.size,
           /** 끝낸 단계 이름들(카탈로그 순서) — 요약에 적는 것은 이것뿐이다 */

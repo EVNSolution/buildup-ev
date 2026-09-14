@@ -116,9 +116,12 @@ describe('알림 내용', () => {
     expect(beforePush, 'SMTP 관문이 앱 알림보다 앞에 있다').not.toContain('transport()');
   });
 
-  it('알림을 누르면 관리자 견적 목록으로 간다 — 배정 버튼이 있는 곳', () => {
+  it('알림을 누르면 배정하는 자리로 간다 — 제작 배정은 주문 진행 탭 배정 대기, 영업 배정은 견적 목록(2026-09-14)', () => {
+    expect(NOTIFY).toMatch(/const ASSIGN_LINKS: Record<AssignKind, string> = \{ maker: '\/admin\?view=assign', sales: ASSIGN_LINK \}/);
     expect(NOTIFY).toMatch(/const ASSIGN_LINK = '\/admin'/);
-    expect(NOTIFY).toMatch(/url: ASSIGN_LINK/);
+    expect(NOTIFY).toMatch(/url: ASSIGN_LINKS\[kind\]/);
+    // 메일 링크도 같은 곳
+    expect(NOTIFY).toMatch(/\$\{BASE_URL\}\$\{ASSIGN_LINKS\[kind\]\}/);
   });
 
   it('같은 건이 여러 번 쌓이지 않는다', () => {
