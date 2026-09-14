@@ -97,6 +97,7 @@ describe.runIf(live)('튜닝 후 치수 프리셋 — 실제 DB·서류', () => 
       expect([p.car_length, p.car_width, p.car_height], `${k} 차량`).toEqual(e.car);
       expect([p.outer_length, p.outer_width, p.outer_height], `${k} 외측`).toEqual(e.outer);
       expect([p.inner_length, p.inner_width, p.inner_height], `${k} 내측`).toEqual(e.inner);
+      expect(p.offset, `${k} 하대옵셋트`).toBe(35);
     }
     const r = EXPECT['BODY_REEFER|TOP_STD'].inner, d = EXPECT['BODY_DRY|TOP_STD'].inner;
     expect([d[0] - r[0], d[1] - r[1], d[2] - r[2]]).toEqual([60, 60, 50]);
@@ -108,8 +109,8 @@ describe.runIf(live)('튜닝 후 치수 프리셋 — 실제 DB·서류', () => 
     expect(json.body.hgt[1], '튜닝 후 높이가 튜닝 전과 같다(복사)').not.toBe(json.body.hgt[0]);
     expect([json.body.len[1], json.body.wid[1], json.body.hgt[1]]).toEqual([5040, 1910, 2400]);
     expect([json.bed.len[1], json.bed.wid[1], json.bed.hgt[1]]).toEqual([2420, 1790, 1480]);
-    // 하대옵셋트는 아직 받지 않았다 — 빈칸
-    expect(json.val.offset[1]).toBe('');
+    // 하대옵셋트 — 전 사양 35(2026-09-14 지시)
+    expect(json.val.offset[1]).toBe(35);
   }, 60_000);
 
   it('🔴 사양마다 다른 값이 들어간다 — 내장·저상', async () => {
@@ -124,7 +125,7 @@ describe.runIf(live)('튜닝 후 치수 프리셋 — 실제 DB·서류', () => 
     const { json } = await buildLoadCalcJson(o.id);
     const a = json.after as Record<string, unknown>;
     expect([a['length'], a['width'], a['height'], a['bed_len'], a['bed_wid'], a['bed_hgt'], a['offset']])
-      .toEqual([5040, 1910, 2100, 2420, 1790, 1180, '']);
+      .toEqual([5040, 1910, 2100, 2420, 1790, 1180, 35]);
   }, 60_000);
 
   it('🔴 특장형태·탑크기가 없으면 프리셋을 고르지 않는다(빈칸)', async () => {
