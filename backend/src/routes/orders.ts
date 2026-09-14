@@ -12,6 +12,7 @@ import { orderDetailDims } from '../services/dimension-preset.js';
 import { notify, appRecipients } from '../services/push.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD, laneSpots, TRACKS } from '@buildup-ev/shared/process';
 import { ADDON_LAST, ADDON_TRACKS, addonSpots } from '@buildup-ev/shared/process/addon';
+import { actualStepDates } from '@buildup-ev/shared/process/actual';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
 export const ordersRouter = Router();
@@ -202,6 +203,8 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
       return {
         ...o,
         ...(addonSummary ? { addon: addonSummary } : {}),
+        // 실제 날짜 — 차량 도착 완료일 · 출고일. 날짜 줄이 예정일 대신 이 값을 초록/빨강으로 보여 준다
+        ...actualStepDates(steps),
         steps: {
           lanes,
           finished: applicable.size > 0 && done.size >= applicable.size,
@@ -231,6 +234,16 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     res.status(500).json({ error: { code: 'INTERNAL', message: '주문 목록을 불러오는 중 오류가 발생했습니다.' } });
   }
 });
+
+/** 상세 화면 날짜 띠의 실제 날짜 — 목록과 같은 함수로 뽑는다(되돌리면 비어 예정일로 돌아간다) */
+async function actualDatesOf(orderId: number) {
+  const rows = await prisma!.orderStep.findMany({
+    where: { order_id: orderId, code: { in: ['car_arrived', 'delivered'] } },
+    select: { code: true, status: true, planned_at: true, done_at: true },
+  });
+  return actualStepDates(rows);
+}
+
 
 // ── GET /orders/:id ───────────────────────────────────────────────────────
 // MAKER: 자기 org 스코프 강제 + 가격·영업 필드 제외, 사양·서류만 반환
@@ -350,6 +363,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           reject_reason: order.reject_reason,
           // 차량 도착 **예정일** — 관리자가 찍고 특장사는 언제나 본다
           car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
+          ...(await actualDatesOf(order.id)),
           appendix_ack_at: order.appendix_ack_at,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,
@@ -413,6 +427,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       /* DATE 컬럼은 UTC 로 읽어야 넣을 때와 짝이 맞는다 — 그냥 흘리면 하루가 밀린다 */
       car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
       delivery_due_original: order.delivery_due_original ? fromDbDate(order.delivery_due_original) : null,
+      ...(await actualDatesOf(order.id)),
       detail_dims: await orderDetailDims(order.id),
     } });
   } catch (e) {

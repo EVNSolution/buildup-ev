@@ -393,6 +393,10 @@ export interface ApiOrder {
   /** 특장사가 수락하며 약속한 납기일 (YYYY-MM-DD). 수락 전에는 null */
   /** 차량 도착 예정일(관리자가 찍는다) — 목록 카드의 날짜 줄 */
   car_arrival_planned_at?: string | null;
+  /** 실제 차량 도착일(특장사가 「차량 도착」을 완료한 날) — 되돌리면 null */
+  car_arrived_on?: string | null;
+  /** 실제 출고일 — 되돌리면 null. 날짜 줄의 「납기」 칸이 이 값으로 바뀐다 */
+  shipped_on?: string | null;
   delivery_due?: string | null;
   /** 발주 수락 시각 */
   accepted_at?: string | null;
@@ -467,6 +471,9 @@ export interface ApiOrderMakerDetail {
    * 특장사가 완료 처리하는 「차량 도착」 단계와 다르다(이건 예정).
    */
   car_arrival_planned_at?: string | null;
+  /** 실제 차량 도착일 · 실제 출고일(끝난 단계만, 되돌리면 null) */
+  car_arrived_on?: string | null;
+  shipped_on?: string | null;
   /**
    * 사양 탭 「상세 제원」 — **튜닝 후** 치수만(사양별 프리셋). 특장만 주문은 `body` 가 null(하대내측치수만).
    * 값이 없는 칸은 null.

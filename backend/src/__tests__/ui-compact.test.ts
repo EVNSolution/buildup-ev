@@ -54,8 +54,9 @@ describe('③ 목록 카드 날짜 줄', () => {
   it('🔴 차량 도착·납기는 늘, 고객 인도는 부가작업이 실린 응답(관리자 + 권한)에만 — 없으면 미정', () => {
     const board = read('frontend/src/components/OrderStepsBoard.tsx');
     expect(board).toMatch(/t\('차량 도착'\)/);
-    expect(board).toMatch(/o\.car_arrival_planned_at \? shortDate\(o\.car_arrival_planned_at\) : t\('미정'\)/);
-    expect(board).toMatch(/o\.delivery_due \? shortDate\(o\.delivery_due\) : t\('미정'\)/);
+    // 끝났으면 실제 날짜, 아니면 예정일, 둘 다 없으면 미정(실제 날짜 규칙은 actual-dates.test.ts)
+    expect(board).toMatch(/arrivalShown\.value \? shortDate\(arrivalShown\.value\) : t\('미정'\)/);
+    expect(board).toMatch(/dueShown\.value \? shortDate\(dueShown\.value\) : t\('미정'\)/);
     expect(board).toMatch(/\{o\.addon !== undefined && \(\(\) => \{/);
   });
 });
