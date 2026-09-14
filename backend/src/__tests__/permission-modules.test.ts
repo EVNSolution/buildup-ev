@@ -21,6 +21,8 @@ const MODULES = [
   'doc.send.email', 'doc.send.sign',
   'order.confirm', 'order.view', 'order.control', 'doc.view',
   'stats.own', 'stats.all', 'basedata.manage', 'account.manage',
+  // 부가작업(공장 출고 뒤 우리 쪽 작업) — 2026-09-14
+  'addon.manage',
 ];
 
 describe('권한 모듈', () => {

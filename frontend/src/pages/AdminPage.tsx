@@ -22,6 +22,7 @@ import { OrderDashboard, DashboardList } from '../components/OrderDashboard'
 import { buildDashboard, filterByMaker, type DashSelection } from '../lib/orderDashboard'
 import { dueInfo } from '@shared/process/due'
 import { TRACK_LABEL } from '@shared/process/steps'
+import { ADDON_TRACK_LABEL } from '@shared/process/addon'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -92,6 +93,7 @@ const MODULE_DESC: Record<string, string> = {
   'doc.send.sign': '전자서명 발송',
   'account.manage': '계정 발급 및 권한 관리',
   'basedata.manage': '옵션DB·무게상수 관리',
+  'addon.manage': '부가작업 조회·진행 · 고객 인도 목표일 (특장사 출고 뒤 우리 쪽 작업)',
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
@@ -1751,6 +1753,8 @@ function KanbanTab({ deepLink, initialView }: {
   const [maker, setMaker] = useState<string | null>(null)
   /** 제작 배정 권한 — 없으면 목록에 배정 버튼을 두지 않는다(조회만) */
   const canAssign = usePermission('order.confirm')
+  /** 현황판 목록에서 연 주문을 어느 탭으로 열지 — 부가작업 목록이면 부가작업 탭 */
+  const [detailTab, setDetailTab] = useState<'addon' | undefined>(undefined)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState('')
@@ -1817,7 +1821,7 @@ function KanbanTab({ deepLink, initialView }: {
         onBack={() => { setSelectedOrderId(null); load(true) }}
         backLabel="← 주문 진행"
         /* 알림을 눌러 들어온 그 주문일 때만 대화 탭으로 연다 */
-        initialTab={deepLink?.chat && deepLink.orderId === selectedOrderId ? 'chat' : undefined}
+        initialTab={deepLink?.chat && deepLink.orderId === selectedOrderId ? 'chat' : detailTab}
         initialChatStep={deepLink?.orderId === selectedOrderId ? deepLink?.step : undefined}
         /*
          * 삭제 버튼은 **제목 줄 오른쪽**에 둔다. 예전엔 화면 맨 아래에 있어
@@ -1832,28 +1836,39 @@ function KanbanTab({ deepLink, initialView }: {
   }
 
   const makerName = (code: string | null | undefined) => (code ? makerNames[code] ?? code : '—')
-  const dash = buildDashboard(filterByMaker(orders, maker), contracted)
+  // 부가작업 칸은 응답에 부가작업이 실렸을 때(관리자 + addon.manage)만 — 서버가 권한으로 정한다
+  const addonEnabled = orders.some(o => o.addon !== undefined)
+  const dash = buildDashboard(filterByMaker(orders, maker), contracted, new Date(), addonEnabled)
   /** 거르기 칩 — 주문이 실제로 걸린 특장사만 */
   const makersInUse = [...new Set(orders.map(o => o.maker_org_id ?? o.rejected_by_org).filter((c): c is string => !!c))]
     .map(code => ({ code, name: makerName(code) }))
   /*
-   * 목록 순서 — 급한 것부터. 진행 중은 납기가 가까운 순, 기다리는 칸은 오래 기다린 순.
+   * 목록 순서 — 급한 것부터. 특장 진행은 납기가 가까운 순, 부가작업은 고객 인도 목표일이 가까운 순,
+   * 기다리는 칸은 오래 기다린 순.
    */
   const byDue = (a: ApiOrder, b: ApiOrder) => dueInfo(a.delivery_due).sortKey - dueInfo(b.delivery_due).sortKey
+  const byTarget = (a: ApiOrder, b: ApiOrder) => dueInfo(a.addon?.target_on).sortKey - dueInfo(b.addon?.target_on).sortKey
   const oldest = (a: ApiOrder, b: ApiOrder) => (a.assigned_at ?? a.created_at).localeCompare(b.assigned_at ?? b.created_at)
   let listOrders: ApiOrder[] | undefined
   let listTitle = ''
-  if (sel?.kind === 'step') {
+  let addonList = false
+  if (sel?.kind === 'step' && sel.group === 'maker') {
     const chip = dash.lanes[sel.track].find(c => c.code === sel.code)
     listOrders = [...(chip?.orders ?? [])].sort(byDue)
     listTitle = `${t(TRACK_LABEL[sel.track])} · ${t(chip?.label ?? '')}`
+  } else if (sel?.kind === 'step' && sel.group === 'addon') {
+    const chip = dash.addonLanes[sel.track].find(c => c.code === sel.code)
+    listOrders = [...(chip?.orders ?? [])].sort(byTarget)
+    listTitle = `${t(ADDON_TRACK_LABEL[sel.track])} · ${t(chip?.label ?? '')}`
+    addonList = true
   } else if (sel?.kind === 'tile') {
-    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '진행 중', done: '인도 완료', late: '납기 지남' } as const
+    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '특장 진행', addon: '부가작업', done: '인도 완료', late: '납기 지남' } as const
     listTitle = t(TITLE[sel.key])
     if (sel.key === 'pending') listOrders = [...dash.pending].sort(oldest)
     else if (sel.key === 'active') listOrders = [...dash.active].sort(byDue)
+    else if (sel.key === 'addon') { listOrders = [...dash.addon].sort(byTarget); addonList = true }
     else if (sel.key === 'late') listOrders = [...dash.late].sort(byDue)
-    else if (sel.key === 'done') listOrders = [...dash.done].sort((a, b) => b.id - a.id)
+    else if (sel.key === 'done') { listOrders = [...dash.done].sort((a, b) => b.id - a.id); addonList = addonEnabled }
   }
   if (dash.assign.length > 1) {
     dash.assign.sort((a, b) => (a.quote.contract?.completed_at ?? a.quote.created_at).localeCompare(b.quote.contract?.completed_at ?? b.quote.created_at))
@@ -1879,9 +1894,16 @@ function KanbanTab({ deepLink, initialView }: {
           title={listTitle}
           orders={listOrders}
           waiting={sel.kind === 'tile' && sel.key === 'assign' ? dash.assign : undefined}
-          track={sel.kind === 'step' ? sel.track : undefined}
+          track={sel.kind === 'step' && sel.group === 'maker' ? sel.track : undefined}
+          addonTrack={sel.kind === 'step' && sel.group === 'addon' ? sel.track : undefined}
+          addonMode={addonList}
           makerName={makerName}
-          onOpen={o => (sel.kind === 'tile' && sel.key === 'pending' ? setViewingPo(o) : setSelectedOrderId(o.id))}
+          onOpen={o => {
+            if (sel.kind === 'tile' && sel.key === 'pending') { setViewingPo(o); return }
+            // 부가작업 목록에서 열면 **부가작업 탭**으로 — 그 칸을 보고 들어온 이유가 그것이다
+            setDetailTab(addonList ? 'addon' : undefined)
+            setSelectedOrderId(o.id)
+          }}
           onAssign={canAssign ? id => { setConfirmingId(id); setConfirmError('') } : undefined}
           onRejectedOpen={o => setViewingPo(o)}
           onClose={() => setSel(null)}
@@ -1895,7 +1917,7 @@ function KanbanTab({ deepLink, initialView }: {
       */}
       {!sel && <OrderSections
         orders={orders}
-        onOpen={setSelectedOrderId}
+        onOpen={id => { setDetailTab(undefined); setSelectedOrderId(id) }}
         /* 수락 대기는 특장사와 같은 자리 — 발주서를 띄운다(조회 전용) */
         onPendingOpen={id => setViewingPo(orders.find(o => o.id === id) ?? null)}
         /* 거부됨 — 발주서와 그 특장사와의 대화를 연다. 날짜를 맞춰 견적 목록에서 다시 배정한다 */

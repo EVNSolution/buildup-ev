@@ -353,23 +353,10 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
   }
 
   /*
-   * 인도가 끝나면 **견적 단계도 완료로 올린다.**
-   * 옛 `PATCH /orders/:id/status` 가 「인도완료」를 찍을 때 하던 일이다 — 그 라우트를
-   * 걷어내면서 이 연결이 끊기면, 인도가 끝나도 견적은 영원히 「주문진행」에 남는다
-   * (마이페이지 집계와 영업 목록이 그 값을 읽는다).
+   * ⚠️ 특장사 「출고」(delivered)가 끝나도 **견적은 아직 완료가 아니다**(2026-09-14).
+   *    그 뒤 우리 쪽 부가작업을 거쳐 **고객 인도 완료**(routes/addon.ts)에서 완료로 올린다.
+   *    예전에는 여기서 올려, 공장에서 나온 차가 영업 성과·목록에 이미 「완료」로 잡혔다.
    */
-  if (code === 'delivered') {
-    const q = await prisma!.quote.findUnique({ where: { id: r.order.quote_id }, select: { status: true } });
-    /*
-     * ⚠️ **어느 상태에서 왔든 올린다.** 예전에는 `ordered` 일 때만 올렸는데, 그러면
-     *    다른 상태로 인도에 도달한 건은 **영원히 갇힌다** — 단계는 전부 끝났는데
-     *    목록에서는 계속 「진행 중」이다(실제로 15/15 인데 견적은 `confirmed` 인 건이 있었다).
-     *    인도 단계가 끝났다는 사실이 곧 인도가 끝났다는 뜻이고, 그게 판단의 근거다.
-     */
-    if (q && q.status !== 'completed') {
-      await setQuoteStatus(r.order.quote_id, 'completed', req.auth?.email ?? 'unknown');
-    }
-  }
 
   res.json({ data: { ok: true, opened } });
 }));
@@ -391,6 +378,16 @@ stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), canC
   const rows = await prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } });
   const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })), stepsFor(r.order.body_only));
   if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+  /*
+   * 출고를 되돌리려는데 **부가작업이 이미 시작됐으면 막는다** — 공장에서 나오지 않은 차에 우리 쪽 작업
+   * 기록이 남는 모순이 생긴다. 부가작업(관리자)을 먼저 되돌려야 한다.
+   */
+  if (code === 'delivered') {
+    const started = await prisma!.orderAddonStep.count({ where: { order_id: id, status: 'done' } });
+    if (started > 0) {
+      res.status(409).json({ error: { code: 'STEP_BLOCKED', message: '부가작업이 시작된 주문은 출고를 되돌릴 수 없습니다 — 관리자에게 문의하세요' } }); return;
+    }
+  }
 
   const now = new Date();
   await prisma!.orderStep.update({
@@ -408,8 +405,8 @@ stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), canC
   });
 
   /*
-   * 인도를 되돌리면 견적도 「주문진행」으로 돌린다 — 완료로 올릴 때와 짝을 맞춘다.
-   * 한쪽만 되돌리면 인도가 취소됐는데 마이페이지에는 인도완료 금액이 남는다.
+   * 출고를 되돌리면 견적이 (예전 흐름에서) 완료였던 경우 「주문진행」으로 돌린다.
+   * 이제 완료는 고객 인도(부가작업)에서 올리지만, 그 전에 완료로 올라간 옛 건이 남아 있다.
    */
   if (code === 'delivered') {
     const q = await prisma!.quote.findUnique({ where: { id: r.order.quote_id }, select: { status: true } });

@@ -363,8 +363,22 @@ export interface ApiOrderStepSummary {
   finished?: boolean;
 }
 
+/** 부가작업 요약(관리자 + addon.manage 에게만 실린다) — 공장 출고 뒤 우리 쪽 작업 */
+export interface ApiOrderAddonSummary {
+  factory_done: boolean;
+  factory_done_at: string | null;
+  /** 고객 인도까지 끝났다 */
+  finished: boolean;
+  /** 고객 인도 목표일(YYYY-MM-DD) */
+  target_on: string | null;
+  /** 실제 인도일 */
+  delivered_on: string | null;
+  lanes: Record<'prep' | 'work' | 'handover', { code: string; label: string; since: string | null; late: boolean } | null>;
+}
+
 export interface ApiOrder {
   id: number;
+  addon?: ApiOrderAddonSummary;
   quote_id: number;
   maker_org_id: string | null;
   /**
