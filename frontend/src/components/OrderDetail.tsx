@@ -23,9 +23,7 @@ import { dueInfo } from '@shared/process/due'
 import { useChatPoll, CHAT_POLL_IDLE_MS } from '../lib/chatPoll'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
-import { CarArrivalRow } from './CarArrivalRow'
-import { DeliveryDueRow } from './DeliveryDueRow'
-import { AddonTargetRow } from './AddonTargetRow'
+import { DateStrip } from './DateStrip'
 import { AddonStepsPanel } from './AddonStepsPanel'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
@@ -533,34 +531,32 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
           )}
         </div>
         {/*
-          차량 도착 **예정일** — 어느 탭을 보고 있든 눈에 들어와야 하는 값이라 제목 아래에 둔다.
-          현장은 이 날짜에 맞춰 사람을 뺀다. 정하는 사람은 차를 보내는 쪽(관리자)이다.
+          날짜 띠 — 차량 도착 · 납기 · 고객 인도를 한 줄 세 칸에(예전 세 줄). 어느 탭을 보고 있든 눈에 들어와야
+          하는 값이라 제목 아래에 둔다. 칸을 누르면 그 아래에만 입력 줄이 열린다.
+            · 차량 도착 예정 — 관리자만 고친다(차를 보내는 쪽). 특장사는 보기만
+            · 납기 — 관리자만, 수락된 주문만 고친다. 바꾸면 단계 탭의 납기·지연 표시도 다시 읽는다(dueKey)
+            · 고객 인도 목표 — 관리자 + addon.manage 만. 특장사 화면에는 칸이 없다
         */}
-        <CarArrivalRow
+        <DateStrip
           orderId={detail.id}
-          value={detail.car_arrival_planned_at ?? null}
-          canEdit={isAdmin && canChangeSteps}
-          onSaved={next => setDetail(d => (d ? { ...d, car_arrival_planned_at: next } : d))}
-        />
-        {/*
-          납기일 — **관리자만, 수락된 주문만** 고친다. 특장사는 단계 탭 머리말에서 본다.
-          바꾸면 단계 탭의 납기·지연 표시도 다시 읽는다(dueKey).
-        */}
-        {isAdmin && canChangeSteps && detail.accepted_at && detail.delivery_due && (
-          <DeliveryDueRow
-            orderId={detail.id}
-            value={detail.delivery_due.slice(0, 10)}
-            original={detail.delivery_due_original ?? null}
-            onSaved={next => setDetail(d => (d ? {
+          arrival={{
+            value: detail.car_arrival_planned_at ?? null,
+            canEdit: isAdmin && canChangeSteps,
+            onSaved: next => setDetail(d => (d ? { ...d, car_arrival_planned_at: next } : d)),
+          }}
+          due={{
+            value: detail.delivery_due ? detail.delivery_due.slice(0, 10) : null,
+            original: detail.delivery_due_original ?? null,
+            canEdit: isAdmin && canChangeSteps && !!detail.accepted_at && !!detail.delivery_due,
+            onSaved: next => setDetail(d => (d ? {
               ...d,
               // 처음 바꾸는 순간 원래 날짜가 「처음 약속」이 된다 — 서버와 같은 규칙
               delivery_due_original: d.delivery_due_original ?? d.delivery_due?.slice(0, 10) ?? null,
               delivery_due: next,
-            } : d))}
-          />
-        )}
-        {/* 고객 인도 목표일 — 배정 이후 언제든, 특장사와 별개(특장사 화면에는 없다) */}
-        {canAddon && <AddonTargetRow orderId={detail.id} />}
+            } : d)),
+          }}
+          target={canAddon}
+        />
       </div>
 
       {/*
