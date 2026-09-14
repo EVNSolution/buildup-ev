@@ -492,6 +492,18 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
   const canViewContract = !makerView && (role === 'ADMIN' || role === 'SALES')  // 계약서(영업 업무)
   const canViewDocsTab = canViewLoadDocs || canViewContract
 
+  /*
+   * 단계·부가작업을 완료하거나 되돌리면 날짜 띠의 **실제 날짜**를 다시 읽는다 — 화면을 새로 열지 않아도
+   * 차량 도착·출고·인도 완료가 그 자리에서 초록으로 바뀌고, 되돌리면 예정일로 돌아가야 한다.
+   */
+  const [datesKey, setDatesKey] = useState(0)
+  const refreshDates = () => {
+    setDatesKey(k => k + 1)
+    fetchOrderDetail(orderId)
+      .then(d => setDetail(prev => (prev ? { ...prev, car_arrived_on: d.car_arrived_on ?? null, shipped_on: d.shipped_on ?? null } : prev)))
+      .catch(() => { /* 날짜 색만 늦게 바뀐다 */ })
+  }
+
   useEffect(() => {
     setLoading(true); setErr('')
     fetchOrderDetail(orderId)
@@ -542,11 +554,13 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
           orderId={detail.id}
           arrival={{
             value: detail.car_arrival_planned_at ?? null,
+            actual: detail.car_arrived_on ?? null,
             canEdit: isAdmin && canChangeSteps,
             onSaved: next => setDetail(d => (d ? { ...d, car_arrival_planned_at: next } : d)),
           }}
           due={{
             value: detail.delivery_due ? detail.delivery_due.slice(0, 10) : null,
+            actual: detail.shipped_on ?? null,
             original: detail.delivery_due_original ?? null,
             canEdit: isAdmin && canChangeSteps && !!detail.accepted_at && !!detail.delivery_due,
             onSaved: next => setDetail(d => (d ? {
@@ -557,6 +571,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
             } : d)),
           }}
           target={canAddon}
+          refreshKey={datesKey}
         />
       </div>
 
@@ -632,7 +647,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
 
       {tab === 'addon' && canAddon && (
         <div style={det.section}>
-          <AddonStepsPanel orderId={detail.id} />
+          <AddonStepsPanel orderId={detail.id} onChanged={refreshDates} />
         </div>
       )}
 
@@ -649,6 +664,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
             canEdit={canChangeSteps}
             /* 여기서 대화를 읽어 0 이 되면 「대화」 탭 강조도 그 자리에서 꺼진다 */
             onUnreadChange={setUnreadChat}
+            onChanged={refreshDates}
           />
         </div>
       )}

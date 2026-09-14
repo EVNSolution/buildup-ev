@@ -51,7 +51,8 @@ describe('납기 강조', () => {
      * 정말 넘긴 건이 그 속에 묻힌다.
      */
     const board = codeOnly(read('frontend/src/components/OrderStepsBoard.tsx'));
-    expect(board).toMatch(/due\.state === 'overdue' \|\| !!st\?\.stalled/);
+    // 출고한 주문은 납기를 넘겼다고 하지 않는다(이미 내보냈다 — 늦었으면 출고일이 빨강으로 남는다)
+    expect(board).toMatch(/\(!shipped && due\.state === 'overdue'\) \|\| !!st\?\.stalled/);
     expect(board).toMatch(/due\.state === 'soon' \? s\.dueSoon/);
   });
 });

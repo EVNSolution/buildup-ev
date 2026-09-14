@@ -4,6 +4,7 @@ import { t , tf} from '../i18n'
 import { STEPS } from '@shared/process/steps'
 import { dueInfo } from '@shared/process/due'
 import { shortDate } from '../lib/shortDate'
+import { shownDate, type DateTone } from '@shared/process/actual'
 
 /**
  * 주문 여러 건을 한눈에 — **옛 6단계 칸반을 대신한다.**
@@ -63,7 +64,14 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
          * 사흘 안으로 다가온 건은 날짜만 붉게 한다 — 다가온 것과 넘긴 것은 다른 일이고,
          * 줄까지 다 붉으면 정말 넘긴 건이 묻힌다.
          */
-        const late = mode === 'pending' ? !!info?.late : due.state === 'overdue' || !!st?.stalled
+        /*
+         * 실제 날짜(2026-09-14) — 끝난 칸은 실제 날짜를 초록(예정일을 넘겼으면 빨강)으로, 아니면 예정일을 검정으로.
+         * ⚠️ 출고가 끝난 주문은 납기를 「지났다」고 하지 않는다 — 이미 내보냈다. 늦게 내보냈으면 날짜가 빨강으로 남는다.
+         */
+        const arrivalShown = shownDate(o.car_arrival_planned_at, o.car_arrived_on)
+        const dueShown = shownDate(o.delivery_due, o.shipped_on)
+        const shipped = !!o.shipped_on
+        const late = mode === 'pending' ? !!info?.late : (!shipped && due.state === 'overdue') || !!st?.stalled
         return (
           <button key={o.id} style={late ? s.rowLate : s.row} onClick={() => onCardClick(o.id)}>
             <div style={s.main}>
@@ -97,29 +105,30 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
               <div style={s.dates}>
                 <span style={s.dateBit}>
                   <span style={s.dateLabel}>{t('차량 도착')}</span>
-                  <span style={o.car_arrival_planned_at ? s.dateVal : s.dateNone}>{o.car_arrival_planned_at ? shortDate(o.car_arrival_planned_at) : t('미정')}</span>
+                  <span style={toneStyle(arrivalShown.tone)}>{arrivalShown.value ? shortDate(arrivalShown.value) : t('미정')}</span>
                 </span>
                 <span style={s.dateSep} aria-hidden="true">·</span>
                 <span style={s.dateBit}>
                   <span style={s.dateLabel}>{t('납기')}</span>
-                  <span style={!o.delivery_due ? s.dateNone : due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
-                    {o.delivery_due ? shortDate(o.delivery_due) : t('미정')}
+                  <span style={shipped ? toneStyle(dueShown.tone) : !o.delivery_due ? s.dateNone : due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
+                    {dueShown.value ? shortDate(dueShown.value) : t('미정')}
                   </span>
-                  {/* 「n일 전」·「n일 경과」는 날짜 **옆**에 — 날짜만으로는 오늘이 며칠인지 세어 봐야 급한지 안다 */}
-                  {o.delivery_due && dueLabel(due) && (
+                  {/* 「n일 전」·「n일 경과」는 날짜 **옆**에 — 날짜만으로는 오늘이 며칠인지 세어 봐야 급한지 안다. 출고했으면 없다 */}
+                  {!shipped && o.delivery_due && dueLabel(due) && (
                     <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{dueLabel(due)}</span>
                   )}
                 </span>
                 {o.addon !== undefined && (() => {
                   const target = dueInfo(o.addon.target_on)
+                  const handed = shownDate(o.addon.target_on, o.addon.finished ? o.addon.delivered_on : null)
                   const over = !o.addon.finished && target.state === 'overdue'
                   return (
                     <>
                       <span style={s.dateSep} aria-hidden="true">·</span>
                       <span style={s.dateBit}>
                         <span style={s.dateLabel}>{t('고객 인도')}</span>
-                        <span style={!o.addon.target_on ? s.dateNone : over ? s.dueOver : s.dateVal}>
-                          {o.addon.target_on ? shortDate(o.addon.target_on) : t('미정')}
+                        <span style={o.addon.finished && handed.value ? toneStyle(handed.tone) : !o.addon.target_on ? s.dateNone : over ? s.dueOver : s.dateVal}>
+                          {handed.value ? shortDate(handed.value) : t('미정')}
                         </span>
                       </span>
                     </>
@@ -153,6 +162,11 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
   )
 }
 
+/** 날짜 색 — 예정 검정 · 실제 완료 초록 · 예정일을 넘겨 완료 빨강 · 없음 흐리게 */
+function toneStyle(tone: DateTone): React.CSSProperties {
+  return tone === 'done' ? s.dateDone : tone === 'done_late' ? s.dateDoneLate : tone === 'planned' ? s.dateVal : s.dateNone
+}
+
 const rowBase: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   gap: 'var(--sp-3)', flexWrap: 'wrap', width: '100%', textAlign: 'left',
@@ -168,6 +182,8 @@ const s: Record<string, React.CSSProperties> = {
   dateLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   dateVal: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
   dateNone: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
+  dateDone: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--done)', fontVariantNumeric: 'tabular-nums' },
+  dateDoneLate: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--req)', fontVariantNumeric: 'tabular-nums' },
   dateSep: { color: 'var(--line)', fontSize: 'var(--fs-caption)' },
   list: { display: 'flex', flexDirection: 'column' },
   row: { ...rowBase, boxShadow: 'inset 3px 0 0 0 var(--lime)' },

@@ -42,8 +42,10 @@ const ACTOR_LABEL: Record<string, string> = {
   SALES: '영업', ADMIN: '관리자', MAKER: '특장사', SYSTEM: '시스템',
 }
 
-export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange, dueKey }: {
+export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange, dueKey, onChanged }: {
   orderId: number
+  /** 단계를 완료하거나 되돌렸다 — 위 날짜 띠가 실제 날짜를 다시 읽는다 */
+  onChanged?: () => void
   /** 납기일이 바뀌면 다시 읽는다 — 관리자가 위에서 고친 날짜가 머리말·지연 표시에 바로 반영돼야 한다 */
   dueKey?: string | null
   /** 조회만 하는 화면에서는 버튼을 감춘다 */
@@ -119,13 +121,14 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange, dueKe
     try {
       await completeStep(orderId, code, def.dateLabel ? dates[code] : undefined)
       load()
+      onChanged?.()
     } catch (e) { setErr(e instanceof Error ? e.message : t('완료 처리에 실패했습니다')) }
     finally { setBusy(null) }
   }
 
   async function handleUndo(code: string) {
     setBusy(code); setErr('')
-    try { await undoStep(orderId, code); load() }
+    try { await undoStep(orderId, code); load(); onChanged?.() }
     catch (e) { setErr(e instanceof Error ? e.message : t('완료 취소에 실패했습니다')) }
     finally { setBusy(null) }
   }
