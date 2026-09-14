@@ -72,7 +72,7 @@ export function CarArrivalRow({ orderId, value, canEdit, onSaved }: {
         <>
           <b style={value ? s.value : s.none}>{value ?? t('아직 정해지지 않음')}</b>
           <button style={s.edit} onClick={() => { setDraft(value ?? ''); setEditing(true) }}>
-            {value ? t('바꾸기') : t('지정')}
+            {value ? t('변경') : t('지정')}
           </button>
           {/* 바꾸면 특장사에게 알림이 간다는 것을 **누르기 전에** 알려 준다 */}
           <span style={s.hint}>{tf('{0}에게 알림이 갑니다', t('특장사'))}</span>
