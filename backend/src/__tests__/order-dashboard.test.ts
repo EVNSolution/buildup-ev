@@ -109,6 +109,13 @@ describe('화면 규칙', () => {
     expect(comp).toMatch(/onSelect\(on \? \{ kind: 'tile', key: 'active' \} :/);
   });
 
+  it('🔴 휴대폰 모양으로 바뀌는 폭이 헤더와 같다 — 어긋나면 헤더는 휴대폰, 현황판은 PC 모양이 된다', () => {
+    const comp = read('frontend/src/components/OrderDashboard.tsx');
+    const header = read('frontend/src/components/Header.tsx');
+    expect(header).toMatch(/const isMobile = useIsMobile\(\)/);
+    expect(comp).toMatch(/const narrow = useIsMobile\(\)/);
+  });
+
   it('🔴 칸·트랙·단계 이름이 영문 사전에 다 있다 — 표에서 꺼내 t() 를 태우므로 일반 영문화 검사가 못 잡는다', async () => {
     const { EN } = await import('../../../frontend/src/i18n/en');
     const { STEPS, TRACK_LABEL } = await import('@buildup-ev/shared/process');
