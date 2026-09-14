@@ -3,7 +3,7 @@ import type { Request, Response, CookieOptions } from 'express';
 import rateLimit from 'express-rate-limit';
 import { masterBypassEnabled, rbac } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
-import { signToken } from '../lib/jwt.js';
+import { COOKIE_NAME, issueSession } from '../lib/session.js';
 import { verifyPassword, hashPassword } from '../lib/password.js';
 import { mergePermissions } from '../lib/permissions.js';
 import { rolesOf } from '@buildup-ev/shared/types';
@@ -11,20 +11,9 @@ import type { Role } from '@buildup-ev/shared/types';
 
 export const authRouter = Router();
 
-const COOKIE_NAME = 'access_token';
 const LOCK_AFTER  = 10;           // 연속 실패 10회 → 잠금
 const LOCK_MS     = 15 * 60 * 1000;
 const IS_PROD     = process.env['NODE_ENV'] === 'production';
-
-function cookieOpts(): CookieOptions {
-  return {
-    httpOnly: true,
-    secure:   process.env['NODE_ENV'] === 'production',
-    sameSite: 'strict',
-    maxAge:   8 * 60 * 60 * 1000,
-    path:     '/',
-  };
-}
 
 // 운영에서만 적용 — 개발 환경에서는 rate limit 없음
 const loginLimiter = rateLimit({
@@ -45,7 +34,7 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
     return;
   }
 
-  const { email, password } = req.body as { email?: string; password?: string };
+  const { email, password, remember } = req.body as { email?: string; password?: string; remember?: boolean };
   if (!email || !password) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '이메일과 비밀번호를 입력해주세요.' } });
     return;
@@ -94,8 +83,8 @@ authRouter.post('/login', loginLimiter, async (req: Request, res: Response): Pro
   if (user.status === 'invited') updateData['status'] = 'active';
   await prisma.user.update({ where: { email }, data: updateData });
 
-  const token = signToken({ email: user.email, role: user.role, org_code: user.org_code });
-  res.cookie(COOKIE_NAME, token, cookieOpts());
+  // 「로그인 상태 유지」는 기본 체크 — 값을 안 보낸 예전 화면도 유지로 본다
+  issueSession(res, user, remember !== false);
   res.json({ data: { email: user.email, role: user.role, must_change_pw: user.must_change_pw } });
 });
 
@@ -221,6 +210,15 @@ authRouter.post('/change-password', rbac('SALES', 'ADMIN', 'MAKER'), async (req:
   }
 
   const newHash = await hashPassword(new_password);
-  await prisma.user.update({ where: { email }, data: { password_hash: newHash, must_change_pw: false } });
+  /*
+   * **다른 기기의 로그인은 끊는다** — 비밀번호를 바꾸는 이유가 「누가 알게 됐다」일 수 있다.
+   * 로그인이 30일 유지되므로 이게 없으면 바꾼 뒤에도 그 기기는 계속 들어온다.
+   * 지금 이 기기는 새 토큰을 받아 그대로 이어 쓴다.
+   */
+  const updated = await prisma.user.update({
+    where: { email },
+    data: { password_hash: newHash, must_change_pw: false, sessions_valid_after: new Date() },
+  });
+  issueSession(res, updated, req.auth!.remember ?? true);
   res.json({ data: { ok: true } });
 });

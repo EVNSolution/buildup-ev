@@ -19,6 +19,11 @@ export function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  /*
+   * 「로그인 상태 유지」 — **기본 체크.** 매일 로그인하던 불편을 없애는 것이 목적이라
+   * 그냥 로그인하는 대부분이 오래 유지되어야 한다. 공용 PC 에서만 풀면 된다.
+   */
+  const [remember, setRemember] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -34,7 +39,7 @@ export function LoginPage() {
     setSubmitting(true)
     setError('')
     try {
-      await login(email.trim(), password)
+      await login(email.trim(), password, remember)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : t('로그인 실패'))
     } finally {
@@ -76,6 +81,21 @@ export function LoginPage() {
             />
           </div>
 
+          {/* 글자까지 눌러도 켜지고 꺼지게 label 로 감싼다 — 작은 네모만 누르게 하면 손가락이 못 맞춘다 */}
+          <label style={s.remember}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+              disabled={submitting}
+              style={s.rememberBox}
+            />
+            <span>
+              {t('로그인 상태 유지')}
+              <span style={s.rememberHint}>{t('공용 PC에서는 체크를 해제하세요')}</span>
+            </span>
+          </label>
+
           {error && <div style={s.error}>{error}</div>}
 
           <button type="submit" style={{ ...BTN.primary, width: '100%' }} disabled={submitting}>
@@ -107,6 +127,12 @@ const s: Record<string, React.CSSProperties> = {
   logo: { height: 30, width: 'auto', display: 'block', marginBottom: 'var(--sp-6)' },
   form: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   label: { display: 'block', fontSize: 'var(--fs-label)', color: 'var(--muted)', marginBottom: 'var(--sp-1)' },
+  remember: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minHeight: 50,  // 휴대폰은 zoom .88 이 걸려 50 → 44px
+    fontSize: 'var(--fs-label)', cursor: 'pointer', userSelect: 'none',
+  },
+  rememberBox: { width: 20, height: 20, margin: 0, flexShrink: 0, accentColor: 'var(--lime)' },
+  rememberHint: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   error: {
     fontSize: 'var(--fs-label)', color: 'var(--warn)', background: 'var(--warnbg)',
     border: 'var(--hairline)', padding: 'var(--sp-2) var(--sp-3)', borderRadius: 'var(--r-sm)',

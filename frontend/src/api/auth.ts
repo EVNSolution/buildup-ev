@@ -14,8 +14,8 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return json.data
 }
 
-export async function apiLogin(email: string, password: string): Promise<{ email: string; role: string; must_change_pw: boolean }> {
-  return apiFetch('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+export async function apiLogin(email: string, password: string, remember = true): Promise<{ email: string; role: string; must_change_pw: boolean }> {
+  return apiFetch('/api/v1/auth/login', { method: 'POST', body: JSON.stringify({ email, password, remember }) })
 }
 
 export async function apiLogout(): Promise<void> {

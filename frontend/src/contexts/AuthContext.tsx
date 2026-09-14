@@ -11,7 +11,7 @@ export interface Session {
 interface AuthContextValue {
   session: Session | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, remember?: boolean) => Promise<void>
   logout: () => Promise<void>
   refreshSession: () => Promise<void>
   hasPermission: (code: string) => boolean
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
-  async function login(email: string, password: string) {
-    await apiLogin(email, password)
+  async function login(email: string, password: string, remember = true) {
+    await apiLogin(email, password, remember)
     const data = await fetchAuthMe()
     setSession({ user: data.user, org: data.org, permissions: data.permissions })
   }

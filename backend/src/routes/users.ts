@@ -257,7 +257,8 @@ usersRouter.post('/:email/reset-password', rbac('ADMIN'), requirePermission('acc
       return;
     }
 
-    await prisma.user.update({ where: { email }, data: { password_hash: hash, must_change_pw: true } });
+    // 초기화하면 그 계정의 기존 로그인은 모두 끊긴다 — 로그인이 30일 유지되기 때문이다
+    await prisma.user.update({ where: { email }, data: { password_hash: hash, must_change_pw: true, sessions_valid_after: new Date() } });
     // temp_password returned ONCE — never stored in plaintext
     res.json({ data: { temp_password: tempPw } });
   } catch (e) {

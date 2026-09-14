@@ -64,6 +64,8 @@ model User {
   password_hash  String?    @db.VarChar(80)
   login_attempts Int        @default(0)
   locked_until   DateTime?
+  /// 이 시각 이전에 발급된 로그인 토큰은 무효 — 비밀번호 변경·관리자 초기화 때 찍는다
+  sessions_valid_after DateTime?
   // DEV: master surface switcher — true인 계정만 surface 전환 토글 표시 (테스트용)
   is_master      Boolean    @default(false)
 

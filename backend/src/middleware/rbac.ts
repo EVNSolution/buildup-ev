@@ -3,6 +3,7 @@ import type { Role } from '@buildup-ev/shared/types';
 import { rolesOf } from '@buildup-ev/shared/types';
 import { prisma } from '../lib/prisma.js';
 import { verifyToken } from '../lib/jwt.js';
+import { COOKIE_NAME, issueSession, remembers, revoked, shouldRefresh } from '../lib/session.js';
 import { mergePermissions } from '../lib/permissions.js';
 
 export interface AuthContext {
@@ -12,6 +13,8 @@ export interface AuthContext {
   org_code: string;
   /** 보호 대상 마스터 계정 표시. 운영 권한 우회 여부와는 별개다. */
   is_master?: boolean;
+  /** 이 로그인이 「로그인 상태 유지」인가 — 비밀번호 변경 뒤 같은 방식으로 다시 발급한다 */
+  remember?: boolean;
 }
 
 interface PermissionRecord {
@@ -95,7 +98,12 @@ export function injectJwtAuth(req: Request, res: Response, next: NextFunction): 
 
   prisma.user.findUnique({ where: { email: payload.email } })
     .then(user => {
-      if (user && user.status === 'active' && user.active) {
+      if (user && user.status === 'active' && user.active && revoked(payload, user.sessions_valid_after)) {
+        // 비밀번호가 바뀌기 전에 발급된 토큰 — 로그인 안 한 것으로 본다. 쿠키도 치운다
+        res.clearCookie(COOKIE_NAME, { path: '/' });
+      } else if (user && user.status === 'active' && user.active) {
+        // 쓰는 동안은 계속 늘어난다 — 토큰이 묵었으면 새로 발급한다(현재 역할·소속으로)
+        if (shouldRefresh(payload)) issueSession(res, user, remembers(payload));
         /*
          * 마스터는 **세 역할을 가진 계정**이다(영업·관리·특장 화면을 오간다).
          * 이건 권한 우회가 아니라 역할 보유라 운영에서도 그대로다 —
@@ -108,6 +116,7 @@ export function injectJwtAuth(req: Request, res: Response, next: NextFunction): 
           roles: rolesOf({ role: user.role as Role, extra_roles: user.extra_roles as Role[], is_master: user.is_master }),
           org_code: user.org_code,
           is_master: user.is_master,
+          remember: remembers(payload),
         };
       }
       next();
