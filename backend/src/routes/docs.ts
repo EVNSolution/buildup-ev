@@ -14,7 +14,7 @@ import type { Request, Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { rbac, ownOrgOnly } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
-import { assertOrderQuoteOwner } from '../lib/quote-access.js';
+import { assertOrderQuoteOwner, salesReaches } from '../lib/quote-access.js';
 import { generateContractDoc, ContractDocError } from '../services/contract-docgen.js';
 import {
   generateLoadCalcDoc,
@@ -27,7 +27,15 @@ import {
 export const docsRouter = Router();
 
 /** 주문 조회 + MAKER org 범위 체크. 오류 시 res에 직접 응답하고 null 반환 */
-async function loadOrderScoped(req: Request, res: Response): Promise<{ id: number; maker_org_id: string | null } | null> {
+async function loadOrderScoped(
+  req: Request, res: Response,
+  /**
+   * 영업도 쓰는 경로인가(계약서). 그러면 특장+영업 겸직 계정이 **자기가 영업한** 주문을
+   * 다른 특장사에 배정돼 있어도 연다. 특장 전용 경로(하중계산서 등)는 넘기지 않는다 —
+   * 영업 담당이라고 남의 특장사 서류를 만들지 않는다.
+   */
+  opts: { salesOwner?: boolean } = {},
+): Promise<{ id: number; maker_org_id: string | null } | null> {
   if (!prisma) {
     res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } });
     return null;
@@ -37,17 +45,20 @@ async function loadOrderScoped(req: Request, res: Response): Promise<{ id: numbe
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } });
     return null;
   }
-  const order = await prisma.order.findUnique({ where: { id }, select: { id: true, maker_org_id: true } });
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { id: true, maker_org_id: true, quote: { select: { sales_user_id: true } } },
+  });
   if (!order) {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } });
     return null;
   }
   const auth = req.auth!;
-  if (ownOrgOnly(auth) && order.maker_org_id !== auth.org_code) {
+  if (ownOrgOnly(auth) && order.maker_org_id !== auth.org_code && !(opts.salesOwner && salesReaches(auth, order))) {
     res.status(403).json({ error: { code: 'FORBIDDEN', message: '자기 조직의 주문만 조회할 수 있습니다' } });
     return null;
   }
-  return order;
+  return { id: order.id, maker_org_id: order.maker_org_id };
 }
 
 function handleDocGenError(e: unknown, res: Response, logTag: string): void {
@@ -129,7 +140,7 @@ docsRouter.get('/:id/docs/spec-table', rbac('ADMIN', 'MAKER'), async (req: Reque
 
 // ── 특장 매매계약서 — 영업·관리자 (구조변경 서류와 달리 SALES 허용) ─────────
 const contractHandler = async (req: Request, res: Response): Promise<void> => {
-  const order = await loadOrderScoped(req, res);
+  const order = await loadOrderScoped(req, res, { salesOwner: true });
   if (!order) return;
   /*
    * ⚠️ `loadOrderScoped` 는 **특장사의 조직 범위**만 본다(`ownOrgOnly`). 영업은 그대로 통과해,

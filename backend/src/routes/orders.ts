@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices, scopedToMine } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
-import { assertOrderQuoteOwner } from '../lib/quote-access.js';
+import { assertOrderQuoteOwner, makerReaches, salesReaches } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
@@ -191,11 +191,26 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
    * ⚠️ 아래 `ownOrgOnly` 는 **특장사 조직**만 본다. 영업은 그대로 통과해,
    *    영업 아무나 남의 담당 주문을 열 수 있었다(고객명·가격이 실려 있다).
    */
-  if (!(await assertOrderQuoteOwner(req, res, id))) return;
+  // 특장사도 여는 화면이다 — 겸직 계정은 특장 근거(자기 조직 배정·자기가 거부한 건)로도 연다
+  if (!(await assertOrderQuoteOwner(req, res, id, { maker: true, allowRejected: true }))) return;
   try {
     const auth = req.auth!;
 
-    if (ownOrgOnly(auth)) {
+    /*
+     * **어느 화면으로 줄지** — 특장 근거로 열면 특장사 화면(금액 없음), 영업 담당으로만 닿으면 영업 화면.
+     * 특장+영업 겸직 계정이 자기가 영업한 주문(다른 특장사에 배정)을 열 때 「자기 조직만」에
+     * 막히지 않게 한다. 특장 근거가 있으면 그쪽을 먼저 쓴다 — 특장 화면에서 금액이 새지 않는다.
+     */
+    let makerView = ownOrgOnly(auth);
+    if (makerView && auth.roles.includes('SALES')) {
+      const scope = await prisma.order.findUnique({
+        where: { id },
+        select: { maker_org_id: true, rejected_by_org: true, quote: { select: { sales_user_id: true } } },
+      });
+      if (scope && !makerReaches(auth, scope, true) && salesReaches(auth, scope)) makerView = false;
+    }
+
+    if (makerView) {
       // MAKER: 사양·서류만 — 가격·영업 필드 제외
       const order = await prisma.order.findUnique({
         where: { id },
