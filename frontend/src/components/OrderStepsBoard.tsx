@@ -3,6 +3,7 @@ import { dueLabel } from '../lib/dueLabel'
 import { t , tf} from '../i18n'
 import { STEPS } from '@shared/process/steps'
 import { dueInfo } from '@shared/process/due'
+import { shortDate } from '../lib/shortDate'
 
 /**
  * 주문 여러 건을 한눈에 — **옛 6단계 칸반을 대신한다.**
@@ -89,25 +90,42 @@ export function OrderStepsBoard({ orders, onCardClick, mode = 'active', lateInfo
                     : <span style={s.muted}>{t('아직 완료된 단계가 없습니다')}</span>}
               </div>
               {/*
-                납기는 **왼쪽 줄로** 둔다.
-                예전엔 오른쪽 진척도 칸 안에 있어 줄 한가운데에 떠 있었다 — 카드 왼쪽에
-                주문번호·고객·완료단계가 세로로 줄맞춤돼 있는데 날짜만 가운데 있으니
-                어디에 걸린 정보인지 읽히지 않았다(사진 제보).
+                **날짜 줄** — 차량 도착 · 납기 · 고객 인도를 한 줄에(2026-09-14 지시). 없으면 「미정」.
+                고객 인도는 부가작업이 실린 응답(관리자 + addon.manage)에만 있다 — 특장사 목록에는 없다.
+                납기는 왼쪽 줄로 둔다: 예전엔 오른쪽 진척도 칸 안에 떠 있어 어디에 걸린 정보인지 읽히지 않았다(사진 제보).
               */}
-              {mode !== 'pending' && o.delivery_due && (
-                <div style={s.line2}>
-                  <span style={due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
-                    {tf('납기 {0}', o.delivery_due.slice(0, 10))}
+              <div style={s.dates}>
+                <span style={s.dateBit}>
+                  <span style={s.dateLabel}>{t('차량 도착')}</span>
+                  <span style={o.car_arrival_planned_at ? s.dateVal : s.dateNone}>{o.car_arrival_planned_at ? shortDate(o.car_arrival_planned_at) : t('미정')}</span>
+                </span>
+                <span style={s.dateSep} aria-hidden="true">·</span>
+                <span style={s.dateBit}>
+                  <span style={s.dateLabel}>{t('납기')}</span>
+                  <span style={!o.delivery_due ? s.dateNone : due.state === 'overdue' ? s.dueOver : due.state === 'soon' ? s.dueSoon : s.due}>
+                    {o.delivery_due ? shortDate(o.delivery_due) : t('미정')}
                   </span>
-                  {/*
-                    「n일 전」·「n일 경과」는 날짜 **옆**에 붙인다 — 날짜만으로는
-                    오늘이 며칠인지 세어 봐야 급한지 알 수 있다.
-                  */}
-                  {dueLabel(due) && (
+                  {/* 「n일 전」·「n일 경과」는 날짜 **옆**에 — 날짜만으로는 오늘이 며칠인지 세어 봐야 급한지 안다 */}
+                  {o.delivery_due && dueLabel(due) && (
                     <span style={due.state === 'overdue' ? s.dueTagOver : s.dueTag}>{dueLabel(due)}</span>
                   )}
-                </div>
-              )}
+                </span>
+                {o.addon !== undefined && (() => {
+                  const target = dueInfo(o.addon.target_on)
+                  const over = !o.addon.finished && target.state === 'overdue'
+                  return (
+                    <>
+                      <span style={s.dateSep} aria-hidden="true">·</span>
+                      <span style={s.dateBit}>
+                        <span style={s.dateLabel}>{t('고객 인도')}</span>
+                        <span style={!o.addon.target_on ? s.dateNone : over ? s.dueOver : s.dateVal}>
+                          {o.addon.target_on ? shortDate(o.addon.target_on) : t('미정')}
+                        </span>
+                      </span>
+                    </>
+                  )
+                })()}
+              </div>
             </div>
             {/* 오른쪽 칸은 **진척도만** 갖는다 — 납기는 왼쪽 본문 줄로 옮겼다 */}
             <div style={s.side}>
@@ -144,6 +162,13 @@ const rowBase: React.CSSProperties = {
 }
 
 const s: Record<string, React.CSSProperties> = {
+  // 날짜 줄 — 한 줄, 좁으면 줄바꿈. 이름은 흐리게 날짜는 굵게
+  dates: { display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 6, rowGap: 2, marginTop: 2 },
+  dateBit: { display: 'inline-flex', alignItems: 'baseline', gap: 4, whiteSpace: 'nowrap' },
+  dateLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
+  dateVal: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
+  dateNone: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },
+  dateSep: { color: 'var(--line)', fontSize: 'var(--fs-caption)' },
   list: { display: 'flex', flexDirection: 'column' },
   row: { ...rowBase, boxShadow: 'inset 3px 0 0 0 var(--lime)' },
   rowLate: { ...rowBase, boxShadow: 'inset 3px 0 0 0 var(--req)' },

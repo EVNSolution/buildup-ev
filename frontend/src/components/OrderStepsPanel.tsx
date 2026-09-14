@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { DateField } from './ui/DateField'
 import { gateReason } from '../lib/gateReason'
 import { dueLabel } from '../lib/dueLabel'
 import { t , tf} from '../i18n'
@@ -319,8 +320,8 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange, dueKe
                       {needDate && (
                         <div style={s.dateRow}>
                           <label style={s.label}>{def.dateLabel}<span style={s.req}> {t('· 필수')}</span></label>
-                          <input type="date" style={s.date} value={dates[def.code] ?? ''}
-                            onChange={e => setDates(p => ({ ...p, [def.code]: e.target.value }))} />
+                          <DateField value={dates[def.code] ?? ''} ariaLabel={def.dateLabel}
+                            onChange={v => setDates(p => ({ ...p, [def.code]: v }))} />
                         </div>
                       )}
 

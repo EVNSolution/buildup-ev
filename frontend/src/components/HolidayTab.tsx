@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DateField } from './ui/DateField'
 import { t, tf } from '../i18n'
 import {
   fetchHolidayYear, importHolidayYear, saveHolidayYear,
@@ -121,8 +122,8 @@ export function HolidayTab() {
 
       {sorted.map(r => (
         <div key={r.day} style={s.row}>
-          <input style={{ ...s.input, ...s.cDay }} type="date" value={r.day}
-            onChange={e => setRows(x => x.map(v => (v.day === r.day ? { ...v, day: e.target.value } : v)))} />
+          <DateField style={{ ...s.cDay }} value={r.day} ariaLabel={t('날짜')}
+            onChange={day => setRows(x => x.map(v => (v.day === r.day ? { ...v, day } : v)))} />
           <span style={{ ...s.cWd, ...(weekday(r.day) === '일' || weekday(r.day) === '토' ? s.weekend : null) }}>
             {t(weekday(r.day))}
           </span>

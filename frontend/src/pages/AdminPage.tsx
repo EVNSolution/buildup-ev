@@ -1819,7 +1819,7 @@ function KanbanTab({ deepLink, initialView }: {
         orderId={selectedOrderId}
         /* 돌아오면 바로 다시 읽는다 — 상세에서 단계를 끝냈으면 현황판 숫자가 그 자리에서 바뀌어야 한다 */
         onBack={() => { setSelectedOrderId(null); load(true) }}
-        backLabel="← 주문 진행"
+        backLabel={t('주문 진행')}
         /* 알림을 눌러 들어온 그 주문일 때만 대화 탭으로 연다 */
         initialTab={deepLink?.chat && deepLink.orderId === selectedOrderId ? 'chat' : detailTab}
         initialChatStep={deepLink?.orderId === selectedOrderId ? deepLink?.step : undefined}

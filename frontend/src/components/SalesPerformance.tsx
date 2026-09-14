@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { t , tf, getLang} from '../i18n'
+import { DateField } from './ui/DateField'
+import { t , tf} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
   fetchSalesStats, fetchAttention, FUNNEL,
@@ -84,9 +85,9 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
   return (
     <div>
       <div style={s.bar}>
-        <input type="date" lang={getLang()} style={s.date} value={from} onChange={e => setFrom(e.target.value)} />
+        <DateField value={from} onChange={setFrom} ariaLabel={t('시작일')} style={s.date} />
         <span style={s.sep}>~</span>
-        <input type="date" lang={getLang()} style={s.date} value={to} onChange={e => setTo(e.target.value)} />
+        <DateField value={to} onChange={setTo} ariaLabel={t('종료일')} style={s.date} />
         {showUserFilter && (
           <select style={s.select} value={user} onChange={e => setUser(e.target.value)}>
             <option value="">{t('전체')}</option>

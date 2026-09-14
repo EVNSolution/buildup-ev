@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
+import { BackLink } from '../components/ui/BackLink'
 import { PushToggle } from '../components/PushToggle'
 import { useAuth } from '../contexts/AuthContext'
 import { Segmented } from '../components/ui/Segmented'
@@ -48,7 +49,7 @@ export function MyPage() {
       <header style={s.bar}>
         <img src={logoUrl} alt="EV&Solution" style={s.logo} />
         <div style={{ flex: 1 }} />
-        <button style={BTN.secondary} onClick={back}>{t('뒤로')}</button>
+        <BackLink label={t('뒤로')} onClick={back} style={{ alignSelf: 'center', marginBottom: 0, marginTop: 0 }} />
       </header>
       <div style={s.body}>
         <h1 style={s.title}>{t('마이페이지')}</h1>

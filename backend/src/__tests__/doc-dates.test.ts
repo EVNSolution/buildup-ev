@@ -90,7 +90,8 @@ describe('계약일자 — 계약서를 만들 때 고른다', () => {
   it('🔴 화면은 계약서 단계에서만 묻고, 기본값은 오늘', () => {
     const modal = read('frontend/src/components/QuoteSaveModal.tsx');
     expect(modal).toMatch(/forContract && \(/);
-    expect(modal).toMatch(/type="date" value=\{v\.contract_date\}/);
+    // 날짜 칸은 앱 공통 DateField(브라우저 기본 달력은 화면 아래에서 잘린다 — ui-compact.test.ts)
+    expect(modal).toMatch(/<DateField value=\{v\.contract_date\} onChange=\{d => set\('contract_date', d\)\}/);
     expect(modal).toMatch(/export function today\(\)/);
     // 저장까지 이어져야 한다 — 화면에서만 고르면 서류에 안 나간다
     expect(read('frontend/src/pages/SalesPage.tsx')).toMatch(/contract_date: values\.contract_date/);

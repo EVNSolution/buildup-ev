@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { BackLink } from './ui/BackLink'
 import { t , tf} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
@@ -6,7 +7,6 @@ import {
   type ApiFileIndexRow, type ApiOrderFile, type FileGroup,
 } from '../api/orderFiles'
 import { fmtBytes } from '../lib/imageResize'
-import { BTN } from '../styles/buttons'
 import { DocLink } from './DocLink'
 
 /**
@@ -113,7 +113,7 @@ function OrderFilePanel({ row, onBack }: { row: ApiFileIndexRow; onBack: () => v
 
   return (
     <div>
-      <button style={s.back} onClick={onBack}>{t('← 파일')}</button>
+      <BackLink label={t('파일')} onClick={onBack} style={{ marginBottom: 0 }} />
 
       <div style={s.head}>
         <span style={s.headName}>{row.customer_name ?? t('고객 미지정')}</span>
@@ -208,7 +208,6 @@ const s: Record<string, React.CSSProperties> = {
   pillZero: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--req)', borderRadius: 999, padding: '2px 9px', border: 'var(--hairline)' },
   pillMuted: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', borderRadius: 999, padding: '2px 9px', border: 'var(--hairline)' },
 
-  back: { ...BTN.row, marginBottom: 'var(--sp-3)' },
   head: { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 'var(--sp-3)', borderBottom: 'var(--hairline)' },
   headName: { fontSize: 'var(--fs-title)', fontWeight: 700, color: 'var(--dark)' },
   headSub: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },

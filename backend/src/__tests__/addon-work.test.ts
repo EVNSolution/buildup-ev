@@ -105,6 +105,40 @@ describe('견적 「완료」 시점', () => {
   });
 });
 
+describe.runIf(live)('영업 성과의 「완료」는 지금 완료인 것만', () => {
+  it('🔴 이력에 완료가 찍혔어도 되돌려 주문진행이면 완료로 세지 않는다 — 금액·도달·소요일 모두', async () => {
+    const { salesStats } = await import('../services/sales-stats.js');
+    const SALES = ADMIN;   // 담당 영업으로 쓸 실제 계정(이 파일이 만든다)
+    const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'ordered', customer_id: customerId, final_price: 7_000_000, sales_user_id: SALES }, select: { id: true } });
+    quotes.push(q.id);
+    const at = (d: string) => new Date(`2026-09-${d}T00:00:00Z`);
+    await prisma!.quoteChangeLog.createMany({ data: [
+      { quote_id: q.id, section: 'status', field: 'status', old_value: 'assigned', new_value: 'ordered', changed_by: 'x', changed_at: at('10') },
+      { quote_id: q.id, section: 'status', field: 'status', old_value: 'ordered', new_value: 'completed', changed_by: 'x', changed_at: at('11') },
+      { quote_id: q.id, section: 'status', field: 'status', old_value: 'completed', new_value: 'ordered', changed_by: 'migration', changed_at: at('12') },
+    ] });
+    const [st] = await salesStats({ salesUser: SALES });
+    expect(st!.reached.completed, '되돌린 건이 완료로 잡힌다').toBe(0);
+    expect(st!.amount.completed).toBe(0);
+    expect(st!.lead.to_completed.n).toBe(0);
+    expect(st!.reached.ordered).toBeGreaterThanOrEqual(1);
+  }, 30_000);
+});
+
+describe('옛 흐름 완료 되돌림(마이그레이션)', () => {
+  it('🔴 출고는 끝났고 고객 인도 기록이 없는 완료 견적만 주문진행으로 — 지우지 않고 이력을 남긴다', async () => {
+    const { readFileSync } = await import('node:fs');
+    const path = (await import('node:path')).default;
+    const sql = readFileSync(path.resolve(__dirname, '../../prisma/migrations/20260914060000_revert_completed_before_handover/migration.sql'), 'utf8');
+    expect(sql).not.toMatch(/DELETE/i);
+    expect(sql).toMatch(/INSERT INTO "quote_change_log"/);
+    expect(sql.indexOf('INSERT INTO "quote_change_log"')).toBeLessThan(sql.indexOf('UPDATE "quote"'));
+    for (const cond of [/s\."code" = 'delivered' AND s\."status" = 'done'/, /NOT EXISTS \(SELECT 1 FROM "order_addon_step" a WHERE a\."order_id" = o\."id" AND a\."code" = 'addon_delivered'/]) {
+      expect(sql.match(new RegExp(cond.source, 'g'))?.length, String(cond)).toBe(2);   // 이력·갱신 두 곳 조건이 같다
+    }
+  });
+});
+
 describe.runIf(live)('부가작업', () => {
   it('🔴 공장 출고 전에는 부가작업을 못 한다', async () => {
     const { id } = await acceptedOrder();
