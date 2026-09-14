@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
+import { sortSpecOptions } from '@buildup-ev/shared/types';
 import { noStore } from '../lib/doc-headers.js';
 import { syncOpenContracts } from '../services/contract-sync.js';
 import type { Request, Response } from 'express';
@@ -1136,7 +1137,8 @@ quotesRouter.get('/:id/order-preview', rbac('ADMIN'), async (req: Request, res):
     customer_name: quote.customer?.name ?? '',
     // 영업이 남긴 메모 — 배정 화면에서 **읽기만** 한다(고치는 자리는 견적 수정이다)
     sales_memo: (inp['memo'] as string | undefined) ?? '',
-    options,
+    // 사양 순서는 주문 상세·발주서와 같게
+    options: sortSpecOptions(options),
     po_lines: poLines,
   } });
 });

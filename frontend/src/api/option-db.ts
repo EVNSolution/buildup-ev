@@ -36,6 +36,7 @@ export const OPTION_DB_TABLES = [
   { name: 'tax_config',       label: '세율·부대비용' },
   { name: 'installment_rate', label: '할부 이율' },
   { name: 'weight_constant',  label: '무게상수 (하중계산)' },
+  { name: 'dimension_preset', label: '치수 프리셋 (튜닝 후)' },
 ] as const
 
 /** 되돌릴 수 있는 시점 — 한 번의 저장 = 한 지점. */

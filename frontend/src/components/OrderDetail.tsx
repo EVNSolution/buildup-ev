@@ -670,6 +670,40 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
           )}
 
           {/*
+            상세 제원 — **튜닝 후 값만**(사양별 치수 프리셋). 현장이 볼 것은 만들어야 할 결과라
+            튜닝 전 값은 두지 않는다. 특장만 주문은 차량이 고객 것이라 **하대내측치수만** 적는다.
+            비고 바로 위 — 옵션을 읽고, 치수를 읽고, 마지막에 「단, 이 건은」을 읽는다.
+          */}
+          {detail.detail_dims && (
+            <>
+              <div style={det.remarkHead}>{t('상세 제원')}</div>
+              <table style={det.dimTable}>
+                <thead>
+                  <tr>
+                    <th style={det.dimTh}>{t('변경 후')}</th>
+                    <th style={det.dimThNum}>{t('길이')}</th>
+                    <th style={det.dimThNum}>{t('너비')}</th>
+                    <th style={det.dimThNum}>{t('높이')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    ...(detail.detail_dims.body ? [[t('차체제원(mm)'), detail.detail_dims.body] as const] : []),
+                    [t('하대내측치수(mm)'), detail.detail_dims.bed] as const,
+                  ]).map(([label, d]) => (
+                    <tr key={label}>
+                      <td style={det.dimLabel}>{label}</td>
+                      {[d.length, d.width, d.height].map((v, i) => (
+                        <td key={i} style={det.dimNum}>{v == null ? '—' : v}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/*
             비고 — 배정할 때 적힌 **이 주문만의 요청사항.** 사양의 마지막 줄에 둔다:
             무엇을 만들지 다 읽은 뒤에 「단, 이 건은」을 읽는 순서가 맞다.
             줄바꿈·띄어쓰기는 적은 그대로 보여준다.
@@ -857,6 +891,11 @@ const det: Record<string, React.CSSProperties> = {
     background: 'var(--card)', borderRadius: 8, padding: 'var(--sp-3)', color: 'var(--dark)',
   },
   remarkNone: { fontSize: 'var(--fs-body)', color: 'var(--muted)' },
+  dimTable: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 'var(--fs-body)', tableLayout: 'fixed' as const },
+  dimTh: { textAlign: 'left' as const, padding: '8px 6px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 'var(--fs-label)', width: '40%' },
+  dimThNum: { textAlign: 'right' as const, padding: '8px 6px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 'var(--fs-label)' },
+  dimLabel: { padding: '10px 6px', borderBottom: '0.5px solid var(--line)', color: 'var(--muted)', fontSize: 'var(--fs-label)' },
+  dimNum: { padding: '10px 6px', borderBottom: '0.5px solid var(--line)', color: 'var(--dark)', textAlign: 'right' as const, fontVariantNumeric: 'tabular-nums', fontWeight: 600 },
   poHead: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', marginBottom: 'var(--sp-2)' },
   poGap: { height: 'var(--sp-6)' },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' as const },

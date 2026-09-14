@@ -90,7 +90,7 @@ const MODULE_DESC: Record<string, string> = {
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
 }
-type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
+type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -1872,6 +1872,7 @@ export function AdminPage() {
     { key: 'toggles',  label: t('기능모듈'),  show: perm.accounts },
     { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
     { key: 'weights',  label: t('무게상수'),  show: perm.basedata },
+    { key: 'dims',     label: t('치수 프리셋'), show: perm.basedata },
     { key: 'holidays', label: t('공휴일'),    show: perm.basedata },
     { key: 'optiondb', label: t('옵션DB'),    show: perm.basedata },
     // 특장사에 **지급하는** 단가 — 고객 견적가(옵션DB)와 다른 축이라 탭을 나눈다
@@ -1969,6 +1970,13 @@ export function AdminPage() {
           <OptionDbTab
             only={['weight_constant']}
             note={tf('하중계산서·제원대비표 자동생성에 쓰이는 계산 상수입니다. 값을 수정하면 {0}에 반영됩니다.', t('다음 서류생성부터 재계산'))}
+          />
+        )}
+        {/* 튜닝 후 치수 — 서류(주요제원대비표·하중계산서)의 「튜닝 후」 칸. 같은 편집 화면이라 이력·되돌리기가 붙는다 */}
+        {activeTab === 'dims' && (
+          <OptionDbTab
+            only={['dimension_preset']}
+            note={t('주요제원대비표·하중계산서의 튜닝 후 치수입니다. 차량 전장·전폭·전고는 차체제원, 내측은 하대내측치수로 들어갑니다. 비워 둔 칸은 서류에도 빈칸으로 나갑니다.')}
           />
         )}
         {activeTab === 'optiondb' && <OptionDbTab only={['option_price', 'subsidy_local', 'subsidy_national', 'tax_config', 'installment_rate']} />}

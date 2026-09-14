@@ -32,6 +32,20 @@ function db() {
   return prisma;
 }
 
+const DIM_FIELDS = [
+  'car_length', 'car_width', 'car_height',
+  'outer_length', 'outer_width', 'outer_height',
+  'inner_length', 'inner_width', 'inner_height',
+  'offset',
+];
+const dimKey = (k: Row) => ({ model_code: String(k['model_code']), body_type: String(k['body_type']), top_size: String(k['top_size']) });
+/** 치수는 mm 정수. 비우면 null(서류에도 빈칸) — 0 으로 바꾸지 않는다 */
+const dimNum = (v: unknown): number | null => {
+  if (v == null || v === '') return null;
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? n : null;
+};
+
 const TABLES: Record<string, TableDef> = {
   option_price: {
     pk: ['model_code', 'value_code'], fields: ['supply_price', 'memo'], numeric: ['supply_price'],
@@ -100,6 +114,25 @@ const TABLES: Record<string, TableDef> = {
       });
       invalidateWeightConstantsCache();
       return { ...row, value: num(row.value) };
+    },
+  },
+  // 튜닝 후 치수 프리셋 — 주요제원대비표·하중계산서의 「튜닝 후」 치수. 사양(특장형태 × 탑크기)별로 정해져 있다.
+  // 서류 생성 때마다 DB 를 읽으므로(캐시 없음) 고치면 다음 서류부터 반영된다. 빈 칸은 서류에도 빈칸.
+  dimension_preset: {
+    pk: ['model_code', 'body_type', 'top_size'],
+    fields: DIM_FIELDS,
+    numeric: DIM_FIELDS,
+    list: async () => db().dimensionPreset.findMany({
+      orderBy: [{ model_code: 'asc' }, { body_type: 'desc' }, { top_size: 'desc' }],
+    }),
+    find: async (k) => db().dimensionPreset.findUnique({ where: { model_code_body_type_top_size: dimKey(k) } }),
+    upsert: async (k, d) => {
+      const data = Object.fromEntries(DIM_FIELDS.map((f) => [f, dimNum(d[f])]));
+      return db().dimensionPreset.upsert({
+        where: { model_code_body_type_top_size: dimKey(k) },
+        update: data,
+        create: { ...dimKey(k), ...data },
+      });
     },
   },
   installment_rate: {

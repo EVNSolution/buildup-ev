@@ -369,6 +369,37 @@ model WeightConstant {
   @@map("weight_constant")
 }
 
+/// **튜닝 후 치수 프리셋** — 사양(특장형태 × 탑크기)마다 정해진 치수.
+/// 주요제원대비표·하중계산서의 「튜닝 후」 차체제원·하대내측치수·하대옵셋트가 여기서 온다.
+/// 예전에는 치수 데이터가 없어 튜닝 전 값을 복사해 넣었다(틀린 서류). 값은 관리자 「치수 프리셋」 탭에서
+/// 옵션DB 편집 화면으로 고친다 — 변경 이력·되돌리기가 같이 붙는다.
+/// 값이 비어 있으면(null) 서류에도 **빈칸**으로 나간다 — 튜닝 전 값을 복사하지 않는다.
+model DimensionPreset {
+  model_code   String   @db.VarChar(40)
+  /// 특장형태 옵션 값 — BODY_REEFER(냉동) / BODY_DRY(내장)
+  body_type    String   @db.VarChar(30)
+  /// 탑크기 옵션 값 — TOP_STD(표준) / TOP_LOW(저상)
+  top_size     String   @db.VarChar(30)
+  /// 차량 전장·전폭·전고(튜닝 후) → 서류의 차체제원
+  car_length   Int?
+  car_width    Int?
+  car_height   Int?
+  /// 적재함 외측 — 서류 칸은 없고 탑 무게 산정(파라메트릭)에 쓸 값
+  outer_length Int?
+  outer_width  Int?
+  outer_height Int?
+  /// 적재함 내측 → 서류의 하대내측치수
+  inner_length Int?
+  inner_width  Int?
+  inner_height Int?
+  /// 하대옵셋트(튜닝 후)
+  offset       Int?
+  updated_at   DateTime @default(now()) @updatedAt
+
+  @@id([model_code, body_type, top_size])
+  @@map("dimension_preset")
+}
+
 // ─── D1: 타이어 ───────────────────────────────────────────────────────────
 
 model Tire {

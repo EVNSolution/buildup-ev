@@ -116,6 +116,16 @@ export function OptionDbTab({ only, note }: Props = {}) {
     region: t('지역'), year: t('연도'), amount: t('금액'), extra: t('추가'), remaining_quota: t('잔여물량'),
     as_of: t('기준일'), active: t('적용'), param_key: t('항목'), value: t('값'), unit: t('단위'),
     months: t('개월수'), rate: t('이율'), label: t('표기'),
+    // 치수 프리셋 — 서류의 어느 칸으로 가는지까지 적는다
+    body_type: t('특장형태'), top_size: t('탑크기'),
+    car_length: t('차량 전장'), car_width: t('차량 전폭'), car_height: t('차량 전고'),
+    outer_length: t('외측 장'), outer_width: t('외측 폭'), outer_height: t('외측 고'),
+    inner_length: t('내측 장'), inner_width: t('내측 폭'), inner_height: t('내측 고'),
+    offset: t('하대옵셋트'),
+  }
+  /** 치수 프리셋의 키 칸(옵션 값 코드) → 이름 */
+  const DIM_KEY_KO: Record<string, string> = {
+    BODY_REEFER: t('냉동'), BODY_DRY: t('내장'), TOP_STD: t('표준'), TOP_LOW: t('저상'),
   }
 
   /** `DOPT_REEFER_LOW_SLIDE` → '도어 종류 · 냉동 / 저상 / 슬라이딩' */
@@ -296,6 +306,9 @@ export function OptionDbTab({ only, note }: Props = {}) {
                         {String(r[f] ?? '')}
                         {table === 'option_price' && f === 'value_code' && (
                           <div style={s.human}>{humanize(String(r[f] ?? ''))}</div>
+                        )}
+                        {table === 'dimension_preset' && DIM_KEY_KO[String(r[f] ?? '')] && (
+                          <div style={s.human}>{DIM_KEY_KO[String(r[f] ?? '')]}</div>
                         )}
                       </td>
                     ))}

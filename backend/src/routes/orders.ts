@@ -5,8 +5,10 @@ import { prisma } from '../lib/prisma.js';
 import { assertOrderQuoteOwner, makerReaches, salesReaches } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
+import { sortSpecOptions } from '@buildup-ev/shared/types';
 import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
 import { loadHolidays } from '../services/holidays.js';
+import { orderDetailDims } from '../services/dimension-preset.js';
 import { notify, pushAllowed } from '../services/push.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD } from '@buildup-ev/shared/process';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
@@ -274,7 +276,8 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           created_at: order.created_at,
           model_code: order.quote.model_code,
           customer_name: order.quote.customer?.name ?? null,
-          options,
+          // 사양 순서: 특장형태 > 탑크기 > 도어종류 > 도어추가 > 스포일러 > … > 트림
+          options: sortSpecOptions(options),
           documents: order.documents,
           vehicle_info: (order as unknown as { vehicle_info?: unknown }).vehicle_info ?? null,
           // 발주서를 상세에서도 다시 그릴 수 있게 — 수락한 뒤에 확인할 방법이 없었다
@@ -294,6 +297,8 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
           appendix_ack_at: order.appendix_ack_at,
           maker_org_name: order.maker_org?.name ?? null,
           delivery_due: order.delivery_due,
+          // 사양 탭 「상세 제원」 — 튜닝 후 치수(사양별 프리셋). 특장만 주문은 하대내측치수만
+          detail_dims: await orderDetailDims(order.id),
         },
       });
       return;
@@ -347,11 +352,12 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       ...order,
       model_code: order.quote.model_code,
       customer_name: order.quote.customer?.name ?? null,
-      options: resolvedOptions,
+      options: sortSpecOptions(resolvedOptions),
       rejected: order.maker_org_id === null && order.rejected_by_org != null,
       /* DATE 컬럼은 UTC 로 읽어야 넣을 때와 짝이 맞는다 — 그냥 흘리면 하루가 밀린다 */
       car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
       delivery_due_original: order.delivery_due_original ? fromDbDate(order.delivery_due_original) : null,
+      detail_dims: await orderDetailDims(order.id),
     } });
   } catch (e) {
     console.error('[GET /orders/:id]', e);
