@@ -336,6 +336,8 @@ export const EN: Record<string, string> = {
   '로그아웃': 'Sign out',
   '로그인': 'Sign in',
   '로그인 실패': 'Sign-in failed',
+  '로그인 상태 유지': 'Keep me signed in',
+  '공용 PC에서는 체크를 해제하세요': 'Uncheck on a shared computer',
   '로그인 중…': 'Signing in…',
   '로드 실패': 'Could not load',
   '로딩 중…': 'Loading…',
