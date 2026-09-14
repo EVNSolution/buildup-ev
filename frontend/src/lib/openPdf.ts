@@ -70,8 +70,24 @@ export function openPdf(url: string, fallbackName = t('서류.pdf')) {
     })
     return
   }
-  const w = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!w) alert('팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단을 해제해 주세요.')
+  /*
+   * ⚠️ `window.open(url, '_blank', 'noopener')` 은 **탭이 열려도 null 을 돌려준다**(HTML 규격).
+   *    예전엔 그 null 을 「차단됐다」로 읽어, 팝업을 허용해 둔 사람에게도 매번
+   *    「팝업이 차단되었습니다」가 떴다(2026-09-14 제보 — 새 탭은 멀쩡히 열리는데 경고).
+   *    그래서 옵션 없이 열고, 열린 탭에서 이 페이지를 건드리지 못하게 opener 만 끊는다.
+   */
+  const w = window.open(url, '_blank')
+  if (w) {
+    try { w.opener = null } catch { /* 이미 다른 주소로 넘어간 탭 — 끊을 것이 없다 */ }
+    return
+  }
+  /*
+   * 정말 막혔을 때(브라우저가 null) — 경고창을 띄우지 않고 **내려받기**로 넘긴다.
+   * 사용자가 할 수 있는 일이 없는 경고는 짜증만 남는다. 서류는 어떻게든 손에 들어가야 한다.
+   */
+  void saveToDevice(url, fallbackName).catch((e: unknown) => {
+    alert(e instanceof Error ? e.message : t('서류를 불러오지 못했습니다'))
+  })
 }
 
 /**
