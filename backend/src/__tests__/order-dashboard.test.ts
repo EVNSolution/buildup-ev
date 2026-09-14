@@ -6,7 +6,7 @@ import type { ApiOrder, ApiQuote } from '@buildup-ev/shared/types';
 /**
  * **주문 현황판** — 관리자 「주문 진행」 탭 맨 위(2026-09-14 기획 확정).
  *
- *   ① 배정 대기(계약완료, 거부돼 돌아온 건 포함·거부 표시) → 수락 대기 → 진행 중 → 인도 완료, 따로 「납기 지남」
+ *   ① 배정 대기(계약완료, 거부돼 돌아온 건 포함·거부 표시) → 수락 대기 → 진행 중 → 인도 완료, 따로 「납기일 경과」
  *   ② 진행 중은 트랙마다 지금 서 있는 칸에 **한 번씩**. 다른 트랙이 안 끝나 못 여는 트랙에는 안 센다
  *   ③ 칸을 누르면 그 주문 목록, 배정 대기는 그 자리에서 제작 배정(견적 목록과 같은 창)
  *   ④ 「제작 배정 필요」 알림은 이 탭의 배정 대기로 연다
@@ -37,7 +37,7 @@ describe('현황판 분류', () => {
   const orders = [
     order(1, { status: 'assigned', maker_org_id: 'ORG_A' }),                                  // 수락 대기
     order(2, { lanes: { vehicle: spot('car_arrived'), body: spot('build_started') } }),       // 진행 중 — 두 트랙
-    order(3, { lanes: { body: spot('build_started') }, delivery_due: '2026-09-10', maker_org_id: 'ORG_B' }), // 진행 중 + 납기 지남
+    order(3, { lanes: { body: spot('build_started') }, delivery_due: '2026-09-10', maker_org_id: 'ORG_B' }), // 진행 중 + 납기일 경과
     order(4, { done: 15, total: 15 }),                                                         // 인도 완료
     order(5, { status: 'contracted', maker_org_id: null, rejected_by_org: 'ORG_A', quote_id: 505 }), // 거부돼 돌아온 건
   ];
@@ -87,7 +87,7 @@ describe('현황판 분류', () => {
     expect(d.active.map(o => o.id)).toEqual([10]);
     expect(d.addon.map(o => o.id)).toEqual([11, 12, 14]);
     expect(d.done.map(o => o.id)).toEqual([13]);
-    expect(d.late.map(o => o.id), '고객 인도 목표일을 넘긴 부가작업이 납기 지남에 없다').toContain(14);
+    expect(d.late.map(o => o.id), '고객 인도 목표일을 넘긴 부가작업이 납기일 경과에 없다').toContain(14);
     expect(d.addonLanes.work!.find(c => c.code === 'addon_exterior')!.orders.map(o => o.id)).toEqual([11]);
     // 권한이 없으면 부가작업 칸 없이 예전처럼(특장사 출고 = 인도 완료)
     const off = buildDashboard(os, [], NOW, false);

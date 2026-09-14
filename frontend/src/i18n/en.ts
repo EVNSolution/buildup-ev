@@ -362,7 +362,7 @@ export const EN: Record<string, string> = {
   '출고일': 'Release date',
   '배정 대기': 'To assign',
   '인도 완료': 'Delivered',
-  '납기 지남': 'Past due',
+  '납기일 경과': 'Past due',
   '지연 있음': 'has delays',
   '목록 닫기': 'Close list',
   '방금': 'Just now',
