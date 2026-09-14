@@ -221,7 +221,8 @@ describe.runIf(live)('관리자 납기일 변경', () => {
   it('🔴 화면: 관리자에게만, 수락된 주문에만 바꾸는 줄이 열린다', () => {
     const ROOT = path.resolve(__dirname, '../../..');
     const detail = readFileSync(path.join(ROOT, 'frontend/src/components/OrderDetail.tsx'), 'utf8');
-    expect(detail).toMatch(/\{isAdmin && canChangeSteps && detail\.accepted_at && detail\.delivery_due && \(\s*<DeliveryDueRow/);
+    // 날짜 띠의 납기 칸 — 관리자·수락된 주문만 고친다
+    expect(detail).toMatch(/canEdit: isAdmin && canChangeSteps && !!detail\.accepted_at && !!detail\.delivery_due,/);
     // 바꾸면 단계 탭의 납기 머리말도 다시 읽는다
     const panel = readFileSync(path.join(ROOT, 'frontend/src/components/OrderStepsPanel.tsx'), 'utf8');
     expect(panel).toMatch(/useEffect\(\(\) => \{ load\(\) \}, \[orderId, dueKey\]\)/);

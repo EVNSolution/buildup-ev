@@ -10,8 +10,7 @@ import type { PoLine } from '@shared/docs/po-lines'
 import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
-import { CarArrivalRow } from './CarArrivalRow'
-import { AddonTargetRow } from './AddonTargetRow'
+import { DateStrip } from './DateStrip'
 import { OrderChatTab } from './OrderChatTab'
 import { rolesOf } from '@shared/types/index'
 import { useAuth } from '../contexts/AuthContext'
@@ -202,14 +201,12 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
 
           {/* 차가 언제 오는지 — 납기를 고르기 전에 알아야 하는 값이다 */}
           <div style={m.arrivalBlock}>
-            <CarArrivalRow
+            {/* 날짜 띠 — 차량 도착(관리자가 고친다) · 고객 인도 목표(관리자 + addon.manage). 납기는 아래에서 고른다 */}
+            <DateStrip
               orderId={orderId}
-              value={carArrival}
-              canEdit={isAdmin && canControl}
-              onSaved={setCarArrival}
+              arrival={{ value: carArrival, canEdit: isAdmin && canControl, onSaved: setCarArrival }}
+              target={isAdmin && canAddon}
             />
-            {/* 고객 인도 목표일 — 배정 이후 언제든(관리자 + addon.manage). 특장사 수락 화면에는 없다 */}
-            {isAdmin && canAddon && <AddonTargetRow orderId={orderId} />}
           </div>
 
           <div style={m.dueBlock}>

@@ -191,7 +191,7 @@ describe.runIf(live)('튜닝 후 치수 프리셋 — 실제 DB·서류', () => 
     expect(dims, '상세 제원이 비고보다 아래에 있다').toBeLessThan(remark);
     expect(detail.slice(dims, remark), '튜닝 전 값이 섞였다').not.toMatch(/변경 전|튜닝 전|before/);
     expect(detail.slice(dims, remark)).toMatch(/detail_dims\.body \?/);
-    for (const f of ['CarArrivalRow.tsx', 'DeliveryDueRow.tsx']) {
+    for (const f of ['DateStrip.tsx']) {
       expect(readFileSync(path.join(ROOT, 'frontend/src/components', f), 'utf8'), f).not.toMatch(/알림이 갑니다/);
     }
   });

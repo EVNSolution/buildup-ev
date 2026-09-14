@@ -164,7 +164,8 @@ describe.runIf(live)('차량 도착 예정일', () => {
     const ROOT = path.resolve(__dirname, '../../..');
     const read = (p: string) => readFileSync(path.join(ROOT, p), 'utf8');
     const detail = read('frontend/src/components/OrderDetail.tsx');
-    expect(detail, '도착 예정 줄이 화면에 없다').toMatch(/CarArrivalRow/);
-    expect(detail, '특장사에게도 고치는 자리가 열린다').toMatch(/canEdit=\{isAdmin && canChangeSteps\}/);
+    // 날짜 띠(차량 도착 · 납기 · 고객 인도 한 줄)의 차량 도착 칸 — 2026-09-14 세 줄을 한 줄로
+    expect(detail, '도착 예정 칸이 화면에 없다').toMatch(/<DateStrip/);
+    expect(detail, '특장사에게도 고치는 자리가 열린다').toMatch(/arrival=\{\{[^}]*canEdit: isAdmin && canChangeSteps,/);
   });
 });
