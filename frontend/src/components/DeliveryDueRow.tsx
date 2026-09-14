@@ -68,7 +68,7 @@ export function DeliveryDueRow({ orderId, value, original, onSaved }: {
           {original && original !== value && (
             <span style={s.hint}>{tf('처음 약속 {0}', original)}</span>
           )}
-          <button style={s.edit} onClick={() => { setDraft(value); setEditing(true) }}>{t('바꾸기')}</button>
+          <button style={s.edit} onClick={() => { setDraft(value); setEditing(true) }}>{t('변경')}</button>
           <span style={s.hint}>{tf('{0}에게 알림이 갑니다', t('특장사'))}</span>
         </>
       )}

@@ -1060,7 +1060,6 @@ export const EN: Record<string, string> = {
   '저장 중': 'Saving',
   '지우기': 'Clear',
   '아직 정해지지 않음': 'Not set yet',
-  '바꾸기': 'Change',
   '지정': 'Set',
   '특장 제작 착수': 'Body build started',
   '단계 목록을 불러오지 못했습니다': 'Could not load the step list',
