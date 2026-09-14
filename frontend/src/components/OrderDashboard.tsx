@@ -4,6 +4,7 @@ import { dueInfo } from '@shared/process/due'
 import { t, tf } from '../i18n'
 import { daysFrom, type Dashboard, type DashSelection, type TileKey, type WaitingItem } from '../lib/orderDashboard'
 import { BTN } from '../styles/buttons'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 /**
  * **주문 현황판** — 관리자 「주문 진행」 탭 맨 위(2026-09-14 기획).
@@ -57,6 +58,12 @@ export function OrderDashboard({
   maker: string | null
   onMaker: (code: string | null) => void
 }) {
+  /*
+   * **휴대폰** — 두 가지를 바꾼다(2026-09-14 로컬 확인 후 지시).
+   *   · 요약 칸 5개가 3+2 로 줄바꿈되며 오른쪽 아래가 비었다 → 네 칸을 한 줄에, 「납기 지남」은 아래 긴 줄 하나로
+   *   · 트랙 칩이 화면 밖으로 잘려 밀 수 있는지 안 보였다 → 트랙 이름을 위로 올리고 칩은 **줄바꿈**해 전부 보이게
+   */
+  const narrow = useIsMobile(600)
   const isTile = (k: TileKey) => selected?.kind === 'tile' && selected.key === k
   const isStep = (tr: Track, code: string) => selected?.kind === 'step' && selected.track === tr && selected.code === code
   const count: Record<TileKey, number> = {
@@ -77,8 +84,8 @@ export function OrderDashboard({
         </div>
       )}
 
-      <div style={s.tiles}>
-        {TILES.map(tile => {
+      <div style={narrow ? s.tilesNarrow : s.tiles}>
+        {TILES.filter(tile => !(narrow && tile.key === 'late')).map(tile => {
           const n = count[tile.key]
           const on = isTile(tile.key)
           const warn = tile.key === 'late' && n > 0
@@ -88,22 +95,40 @@ export function OrderDashboard({
               type="button"
               aria-pressed={on}
               onClick={() => pick({ kind: 'tile', key: tile.key }, on)}
-              style={{ ...s.tile, ...(warn ? s.tileWarn : {}), ...(on ? s.tileOn : {}) }}
+              style={{ ...(narrow ? s.tileNarrow : s.tile), ...(warn ? s.tileWarn : {}), ...(on ? s.tileOn : {}) }}
             >
-              <span style={{ ...s.tileLabel, ...(warn ? { color: 'var(--req)' } : {}) }}>
-                <Icon name={tile.icon} size={17} />{t(tile.label)}
+              <span style={{ ...(narrow ? s.tileLabelNarrow : s.tileLabel), ...(warn ? { color: 'var(--req)' } : {}) }}>
+                {/* 휴대폰 칸은 좁아 아이콘을 뺀다 — 네 글자 이름과 숫자만 */}
+                {!narrow && <Icon name={tile.icon} size={17} />}{t(tile.label)}
               </span>
-              <span style={{ ...s.tileNum, ...(n === 0 ? { color: 'var(--muted)' } : {}), ...(warn ? { color: 'var(--req)' } : {}) }}>{n}</span>
+              <span style={{ ...(narrow ? s.tileNumNarrow : s.tileNum), ...(n === 0 ? { color: 'var(--muted)' } : {}), ...(warn ? { color: 'var(--req)' } : {}) }}>{n}</span>
             </button>
           )
         })}
       </div>
 
+      {narrow && (() => {
+        // 휴대폰의 「납기 지남」 — 칸 대신 긴 줄 하나. 0 건이면 흐리게
+        const n = count.late
+        const on = isTile('late')
+        return (
+          <button
+            type="button"
+            aria-pressed={on}
+            onClick={() => pick({ kind: 'tile', key: 'late' }, on)}
+            style={{ ...s.lateBar, ...(n > 0 ? s.lateBarWarn : {}), ...(on ? s.tileOn : {}) }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="alert" size={17} />{t('납기 지남')}</span>
+            <span style={s.lateBarNum}>{n}</span>
+          </button>
+        )
+      })()}
+
       <div style={s.lanes}>
         {TRACKS.map((track, i) => (
-          <div key={track} style={i === TRACKS.length - 1 ? { ...s.lane, borderBottom: 'none' } : s.lane}>
+          <div key={track} style={{ ...(narrow ? s.laneNarrow : s.lane), ...(i === TRACKS.length - 1 ? { borderBottom: 'none' } : {}) }}>
             <span style={s.laneName}><Icon name={TRACK_ICON[track]} size={18} />{t(TRACK_LABEL[track])}</span>
-            <div style={s.chips}>
+            <div style={narrow ? s.chipsWrap : s.chips}>
               {dash.lanes[track].map(chip => {
                 const n = chip.orders.length
                 const on = isStep(track, chip.code)
@@ -228,6 +253,23 @@ const s: Record<string, React.CSSProperties> = {
   // ⚠️ 테두리는 **늘 한 줄로**(border) 준다. borderColor 만 덮었다 걷으면 React 가 그 값만 지워
   //    기본색(검정)으로 돌아간다 — 고르지 않은 칸에 검은 테두리가 남았다(실측).
   tileOn: { border: '2px solid var(--dark)', background: '#fff' },
+  // 휴대폰 — 네 칸 한 줄
+  tilesNarrow: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 },
+  tileNarrow: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, textAlign: 'center',
+    background: 'var(--card)', border: '2px solid transparent', borderRadius: 'var(--r-md)',
+    padding: '8px 2px', cursor: 'pointer', fontFamily: 'inherit', minWidth: 0,
+  },
+  tileLabelNarrow: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' },
+  tileNumNarrow: { fontSize: 24, fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.15 },
+  lateBar: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+    background: 'var(--card)', border: '2px solid transparent', borderRadius: 'var(--r-md)',
+    padding: '8px 14px', minHeight: 44, cursor: 'pointer', fontFamily: 'inherit',
+    fontSize: 'var(--fs-label)', color: 'var(--muted)', marginTop: -4,
+  },
+  lateBarWarn: { background: 'rgba(192,57,43,.08)', color: 'var(--req)', fontWeight: 700 },
+  lateBarNum: { fontSize: 20, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
   tileWarn: { background: 'rgba(192,57,43,.08)' },
   tileLabel: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-label)', color: 'var(--muted)', whiteSpace: 'nowrap' },
   tileNum: { fontSize: 26, fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 },
@@ -239,6 +281,9 @@ const s: Record<string, React.CSSProperties> = {
   laneName: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-label)', color: 'var(--muted)', fontWeight: 600 },
   // 칩이 넘치면 **가로로 민다** — 줄바꿈하면 트랙 줄 높이가 제각각이 된다
   chips: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 },
+  // 휴대폰 — 트랙 이름을 위에, 칩은 줄바꿈해 **전부 보이게**(가로로 밀면 잘린 칩이 있는지 모른다)
+  laneNarrow: { display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: 'var(--hairline)' },
+  chipsWrap: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   chip: {
     flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6,
     fontFamily: 'inherit', fontSize: 'var(--fs-label)', color: 'var(--dark)', whiteSpace: 'nowrap',

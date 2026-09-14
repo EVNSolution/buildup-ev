@@ -101,6 +101,17 @@ describe('화면 규칙', () => {
     expect(kanban).toMatch(/initialView === 'assign' \? \{ kind: 'tile', key: 'assign' \} : null/);
   });
 
+  it('🔴 칸·트랙·단계 이름이 영문 사전에 다 있다 — 표에서 꺼내 t() 를 태우므로 일반 영문화 검사가 못 잡는다', async () => {
+    const { EN } = await import('../../../frontend/src/i18n/en');
+    const { STEPS, TRACK_LABEL } = await import('@buildup-ev/shared/process');
+    const comp = read('frontend/src/components/OrderDashboard.tsx');
+    const tiles = [...comp.matchAll(/\{ key: '\w+', label: '([^']+)'/g)].map(m => m[1]!);
+    expect(tiles.length).toBe(5);
+    const titles = [...kanban.matchAll(/(?:assign|pending|active|done|late): '([^']+)'/g)].map(m => m[1]!);
+    const need = [...tiles, ...titles, ...Object.values(TRACK_LABEL), ...STEPS.map(x => x.label)];
+    expect(need.filter(k => !(k in EN)), '사전에 없어 영어 화면에 한국어로 나간다').toEqual([]);
+  });
+
   it('🔴 칸·칩 테두리는 한 줄(border)로만 — borderColor 만 걷으면 검은 테두리가 남는다', () => {
     const comp = read('frontend/src/components/OrderDashboard.tsx');
     expect(comp).not.toMatch(/borderColor:/);
