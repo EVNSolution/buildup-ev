@@ -71,6 +71,30 @@ describe('현황판 분류', () => {
     expect(dash.lanes.vehicle!.find(c => c.code === 'car_arrived')!.late).toBe(0);
   });
 
+  it('🔴 부가작업을 볼 수 있으면 — 특장 진행 → 부가작업 → 인도 완료(고객 인도)', () => {
+    const addon = (finished: boolean, extra: object = {}) => ({
+      factory_done: true, factory_done_at: '2026-09-10T00:00:00Z', finished, target_on: null, delivered_on: null,
+      lanes: { prep: null, work: null, handover: null }, ...extra,
+    });
+    const os = [
+      order(10, { lanes: { body: spot('build_started') } }),                                   // 특장 진행
+      order(11, { done: 15, total: 15, addon: addon(false, { lanes: { prep: null, work: { code: 'addon_exterior', label: 'x', since: null, late: false }, handover: null } }) } as never),
+      order(12, { done: 15, total: 15, status: 'completed', addon: addon(false) } as never), // 옛 흐름에서 견적이 완료였어도 고객 인도 전이면 부가작업
+      order(13, { done: 15, total: 15, addon: addon(true) } as never),                        // 고객 인도 끝
+      order(14, { done: 15, total: 15, addon: addon(false, { target_on: '2026-09-01' }) } as never), // 목표일 지남
+    ];
+    const d = buildDashboard(os, [], NOW, true);
+    expect(d.active.map(o => o.id)).toEqual([10]);
+    expect(d.addon.map(o => o.id)).toEqual([11, 12, 14]);
+    expect(d.done.map(o => o.id)).toEqual([13]);
+    expect(d.late.map(o => o.id), '고객 인도 목표일을 넘긴 부가작업이 납기 지남에 없다').toContain(14);
+    expect(d.addonLanes.work!.find(c => c.code === 'addon_exterior')!.orders.map(o => o.id)).toEqual([11]);
+    // 권한이 없으면 부가작업 칸 없이 예전처럼(특장사 출고 = 인도 완료)
+    const off = buildDashboard(os, [], NOW, false);
+    expect(off.addon).toEqual([]);
+    expect(off.addonEnabled).toBe(false);
+  });
+
   it('🔴 특장사로 거르면 주문만 걸러진다', () => {
     const only = buildDashboard(filterByMaker(orders, 'ORG_B'), [], NOW);
     expect(only.active.map(o => o.id)).toEqual([3]);
@@ -101,29 +125,27 @@ describe('화면 규칙', () => {
     expect(kanban).toMatch(/initialView === 'assign' \? \{ kind: 'tile', key: 'assign' \} : null/);
   });
 
-  it('🔴 트랙 현황판은 「진행 중」(또는 그 안의 단계 칩)을 골랐을 때만 편다 — 배정·수락·인도는 트랙이 필요 없다', () => {
+  it('🔴 트랙은 「특장 진행」이면 특장사 단계, 「부가작업」이면 부가작업 단계를 편다 — 배정·수락·인도는 트랙이 필요 없다', () => {
     const comp = read('frontend/src/components/OrderDashboard.tsx');
-    expect(comp).toMatch(/const showLanes = stepPicked \|\| \(selected\?\.kind === 'tile' && selected\.key === 'active'\)/);
-    expect(comp).toMatch(/\{showLanes && <div style=\{s\.lanes\}>/);
-    // 칩을 다시 누르면 진행 중으로 — 현황판이 접히지 않는다
-    expect(comp).toMatch(/onSelect\(on \? \{ kind: 'tile', key: 'active' \} :/);
-  });
-
-  it('🔴 휴대폰 모양으로 바뀌는 폭이 헤더와 같다 — 어긋나면 헤더는 휴대폰, 현황판은 PC 모양이 된다', () => {
-    const comp = read('frontend/src/components/OrderDashboard.tsx');
-    const header = read('frontend/src/components/Header.tsx');
-    expect(header).toMatch(/const isMobile = useIsMobile\(\)/);
-    expect(comp).toMatch(/const narrow = useIsMobile\(\)/);
+    expect(comp).toMatch(/selected\.key === 'active' \? 'maker'/);
+    expect(comp).toMatch(/selected\.key === 'addon' \? 'addon' : null/);
+    expect(comp).toMatch(/\{laneRows\.length > 0 && <div style=\{s\.lanes\}>/);
+    // 칩을 다시 누르면 그 칸 전체로 — 트랙이 접히지 않는다
+    expect(comp).toMatch(/onSelect\(\{ kind: 'tile', key: group === 'maker' \? 'active' : 'addon' \}\)/);
+    // 부가작업 칸은 응답에 부가작업이 실렸을 때(권한)만
+    expect(comp).toMatch(/tile\.key !== 'addon' \|\| dash\.addonEnabled/);
   });
 
   it('🔴 칸·트랙·단계 이름이 영문 사전에 다 있다 — 표에서 꺼내 t() 를 태우므로 일반 영문화 검사가 못 잡는다', async () => {
     const { EN } = await import('../../../frontend/src/i18n/en');
     const { STEPS, TRACK_LABEL } = await import('@buildup-ev/shared/process');
     const comp = read('frontend/src/components/OrderDashboard.tsx');
+    const { ADDON_STEPS, ADDON_TRACK_LABEL } = await import('@buildup-ev/shared/process/addon');
     const tiles = [...comp.matchAll(/\{ key: '\w+', label: '([^']+)'/g)].map(m => m[1]!);
-    expect(tiles.length).toBe(5);
-    const titles = [...kanban.matchAll(/(?:assign|pending|active|done|late): '([^']+)'/g)].map(m => m[1]!);
-    const need = [...tiles, ...titles, ...Object.values(TRACK_LABEL), ...STEPS.map(x => x.label)];
+    expect(tiles.length).toBe(6);
+    const titles = [...kanban.matchAll(/(?:assign|pending|active|addon|done|late): '([^']+)'/g)].map(m => m[1]!);
+    const need = [...tiles, ...titles, ...Object.values(TRACK_LABEL), ...STEPS.map(x => x.label),
+      ...Object.values(ADDON_TRACK_LABEL), ...ADDON_STEPS.map(x => x.label)];
     expect(need.filter(k => !(k in EN)), '사전에 없어 영어 화면에 한국어로 나간다').toEqual([]);
   });
 

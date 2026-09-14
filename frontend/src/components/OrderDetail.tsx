@@ -25,6 +25,8 @@ import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 import { CarArrivalRow } from './CarArrivalRow'
 import { DeliveryDueRow } from './DeliveryDueRow'
+import { AddonTargetRow } from './AddonTargetRow'
+import { AddonStepsPanel } from './AddonStepsPanel'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -412,7 +414,7 @@ interface Props {
    * 처음 열 탭. 푸시 알림을 눌러 들어오면 `'chat'` 으로 열린다 —
    * 알림이 말하는 내용이 거기 있는데 단계 탭부터 보여 주면 다시 찾아야 한다.
    */
-  initialTab?: 'steps' | 'spec' | 'docs' | 'load' | 'chat'
+  initialTab?: 'steps' | 'addon' | 'spec' | 'docs' | 'load' | 'chat'
   /** 대화 탭에서 미리 골라 둘 단계 코드(알림이 온 그 단계) */
   initialChatStep?: string
 }
@@ -429,7 +431,11 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   // 기본은 「단계」 — 이 화면에 오는 이유가 다음에 할 일을 아는 것이다
-  const [tab, setTab] = useState<'steps' | 'spec' | 'docs' | 'load' | 'chat'>(initialTab ?? 'steps')
+  /**
+   * 부가작업(공장 출고 뒤 우리 쪽 작업) — 관리자 + addon.manage 만. 특장사 화면(makerView)에는 탭도 목표일도 없다
+   */
+  const canAddon = usePermission('addon.manage') && isAdmin && !makerView
+  const [tab, setTab] = useState<'steps' | 'addon' | 'spec' | 'docs' | 'load' | 'chat'>(initialTab === 'addon' && !canAddon ? 'steps' : (initialTab ?? 'steps'))
 
   /*
    * **안 읽은 대화가 있으면 「대화」 탭 전체를 칠한다.**
@@ -553,6 +559,8 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
             } : d))}
           />
         )}
+        {/* 고객 인도 목표일 — 배정 이후 언제든, 특장사와 별개(특장사 화면에는 없다) */}
+        {canAddon && <AddonTargetRow orderId={detail.id} />}
       </div>
 
       {/*
@@ -570,6 +578,12 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
         <button style={tab === 'steps' ? det.tabActive : det.tabBtn} onClick={() => setTab('steps')}>
           {t('단계')}
         </button>
+        {/* 부가작업 — 공장 출고 뒤 우리 쪽 작업(관리자 + addon.manage) */}
+        {canAddon && (
+          <button style={tab === 'addon' ? det.tabActive : det.tabBtn} onClick={() => setTab('addon')}>
+            {t('부가작업')}
+          </button>
+        )}
         <button style={tab === 'spec' ? det.tabActive : det.tabBtn} onClick={() => setTab('spec')}>
           {t('사양')}
         </button>
@@ -617,6 +631,12 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
           /* 납기를 넘긴 주문은 대화 탭 안도 붉다 */
           overdue={dueInfo(detail.delivery_due).state === 'overdue'}
         />
+      )}
+
+      {tab === 'addon' && canAddon && (
+        <div style={det.section}>
+          <AddonStepsPanel orderId={detail.id} />
+        </div>
       )}
 
       {tab === 'steps' && (

@@ -2,6 +2,7 @@
 import type { ApiOrder, ApiQuote } from '../../../shared/types/index'
 import { dueInfo } from '../../../shared/process/due'
 import { STEPS, TRACKS, type Track } from '../../../shared/process/steps'
+import { ADDON_STEPS, ADDON_TRACKS, type AddonTrack } from '../../../shared/process/addon'
 
 /**
  * **주문 현황판의 분류** — 어느 주문을 어느 칸에 세는가. 화면(React)과 떼어 두어 시험할 수 있게 한다.
@@ -16,11 +17,13 @@ import { STEPS, TRACKS, type Track } from '../../../shared/process/steps'
  *   · **인도 완료** = 단계를 다 끝냈다
  *   · **납기 지남** = 진행 중인데 납기가 지났다
  */
-export type TileKey = 'assign' | 'pending' | 'active' | 'done' | 'late'
+export type TileKey = 'assign' | 'pending' | 'active' | 'addon' | 'done' | 'late'
 
+/** 단계 칩 — 특장사 단계(차량·특장·튜닝·출고)인지 부가작업(작업 전·작업 중·고객 인도)인지 */
 export type DashSelection =
   | { kind: 'tile'; key: TileKey }
-  | { kind: 'step'; track: Track; code: string }
+  | { kind: 'step'; group: 'maker'; track: Track; code: string }
+  | { kind: 'step'; group: 'addon'; track: AddonTrack; code: string }
 
 export interface WaitingItem {
   quote: ApiQuote
@@ -33,10 +36,17 @@ export interface StepChip { code: string; label: string; orders: ApiOrder[]; lat
 export interface Dashboard {
   assign: WaitingItem[]
   pending: ApiOrder[]
+  /** 특장 진행 — 수락했고 특장사 출고 전 */
   active: ApiOrder[]
+  /** 부가작업 — 특장사 출고 뒤 고객 인도 전(관리자 + addon.manage 일 때만 채운다) */
+  addon: ApiOrder[]
+  /** 인도 완료 — 부가작업을 볼 수 있으면 **고객 인도**, 아니면 특장사 출고 */
   done: ApiOrder[]
   late: ApiOrder[]
   lanes: Record<Track, StepChip[]>
+  addonLanes: Record<AddonTrack, StepChip[]>
+  /** 부가작업 칸을 그릴지 — 응답에 부가작업 요약이 실렸는가(권한) */
+  addonEnabled: boolean
 }
 
 /** 거부돼 돌아간 건 — 배정이 풀렸고 누가 거부했는지 남아 있다 */
@@ -48,12 +58,32 @@ export const isFinished = (o: ApiOrder) =>
   || o.steps?.finished === true
   || (!!o.steps && o.steps.total > 0 && o.steps.done >= o.steps.total)
 
-export function buildDashboard(orders: ApiOrder[], contracted: ApiQuote[], now = new Date()): Dashboard {
+export function buildDashboard(orders: ApiOrder[], contracted: ApiQuote[], now = new Date(), addonEnabled = false): Dashboard {
   const live = orders.filter(o => !isRejected(o))
+  /** 특장사 단계를 다 끝냈다(공장 출고) — 견적 상태가 아니라 단계로 본다 */
+  const factoryDone = (o: ApiOrder) => !!o.steps && o.steps.total > 0 && (o.steps.finished === true || o.steps.done >= o.steps.total)
   const pending = live.filter(o => o.quote.status === 'assigned' && !isFinished(o))
-  const done = live.filter(isFinished)
-  const active = live.filter(o => o.quote.status !== 'assigned' && !isFinished(o))
-  const late = active.filter(o => dueInfo(o.delivery_due, now).state === 'overdue')
+  let active: ApiOrder[]
+  let addon: ApiOrder[] = []
+  let done: ApiOrder[]
+  if (addonEnabled) {
+    /*
+     * 특장 진행 → **부가작업** → 인도 완료(고객 인도). 출고한 옛 주문(견적이 이미 「완료」)도
+     * 고객 인도를 찍기 전까지는 부가작업 칸에 선다 — 인도 완료는 고객 인도 기록으로만 판정한다.
+     */
+    active = live.filter(o => o.quote.status !== 'assigned' && !factoryDone(o))
+    addon = live.filter(o => factoryDone(o) && o.addon?.finished !== true)
+    done = live.filter(o => factoryDone(o) && o.addon?.finished === true)
+  } else {
+    active = live.filter(o => o.quote.status !== 'assigned' && !isFinished(o))
+    done = live.filter(isFinished)
+  }
+  const overTarget = (o: ApiOrder) => !!o.addon?.target_on && o.addon.target_on < toDay(now)
+  const late = [
+    ...active.filter(o => dueInfo(o.delivery_due, now).state === 'overdue'),
+    // 부가작업 중 — 고객 인도 목표일을 넘겼다
+    ...addon.filter(overTarget),
+  ]
 
   const rejectedByQuote = new Map(orders.filter(isRejected).map(o => [o.quote_id, o]))
   const assign = contracted
@@ -72,7 +102,20 @@ export function buildDashboard(orders: ApiOrder[], contracted: ApiQuote[], now =
       return { code: d.code, label: d.label, orders: here, late }
     })
   }
-  return { assign, pending, active, done, late, lanes }
+  const addonLanes = {} as Record<AddonTrack, StepChip[]>
+  for (const track of ADDON_TRACKS) {
+    addonLanes[track] = ADDON_STEPS.filter(d => d.track === track).map(d => {
+      const here = addon.filter(o => o.addon?.lanes?.[track]?.code === d.code)
+      return { code: d.code, label: d.label, orders: here, late: here.filter(overTarget).length }
+    })
+  }
+  return { assign, pending, active, addon, done, late, lanes, addonLanes, addonEnabled }
+}
+
+/** 오늘(로컬) YYYY-MM-DD */
+function toDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 /** 특장사로 거른다 — 배정 대기는 특장사가 없으니 거르지 않는다 */

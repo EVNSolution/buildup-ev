@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request } from 'express';
-import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices, scopedToMine } from '../middleware/rbac.js';
+import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices, scopedToMine, hasPermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { assertOrderQuoteOwner, makerReaches, salesReaches } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
@@ -11,6 +11,7 @@ import { loadHolidays } from '../services/holidays.js';
 import { orderDetailDims } from '../services/dimension-preset.js';
 import { notify, appRecipients } from '../services/push.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD, laneSpots, TRACKS } from '@buildup-ev/shared/process';
+import { ADDON_LAST, ADDON_TRACKS, addonSpots } from '@buildup-ev/shared/process/addon';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
 export const ordersRouter = Router();
@@ -72,6 +73,11 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
    *    자격 판정은 rbac 의 canSeeQuotePrices 하나만 본다(라우트마다 손으로 적지 않는다).
    */
   const showPrice = canSeeQuotePrices(auth);
+  /*
+   * **부가작업**(공장 출고 뒤 우리 쪽 작업)은 관리자 + `addon.manage` 에게만 싣는다.
+   * 특장사(자기 조직 범위)에게는 조회 자체를 하지 않는다 — 응답에서 지우는 방식은 빠뜨리면 샌다.
+   */
+  const showAddon = !ownOrgOnly(auth) && isAdmin(auth) && await hasPermission(req, 'addon.manage');
 
   try {
     const orders = await prisma.order.findMany({
@@ -94,6 +100,10 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
         // 여러 건을 훑는 화면(칸반 자리)이 쓸모없어진다
         // done_at 도 싣는다 — 요약에 「무엇을 마지막으로 끝냈나」를 적으려면 시각이 필요하다
         steps: { select: { code: true, status: true, planned_at: true, done_at: true } },
+        ...(showAddon ? {
+          addon_steps: { select: { code: true, status: true, done_at: true } },
+          addon: { select: { customer_target_on: true, customer_delivered_on: true } },
+        } : {}),
       },
     });
 
@@ -102,7 +112,11 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     const byCodeDoneAt = (rows: { code: string; done_at: Date | null }[], code: string): number | undefined =>
       rows.find(r => r.code === code)?.done_at?.getTime();
 
-    const data = orders.map(({ steps, ...o }) => {
+    const data = orders.map(({ steps, ...rest }) => {
+      const { addon_steps, addon, ...o } = rest as typeof rest & {
+        addon_steps?: { code: string; status: string; done_at: Date | null }[];
+        addon?: { customer_target_on: Date | null; customer_delivered_on: Date | null } | null;
+      };
       const doneAll = new Set(steps.filter(s => s.status === 'done').map(s => s.code));
       /*
        * **해당 없는 단계는 세지도, 할 일로 띄우지도 않는다.**
@@ -162,8 +176,32 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
         return [tr, { ...sp, late: isOverdue(sp.code, { code: sp.code, status: 'pending' }, due, now, done, defs) }];
       }));
 
+      /*
+       * 부가작업 요약 — 트랙(작업 전·작업 중·고객 인도)마다 지금 칸, 고객 인도 목표일을 넘겼으면 late.
+       * 특장사 출고(delivered)가 끝나야 열린다 — 그 전에는 칸이 없다.
+       */
+      const factoryAt = steps.find(r => r.code === 'delivered' && r.status === 'done')?.done_at ?? null;
+      const targetOn = addon?.customer_target_on ? addon.customer_target_on.toISOString().slice(0, 10) : null;
+      const addonSummary = showAddon ? (() => {
+        const rows = addon_steps ?? [];
+        const finished = rows.some(r => r.code === ADDON_LAST && r.status === 'done');
+        const overTarget = !finished && !!targetOn && targetOn < now.toISOString().slice(0, 10);
+        const spots = addonSpots(rows, factoryAt);
+        return {
+          factory_done: !!factoryAt,
+          factory_done_at: factoryAt,
+          finished,
+          target_on: targetOn,
+          delivered_on: addon?.customer_delivered_on ? addon.customer_delivered_on.toISOString().slice(0, 10) : null,
+          lanes: factoryAt
+            ? Object.fromEntries(ADDON_TRACKS.map(tr => [tr, spots[tr] ? { ...spots[tr]!, late: overTarget } : null]))
+            : Object.fromEntries(ADDON_TRACKS.map(tr => [tr, null])),
+        };
+      })() : undefined;
+
       return {
         ...o,
+        ...(addonSummary ? { addon: addonSummary } : {}),
         steps: {
           lanes,
           finished: applicable.size > 0 && done.size >= applicable.size,

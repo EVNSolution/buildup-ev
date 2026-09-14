@@ -17,6 +17,7 @@ role,ADMIN,doc.view,Y,
 role,ADMIN,doc.send.email,Y,
 role,ADMIN,doc.send.sign,Y,
 role,ADMIN,notify.push,Y,
+role,ADMIN,addon.manage,Y,
 role,ADMIN,stats.own,Y,
 role,ADMIN,stats.all,Y,
 role,ADMIN,basedata.manage,N,계정별로 켠다

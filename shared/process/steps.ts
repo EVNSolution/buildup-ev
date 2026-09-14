@@ -181,8 +181,13 @@ export const STEPS: StepDef[] = [
    * 인도 체크리스트는 **관리자**가 적는다 — 넘겨받는 쪽이 확인하는 자리다.
    * 이 단계가 닫히면 주문이 끝나므로, 마지막 관문이기도 하다.
    */
-  { code: 'delivered', track: 'merged', label: '인도', actor: 'SALES',
-    requires: ['inspection_done', 'docs_complete'], dateLabel: '인도일', evidence: [],
+  /*
+   * 「출고」 — 특장사가 **공장에서 내보내는** 마지막 단계(2026-09-14 이름 변경, 옛 「인도」).
+   * 고객에게 넘기는 인도는 이 뒤 우리 쪽 **부가작업**(process/addon.ts)의 「인도 완료」다.
+   * 코드(delivered)는 그대로 둔다 — 이미 쌓인 단계 기록·체크리스트가 이 코드로 묶여 있다.
+   */
+  { code: 'delivered', track: 'merged', label: '출고', actor: 'SALES',
+    requires: ['inspection_done', 'docs_complete'], dateLabel: '출고일', evidence: [],
     checklist: 'ADMIN' },
 ];
 
@@ -225,11 +230,24 @@ export function laneSpots(
   rows: { code: string; status: string; done_at: Date | string | null }[],
   startedAt: Date | string | null,
 ): Record<Track, LaneSpot | null> {
+  return laneSpotsOf(TRACKS, defs, rows, startedAt);
+}
+
+/**
+ * `laneSpots` 의 일반형 — **트랙 이름이 다른 카탈로그에도 같은 규칙**을 쓴다(부가작업: 작업 전·작업 중·고객 인도).
+ * 트랙마다 선행을 끝낸 첫 미완료 단계가 자리, 트랙을 다 끝냈거나 못 여는 트랙은 null.
+ */
+export function laneSpotsOf<T extends string>(
+  tracks: readonly T[],
+  defs: readonly { code: string; track: T; label: string; requires: readonly string[] }[],
+  rows: { code: string; status: string; done_at: Date | string | null }[],
+  startedAt: Date | string | null,
+): Record<T, LaneSpot | null> {
   const doneAt = new Map<string, Date | null>();
   for (const r of rows) if (r.status === 'done') doneAt.set(r.code, r.done_at ? new Date(r.done_at) : null);
   const iso = (d: Date | string | null) => (d ? new Date(d).toISOString() : null);
-  const out = {} as Record<Track, LaneSpot | null>;
-  for (const track of TRACKS) {
+  const out = {} as Record<T, LaneSpot | null>;
+  for (const track of tracks) {
     const lane = defs.filter(d => d.track === track);
     const spot = lane.find(d => !doneAt.has(d.code) && d.requires.every(q => doneAt.has(q)));
     if (!spot) { out[track] = null; continue; }

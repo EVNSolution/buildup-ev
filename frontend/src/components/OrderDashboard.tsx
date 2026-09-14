@@ -1,5 +1,6 @@
 import type { ApiOrder } from '@shared/types/index'
 import { TRACK_LABEL, TRACKS, type Track } from '@shared/process/steps'
+import { ADDON_TRACK_LABEL, ADDON_TRACKS, type AddonTrack } from '@shared/process/addon'
 import { dueInfo } from '@shared/process/due'
 import { t, tf } from '../i18n'
 import { daysFrom, type Dashboard, type DashSelection, type TileKey, type WaitingItem } from '../lib/orderDashboard'
@@ -38,14 +39,23 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   )
 }
 
+/*
+ * 칸 순서 = 주문이 흐르는 순서(2026-09-14): 배정 대기 → 수락 대기 → 특장 진행 → 부가작업 → 인도 완료(고객 인도).
+ * 「부가작업」은 관리자 + addon.manage 일 때만(응답에 부가작업이 실렸을 때) 보인다.
+ */
 const TILES: { key: TileKey; label: string; icon: IconName }[] = [
   { key: 'assign', label: '배정 대기', icon: 'hourglass' },
   { key: 'pending', label: '수락 대기', icon: 'inbox' },
-  { key: 'active', label: '진행 중', icon: 'progress' },
+  { key: 'active', label: '특장 진행', icon: 'progress' },
+  { key: 'addon', label: '부가작업', icon: 'tool' },
   { key: 'done', label: '인도 완료', icon: 'check' },
   { key: 'late', label: '납기 지남', icon: 'alert' },
 ]
 const TRACK_ICON: Record<Track, IconName> = { vehicle: 'truck', body: 'tool', tuning: 'file', merged: 'flag' }
+const ADDON_ICON: Record<AddonTrack, IconName> = { prep: 'truck', work: 'tool', handover: 'flag' }
+
+/** 트랙 줄 한 벌 — 특장사 단계(차량·특장·튜닝·출고) 또는 부가작업(작업 전·작업 중·고객 인도) */
+type LaneRow = { key: string; label: string; icon: IconName; chips: { code: string; label: string; orders: ApiOrder[]; late: number }[] }
 
 export function OrderDashboard({
   dash, selected, onSelect, makers, maker, onMaker,
@@ -71,13 +81,31 @@ export function OrderDashboard({
    * 단계가 없어 트랙이 필요 없다 — 늘 펴 두면 화면만 차지해 정작 목록이 밀려난다.
    * 단계 칩을 고른 동안에도 펴 두고, 「진행 중」 칸도 고른 채로 보인다(칩은 진행 중 안의 한 칸이다).
    */
-  const stepPicked = selected?.kind === 'step'
-  const showLanes = stepPicked || (selected?.kind === 'tile' && selected.key === 'active')
-  const isTile = (k: TileKey) => (selected?.kind === 'tile' && selected.key === k) || (k === 'active' && stepPicked)
-  const isStep = (tr: Track, code: string) => selected?.kind === 'step' && selected.track === tr && selected.code === code
+  const stepGroup = selected?.kind === 'step' ? selected.group : null
+  /** 펼칠 트랙 한 벌 — 특장 진행이면 특장사 단계, 부가작업이면 부가작업 단계, 아니면 없음 */
+  const laneGroup: 'maker' | 'addon' | null =
+    stepGroup ?? (selected?.kind === 'tile' && selected.key === 'active' ? 'maker'
+      : selected?.kind === 'tile' && selected.key === 'addon' ? 'addon' : null)
+  const isTile = (k: TileKey) =>
+    (selected?.kind === 'tile' && selected.key === k) || (k === 'active' && stepGroup === 'maker') || (k === 'addon' && stepGroup === 'addon')
+  const isStep = (group: 'maker' | 'addon', tr: string, code: string) =>
+    selected?.kind === 'step' && selected.group === group && selected.track === tr && selected.code === code
   const count: Record<TileKey, number> = {
     assign: dash.assign.length, pending: dash.pending.length, active: dash.active.length,
-    done: dash.done.length, late: dash.late.length,
+    addon: dash.addon.length, done: dash.done.length, late: dash.late.length,
+  }
+  const tiles = TILES.filter(tile => (tile.key !== 'addon' || dash.addonEnabled) && !(narrow && tile.key === 'late'))
+  const laneRows: LaneRow[] = laneGroup === 'maker'
+    ? TRACKS.map(tr => ({ key: tr, label: TRACK_LABEL[tr], icon: TRACK_ICON[tr], chips: dash.lanes[tr] }))
+    : laneGroup === 'addon'
+      ? ADDON_TRACKS.map(tr => ({ key: tr, label: ADDON_TRACK_LABEL[tr], icon: ADDON_ICON[tr], chips: dash.addonLanes[tr] }))
+      : []
+  const pickStep = (group: 'maker' | 'addon', track: string, code: string, on: boolean) => {
+    // 같은 칩을 다시 누르면 칩만 풀고 **그 칸 전체**로 돌아간다(트랙은 편 채로)
+    if (on) { onSelect({ kind: 'tile', key: group === 'maker' ? 'active' : 'addon' }); return }
+    onSelect(group === 'maker'
+      ? { kind: 'step', group, track: track as Track, code }
+      : { kind: 'step', group, track: track as AddonTrack, code })
   }
   // 같은 것을 다시 누르면 접는다 — 펼친 목록을 닫는 길이 하나 더 있어야 한다
   const pick = (s: DashSelection, on: boolean) => onSelect(on ? null : s)
@@ -93,8 +121,8 @@ export function OrderDashboard({
         </div>
       )}
 
-      <div style={narrow ? s.tilesNarrow : s.tiles}>
-        {TILES.filter(tile => !(narrow && tile.key === 'late')).map(tile => {
+      <div style={narrow ? { ...s.tilesNarrow, gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))` } : s.tiles}>
+        {tiles.map(tile => {
           const n = count[tile.key]
           const on = isTile(tile.key)
           const warn = tile.key === 'late' && n > 0
@@ -133,22 +161,21 @@ export function OrderDashboard({
         )
       })()}
 
-      {showLanes && <div style={s.lanes}>
-        {TRACKS.map((track, i) => (
-          <div key={track} style={{ ...(narrow ? s.laneNarrow : s.lane), ...(i === TRACKS.length - 1 ? { borderBottom: 'none' } : {}) }}>
-            <span style={s.laneName}><Icon name={TRACK_ICON[track]} size={18} />{t(TRACK_LABEL[track])}</span>
+      {laneRows.length > 0 && <div style={s.lanes}>
+        {laneRows.map((row, i) => (
+          <div key={row.key} style={{ ...(narrow ? s.laneNarrow : s.lane), ...(i === laneRows.length - 1 ? { borderBottom: 'none' } : {}) }}>
+            <span style={s.laneName}><Icon name={row.icon} size={18} />{t(row.label)}</span>
             <div style={narrow ? s.chipsWrap : s.chips}>
-              {dash.lanes[track].map(chip => {
+              {row.chips.map(chip => {
                 const n = chip.orders.length
-                const on = isStep(track, chip.code)
+                const on = isStep(laneGroup!, row.key, chip.code)
                 return (
                   <button
                     key={chip.code}
                     type="button"
                     aria-pressed={on}
                     aria-label={tf('{0} {1}건', t(chip.label), n) + (chip.late > 0 ? ` · ${t('지연 있음')}` : '')}
-                    // 같은 칩을 다시 누르면 칩만 풀고 **진행 중 전체**로 돌아간다(현황판은 편 채로)
-                    onClick={() => onSelect(on ? { kind: 'tile', key: 'active' } : { kind: 'step', track, code: chip.code })}
+                    onClick={() => pickStep(laneGroup!, row.key, chip.code, on)}
                     style={{
                       ...s.chip,
                       ...(n === 0 ? s.chipZero : {}),
@@ -176,13 +203,17 @@ export function OrderDashboard({
  * 누르면 그 주문을 연다. 배정 대기 줄은 그 자리에서 「제작 배정」.
  */
 export function DashboardList({
-  title, orders, waiting, track, makerName, onOpen, onAssign, onRejectedOpen, onClose,
+  title, orders, waiting, track, addonTrack, addonMode = false, makerName, onOpen, onAssign, onRejectedOpen, onClose,
 }: {
   title: string
   orders?: ApiOrder[]
   waiting?: WaitingItem[]
   /** 단계 칩에서 열었으면 그 트랙 — 「며칠째」를 그 단계가 열린 날부터 센다 */
   track?: Track
+  /** 부가작업 단계 칩에서 열었으면 그 트랙 */
+  addonTrack?: AddonTrack
+  /** 부가작업 목록 — 납기 대신 **고객 인도 목표일**, 며칠째는 공장 출고(또는 그 단계가 열린 날)부터 */
+  addonMode?: boolean
   makerName: (code: string | null | undefined) => string
   onOpen: (o: ApiOrder) => void
   /** 배정 권한이 없으면 넘기지 않는다 — 버튼째 감춘다 */
@@ -219,6 +250,28 @@ export function DashboardList({
       ))}
 
       {orders?.map(o => {
+        if (addonMode) {
+          const target = dueInfo(o.addon?.target_on)
+          const since = addonTrack ? o.addon?.lanes?.[addonTrack]?.since : o.addon?.factory_done_at
+          const late = target.state === 'overdue' && !o.addon?.finished
+          return (
+            <button key={o.id} type="button" style={s.rowBtn} onClick={() => onOpen(o)}>
+              <span style={s.rowNo}>#{o.id}</span>
+              <span style={s.rowMain}>
+                <span style={s.rowName}>{o.quote.customer?.name ?? '—'}</span>
+                <span style={s.rowMaker}>{makerName(o.maker_org_id)}</span>
+              </span>
+              <span style={{ ...s.rowSub, ...(late ? { color: 'var(--req)', fontWeight: 700 } : {}) }}>
+                {o.addon?.finished && o.addon.delivered_on
+                  ? tf('인도 {0}', o.addon.delivered_on.slice(5))
+                  : o.addon?.target_on
+                    ? (target.days < 0 ? tf('목표 +{0}일', -target.days) : target.days === 0 ? t('목표 오늘') : tf('목표 D-{0}', target.days))
+                    : t('목표 미정')}
+              </span>
+              <span style={s.rowDays}>{tf('{0}일째', daysFrom(since) ?? 0)}</span>
+            </button>
+          )
+        }
         const due = dueInfo(o.delivery_due)
         const since = track ? o.steps?.lanes?.[track]?.since : (o.accepted_at ?? o.assigned_at ?? o.created_at)
         // 그 단계의 약속일을 넘겼거나, 주문 납기가 지났으면 빨갛게

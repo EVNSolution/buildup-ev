@@ -15,7 +15,8 @@
     "./process/due": "./process/due.ts",
     "./docs/memo": "./docs/memo.ts",
     "./docs/appendix": "./docs/appendix.ts",
-    "./docs/po-lines": "./docs/po-lines.ts"
+    "./docs/po-lines": "./docs/po-lines.ts",
+    "./process/addon": "./process/addon.ts"
   },
   "scripts": {
     "test": "vitest run",

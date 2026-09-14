@@ -660,6 +660,9 @@ model Order {
   // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
   vehicle_info           Json?
   due_notices            OrderDueNotice[]
+  /// 부가작업(공장 출고 뒤 우리 쪽 작업) — 특장사에게는 싣지 않는다
+  addon_steps            OrderAddonStep[]
+  addon                  OrderAddon?
 
   /// 특장사가 거부한 시각. 거부하면 배정이 풀려 다른 특장사에 다시 맡길 수 있다.
   rejected_at   DateTime?
@@ -731,6 +734,42 @@ model Order {
 }
 
 /// 주문 단계 진행. 정의(순서·선행조건·필수증빙)는 코드에 있다 — shared/process/steps.ts
+/// **부가작업 진행 기록** — 특장사가 공장에서 출고한 뒤 우리 쪽 작업(shared/process/addon.ts).
+///
+/// 특장사 단계(order_step)와 **표를 나눈다** — 특장사 화면·API 는 order_step 만 읽으므로 섞일 일이 없다.
+/// 끝낸 단계만 행이 생긴다(없으면 아직). 되돌리면 지우지 않고 status 를 pending 으로 내린다.
+model OrderAddonStep {
+  id         Int       @id @default(autoincrement())
+  order_id   Int
+  code       String    @db.VarChar(40)
+  status     String    @default("done") @db.VarChar(12)
+  done_at    DateTime?
+  done_by    String?   @db.VarChar(120)
+  /// 날짜를 받는 단계의 날짜(인도 완료 = 실제 인도일)
+  done_on    DateTime? @db.Date
+  note       String?   @db.VarChar(300)
+  created_at DateTime  @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([order_id, code], map: "order_addon_step_unique")
+  @@map("order_addon_step")
+}
+
+/// **고객 인도** 날짜 — 목표일(관리자가 배정 이후 언제든 찍는다)과 실제 인도일. 특장사에게는 보이지 않는다.
+model OrderAddon {
+  order_id              Int       @id
+  customer_target_on    DateTime? @db.Date
+  target_set_by         String?   @db.VarChar(120)
+  target_set_at         DateTime?
+  customer_delivered_on DateTime? @db.Date
+  updated_at            DateTime  @default(now()) @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("order_addon")
+}
+
 model OrderStep {
   id         Int       @id @default(autoincrement())
   order_id   Int

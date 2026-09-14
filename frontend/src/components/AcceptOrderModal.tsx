@@ -11,6 +11,7 @@ import { DueDatePicker } from './DueDatePicker'
 import { BTN } from '../styles/buttons'
 import { useEscapeClose } from '../lib/escClose'
 import { CarArrivalRow } from './CarArrivalRow'
+import { AddonTargetRow } from './AddonTargetRow'
 import { OrderChatTab } from './OrderChatTab'
 import { rolesOf } from '@shared/types/index'
 import { useAuth } from '../contexts/AuthContext'
@@ -61,6 +62,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
    */
   const { session } = useAuth()
   const isAdmin = rolesOf(session!.user).includes('ADMIN')
+  const canAddon = usePermission('addon.manage')
   const canControl = usePermission('order.control')
   const base = useMemo(() => {
     const d = new Date(orderedAt)
@@ -206,6 +208,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
               canEdit={isAdmin && canControl}
               onSaved={setCarArrival}
             />
+            {/* 고객 인도 목표일 — 배정 이후 언제든(관리자 + addon.manage). 특장사 수락 화면에는 없다 */}
+            {isAdmin && canAddon && <AddonTargetRow orderId={orderId} />}
           </div>
 
           <div style={m.dueBlock}>
