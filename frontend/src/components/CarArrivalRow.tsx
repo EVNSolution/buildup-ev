@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { t, tf } from '../i18n'
+import { t } from '../i18n'
 import { setCarArrival } from '../api/orders'
 import { BTN } from '../styles/buttons'
 
@@ -74,8 +74,6 @@ export function CarArrivalRow({ orderId, value, canEdit, onSaved }: {
           <button style={s.edit} onClick={() => { setDraft(value ?? ''); setEditing(true) }}>
             {value ? t('변경') : t('지정')}
           </button>
-          {/* 바꾸면 특장사에게 알림이 간다는 것을 **누르기 전에** 알려 준다 */}
-          <span style={s.hint}>{tf('{0}에게 알림이 갑니다', t('특장사'))}</span>
         </>
       )}
       {err && <span style={s.err}>{err}</span>}
@@ -104,6 +102,5 @@ const s: Record<string, React.CSSProperties> = {
     border: 'none', background: 'transparent', color: 'var(--warn)',
     textDecoration: 'underline', cursor: 'pointer',
   },
-  hint: { color: 'var(--muted)', fontSize: 'var(--fs-caption)' },
   err: { color: 'var(--warn)', fontSize: 'var(--fs-caption)' },
 }

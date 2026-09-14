@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, copyFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { afterDimensions, findDimensionPreset } from './dimension-preset.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from '../lib/prisma.js';
@@ -190,19 +191,21 @@ async function assembleContext(orderId: number) {
     crew_items: [{ weight_kg: C.crew_w_kg, dist_to_rear_axle_mm: C.crew_d_mm }],
   });
 
-  return { order, vm, tireFront, tireRear, C, spec, bom, before, after, basePayloadKg };
+  // 튜닝 후 치수 — 사양별 프리셋. 없는 칸은 빈칸(튜닝 전 값을 복사하지 않는다)
+  const afterDim = afterDimensions(await findDimensionPreset(order.quote.model_code, order.quote.selections as Record<string, string>));
+
+  return { order, vm, tireFront, tireRear, C, spec, bom, before, after, basePayloadKg, afterDim };
 }
 
 /** gen_load_calc.py 에 넣을 JSON 조립. calcBom/calcLoad 결과만 사용 — 값 하드코딩 금지. */
-async function buildLoadCalcJson(orderId: number) {
-  const { vm, tireFront, tireRear, C, spec, bom, before, after, basePayloadKg } = await assembleContext(orderId);
+export async function buildLoadCalcJson(orderId: number) {
+  const { vm, tireFront, tireRear, C, spec, bom, before, after, basePayloadKg, afterDim } = await assembleContext(orderId);
 
   const bodyDim = spec['차체제원_mm'] as Record<string, number>;
   const bedDim  = spec['적재함_내측_mm'] as Record<string, number>;
   const r1 = (v: number) => Math.round(v * 10) / 10;
 
-  // "후" 치수(전장/전폭/전고/하대*)는 VIVAR 치수 API 개발 중 → 확정 전까지 변경전 값으로 채운다(잠정).
-  // 실제 구조변경 서류 답지 확보 시 그 값으로 교체 — CLAUDE.md 참조.
+  // "후" 치수(전장/전폭/전고/하대*/옵셋트)는 사양별 치수 프리셋에서 온다(dimension_preset). 없으면 빈칸.
   const json = {
     before: {
       type: '화물차특수용도형',
@@ -222,9 +225,7 @@ async function buildLoadCalcJson(orderId: number) {
       payload: bom.max_payload_kg,
       gvw: Math.round(after.gvw_kg),
       wheelbase: vm.wheelbase_mm,
-      offset: spec['하대옵셋트_mm'],
-      length: bodyDim['길이'], width: bodyDim['너비'], height: bodyDim['높이'],
-      bed_len: bedDim['길이'], bed_wid: bedDim['너비'], bed_hgt: bedDim['높이'],
+      ...afterDim,
       tread2f: 0, tread2r: 0,
       steer_ratio: r1(after.steering_axle_ratio_pct),
     },
@@ -265,7 +266,7 @@ async function buildLoadCalcJson(orderId: number) {
  * gen_spec_table.py 에 넣을 JSON 조립(주요제원대비표, 별지 제33호의2서식).
  * 변경전=차종마스터/pv5-spec 기준값, 변경후=BOM·하중계산 산출값.
  * 소유자·등록정보는 order.vehicle_info(특장사 입력) — 미입력 시 빈칸으로 렌더.
- * ⚠️ VIVAR 미연동 구간: 변경후 치수(차체 높이·하대·옵셋트)는 확정 불가 → 변경전 값 유지/공란(하중계산서와 동일 규약).
+ * 변경후 치수(차체제원·하대내측·옵셋트)는 사양별 치수 프리셋에서 온다 — 없으면 빈칸(하중계산서와 동일 규약).
  */
 /**
  * 튜닝개요 한 줄 — 「탈거: … / 설치: …」.
@@ -280,8 +281,8 @@ export async function buildTuningSummary(orderId: number): Promise<string> {
   return [rem && `탈거: ${rem}`, ins && `설치: ${ins}`].filter(Boolean).join(' / ');
 }
 
-async function buildSpecTableJson(orderId: number) {
-  const { order, vm, spec, bom, before, after } = await assembleContext(orderId);
+export async function buildSpecTableJson(orderId: number) {
+  const { order, vm, spec, bom, before, after, afterDim } = await assembleContext(orderId);
   const vi = order.vehicle_info;
   const r1 = (v: number) => Math.round(v * 10) / 10;
   const vis = (k: string) => (vi[k] == null ? '' : String(vi[k]));
@@ -314,15 +315,14 @@ async function buildSpecTableJson(orderId: number) {
       usage: [spec['용도_기본'], spec['용도_기본']],
       payload: [spec['최대적재량_kg'], bom.max_payload_kg],
       gvw: [spec['차량총중량_kg'], Math.round(after.gvw_kg)],
-      offset: [spec['하대옵셋트_mm'], spec['하대옵셋트_mm']], // 변경후=VIVAR 연동 전 잠정 동일
+      offset: [spec['하대옵셋트_mm'], afterDim.offset],
       fuel: [spec['사용연료'], spec['사용연료']],
       front_ratio: [r1(before.steering_axle_ratio_pct), r1(after.steering_axle_ratio_pct)],
       drivetrain: [spec['구동방식'], spec['구동방식']],
     },
-    // 변경후 치수: VIVAR 치수 API 개발 중 → 실측 답지 확정 전까지 변경전 값으로 채운다(잠정).
-    // 실제 구조변경 서류 답지가 확보되면 그 값으로 교체.
-    body: { len: [bodyDim['길이'], bodyDim['길이']], wid: [bodyDim['너비'], bodyDim['너비']], hgt: [bodyDim['높이'], bodyDim['높이']] },
-    bed:  { len: [bedDim['길이'], bedDim['길이']], wid: [bedDim['너비'], bedDim['너비']], hgt: [bedDim['높이'], bedDim['높이']] },
+    // 튜닝 후 치수: 사양별 치수 프리셋(dimension_preset). 없는 칸은 빈칸 — 튜닝 전 값을 복사하지 않는다.
+    body: { len: [bodyDim['길이'], afterDim.length], wid: [bodyDim['너비'], afterDim.width], hgt: [bodyDim['높이'], afterDim.height] },
+    bed:  { len: [bedDim['길이'], afterDim.bed_len], wid: [bedDim['너비'], afterDim.bed_wid], hgt: [bedDim['높이'], afterDim.bed_hgt] },
     empty:  { ff: [Math.round(before.curb.front_kg), Math.round(after.curb.front_kg)], fr: [0, 0],
               rf: [Math.round(before.curb.rear_kg), Math.round(after.curb.rear_kg)], rm: [0, 0], rr: [0, 0] },
     loaded: { ff: [Math.round(before.loaded.front_kg), Math.round(after.loaded.front_kg)], fr: [0, 0],

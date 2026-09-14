@@ -166,6 +166,27 @@ export interface User {
  * 다시 만들면 한 곳만 고쳐졌을 때 화면과 권한이 어긋난다.
  * 마스터 계정은 전 역할을 가진 것으로 본다(테스트용 계정 — 서버도 같은 판단을 한다).
  */
+/**
+ * **사양 목록의 순서** — 무엇을 만드는지부터 읽히게(지시 2026-09-14).
+ *
+ *   특장형태 > 탑크기 > 도어종류 > 도어추가 > 스포일러 > (그 밖의 옵션) > 트림(맨 끝)
+ *
+ * 주문 상세 「사양」 탭·발주서·배정 미리보기가 모두 이 순서를 쓴다 — 같은 주문이 화면마다
+ * 다른 순서로 나오면 읽는 사람이 매번 찾아야 한다. 그 밖의 옵션은 들어온 순서를 지킨다.
+ */
+export const SPEC_OPTION_HEAD = ['BODYTYPE', 'TOP', 'DOORTYPE', 'DOORADD', 'SPOILER'] as const;
+export const SPEC_OPTION_TAIL = ['TRIM'] as const;
+
+export function sortSpecOptions<T extends { group_code: string }>(options: T[]): T[] {
+  const rank = (code: string): number => {
+    const h = (SPEC_OPTION_HEAD as readonly string[]).indexOf(code);
+    if (h >= 0) return h;
+    const t = (SPEC_OPTION_TAIL as readonly string[]).indexOf(code);
+    return t >= 0 ? 1000 + t : 100;   // 그 밖의 옵션은 가운데 — 같은 값끼리는 원래 순서(안정 정렬)
+  };
+  return options.map((o, i) => ({ o, i })).sort((a, b) => rank(a.o.group_code) - rank(b.o.group_code) || a.i - b.i).map(x => x.o);
+}
+
 export function rolesOf(u: { role: Role; extra_roles?: Role[] | null; is_master?: boolean }): Role[] {
   if (u.is_master) return [...ALL_ROLES];
   return [...new Set<Role>([u.role, ...(u.extra_roles ?? [])])];
@@ -423,6 +444,15 @@ export interface ApiOrderMakerDetail {
    * 특장사가 완료 처리하는 「차량 도착」 단계와 다르다(이건 예정).
    */
   car_arrival_planned_at?: string | null;
+  /**
+   * 사양 탭 「상세 제원」 — **튜닝 후** 치수만(사양별 프리셋). 특장만 주문은 `body` 가 null(하대내측치수만).
+   * 값이 없는 칸은 null.
+   */
+  detail_dims?: {
+    body_only: boolean;
+    body: { length: number | null; width: number | null; height: number | null } | null;
+    bed: { length: number | null; width: number | null; height: number | null };
+  } | null;
   /** 특장사가 수락한 시각 — 없으면 아직 수락 전 */
   accepted_at?: string | null;
   /** 특장사가 수락하며 처음 약속한 납기일 — 관리자가 바꾼 적이 있을 때만 있다 */
