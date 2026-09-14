@@ -24,6 +24,7 @@ import { useChatPoll, CHAT_POLL_IDLE_MS } from '../lib/chatPoll'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 import { CarArrivalRow } from './CarArrivalRow'
+import { DeliveryDueRow } from './DeliveryDueRow'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
 const DOC_STATUS_STYLE: Record<string, React.CSSProperties> = {
@@ -535,6 +536,23 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
           canEdit={isAdmin && canChangeSteps}
           onSaved={next => setDetail(d => (d ? { ...d, car_arrival_planned_at: next } : d))}
         />
+        {/*
+          납기일 — **관리자만, 수락된 주문만** 고친다. 특장사는 단계 탭 머리말에서 본다.
+          바꾸면 단계 탭의 납기·지연 표시도 다시 읽는다(dueKey).
+        */}
+        {isAdmin && canChangeSteps && detail.accepted_at && detail.delivery_due && (
+          <DeliveryDueRow
+            orderId={detail.id}
+            value={detail.delivery_due.slice(0, 10)}
+            original={detail.delivery_due_original ?? null}
+            onSaved={next => setDetail(d => (d ? {
+              ...d,
+              // 처음 바꾸는 순간 원래 날짜가 「처음 약속」이 된다 — 서버와 같은 규칙
+              delivery_due_original: d.delivery_due_original ?? d.delivery_due?.slice(0, 10) ?? null,
+              delivery_due: next,
+            } : d))}
+          />
+        )}
       </div>
 
       {/*
@@ -610,6 +628,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
           */}
           <OrderStepsPanel
             orderId={detail.id}
+            dueKey={detail.delivery_due ?? null}
             canEdit={canChangeSteps}
             /* 여기서 대화를 읽어 0 이 되면 「대화」 탭 강조도 그 자리에서 꺼진다 */
             onUnreadChange={setUnreadChat}

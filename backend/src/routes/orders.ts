@@ -5,10 +5,10 @@ import { prisma } from '../lib/prisma.js';
 import { assertOrderQuoteOwner } from '../lib/quote-access.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
-import { checkDeliveryDue, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
+import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
 import { loadHolidays } from '../services/holidays.js';
 import { notify, pushAllowed } from '../services/push.js';
-import { stepsFor, BODY_ONLY_SKIPPED, isOverdue } from '@buildup-ev/shared/process';
+import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD } from '@buildup-ev/shared/process';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
 export const ordersRouter = Router();
@@ -336,6 +336,7 @@ ordersRouter.get('/:id', rbac('SALES', 'ADMIN', 'MAKER'), requirePermission('ord
       rejected: order.maker_org_id === null && order.rejected_by_org != null,
       /* DATE 컬럼은 UTC 로 읽어야 넣을 때와 짝이 맞는다 — 그냥 흘리면 하루가 밀린다 */
       car_arrival_planned_at: order.car_arrival_planned_at ? fromDbDate(order.car_arrival_planned_at) : null,
+      delivery_due_original: order.delivery_due_original ? fromDbDate(order.delivery_due_original) : null,
     } });
   } catch (e) {
     console.error('[GET /orders/:id]', e);
@@ -605,6 +606,116 @@ ordersRouter.patch('/:id/car-arrival', rbac('ADMIN'), requirePermission('order.c
   } catch (e) {
     console.error('[PATCH /orders/:id/car-arrival]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '도착 예정일을 저장하지 못했습니다.' } });
+  }
+});
+
+/**
+ * PATCH /orders/:id/delivery-due — **관리자가 수락된 주문의 납기일을 바꾼다.**
+ *
+ * 납기일은 특장사가 수락하며 정한다. 그런데 차량이 늦게 오거나 사양이 바뀌면 협의 끝에
+ * 날짜가 달라진다 — 그걸 고칠 자리가 없어 시스템의 납기와 실제 약속이 어긋났다(요청).
+ *
+ *   - **수락된 주문만.** 수락 전 납기는 특장사가 수락할 때 고른다.
+ *   - 고를 수 있는 날은 **발주일 이후의 영업일**(주말·공휴일 아님). 20영업일 한도는 보지 않는다 —
+ *     한도는 특장사에게 건 약속이지, 관리자가 늦춰 주는 것을 막는 규칙이 아니다.
+ *   - **지우지 않는다.** 처음 약속한 날(`delivery_due_original`)은 처음 바꿀 때 옮겨 적고
+ *     다시는 덮어쓰지 않는다. 무엇에서 무엇으로, 왜 바뀌었는지는 발주 협의 대화에 남는다.
+ *   - 바뀌면 **특장사에게 알린다** — 조용히 바뀌면 현장은 옛 날짜에 맞춰 일한다.
+ */
+ordersRouter.patch('/:id/delivery-due', rbac('ADMIN'), requirePermission('order.control'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
+
+  const body = req.body as { delivery_due?: unknown; reason?: unknown };
+  const due = typeof body?.delivery_due === 'string' ? fromDateInput(body.delivery_due) : null;
+  if (!due) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '납기일(delivery_due)을 YYYY-MM-DD 로 보내야 합니다' } });
+    return;
+  }
+  const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 200) : '';
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true, maker_org_id: true, assigned_at: true, created_at: true, accepted_at: true, canceled_at: true,
+        delivery_due: true, delivery_due_original: true,
+      },
+    });
+    if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    if (order.canceled_at) {
+      res.status(409).json({ error: { code: 'CANCELED', message: '취소된 주문의 납기일은 바꿀 수 없습니다' } });
+      return;
+    }
+    if (!order.accepted_at || !order.delivery_due) {
+      res.status(409).json({ error: { code: 'NOT_ACCEPTED', message: '수락 전 주문의 납기일은 특장사가 수락할 때 정합니다' } });
+      return;
+    }
+
+    // 관리자가 방금 넣은 공휴일도 반영해 판정한다 — 수락 때와 같은 달력
+    await loadHolidays();
+    const check = checkDueDay(due, order.assigned_at ?? order.created_at);
+    if (!check.ok) { res.status(400).json({ error: { code: 'BAD_INPUT', message: check.reason } }); return; }
+
+    const beforeStr = fromDbDate(order.delivery_due);
+    const afterStr = toDateInput(due);
+    if (beforeStr === afterStr) { res.json({ data: { delivery_due: afterStr, changed: false } }); return; }
+
+    const who = req.auth?.email ?? 'unknown';
+    /*
+     * ⚠️ **읽은 그대로일 때만 쓴다.** 두 관리자가 동시에 바꾸면 둘 다 「A → B」, 「A → C」로
+     *    기록돼 무엇이 최종인지 대화 기록과 어긋나고, 그 사이에 취소된 주문도 바뀐다.
+     *    납기가 방금 읽은 값이고 취소되지 않았을 때만 바꾸고, 아니면 409 로 다시 보게 한다.
+     */
+    const won = await prisma.order.updateMany({
+      where: { id, canceled_at: null, accepted_at: { not: null }, delivery_due: order.delivery_due },
+      data: {
+        delivery_due: toDbDate(due),
+        // 처음 약속한 날은 **처음 바꿀 때 한 번만** 옮겨 적는다
+        delivery_due_original: order.delivery_due_original ?? order.delivery_due,
+        delivery_due_changed_by: who,
+        delivery_due_changed_at: new Date(),
+      },
+    });
+    if (won.count === 0) {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '그사이 납기일이 바뀌었거나 주문이 취소됐습니다. 새로 고친 뒤 다시 확인해 주세요.' } });
+      return;
+    }
+
+    /*
+     * 기록은 **발주 협의 대화**에 남긴다 — 납기는 발주의 약속이고, 특장사와 관리자가
+     * 날짜를 맞춘 이야기도 거기서 오갔다. 사유가 있으면 같이 적는다.
+     */
+    const note = `납기일이 ${beforeStr} → ${afterStr} 로 바뀌었습니다${reason ? ` — 사유: ${reason}` : ''}`;
+    await prisma.orderStepComment.create({
+      data: {
+        order_id: id, step_code: PO_THREAD.code, author: who, author_role: 'SYSTEM',
+        author_name: '시스템', body: note, maker_org_id: order.maker_org_id,
+      },
+    });
+
+    // 알림은 배정된 특장사에게만 — 이 날짜에 맞춰 일하는 쪽이다
+    if (order.maker_org_id) {
+      const makers = await prisma.user.findMany({
+        where: { org_code: order.maker_org_id, active: true, status: 'active' },
+        select: { email: true },
+      });
+      const to = await pushAllowed(makers.map(m => m.email));
+      if (to.length > 0) {
+        notify(to, {
+          title: `주문 #${id} 납기일 변경`,
+          body: note,
+          url: `/?order=${id}`,
+          tag: `due-change-${id}`,
+        });
+      }
+    }
+
+    res.json({ data: { delivery_due: afterStr, changed: true } });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/delivery-due]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '납기일을 저장하지 못했습니다.' } });
   }
 });
 

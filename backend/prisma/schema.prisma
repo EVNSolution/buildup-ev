@@ -618,6 +618,11 @@ model Order {
   car_arrival_set_by     String?          @db.VarChar(120)
   car_arrival_set_at     DateTime?
   delivery_due           DateTime?        @db.Date
+  /// 특장사가 **수락하며 처음 약속한** 납기일 — 관리자가 처음 바꿀 때 옮겨 적는다(안 바뀐 주문은 비어 있다)
+  delivery_due_original   DateTime?       @db.Date
+  /// 관리자가 납기일을 마지막으로 바꾼 사람·시각
+  delivery_due_changed_by String?         @db.VarChar(120)
+  delivery_due_changed_at DateTime?
   /// 발주 수락 시각 — 납기 한도의 기산점
   accepted_at            DateTime?
   created_at             DateTime         @default(now())

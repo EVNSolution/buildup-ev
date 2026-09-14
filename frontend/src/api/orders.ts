@@ -111,6 +111,20 @@ export async function cancelOrder(orderId: number, reason: string): Promise<void
  * 차량 도착 **예정일**을 알린다 — 관리자만.
  * 빈 문자열을 보내면 지운다(잘못 찍었을 때 되돌릴 길).
  */
+/** 관리자 — 수락된 주문의 납기일을 바꾼다. 사유는 발주 협의 대화에 함께 남는다 */
+export async function changeDeliveryDue(orderId: number, deliveryDue: string, reason: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/delivery-due`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ delivery_due: deliveryDue, reason }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `납기일 저장 실패: ${res.status}`)
+  }
+}
+
 export async function setCarArrival(orderId: number, plannedAt: string): Promise<void> {
   const res = await fetch(`/api/v1/orders/${orderId}/car-arrival`, {
     method: 'PATCH',
