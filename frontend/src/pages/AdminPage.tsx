@@ -1862,7 +1862,7 @@ function KanbanTab({ deepLink, initialView }: {
     listTitle = `${t(ADDON_TRACK_LABEL[sel.track])} · ${t(chip?.label ?? '')}`
     addonList = true
   } else if (sel?.kind === 'tile') {
-    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '특장 진행', addon: '부가작업', done: '인도 완료', late: '납기 지남' } as const
+    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '특장 진행', addon: '부가작업', done: '인도 완료', late: '납기일 경과' } as const
     listTitle = t(TITLE[sel.key])
     if (sel.key === 'pending') listOrders = [...dash.pending].sort(oldest)
     else if (sel.key === 'active') listOrders = [...dash.active].sort(byDue)

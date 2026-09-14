@@ -7,7 +7,7 @@ import { ADDON_STEPS, ADDON_TRACKS, type AddonTrack } from '../../../shared/proc
 /**
  * **주문 현황판의 분류** — 어느 주문을 어느 칸에 세는가. 화면(React)과 떼어 두어 시험할 수 있게 한다.
  *
- *   배정 대기 → 수락 대기 → 진행 중(트랙 4줄) → 인도 완료, 그리고 단계와 상관없이 「납기 지남」
+ *   배정 대기 → 수락 대기 → 진행 중(트랙 4줄) → 인도 완료, 그리고 단계와 상관없이 「납기일 경과」
  *
  * 규칙(2026-09-14 기획 확정):
  *   · **배정 대기** = 계약이 끝나 제작할 특장사를 정해야 하는 견적. 특장사가 **거부해 돌아온 건도 여기**
@@ -15,7 +15,7 @@ import { ADDON_STEPS, ADDON_TRACKS, type AddonTrack } from '../../../shared/proc
  *   · **수락 대기** = 배정됐고 특장사가 아직 수락하지 않았다
  *   · **진행 중** = 수락했고 인도까지 끝나지 않았다. 트랙마다 지금 서 있는 단계에 한 번씩 센다(서버 `lanes`)
  *   · **인도 완료** = 단계를 다 끝냈다
- *   · **납기 지남** = 진행 중인데 납기가 지났다
+ *   · **납기일 경과** = 진행 중인데 납기가 지났다
  */
 export type TileKey = 'assign' | 'pending' | 'active' | 'addon' | 'done' | 'late'
 
@@ -96,7 +96,7 @@ export function buildDashboard(orders: ApiOrder[], contracted: ApiQuote[], now =
       const here = active.filter(o => o.steps?.lanes?.[track]?.code === d.code)
       /*
        * 지연 = 그 단계의 약속일(검사 예정일 등)을 넘겼거나 **주문 납기가 지났다.**
-       * 납기가 지난 주문이 어느 칸에 멈춰 있는지가 칩에 보여야 「납기 지남」 칸에서 찾은 것과 이어진다.
+       * 납기가 지난 주문이 어느 칸에 멈춰 있는지가 칩에 보여야 「납기일 경과」 칸에서 찾은 것과 이어진다.
        */
       const late = here.filter(o => o.steps?.lanes?.[track]?.late || dueInfo(o.delivery_due, now).state === 'overdue').length
       return { code: d.code, label: d.label, orders: here, late }

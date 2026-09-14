@@ -49,7 +49,7 @@ const TILES: { key: TileKey; label: string; icon: IconName }[] = [
   { key: 'active', label: '특장 진행', icon: 'progress' },
   { key: 'addon', label: '부가작업', icon: 'tool' },
   { key: 'done', label: '인도 완료', icon: 'check' },
-  { key: 'late', label: '납기 지남', icon: 'alert' },
+  { key: 'late', label: '납기일 경과', icon: 'alert' },
 ]
 const TRACK_ICON: Record<Track, IconName> = { vehicle: 'truck', body: 'tool', tuning: 'file', merged: 'flag' }
 const ADDON_ICON: Record<AddonTrack, IconName> = { prep: 'truck', work: 'tool', handover: 'flag' }
@@ -70,7 +70,7 @@ export function OrderDashboard({
 }) {
   /*
    * **휴대폰** — 두 가지를 바꾼다(2026-09-14 로컬 확인 후 지시).
-   *   · 요약 칸 5개가 3+2 로 줄바꿈되며 오른쪽 아래가 비었다 → 네 칸을 한 줄에, 「납기 지남」은 아래 긴 줄 하나로
+   *   · 요약 칸 5개가 3+2 로 줄바꿈되며 오른쪽 아래가 비었다 → 네 칸을 한 줄에, 「납기일 경과」는 아래 긴 줄 하나로
    *   · 트랙 칩이 화면 밖으로 잘려 밀 수 있는지 안 보였다 → 트랙 이름을 위로 올리고 칩은 **줄바꿈**해 전부 보이게
    */
   // 기준은 **헤더와 같은 768px**(useIsMobile 기본값). 600 으로 두었더니 601~768 폭에서 헤더는 휴대폰 모양인데
@@ -145,7 +145,7 @@ export function OrderDashboard({
       </div>
 
       {narrow && (() => {
-        // 휴대폰의 「납기 지남」 — 칸 대신 긴 줄 하나. 0 건이면 흐리게
+        // 휴대폰의 「납기일 경과」 — 칸 대신 긴 줄 하나. 0 건이면 흐리게
         const n = count.late
         const on = isTile('late')
         return (
@@ -155,7 +155,7 @@ export function OrderDashboard({
             onClick={() => pick({ kind: 'tile', key: 'late' }, on)}
             style={{ ...s.lateBar, ...(n > 0 ? s.lateBarWarn : {}), ...(on ? s.tileOn : {}) }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="alert" size={17} />{t('납기 지남')}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="alert" size={17} />{t('납기일 경과')}</span>
             <span style={s.lateBarNum}>{n}</span>
           </button>
         )
