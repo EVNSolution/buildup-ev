@@ -101,6 +101,14 @@ describe('화면 규칙', () => {
     expect(kanban).toMatch(/initialView === 'assign' \? \{ kind: 'tile', key: 'assign' \} : null/);
   });
 
+  it('🔴 트랙 현황판은 「진행 중」(또는 그 안의 단계 칩)을 골랐을 때만 편다 — 배정·수락·인도는 트랙이 필요 없다', () => {
+    const comp = read('frontend/src/components/OrderDashboard.tsx');
+    expect(comp).toMatch(/const showLanes = stepPicked \|\| \(selected\?\.kind === 'tile' && selected\.key === 'active'\)/);
+    expect(comp).toMatch(/\{showLanes && <div style=\{s\.lanes\}>/);
+    // 칩을 다시 누르면 진행 중으로 — 현황판이 접히지 않는다
+    expect(comp).toMatch(/onSelect\(on \? \{ kind: 'tile', key: 'active' \} :/);
+  });
+
   it('🔴 칸·트랙·단계 이름이 영문 사전에 다 있다 — 표에서 꺼내 t() 를 태우므로 일반 영문화 검사가 못 잡는다', async () => {
     const { EN } = await import('../../../frontend/src/i18n/en');
     const { STEPS, TRACK_LABEL } = await import('@buildup-ev/shared/process');

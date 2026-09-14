@@ -64,7 +64,14 @@ export function OrderDashboard({
    *   · 트랙 칩이 화면 밖으로 잘려 밀 수 있는지 안 보였다 → 트랙 이름을 위로 올리고 칩은 **줄바꿈**해 전부 보이게
    */
   const narrow = useIsMobile(600)
-  const isTile = (k: TileKey) => selected?.kind === 'tile' && selected.key === k
+  /*
+   * **트랙 현황판은 「진행 중」을 눌렀을 때만 편다**(2026-09-14 지시). 배정 대기·수락 대기·인도 완료는
+   * 단계가 없어 트랙이 필요 없다 — 늘 펴 두면 화면만 차지해 정작 목록이 밀려난다.
+   * 단계 칩을 고른 동안에도 펴 두고, 「진행 중」 칸도 고른 채로 보인다(칩은 진행 중 안의 한 칸이다).
+   */
+  const stepPicked = selected?.kind === 'step'
+  const showLanes = stepPicked || (selected?.kind === 'tile' && selected.key === 'active')
+  const isTile = (k: TileKey) => (selected?.kind === 'tile' && selected.key === k) || (k === 'active' && stepPicked)
   const isStep = (tr: Track, code: string) => selected?.kind === 'step' && selected.track === tr && selected.code === code
   const count: Record<TileKey, number> = {
     assign: dash.assign.length, pending: dash.pending.length, active: dash.active.length,
@@ -124,7 +131,7 @@ export function OrderDashboard({
         )
       })()}
 
-      <div style={s.lanes}>
+      {showLanes && <div style={s.lanes}>
         {TRACKS.map((track, i) => (
           <div key={track} style={{ ...(narrow ? s.laneNarrow : s.lane), ...(i === TRACKS.length - 1 ? { borderBottom: 'none' } : {}) }}>
             <span style={s.laneName}><Icon name={TRACK_ICON[track]} size={18} />{t(TRACK_LABEL[track])}</span>
@@ -138,7 +145,8 @@ export function OrderDashboard({
                     type="button"
                     aria-pressed={on}
                     aria-label={tf('{0} {1}건', t(chip.label), n) + (chip.late > 0 ? ` · ${t('지연 있음')}` : '')}
-                    onClick={() => pick({ kind: 'step', track, code: chip.code }, on)}
+                    // 같은 칩을 다시 누르면 칩만 풀고 **진행 중 전체**로 돌아간다(현황판은 편 채로)
+                    onClick={() => onSelect(on ? { kind: 'tile', key: 'active' } : { kind: 'step', track, code: chip.code })}
                     style={{
                       ...s.chip,
                       ...(n === 0 ? s.chipZero : {}),
@@ -156,7 +164,7 @@ export function OrderDashboard({
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   )
 }
