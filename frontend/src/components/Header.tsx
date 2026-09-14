@@ -54,7 +54,12 @@ export function Header({ customer }: Props) {
     <header style={{
       ...styles.header,
       // 모바일은 줄바꿈으로 높이가 달라지므로 고정 높이를 풀고 예전 여백을 쓴다
-      ...(isMobile ? { height: 'auto', padding: '10px 14px' } : {}),
+      /*
+       * ⚠️ 여백은 **네 방향 따로**(paddingTop…) 준다. `padding` 한 줄로 덮었다가 창을 넓혀 PC 로 돌아가면
+       *    React 가 그 한 줄만 지워 PC 의 좌우 여백(paddingLeft·Right)까지 0 이 됐다 — 로고와 이름이
+       *    화면 끝에 딱 붙었다(반응형 제보, 1000→600→1000px 실측 24px → 0px).
+       */
+      ...(isMobile ? { height: 'auto', paddingTop: 10, paddingBottom: 10, paddingLeft: 14, paddingRight: 14 } : {}),
       flexWrap: isMobile ? 'wrap' : 'nowrap',
       ...(isMobile ? { gap: 8 } : {}),
       ...(centerSwitch ? styles.headerCentered : {}),
