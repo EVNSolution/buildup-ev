@@ -41,6 +41,15 @@ export function Header({ customer }: Props) {
     ? `${customer.name} · ${customer.region_code} · ${customer.is_small_business ? t('소상공인') : t('일반')}`
     : null
 
+  /*
+   * **휴대폰에서 화면 전환 토글을 헤더 정가운데에**(2026-09-14 지시 — 휴대폰만).
+   *
+   * 토글을 절대 위치로 띄우면 로고·이름과 겹칠 수 있다. 대신 헤더를 **왼쪽 · 가운데 · 오른쪽** 세 칸
+   * 격자로 나눈다 — 양쪽 칸이 같은 폭(1fr)을 나눠 가져 토글이 늘 정가운데에 서고, 자리가 모자라면
+   * 오른쪽 이름이 '…' 로 줄어들 뿐 겹치지 않는다. PC 는 예전 그대로(왼쪽 몰고 오른쪽 끝으로 밀기).
+   */
+  const centerSwitch = isMobile && mySurfaces.length > 1
+
   return (
     <header style={{
       ...styles.header,
@@ -48,7 +57,9 @@ export function Header({ customer }: Props) {
       ...(isMobile ? { height: 'auto', padding: '10px 14px' } : {}),
       flexWrap: isMobile ? 'wrap' : 'nowrap',
       ...(isMobile ? { gap: 8 } : {}),
+      ...(centerSwitch ? styles.headerCentered : {}),
     }}>
+      <div style={styles.side}>
       {/*
         로고 · 구분선 · 워드마크. 셋을 붙여 하나의 표지로 읽히게 한다 —
         굵기·자간은 로고(800/-0.05em)가 가장 강하고 워드마크가 반 단계 아래(700/-0.035em)다.
@@ -68,8 +79,9 @@ export function Header({ customer }: Props) {
         )}
       </div>
       {user && !isMobile && <span style={styles.badge}>{ROLE_LABELS[user.role]}</span>}
-      {/* 밀개 — 남는 폭을 먹어 오른쪽 것들을 끝으로 민다 */}
-      <div style={{ flex: 1 }} />
+      </div>
+      {/* 밀개 — 남는 폭을 먹어 오른쪽 것들을 끝으로 민다(가운데 정렬일 때는 격자가 대신한다) */}
+      {!centerSwitch && <div style={{ flex: 1 }} />}
 
       {/*
         화면 전환 — **가진 역할이 둘 이상일 때만** 나온다.
@@ -98,6 +110,7 @@ export function Header({ customer }: Props) {
         </div>
       )}
 
+      <div style={centerSwitch ? styles.sideRight : styles.side}>
       {/*
         알림함 — 화면 전환 토글 **바로 옆.** 역할이 하나라 토글이 없는 계정도 같은 자리(이름 앞)에 둔다.
         안 읽은 알림이 있으면 빨간 점, 누르면 받은 알림 목록(NotificationBell).
@@ -142,6 +155,7 @@ export function Header({ customer }: Props) {
         휴대폰에서는 그 폭이 화면 전환 토글을 눌렀다. 계정에 딸린 동작은 계정 화면에 둔다 —
         메일·채팅 앱들이 계정 메뉴 안에 로그아웃을 두는 것과 같다.
       */}
+      </div>
     </header>
   )
 }
@@ -179,6 +193,14 @@ const styles: Record<string, React.CSSProperties> = {
     // 어떤 경우에도 내용이 바 밖으로 새어 나가지 않게
     overflow: 'hidden',
   },
+  /*
+   * 왼쪽·오른쪽 묶음 — PC 에서는 예전과 같게 보이도록 헤더와 같은 간격으로 늘어놓기만 한다.
+   * `display: contents` 가 아니라 실제 상자인 이유: 휴대폰 격자에서 한 칸씩 차지해야 해서다.
+   */
+  side: { display: 'flex', alignItems: 'center', gap: 'inherit', minWidth: 0 },
+  sideRight: { display: 'flex', alignItems: 'center', gap: 'inherit', minWidth: 0, justifyContent: 'flex-end' },
+  // 휴대폰 + 겸직 — 왼쪽 · 토글(정가운데) · 오른쪽. 양쪽이 같은 폭을 나눠 가진다
+  headerCentered: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)', alignItems: 'center', columnGap: 8 },
   brand: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexShrink: 0 },
   // 로고 이미지(706x261). 높이만 정하고 폭은 비율대로.
   logo: { height: 28, width: 'auto', display: 'block', flexShrink: 0 },
