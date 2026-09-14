@@ -933,7 +933,6 @@ export const EN: Record<string, string> = {
   '파일 삭제에 실패했습니다': 'Could not delete the file',
   '파일 올리기': 'Upload file',
   '파일을 불러오지 못했습니다': 'Could not load the file',
-  '팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단을 해제해 주세요.': 'The pop-up was blocked. Allow pop-ups from the address bar in your browser.',
   '표기': 'Label',
   '표시할 행이 없습니다.': 'No rows to show.',
   '표준': 'Standard',

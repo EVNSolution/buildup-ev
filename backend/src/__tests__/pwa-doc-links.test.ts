@@ -59,6 +59,21 @@ describe('설치형 앱(PWA)에서도 서류가 열리는가', () => {
     // 설치형에서는 내려받아 기기에 넘긴다
     expect(helper).toMatch(/a\.download/);
   });
+
+  it('🔴 새 탭이 열렸는데 「팝업이 차단되었습니다」가 뜨지 않는다', () => {
+    /*
+     * `window.open(url, '_blank', 'noopener')` 은 탭이 열려도 null 을 돌려준다(규격). 그걸 차단으로 읽어
+     * 팝업을 허용한 사람에게도 매번 경고가 떴다(2026-09-14 제보). 옵션 없이 열고 opener 만 끊는다.
+     * 정말 막히면 경고 대신 내려받기로 넘긴다.
+     */
+    // 주석은 뺀다 — 옛 잘못을 설명하는 글에 그 코드가 들어 있다
+    const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const all = files.map(f => code(f.src)).join('\n');
+    expect(all, "noopener 를 window.open 옵션으로 넘긴다 — 열려도 null 이라 차단으로 오인한다").not.toMatch(/window\.open\([^)]*noopener/);
+    expect(all).not.toMatch(/팝업이 차단되었습니다/);
+    const helper = files.find(f => f.rel === 'lib/openPdf.ts')!.src;
+    expect(helper).toMatch(/if \(w\) \{\s*try \{ w\.opener = null \}/);
+  });
 });
 
 /**
