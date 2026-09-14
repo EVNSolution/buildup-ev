@@ -10,6 +10,7 @@ import { useBackClose } from '../lib/backClose'
 import { OrderSections } from '../components/OrderSections'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useScreenRefresh } from '../contexts/RefreshContext'
+import { useLiveReload } from '../lib/liveReload'
 import { RefreshButton } from '../components/RefreshButton'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 
@@ -36,12 +37,14 @@ export function MakerPage() {
   const [acceptTarget, setAcceptTarget] = useState<ApiOrder | null>(null)
   const [acceptErr, setAcceptErr] = useState('')
 
-  function load() {
-    setLoading(true); setErr('')
+  /** @param silent 조용히 — 로딩 표시 없이(저절로 새로 읽기·상세에서 돌아올 때) */
+  function load(silent = false) {
+    if (!silent) setLoading(true)
+    setErr('')
     fetchOrders({})
       .then(setOrders)
       .catch(e => setErr(e instanceof Error ? e.message : t('주문 목록 로드 실패')))
-      .finally(() => setLoading(false))
+      .finally(() => { if (!silent) setLoading(false) })
   }
 
   /*
@@ -84,6 +87,8 @@ export function MakerPage() {
   }, [email]) // eslint-disable-line react-hooks/exhaustive-deps
   // 앱으로 돌아오면 저절로 다시 불러온다 + 헤더 새로고침 버튼이 이걸 부른다
   useScreenRefresh(load)
+  // 켜 둔 동안 30초마다 조용히 — 관리자가 배정·납기를 바꾸거나 다른 계정이 단계를 끝내도 따라온다
+  useLiveReload(() => load(true), selectedId === null && !!email)
 
   return (
     <div style={styles.root}>
@@ -123,7 +128,8 @@ export function MakerPage() {
         {selectedId !== null ? (
           <OrderDetail
             orderId={selectedId}
-            onBack={() => setSelectedId(null)}
+            // 돌아오면 바로 다시 읽는다 — 상세에서 단계를 끝냈으면 목록의 진행률이 바뀌어야 한다
+            onBack={() => { setSelectedId(null); load(true) }}
             makerView
             /* 알림을 눌러 들어온 그 주문일 때만 대화 탭으로 연다 */
             initialTab={deepLink?.chat && deepLink.orderId === selectedId ? 'chat' : undefined}

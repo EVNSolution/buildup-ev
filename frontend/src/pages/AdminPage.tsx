@@ -27,6 +27,7 @@ import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
+import { useLiveReload } from '../lib/liveReload'
 import { filterByCustomer } from '../lib/quoteSearch'
 import { useDateGroups } from '../lib/dateGroups'
 import { safeTop, safeBottom } from '../styles/safeArea'
@@ -1759,12 +1760,17 @@ function KanbanTab({ deepLink, initialView }: {
    */
   useBackClose(selectedOrderId !== null, () => setSelectedOrderId(null))
 
-  function load() {
-    setLoading(true); setErr('')
+  /**
+   * @param silent 조용히 — 로딩 표시로 화면을 비우지 않는다. 저절로 새로 읽을 때·상세에서 돌아올 때 쓴다
+   *               (보던 목록·펼친 칸이 그대로 있어야 한다)
+   */
+  function load(silent = false) {
+    if (!silent) setLoading(true)
+    setErr('')
     Promise.all([fetchOrders({}), fetchQuotes({ status: 'contracted' })])
       .then(([os, qs]) => { setOrders(os); setContracted(qs) })
       .catch(e => setErr(e.message))
-      .finally(() => setLoading(false))
+      .finally(() => { if (!silent) setLoading(false) })
   }
 
   // 제작 배정 — 견적 목록의 「제작 배정」과 같은 창·같은 요청
@@ -1790,6 +1796,8 @@ function KanbanTab({ deepLink, initialView }: {
   }, [])
   // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
   useScreenRefresh(load)
+  // 켜 둔 동안 30초마다 조용히 — 특장사가 단계를 끝내면 현황판 숫자가 따라온다. 상세를 보는 동안은 쉰다
+  useLiveReload(() => load(true), selectedOrderId === null)
 
   if (loading) return <div style={{ color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>{t('로딩 중…')}</div>
 
@@ -1805,7 +1813,8 @@ function KanbanTab({ deepLink, initialView }: {
     return (
       <OrderDetail
         orderId={selectedOrderId}
-        onBack={() => setSelectedOrderId(null)}
+        /* 돌아오면 바로 다시 읽는다 — 상세에서 단계를 끝냈으면 현황판 숫자가 그 자리에서 바뀌어야 한다 */
+        onBack={() => { setSelectedOrderId(null); load(true) }}
         backLabel="← 주문 진행"
         /* 알림을 눌러 들어온 그 주문일 때만 대화 탭으로 연다 */
         initialTab={deepLink?.chat && deepLink.orderId === selectedOrderId ? 'chat' : undefined}
@@ -1910,7 +1919,7 @@ function KanbanTab({ deepLink, initialView }: {
           orderedAt={viewingPo.assigned_at ?? viewingPo.created_at}
           busy={false}
           error=""
-          onClose={() => setViewingPo(null)}
+          onClose={() => { setViewingPo(null); load(true) }}
         />
       )}
     </div>
