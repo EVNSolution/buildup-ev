@@ -162,17 +162,32 @@ export function fromDbDate(d: Date | string): string {
 export type DueCheck = { ok: true } | { ok: false; reason: string };
 
 /**
- * 납기일이 유효한가. **서버가 최종 판정**하고 화면은 같은 함수로 미리 막는다.
+ * 납기일로 **고를 수 있는 날**인가 — 발주일 이후의 영업일(주말·공휴일 아님).
+ *
+ * 한도(N영업일 이내)는 따지지 않는다. 특장사가 수락하며 고를 때는 한도까지 함께 보고
+ * (`checkDeliveryDue`), 관리자가 협의 끝에 **바꿀 때는 이것만** 본다 — 한도는 발주서가
+ * 특장사에게 건 약속이지 관리자가 늦춰 주는 것까지 막는 규칙이 아니다.
  */
-export function checkDeliveryDue(
-  due: Date, orderedAt: Date, days: number = DELIVERY_DUE_BUSINESS_DAYS,
-): DueCheck {
+export function checkDueDay(due: Date, orderedAt: Date): DueCheck {
   const d = dayOnly(due);
   const base = dayOnly(orderedAt);
   if (d <= base) return { ok: false, reason: '납기일은 발주일 이후여야 합니다' };
   if (isWeekend(d)) return { ok: false, reason: '납기일은 영업일만 고를 수 있습니다' };
   // 연휴에 납기를 잡으면 그날 받을 사람이 없다 — 달력에 있는 날은 고를 수 없다
   if (isHoliday(d)) return { ok: false, reason: '납기일은 공휴일이 아닌 날로 골라야 합니다' };
+  return { ok: true };
+}
+
+/**
+ * 납기일이 유효한가. **서버가 최종 판정**하고 화면은 같은 함수로 미리 막는다.
+ */
+export function checkDeliveryDue(
+  due: Date, orderedAt: Date, days: number = DELIVERY_DUE_BUSINESS_DAYS,
+): DueCheck {
+  const day = checkDueDay(due, orderedAt);
+  if (!day.ok) return day;
+  const base = dayOnly(orderedAt);
+  const d = dayOnly(due);
   const limit = deliveryDueLimit(base, days);
   if (d > limit) {
     return { ok: false, reason: `납기일은 발주일로부터 ${days}영업일 이내(${toDateInput(limit)}까지)여야 합니다` };

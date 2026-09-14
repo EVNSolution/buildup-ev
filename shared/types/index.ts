@@ -423,6 +423,11 @@ export interface ApiOrderMakerDetail {
    * 특장사가 완료 처리하는 「차량 도착」 단계와 다르다(이건 예정).
    */
   car_arrival_planned_at?: string | null;
+  /** 특장사가 수락한 시각 — 없으면 아직 수락 전 */
+  accepted_at?: string | null;
+  /** 특장사가 수락하며 처음 약속한 납기일 — 관리자가 바꾼 적이 있을 때만 있다 */
+  delivery_due_original?: string | null;
+  delivery_due_changed_at?: string | null;
   /** 거부돼 돌아간 건인가 — 수락·거부 대신 「거부됨」과 대화만 보여 준다 */
   rejected?: boolean;
   reject_reason?: string | null;

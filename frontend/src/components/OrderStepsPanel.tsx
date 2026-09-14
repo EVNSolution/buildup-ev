@@ -41,8 +41,10 @@ const ACTOR_LABEL: Record<string, string> = {
   SALES: '영업', ADMIN: '관리자', MAKER: '특장사', SYSTEM: '시스템',
 }
 
-export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
+export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange, dueKey }: {
   orderId: number
+  /** 납기일이 바뀌면 다시 읽는다 — 관리자가 위에서 고친 날짜가 머리말·지연 표시에 바로 반영돼야 한다 */
+  dueKey?: string | null
   /** 조회만 하는 화면에서는 버튼을 감춘다 */
   canEdit?: boolean
   /**
@@ -83,7 +85,7 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange }: {
   function load() {
     fetchSteps(orderId).then(setRes).catch(e => setErr(e instanceof Error ? e.message : t('단계 정보를 불러오지 못했습니다')))
   }
-  useEffect(() => { load() }, [orderId])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [orderId, dueKey])   // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
    * **이 주문의 카탈로그** — 특장만 주문은 차량 트랙이 「차량 도착」 하나로 줄고,
