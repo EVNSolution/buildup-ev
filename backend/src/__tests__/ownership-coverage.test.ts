@@ -48,6 +48,7 @@ function hasOwnership(body: string): boolean {
  */
 const EXEMPT: Record<string, string> = {
   'external.ts': '라우터 전체가 x-api-key 상수시간 검증을 지난다(서버 간 API)',
+  'notifications.ts': ':id 는 견적·주문이 아니라 알림 번호다. 모든 쓰기·읽기에 user_email = 로그인 계정 조건이 붙는다(notification-inbox.test.ts 가 남의 알림 읽음 불가를 실제로 확인)',
 };
 
 interface Route { file: string; method: string; path: string; roles: string; body: string }

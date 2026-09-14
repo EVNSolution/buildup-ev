@@ -993,6 +993,30 @@ model PushSubscription {
   @@map("push_subscription")
 }
 
+/// **알림함** — 계정마다 받은 알림을 쌓아 둔다.
+///
+/// 휴대폰 푸시는 한 번 뜨고 사라진다. 놓치면 다시 볼 곳이 없었고, 푸시를 구독하지 않은 기기
+/// (회사 PC 등)에서는 아예 받을 수 없었다. 그래서 푸시로 보내는 모든 알림을 여기에도 남긴다
+/// (services/push.ts `notify` 한 곳). 헤더의 종 아이콘이 이 표를 보여 준다.
+///
+/// 지우지 않는다 — 읽으면 `read_at` 만 찍는다.
+model Notification {
+  id         Int       @id @default(autoincrement())
+  user_email String    @db.VarChar(120)
+  title      String    @db.VarChar(200)
+  body       String    @db.VarChar(1000)
+  /// 눌렀을 때 열 화면(푸시와 같은 주소)
+  url        String    @db.VarChar(500)
+  tag        String?   @db.VarChar(100)
+  created_at DateTime  @default(now())
+  /// 읽은 시각 — 비어 있으면 안 읽음
+  read_at    DateTime?
+
+  @@index([user_email, created_at], map: "notification_user_created_idx")
+  @@index([user_email, read_at], map: "notification_user_read_idx")
+  @@map("notification")
+}
+
 /// 공휴일 — **영업일 계산의 정본.**
 ///
 /// 납기 한도는 「발주일로부터 N영업일」인데, 주말만 빼고 세면 연휴가 낀 달에

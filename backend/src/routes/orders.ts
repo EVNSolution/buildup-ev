@@ -9,7 +9,7 @@ import { sortSpecOptions } from '@buildup-ev/shared/types';
 import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
 import { loadHolidays } from '../services/holidays.js';
 import { orderDetailDims } from '../services/dimension-preset.js';
-import { notify, pushAllowed } from '../services/push.js';
+import { notify, appRecipients } from '../services/push.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD } from '@buildup-ev/shared/process';
 import { hasAppendix, clampAppendix } from '@buildup-ev/shared/docs/appendix';
 
@@ -611,7 +611,7 @@ ordersRouter.patch('/:id/car-arrival', rbac('ADMIN'), requirePermission('order.c
         where: { org_code: order.maker_org_id, active: true, status: 'active' },
         select: { email: true },
       });
-      const to = await pushAllowed(makers.map(m => m.email));
+      const to = await appRecipients(makers.map(m => m.email));
       if (to.length > 0) {
         notify(to, {
           title: `주문 #${id} 차량 도착 예정일`,
@@ -722,7 +722,7 @@ ordersRouter.patch('/:id/delivery-due', rbac('ADMIN'), requirePermission('order.
         where: { org_code: order.maker_org_id, active: true, status: 'active' },
         select: { email: true },
       });
-      const to = await pushAllowed(makers.map(m => m.email));
+      const to = await appRecipients(makers.map(m => m.email));
       if (to.length > 0) {
         notify(to, {
           title: `주문 #${id} 납기일 변경`,

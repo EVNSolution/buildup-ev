@@ -82,10 +82,10 @@ describe('두 번 가지 않는다', () => {
 });
 
 describe('누구에게', () => {
-  it('🔴 배정된 특장사 조직 중 「앱 알림」을 켠 사람에게만', () => {
+  it('🔴 배정된 특장사 조직의 활성 계정에게 — 기능모듈로 거르지 않는다(2026-09-14: 기능모듈은 메일 여부만)', () => {
     const svc = read('backend/src/services/due-nudge.ts');
     expect(svc).toMatch(/org_code: o\.maker_org_id!/);
-    expect(svc).toMatch(/pushAllowed\(/);
+    expect(svc).toMatch(/appRecipients\(/);
   });
 
   it('🔴 끝났거나 치운 주문에는 안 보낸다', () => {
