@@ -19,6 +19,17 @@ const ROOT = path.resolve(__dirname, '../../..');
 const HEADER = readFileSync(path.join(ROOT, 'frontend/src/components/Header.tsx'), 'utf8');
 
 describe('휴대폰 화면 전환 토글', () => {
+  it('🔴 휴대폰에서는 토글이 헤더 정가운데 — 왼쪽·가운데·오른쪽 세 칸 격자(2026-09-14, 휴대폰만)', () => {
+    /*
+     * 절대 위치로 띄우면 로고·이름과 겹칠 수 있다. 양쪽 칸이 같은 폭(1fr)을 나눠 가져야 정가운데다.
+     * 390·320px 실측: 토글 중심 = 헤더 중심(0px), 겹침 없음, 새어 나감 0. PC·역할 하나 계정은 위치 그대로.
+     */
+    expect(HEADER).toMatch(/const centerSwitch = isMobile && mySurfaces\.length > 1/);
+    expect(HEADER).toMatch(/gridTemplateColumns: 'minmax\(0, 1fr\) auto minmax\(0, 1fr\)'/);
+    expect(HEADER, '가운데 정렬인데 밀개가 남아 토글을 한쪽으로 민다').toMatch(/\{!centerSwitch && <div style=\{\{ flex: 1 \}\} \/>\}/);
+    expect(HEADER, 'PC 까지 가운데로 바뀌었다').not.toMatch(/const centerSwitch = mySurfaces\.length > 1/);
+  });
+
   it('🔴 제 줄을 통째로 차지하지 않는다', () => {
     expect(HEADER, '헤더가 두 줄이 된다').not.toMatch(/flexBasis: '100%'/);
   });
