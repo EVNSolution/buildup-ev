@@ -11,7 +11,7 @@
 import { createTransport } from 'nodemailer';
 import { mergePermissions } from '../lib/permissions.js';
 import { prisma } from '../lib/prisma.js';
-import { notify as pushNotify, pushAllowed } from './push.js';
+import { notify as pushNotify, activeAdmins } from './push.js';
 
 const BASE_URL = process.env['PUBLIC_BASE_URL'] || 'https://buildup-ev.cleversystem.ai';
 
@@ -151,32 +151,33 @@ export async function notifyAssignNeeded(kind: AssignKind, quoteId: number): Pro
     });
     if (!quote) return;
 
-    const to = await adminRecipients();
-    if (to.length === 0) {
-      // 조용히 사라지면 배정을 기다리는 건이 방치된다 — 왜 안 갔는지 로그에 남긴다
-      console.warn(
-        `[notify] ${t.what} 알림을 받도록 켜 둔 계정이 없다 — 견적 ${quoteId} 알림 건너뜀. ` +
-        `관리자 › 계정 관리에서 「제작 배정 알림 메일」(${ASSIGN_NOTIFY_MODULE})을 켜야 나간다.`,
-      );
-      return;
-    }
-
     const no = quote.quote_no ?? `#${quote.id}`;
     const who = quote.customer?.name ?? '';
 
     /*
-     * 앱 알림을 **먼저** 띄운다. 메일은 SMTP 왕복이 있어 몇 초 걸리고, 메일 설정이
-     * 빠져 있으면 아예 안 나간다 — 그때도 앱 알림은 가야 한다.
+     * 앱 알림(알림함·푸시)을 **먼저, 메일과 따로** 보낸다 — 받는 사람은 활성 관리자 전원.
+     * 기능모듈 「제작 배정 알림 메일」은 **메일만** 정한다(지시 2026-09-14). 그래서 메일 받을 사람이
+     * 아무도 없어도 앱 알림은 나간다. 메일은 SMTP 왕복이 있어 몇 초 걸리고, 설정이 빠지면 안 나간다.
      * 태그를 견적별로 두어 같은 건이 여러 번 쌓이지 않게 한다.
      */
-    void pushAllowed(to).then(pushTo => {
-      pushNotify(pushTo, {
+    void activeAdmins().then(appTo => {
+      pushNotify(appTo, {
         title: `${t.what} 필요 — ${no}`,
         body: [who, t.why].filter(Boolean).join(' · '),
         url: ASSIGN_LINK,
         tag: `assign-${kind}-${quote.id}`,
       });
     }).catch(e => console.warn('[notify] 배정 앱 알림 실패', e));
+
+    const to = await adminRecipients();
+    if (to.length === 0) {
+      // 조용히 사라지면 배정을 기다리는 건이 방치된다 — 왜 안 갔는지 로그에 남긴다
+      console.warn(
+        `[notify] ${t.what} 알림 메일을 받도록 켜 둔 계정이 없다 — 견적 ${quoteId} 메일 건너뜀(앱 알림은 발송). ` +
+        `관리자 › 계정 관리에서 「제작 배정 알림 메일」(${ASSIGN_NOTIFY_MODULE})을 켜야 나간다.`,
+      );
+      return;
+    }
 
     const tx = transport();
     if (!tx) { console.warn(`[notify] MAIL_SMTP_* 미설정 — ${t.what} 알림 메일 건너뜀(앱 알림은 발송)`); return; }

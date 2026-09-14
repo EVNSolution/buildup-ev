@@ -9,7 +9,7 @@
  * (사용자 × 주문 × 단계)로 따로 저장한다.
  */
 import { prisma } from '../lib/prisma.js';
-import { notify, pushAllowed } from './push.js';
+import { notify, appRecipients } from './push.js';
 import { adminRecipients } from './notify.js';
 
 /** 한 번에 쓸 수 있는 길이 — DB 컬럼(VARCHAR 2000)과 같은 값이어야 한다 */
@@ -267,8 +267,8 @@ async function notifyOthers(
       ...participants.map((p) => p.author),
       ...realAdmins,
     ])].filter((e) => e !== args.author);
-    // 기능모듈 「앱 알림」이 켜진 계정만 — 기기 구독은 그 다음 조건이다
-    const to = await pushAllowed(candidates);
+    // 활성 계정만 — 푸시는 그 기기가 알림을 허용했을 때만 뜬다(알림함에는 늘 쌓인다)
+    const to = await appRecipients(candidates);
     if (to.length === 0) return;
 
     const who = args.authorName ?? args.author;

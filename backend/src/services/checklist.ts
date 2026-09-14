@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { STEP_BY_CODE, checklistPasses } from '@buildup-ev/shared/process';
-import { notify, pushAllowed } from './push.js';
+import { notify, appRecipients } from './push.js';
 
 /**
  * PDI 체크리스트 — **서식은 데이터, 규칙은 코드.**
@@ -77,8 +77,8 @@ export async function checklistGate(orderId: number, stepCode: string): Promise<
 /**
  * 체크리스트가 제출되면 **관리자에게** 알린다.
  *
- * 알림은 켜고 끄는 것 하나만 본다(`notify.push`) — 무슨 알림인지로 갈라 두면
- * 켠 사람이 왜 안 오는지를 설명할 수 없게 된다(지시: 2026-09-10).
+ * 받는 사람은 활성 관리자 — 기능모듈로 거르지 않는다(기능모듈은 메일 여부만, 지시 2026-09-14).
+ * 푸시가 뜨는지는 그 기기가 알림을 허용했는지로 정해진다.
  */
 export async function notifyChecklistSubmitted(orderId: number, stepCode: string, by: string): Promise<void> {
   if (!prisma) return;
@@ -87,7 +87,7 @@ export async function notifyChecklistSubmitted(orderId: number, stepCode: string
     where: { active: true, status: 'active', OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }] },
     select: { email: true },
   });
-  const to = (await pushAllowed(admins.map(a => a.email))).filter(e => e !== by);
+  const to = (await appRecipients(admins.map(a => a.email))).filter(e => e !== by);
   if (to.length === 0) return;
   notify(to, {
     title: `주문 #${orderId} 체크리스트 제출`,

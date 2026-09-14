@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { Segmented } from './ui/Segmented'
+import { NotificationBell } from './NotificationBell'
 import { surfacesFor } from '../lib/surfaces'
 import { useLang, t } from '../i18n'
 import logoUrl from '../assets/logo.png'
@@ -96,6 +97,12 @@ export function Header({ customer }: Props) {
           />
         </div>
       )}
+
+      {/*
+        알림함 — 화면 전환 토글 **바로 옆.** 역할이 하나라 토글이 없는 계정도 같은 자리(이름 앞)에 둔다.
+        안 읽은 알림이 있으면 빨간 점, 누르면 받은 알림 목록(NotificationBell).
+      */}
+      {user && <NotificationBell />}
 
       {/*
         영업화면 전용: 저장된 고객 표시 칩(클릭 동작 없음).

@@ -95,7 +95,15 @@ describe('알림 내용', () => {
 
   it('메일과 앱 알림을 함께 보낸다', () => {
     expect(NOTIFY).toContain('pushNotify');
-    expect(NOTIFY).toContain('pushAllowed');
+    expect(NOTIFY).toContain('activeAdmins');
+  });
+
+  it('🔴 메일 받을 사람이 아무도 없어도 앱 알림은 나간다 — 기능모듈은 메일만 정한다(2026-09-14)', () => {
+    const fn = NOTIFY.slice(NOTIFY.indexOf('export async function notifyAssignNeeded'));
+    const push = fn.indexOf('pushNotify');
+    const mailGate = fn.indexOf('const to = await adminRecipients()');
+    expect(push, '앱 알림이 없다').toBeGreaterThan(0);
+    expect(push, '메일 받는 사람 확인(없으면 return)이 앱 알림보다 앞에 있다').toBeLessThan(mailGate);
   });
 
   it('🔴 메일 설정이 없어도 앱 알림은 나간다', () => {

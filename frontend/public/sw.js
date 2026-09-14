@@ -20,7 +20,10 @@ self.addEventListener('push', (event) => {
   let d = {};
   try { d = event.data ? event.data.json() : {}; } catch { /* 형식이 깨져도 알림은 띄운다 */ }
   const title = d.title || 'Buildup-EV';
-  event.waitUntil(
+  event.waitUntil(Promise.all([
+    // 열려 있는 화면에 알린다 — 헤더 종 아이콘의 빨간 점을 기다리지 않고 바로 켠다
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((cs) => cs.forEach((c) => c.postMessage({ type: 'notification' }))),
     self.registration.showNotification(title, {
       body: d.body || '',
       icon: '/icon-192.png',
@@ -30,7 +33,7 @@ self.addEventListener('push', (event) => {
       renotify: true,
       data: { url: d.url || '/' },
     }),
-  );
+  ]));
 });
 
 self.addEventListener('notificationclick', (event) => {
