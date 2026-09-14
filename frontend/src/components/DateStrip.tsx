@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DateField } from './ui/DateField'
 import { t, tf } from '../i18n'
 import { setCarArrival, changeDeliveryDue } from '../api/orders'
 import { fetchAddon, setAddonTarget } from '../api/addon'
@@ -102,7 +103,7 @@ export function DateStrip({ orderId, arrival, due, target = false }: {
 
       {current && (
         <div style={s.editor}>
-          <input type="date" style={s.input} value={draft} disabled={busy} onChange={e => setDraft(e.target.value)} aria-label={current.label} />
+          <DateField value={draft} disabled={busy} onChange={setDraft} ariaLabel={current.label} />
           {open === 'due' && (
             <input type="text" style={{ ...s.input, ...s.reason }} value={reason} maxLength={200} disabled={busy}
               onChange={e => setReason(e.target.value)} placeholder={t('사유 (선택)')} aria-label={t('사유 (선택)')} />

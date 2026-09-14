@@ -24,6 +24,7 @@ import { useChatPoll, CHAT_POLL_IDLE_MS } from '../lib/chatPoll'
 import { OrderEvidenceList } from './OrderEvidenceList'
 import { usePermission } from './PermGate'
 import { DateStrip } from './DateStrip'
+import { BackLink } from './ui/BackLink'
 import { AddonStepsPanel } from './AddonStepsPanel'
 
 const DOC_STATUS_LABEL: Record<string, string> = { pending: '준비중', done: '완료', na: '해당없음' }
@@ -417,7 +418,7 @@ interface Props {
   initialChatStep?: string
 }
 
-export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'), makerView = false, onRemove, initialTab, initialChatStep }: Props) {
+export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), makerView = false, onRemove, initialTab, initialChatStep }: Props) {
   // 기능모듈 「주문 상태 변경」 — 계정별로 켜고 끌 수 있다
   const canChangeSteps = usePermission('order.control')
   const { session } = useAuth()
@@ -510,7 +511,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('← 배정 주문'
     >
       {/* 헤더 */}
       <div style={det.header}>
-        <button style={det.backBtn} onClick={onBack}>{backLabel}</button>
+        <BackLink label={backLabel} onClick={onBack} style={{ marginBottom: -6 }} />
         <div style={det.titleRow}>
           <span style={{ ...det.orderId, fontSize: isMobile ? 18 : 20 }}>주문 #{detail.id}</span>
           <span style={det.model}>{detail.model_code}</span>
@@ -844,11 +845,6 @@ const det: Record<string, React.CSSProperties> = {
   loading: { color: 'var(--muted)', fontSize: 14, padding: '40px 0' },
   err: { color: 'var(--warn)', fontSize: 13 },
   header: { display: 'flex', flexDirection: 'column', gap: 8 },
-  backBtn: {
-    alignSelf: 'flex-start', fontSize: 12, padding: '5px 12px',
-    border: '0.5px solid var(--line)', borderRadius: 7, background: '#fff',
-    cursor: 'pointer', color: 'var(--muted)', marginBottom: 4, minHeight: 44,
-  },
   titleRow: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' as const },
   orderId: { fontWeight: 800, color: 'var(--dark)' },
   statusBadge: { fontSize: 12, fontWeight: 700, padding: '4px 12px', background: 'var(--lime)', color: 'var(--dark)', borderRadius: 14 },

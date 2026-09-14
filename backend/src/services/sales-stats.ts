@@ -92,6 +92,12 @@ export async function salesStats(range: StatsRange): Promise<SalesStat[]> {
       contracted: latestContract?.completed_at ?? null,
       assigned: q.order?.assigned_at ?? null,
     });
+    /*
+     * **「완료」는 지금 완료인 것만** 센다(2026-09-14). 완료는 되돌릴 수 있다 — 고객 인도를 되돌리거나,
+     * 예전 흐름에서 특장사 출고 때 완료로 올라갔다가 고객 인도 전이라 되돌린 건. 이력에 한 번 찍혔다고
+     * 완료로 세면 부가작업에서 멈춘 주문이 영업 성과·마이페이지에 「완료」로 뜬다(제보).
+     */
+    if (q.status !== 'completed') t.completed = null;
 
     // 도달 = 그 단계 시각이 있거나, 지금 그 단계를 이미 지나왔거나
     const idxNow = FUNNEL.indexOf(q.status as FunnelStage);

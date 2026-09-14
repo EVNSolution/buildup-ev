@@ -391,6 +391,8 @@ export interface ApiOrder {
   /** 단계 진행 요약 — 옛 `status`(6단계 문자열)를 대신한다 */
   steps?: ApiOrderStepSummary;
   /** 특장사가 수락하며 약속한 납기일 (YYYY-MM-DD). 수락 전에는 null */
+  /** 차량 도착 예정일(관리자가 찍는다) — 목록 카드의 날짜 줄 */
+  car_arrival_planned_at?: string | null;
   delivery_due?: string | null;
   /** 발주 수락 시각 */
   accepted_at?: string | null;

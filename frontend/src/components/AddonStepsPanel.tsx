@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { DateField } from './ui/DateField'
 import { t, tf } from '../i18n'
 import { ADDON_TRACKS, ADDON_TRACK_LABEL, type AddonTrack } from '@shared/process/addon'
 import { fetchAddon, completeAddonStep, undoAddonStep, type AddonView, type AddonStepView } from '../api/addon'
@@ -106,8 +107,7 @@ function StepRow({ step, busy, date, onDate, onComplete, onUndo }: {
       </span>
       <span style={s.actions}>
         {open && step.date_label && (
-          <input type="date" style={s.date} value={date} max={toDateInput(new Date())} disabled={busy}
-            onChange={e => onDate(e.target.value)} aria-label={t(step.date_label)} />
+          <DateField value={date} max={toDateInput(new Date())} disabled={busy} onChange={onDate} ariaLabel={t(step.date_label)} />
         )}
         {open && (
           <button type="button" style={BTN.rowPrimary} disabled={busy || (!!step.date_label && !date)} onClick={onComplete}>

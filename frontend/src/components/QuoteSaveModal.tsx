@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { DateField } from './ui/DateField'
 import { t , tf} from '../i18n'
 import { PhoneInput } from './PhoneInput'
 import { SubsidyForm, BUSINESS_TYPE_OPTIONS, type SubsidyInputs } from './SubsidyInputs'
@@ -322,10 +323,7 @@ export function QuoteCustomerForm({ v, setV, regions, forContract = false, bodyO
         {forContract && (
           <div style={{ ...s.row, ...s.gridFull }}>
             <label style={s.label}>{t('계약일자')}<Tag need /></label>
-            <input
-              style={s.field} type="date" value={v.contract_date}
-              onChange={e => set('contract_date', e.target.value)}
-            />
+            <DateField value={v.contract_date} onChange={d => set('contract_date', d)} ariaLabel={t('계약일자')} style={{ width: '100%' }} />
             <div style={s.hintLine}>{t('계약서에 찍히는 날짜입니다. 기본은 오늘.')}</div>
           </div>
         )}
