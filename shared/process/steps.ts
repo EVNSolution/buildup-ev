@@ -195,6 +195,54 @@ export const TRACK_LABEL: Record<Track, string> = {
   vehicle: '차량', body: '특장', tuning: '튜닝', merged: '출고',
 };
 
+/** 트랙을 화면에 늘어놓는 순서 — 차량 · 특장 · 튜닝 · 출고 */
+export const TRACKS: Track[] = ['vehicle', 'body', 'tuning', 'merged'];
+
+/** 한 트랙에서 이 주문이 **지금 서 있는 자리** */
+export interface LaneSpot {
+  code: string;
+  label: string;
+  /** 이 단계가 열린 때(선행 단계를 마지막으로 끝낸 시각, 선행이 없으면 시작 시각) — 「며칠째」 */
+  since: string | null;
+}
+
+/**
+ * **주문 현황판에서 이 주문을 트랙마다 한 칸에 세운다.**
+ *
+ * 차량·특장·튜닝·출고는 동시에 흐른다 — 한 주문이 「임시번호판 반납」과 「특장 제작 착수」에
+ * 함께 걸려 있을 수 있다. 그래서 칸을 **트랙마다 하나씩** 준다(지시 2026-09-14). 줄마다 숫자를
+ * 더하면 그 트랙에서 일이 남은 주문 수가 되어, 한 줄 안에서는 겹쳐 세지 않는다.
+ *
+ *   · 그 트랙의 단계를 카탈로그 순서로 보며, **선행이 다 끝났는데 아직 안 끝난 첫 단계**가 자리다
+ *   · 트랙을 다 끝냈으면 → 없음(null)
+ *   · 선행이 **다른 트랙에서** 안 끝나 아무 단계도 못 여는 트랙 → 없음. 그 주문은 막혀 있는 쪽 트랙에서
+ *     보인다(예: 차량·특장이 안 끝나 「장착」을 못 하는 주문은 출고 줄에 세지 않는다)
+ *
+ * 화면과 서버가 같은 판정을 쓰도록 여기 한 곳에 둔다.
+ */
+export function laneSpots(
+  defs: StepDef[],
+  rows: { code: string; status: string; done_at: Date | string | null }[],
+  startedAt: Date | string | null,
+): Record<Track, LaneSpot | null> {
+  const doneAt = new Map<string, Date | null>();
+  for (const r of rows) if (r.status === 'done') doneAt.set(r.code, r.done_at ? new Date(r.done_at) : null);
+  const iso = (d: Date | string | null) => (d ? new Date(d).toISOString() : null);
+  const out = {} as Record<Track, LaneSpot | null>;
+  for (const track of TRACKS) {
+    const lane = defs.filter(d => d.track === track);
+    const spot = lane.find(d => !doneAt.has(d.code) && d.requires.every(q => doneAt.has(q)));
+    if (!spot) { out[track] = null; continue; }
+    const reqTimes = spot.requires.map(q => doneAt.get(q)).filter((d): d is Date => !!d).map(d => d.getTime());
+    out[track] = {
+      code: spot.code,
+      label: spot.label,
+      since: reqTimes.length > 0 ? new Date(Math.max(...reqTimes)).toISOString() : iso(startedAt),
+    };
+  }
+  return out;
+}
+
 export const STEP_BY_CODE: Record<string, StepDef> =
   Object.fromEntries(STEPS.map(s => [s.code, s]));
 

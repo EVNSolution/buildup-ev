@@ -18,6 +18,10 @@ import { Segmented } from '../components/ui/Segmented'
 import { useScreenRefresh, RefreshOn } from '../contexts/RefreshContext'
 import { fetchOrders, fetchMakerOrgs } from '../api/orders'
 import { OrderSections } from '../components/OrderSections'
+import { OrderDashboard, DashboardList } from '../components/OrderDashboard'
+import { buildDashboard, filterByMaker, type DashSelection } from '../lib/orderDashboard'
+import { dueInfo } from '@shared/process/due'
+import { TRACK_LABEL } from '@shared/process/steps'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
@@ -1706,7 +1710,11 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
 }
 
 // ── 주문 칸반 탭 ──────────────────────────────────────────────────────────
-function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
+function KanbanTab({ deepLink, initialView }: {
+  deepLink?: OrderDeepLink | null
+  /** 「제작 배정 필요」 알림으로 들어왔으면 배정 대기 목록을 펴서 시작한다 */
+  initialView?: 'assign' | null
+}) {
   const { session } = useAuth()
   const canControl = session?.user.is_master ?? false
   /** 주문을 치울 수 있는가 — 기능모듈로 **계정별**로 켠다. 관리자라고 다 되지 않는다. */
@@ -1731,6 +1739,20 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
   const [viewingPo, setViewingPo] = useState<ApiOrder | null>(null)
   /** 발주서에 적히는 특장사 이름 — 목록 응답에는 코드만 있어 따로 받아 온다 */
   const [makerNames, setMakerNames] = useState<Record<string, string>>({})
+
+  /*
+   * **주문 현황판** — 배정 대기부터 인도 완료까지 이 탭 하나에서(2026-09-14 기획).
+   * 배정 대기는 견적(계약완료)이라 주문 목록과 따로 받아 온다. 배정 창은 견적 목록과 **같은 것**을 쓴다.
+   */
+  const [contracted, setContracted] = useState<ApiQuote[]>([])
+  const [makerOrgs, setMakerOrgs] = useState<Org[]>([])
+  const [sel, setSel] = useState<DashSelection | null>(initialView === 'assign' ? { kind: 'tile', key: 'assign' } : null)
+  const [maker, setMaker] = useState<string | null>(null)
+  /** 제작 배정 권한 — 없으면 목록에 배정 버튼을 두지 않는다(조회만) */
+  const canAssign = usePermission('order.confirm')
+  const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [confirmError, setConfirmError] = useState('')
   /*
    * 뒤로가기 한 번이면 목록으로 — **치던 검색어·보던 기간은 그대로다.**
    * 목록 화면이 그대로 살아 있고 그 위에 상세가 덮여 있을 뿐이라서다.
@@ -1739,14 +1761,31 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
 
   function load() {
     setLoading(true); setErr('')
-    fetchOrders({}).then(setOrders).catch(e => setErr(e.message)).finally(() => setLoading(false))
+    Promise.all([fetchOrders({}), fetchQuotes({ status: 'contracted' })])
+      .then(([os, qs]) => { setOrders(os); setContracted(qs) })
+      .catch(e => setErr(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  // 제작 배정 — 견적 목록의 「제작 배정」과 같은 창·같은 요청
+  async function handleAssign(makerOrgId: string, remark: string, customBadge: boolean, appendix: string, poLines: PoLine[]) {
+    if (!confirmingId) return
+    setConfirmLoading(true); setConfirmError('')
+    try {
+      await assignQuote(confirmingId, makerOrgId, remark, customBadge, appendix, poLines)
+      setConfirmingId(null); load()
+    } catch (e: unknown) {
+      setConfirmError(e instanceof Error ? e.message : t('배정 실패'))
+    } finally {
+      setConfirmLoading(false)
+    }
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     // 실패해도 발주서는 뜬다 — 이름 대신 코드가 보일 뿐이다
     fetchMakerOrgs()
-      .then(orgs => setMakerNames(Object.fromEntries(orgs.map(o => [o.code, o.name]))))
+      .then(orgs => { setMakerOrgs(orgs); setMakerNames(Object.fromEntries(orgs.map(o => [o.code, o.name]))) })
       .catch(() => setMakerNames({}))
   }, [])
   // 앱으로 돌아오면 저절로 · 헤더 버튼으로도
@@ -1783,23 +1822,86 @@ function KanbanTab({ deepLink }: { deepLink?: OrderDeepLink | null }) {
     )
   }
 
+  const makerName = (code: string | null | undefined) => (code ? makerNames[code] ?? code : '—')
+  const dash = buildDashboard(filterByMaker(orders, maker), contracted)
+  /** 거르기 칩 — 주문이 실제로 걸린 특장사만 */
+  const makersInUse = [...new Set(orders.map(o => o.maker_org_id ?? o.rejected_by_org).filter((c): c is string => !!c))]
+    .map(code => ({ code, name: makerName(code) }))
+  /*
+   * 목록 순서 — 급한 것부터. 진행 중은 납기가 가까운 순, 기다리는 칸은 오래 기다린 순.
+   */
+  const byDue = (a: ApiOrder, b: ApiOrder) => dueInfo(a.delivery_due).sortKey - dueInfo(b.delivery_due).sortKey
+  const oldest = (a: ApiOrder, b: ApiOrder) => (a.assigned_at ?? a.created_at).localeCompare(b.assigned_at ?? b.created_at)
+  let listOrders: ApiOrder[] | undefined
+  let listTitle = ''
+  if (sel?.kind === 'step') {
+    const chip = dash.lanes[sel.track].find(c => c.code === sel.code)
+    listOrders = [...(chip?.orders ?? [])].sort(byDue)
+    listTitle = `${t(TRACK_LABEL[sel.track])} · ${t(chip?.label ?? '')}`
+  } else if (sel?.kind === 'tile') {
+    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '진행 중', done: '인도 완료', late: '납기 지남' } as const
+    listTitle = t(TITLE[sel.key])
+    if (sel.key === 'pending') listOrders = [...dash.pending].sort(oldest)
+    else if (sel.key === 'active') listOrders = [...dash.active].sort(byDue)
+    else if (sel.key === 'late') listOrders = [...dash.late].sort(byDue)
+    else if (sel.key === 'done') listOrders = [...dash.done].sort((a, b) => b.id - a.id)
+  }
+  if (dash.assign.length > 1) {
+    dash.assign.sort((a, b) => (a.quote.contract?.completed_at ?? a.quote.created_at).localeCompare(b.quote.contract?.completed_at ?? b.quote.created_at))
+  }
+
   return (
     <div>
       {err && <div style={{ color: 'var(--warn)', fontSize: 13, marginBottom: 10 }}>{err}</div>}
       {!canControl && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{t('조회 전용 — 상태 변경은 배정 특장사만 가능합니다.')}</div>}
+
+      {/* 현황판 — 칸·단계를 누르면 바로 아래에 그 주문 목록이 펼쳐진다 */}
+      <OrderDashboard
+        dash={dash}
+        selected={sel}
+        onSelect={setSel}
+        makers={makersInUse}
+        maker={maker}
+        onMaker={setMaker}
+      />
+
+      {sel && (
+        <DashboardList
+          title={listTitle}
+          orders={listOrders}
+          waiting={sel.kind === 'tile' && sel.key === 'assign' ? dash.assign : undefined}
+          track={sel.kind === 'step' ? sel.track : undefined}
+          makerName={makerName}
+          onOpen={o => (sel.kind === 'tile' && sel.key === 'pending' ? setViewingPo(o) : setSelectedOrderId(o.id))}
+          onAssign={canAssign ? id => { setConfirmingId(id); setConfirmError('') } : undefined}
+          onRejectedOpen={o => setViewingPo(o)}
+          onClose={() => setSel(null)}
+        />
+      )}
+
       {/*
-        수락 대기 · 진행 중 · 완료 — **특장사 화면과 같은 것을 본다.**
+        아무것도 고르지 않았을 때는 **전체 구획**(수락 대기 · 거부됨 · 진행 중 · 완료) — 특장사 화면과 같은 것을 본다.
         예전에는 여기만 구획 없이 전부 한 덩어리였다. 같은 주문을 두고 두 사람이
         서로 다른 그림을 들고 이야기하게 된다.
       */}
-      <OrderSections
+      {!sel && <OrderSections
         orders={orders}
         onOpen={setSelectedOrderId}
         /* 수락 대기는 특장사와 같은 자리 — 발주서를 띄운다(조회 전용) */
         onPendingOpen={id => setViewingPo(orders.find(o => o.id === id) ?? null)}
         /* 거부됨 — 발주서와 그 특장사와의 대화를 연다. 날짜를 맞춰 견적 목록에서 다시 배정한다 */
         onRejectedOpen={id => setViewingPo(orders.find(o => o.id === id) ?? null)}
-      />
+      />}
+      {confirmingId !== null && (
+        <ConfirmModal
+          quoteId={confirmingId}
+          makerOrgs={makerOrgs}
+          loading={confirmLoading}
+          error={confirmError}
+          onConfirm={handleAssign}
+          onClose={() => { setConfirmingId(null); setConfirmError('') }}
+        />
+      )}
       {viewingPo && (
         <AcceptOrderModal
           readOnly
@@ -1852,6 +1954,18 @@ export function AdminPage() {
    */
   const [deepLink, setDeepLink] = useState<OrderDeepLink | null>(null)
   useOrderDeepLink(link => { setDeepLink(link); setActiveTab('kanban') })
+
+  /*
+   * 「제작 배정 필요」 알림 → `/admin?view=assign` — 주문 진행 탭의 **배정 대기**를 펴고 시작한다.
+   * 주소는 한 번 읽고 지운다(새로고침할 때마다 다시 펴지지 않게).
+   */
+  const [kanbanView] = useState<'assign' | null>(() =>
+    new URLSearchParams(window.location.search).get('view') === 'assign' ? 'assign' : null)
+  useEffect(() => {
+    if (!kanbanView) return
+    setActiveTab('kanban')
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash)
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 탭마다 필요한 권한 — 없으면 **버튼째** 감춘다.
   // 눌러서 「권한이 없습니다」를 보게 두면 왜 있는 버튼인지 알 수 없다.
@@ -1906,7 +2020,7 @@ export function AdminPage() {
         {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
-        {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} />}
+        {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} initialView={kanbanView} />}
         {activeTab === 'checklist' && <ChecklistTab />}
         {activeTab === 'holidays' && <HolidayTab />}
 

@@ -354,6 +354,13 @@ export interface ApiOrderStepSummary {
   open: string[];
   /** 하나라도 기준 일수를 넘게 멈춰 있나 */
   stalled: boolean;
+  /**
+   * 주문 현황판 — 트랙(차량·특장·튜닝·출고)마다 **지금 서 있는 단계**. 없으면 null
+   * (그 트랙을 다 끝냈거나, 다른 트랙이 안 끝나 기다리는 중). `late` = 약속한 날을 넘겼다.
+   */
+  lanes?: Record<'vehicle' | 'body' | 'tuning' | 'merged', { code: string; label: string; since: string | null; late: boolean } | null>;
+  /** 인도까지 끝났나 */
+  finished?: boolean;
 }
 
 export interface ApiOrder {

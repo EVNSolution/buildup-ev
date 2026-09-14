@@ -129,6 +129,11 @@ const ASSIGN_TEXT: Record<AssignKind, { what: string; why: string; todo: string 
  * 영업 화면으로 떨어져 다시 찾아 들어가야 한다.
  */
 const ASSIGN_LINK = '/admin';
+/**
+ * 제작 배정은 **주문 진행 탭의 배정 대기**로 연다 — 배정부터 조회·관리까지 한 탭에서(2026-09-14).
+ * 영업 배정(공개 문의)은 견적 목록에서 한다.
+ */
+const ASSIGN_LINKS: Record<AssignKind, string> = { maker: '/admin?view=assign', sales: ASSIGN_LINK };
 
 /**
  * **배정을 기다리는 건이 생겼다**고 알린다 — 메일과 앱 알림을 함께 보낸다.
@@ -164,7 +169,7 @@ export async function notifyAssignNeeded(kind: AssignKind, quoteId: number): Pro
       pushNotify(appTo, {
         title: `${t.what} 필요 — ${no}`,
         body: [who, t.why].filter(Boolean).join(' · '),
-        url: ASSIGN_LINK,
+        url: ASSIGN_LINKS[kind],
         tag: `assign-${kind}-${quote.id}`,
       });
     }).catch(e => console.warn('[notify] 배정 앱 알림 실패', e));
@@ -182,7 +187,7 @@ export async function notifyAssignNeeded(kind: AssignKind, quoteId: number): Pro
     const tx = transport();
     if (!tx) { console.warn(`[notify] MAIL_SMTP_* 미설정 — ${t.what} 알림 메일 건너뜀(앱 알림은 발송)`); return; }
 
-    const link = `${BASE_URL}${ASSIGN_LINK}`;
+    const link = `${BASE_URL}${ASSIGN_LINKS[kind]}`;
     const rows: [string, string][] = [
       ['견적번호', no],
       ['고객', quote.customer?.name ?? '—'],
