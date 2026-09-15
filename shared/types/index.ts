@@ -313,6 +313,10 @@ export interface ApiQuote {
   /** 「배정 요청」 시각 — 서명 완료 뒤 영업이 누른다. 있어야 관리자가 제작 배정한다(거부·삭제로 돌아온 건은 이미 있다) */
   assign_requested_at?: string | null;
   assign_requested_by?: string | null;
+  /** 관리자가 배정 요청을 거부했다(사유와 함께) — 영업 목록 맨 위 빨간 줄. 다시 요청하면 비워진다 */
+  assign_rejected_at?: string | null;
+  assign_rejected_by?: string | null;
+  assign_reject_reason?: string | null;
   /** 'sales' = 영업 작성 / 'public' = 고객이 공개 화면에서 직접 접수한 문의 */
   source?: string;
   customer_id: number | null;

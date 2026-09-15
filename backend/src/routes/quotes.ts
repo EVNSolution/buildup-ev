@@ -24,6 +24,7 @@ import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import { notifyAssignNeeded } from '../services/notify.js';
+import { notify, appRecipients } from '../services/push.js';
 import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
@@ -1127,7 +1128,8 @@ quotesRouter.patch('/:id/assign-request', rbac('SALES', 'ADMIN'), async (req: Re
     const now = new Date();
     const won = await prisma.quote.updateMany({
       where: { id, status: 'contracted', assign_requested_at: null },
-      data: { assign_requested_at: now, assign_requested_by: who },
+      // 거부됐던 건을 다시 요청하면 거부 표시를 걷는다(거부 사유는 이력에 남아 있다)
+      data: { assign_requested_at: now, assign_requested_by: who, assign_rejected_at: null, assign_rejected_by: null, assign_reject_reason: null },
     });
     if (won.count === 0) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 배정 요청한 견적입니다' } }); return; }
     await logQuoteChanges(id, 'inputs', { assign_requested_at: '' }, { assign_requested_at: now.toISOString() }, who, ['assign_requested_at']);
@@ -1136,6 +1138,65 @@ quotesRouter.patch('/:id/assign-request', rbac('SALES', 'ADMIN'), async (req: Re
   } catch (e) {
     console.error('[PATCH /quotes/:id/assign-request]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '배정 요청 중 오류가 발생했습니다.' } });
+  }
+});
+
+/**
+ * **배정 거부** — 관리자가 영업의 배정 요청을 **사유와 함께 돌려보낸다**(2026-09-15).
+ *
+ * 서명본이 불완전하거나 계약 내용이 제작에 맞지 않을 때다. 요청을 걷어 견적을 영업에게 돌려주고
+ * (배정 대기에서 빠진다), 영업 목록 맨 위에 빨간 줄로 사유와 함께 뜬다. 담당 영업에게 알림이 간다.
+ * 영업이 고친 뒤 「배정 요청」을 다시 누르면 거부 표시가 걷히고 관리자 배정 대기로 돌아온다.
+ *
+ * ⚠️ 조건을 쓰는 순간에 건다 — 두 관리자가 동시에 거부하거나, 한쪽이 배정하는 순간 거부해도 하나만 된다.
+ * ⚠️ 지우지 않는다 — 누가 언제 요청했고 누가 왜 거부했는지 견적 변경이력에 남긴다.
+ */
+quotesRouter.patch('/:id/assign-reject', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+  const raw = (req.body as { reason?: unknown })?.reason;
+  const reason = typeof raw === 'string' ? raw.trim().slice(0, 500) : '';
+  if (!reason) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '거부 사유를 적어야 합니다' } }); return; }
+  try {
+    const quote = await prisma.quote.findUnique({
+      where: { id },
+      select: { status: true, quote_no: true, sales_user_id: true, assign_requested_at: true, assign_requested_by: true, customer: { select: { name: true } } },
+    });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (quote.status !== 'contracted' || !quote.assign_requested_at) {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '배정 요청이 들어온 견적만 거부할 수 있습니다' } }); return;
+    }
+    const who = req.auth?.email ?? 'unknown';
+    const now = new Date();
+    const won = await prisma.quote.updateMany({
+      where: { id, status: 'contracted', assign_requested_at: { not: null } },
+      data: {
+        assign_requested_at: null, assign_requested_by: null,
+        assign_rejected_at: now, assign_rejected_by: who, assign_reject_reason: reason,
+      },
+    });
+    if (won.count === 0) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 처리된 배정 요청입니다' } }); return; }
+    await prisma.quoteChangeLog.create({ data: {
+      quote_id: id, section: 'status', field: 'assign_rejected',
+      old_value: `${quote.assign_requested_at.toISOString()} ${quote.assign_requested_by ?? ''}`.slice(0, 300),
+      new_value: reason.slice(0, 300), changed_by: who,
+    } });
+
+    // 담당 영업에게 — 알림함·푸시(기다리지 않는다)
+    if (quote.sales_user_id) {
+      const salesTo = quote.sales_user_id;
+      void appRecipients([salesTo]).then(to => notify(to, {
+        title: `배정 거부 — ${quote.quote_no ?? `#${id}`}`,
+        body: [quote.customer?.name, `사유: ${reason}`].filter(Boolean).join(' · '),
+        url: '/sales?tab=list',
+        tag: `assign-reject-${id}`,
+      })).catch(e => console.warn('[notify] 배정 거부 알림 실패', e));
+    }
+    res.json({ data: { ok: true } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/assign-reject]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '배정 거부 중 오류가 발생했습니다.' } });
   }
 });
 

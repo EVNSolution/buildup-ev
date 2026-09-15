@@ -148,7 +148,7 @@ describe('규칙이 한 곳씩', () => {
     expect(page).toMatch(/\) : q\.status === 'contracted' && q\.assign_requested_at \? \(\s*<span style=\{lv\.requested\}>\{t\('배정 요청됨'\)\}<\/span>/);
     expect(page).toMatch(/\) : canSign && \(/);   // 서명 전에만 서명 요청
     expect(page).toMatch(/assignReqBtn: \{ \.\.\.BTN\.rowPrimary, color: 'var\(--lime\)', fontWeight: 700 \}/);
-    expect(page).toMatch(/<tr key=\{q\.id\} style=\{needsAssignRequest\(q\) \? lv\.rowNeed : undefined\}>/);
+    expect(page).toMatch(/<tr key=\{q\.id\} style=\{isAssignRejected\(q\) \? lv\.rowRejected : needsAssignRequest\(q\) \? lv\.rowNeed : undefined\}>/);
     expect(page).toMatch(/function isSigned\(q: ApiQuote\): boolean \{\s*return q\.contract\?\.status === 'COMPLETED'/);
   });
   it('🔴 관리자 — 제작 배정 버튼·현황판 배정 대기는 요청된 건만', () => {

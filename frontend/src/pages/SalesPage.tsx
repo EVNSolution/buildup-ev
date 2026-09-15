@@ -284,14 +284,20 @@ function MyListView() {
     [quotes, nameQuery, onlyRequest],
   )
 
+  /*
+   * **배정 거부된 견적은 맨 위 묶음**(2026-09-15) — 관리자가 돌려보낸 건은 영업이 먼저 고쳐 다시 요청해야 한다.
+   * 날짜 묶음 사이에 섞이면 며칠 전 날짜 안에 접혀 보이지 않는다. 날짜 묶음에서는 뺀다(두 번 나오지 않게).
+   */
   const byDate = useMemo(() => {
+    const rejected = shownQuotes.filter(isAssignRejected)
     const m = new Map<string, ApiQuote[]>()
     for (const q of shownQuotes) {
+      if (isAssignRejected(q)) continue
       const d = fmtDate(q.created_at)
       const list = m.get(d)
       if (list) list.push(q); else m.set(d, [q])
     }
-    return [...m.entries()]
+    return [...(rejected.length ? [[REJECTED_GROUP, rejected] as [string, ApiQuote[]]] : []), ...m.entries()]
   }, [shownQuotes])
 
   /*
@@ -302,7 +308,9 @@ function MyListView() {
   useEffect(() => {
     // 필요건만 볼 때도 전부 펼친다 — 오래된 날짜에 묻힌 건이 「없다」로 보이면 안 된다
     if (nameQuery.trim() || onlyRequest) { setCollapsed(new Set()); return }
-    if (byDate.length > 1) setCollapsed(new Set(byDate.slice(1).map(([d]) => d)))
+    // 거부 묶음은 늘 펼친다 — 접으면 맨 위에 둔 뜻이 없다. 날짜는 가장 최근 것만 펼친다
+    const dates = byDate.filter(([d]) => d !== REJECTED_GROUP)
+    if (dates.length > 1) setCollapsed(new Set(dates.slice(1).map(([d]) => d)))
   }, [byDate.length, nameQuery, onlyRequest])
 
   /*
@@ -554,7 +562,7 @@ function MyListView() {
                      })}
                    >
                     <span style={lv.groupArrow}>{isOpen ? '▾' : '▸'}</span>
-                    <span style={lv.groupDate}>{date}</span>
+                    <span style={date === REJECTED_GROUP ? lv.groupRejected : lv.groupDate}>{date === REJECTED_GROUP ? t('배정 거부') : date}</span>
                     <span style={lv.groupCount}>{tf('{0}건', rows.length)}</span>
                    </button>
                   </td>
@@ -570,9 +578,17 @@ function MyListView() {
                   const noContractWhy = t('차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다')
                   return (
                     /* 배정 요청이 필요한 줄 — 관리자 목록의 「배정 필요」와 같은 초록 하이라이트. 요청하면 꺼진다 */
-                    <tr key={q.id} style={needsAssignRequest(q) ? lv.rowNeed : undefined}>
-                      <td style={needsAssignRequest(q) ? lv.tdNeedFirst : lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
-                      <td style={lv.td}>{q.customer?.name ?? '—'}</td>
+                    /* 배정 거부 — 빨간 하이라이트(사유는 고객 칸 아래). 배정 요청이 필요한 줄 — 관리자 목록과 같은 초록. 요청하면 꺼진다 */
+                    <tr key={q.id} style={isAssignRejected(q) ? lv.rowRejected : needsAssignRequest(q) ? lv.rowNeed : undefined}>
+                      <td style={isAssignRejected(q) ? lv.tdRejectedFirst : needsAssignRequest(q) ? lv.tdNeedFirst : lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
+                      <td style={lv.td}>
+                        {q.customer?.name ?? '—'}
+                        {isAssignRejected(q) && (
+                          <div style={lv.rejectReason} title={q.assign_reject_reason ?? ''}>
+                            {tf('배정 거부 · {0}', q.assign_reject_reason ?? '')}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
                         <Tooltip text={quoteStatusTip(q.status)} maxWidth={QUOTE_TIP_WIDTH} placement="below">
@@ -749,6 +765,14 @@ function MyListView() {
     </div>
     </>
   )
+}
+
+/** 날짜 묶음 맨 위 「배정 거부」 묶음의 키 — 날짜 문자열과 겹치지 않는 값 */
+const REJECTED_GROUP = '__assign_rejected__'
+
+/** 관리자가 배정 요청을 거부해 돌아온 견적 — 다시 요청하기 전까지 */
+function isAssignRejected(q: ApiQuote): boolean {
+  return q.status === 'contracted' && !q.assign_requested_at && !!q.assign_rejected_at
 }
 
 /** 서명이 끝났는가 — 전자서명 완료 또는 서명본 등록(둘 다 계약 COMPLETED). 계약완료 이후 상태도 서명이 끝난 것이다 */
@@ -1431,5 +1455,11 @@ const lv: Record<string, React.CSSProperties> = {
   requested: { ...BTN.row, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', cursor: 'default' },
   // 배정 요청이 필요한 줄 — 관리자 목록(qt.rowPublic·tdPublicFirst)과 같은 하이라이트
   rowNeed: { background: 'var(--lime-bg)' },
+  // 맨 위 「배정 거부」 묶음 이름 — 빨강(날짜 머리 묶음 스타일은 관리자 목록과 같게 두고 따로 둔다)
+  groupRejected: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--req)', letterSpacing: 'var(--ls-tight)' },
+  // 배정 거부 — 빨간 하이라이트(맨 위 묶음)
+  rowRejected: { background: 'var(--warnbg)' },
+  tdRejectedFirst: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap', boxShadow: 'inset 3px 0 0 0 var(--req)' },
+  rejectReason: { marginTop: 2, fontSize: 12, fontWeight: 600, color: 'var(--req)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   tdNeedFirst: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap', boxShadow: 'inset 3px 0 0 0 var(--lime)' },
 }

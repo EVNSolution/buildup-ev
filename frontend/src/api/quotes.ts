@@ -363,6 +363,20 @@ export async function duplicateQuote(quoteId: number): Promise<{ id: number; quo
  * 배정되는 순간 견적번호가 처음 발급되고, 그 영업의 「내 견적」에 나타난다.
  */
 /** 담당 영업이 배정된 공개 문의를 받는다(특장사의 주문 수락과 같은 자리). */
+/** 「배정 거부」 — 관리자가 영업의 배정 요청을 사유와 함께 돌려보낸다 */
+export async function rejectAssignRequest(quoteId: number, reason: string): Promise<void> {
+  const res = await fetch(`/api/v1/quotes/${quoteId}/assign-reject`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `배정 거부 실패: ${res.status}`)
+  }
+}
+
 /** 「배정 요청」 — 서명 완료 뒤 영업이 서명본을 확인하고 누른다. 이래야 관리자 제작 배정이 열린다 */
 export async function requestAssign(quoteId: number): Promise<void> {
   const res = await fetch(`/api/v1/quotes/${quoteId}/assign-request`, {
