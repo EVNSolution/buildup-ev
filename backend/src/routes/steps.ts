@@ -861,7 +861,7 @@ function chatScope(req: Request): string | null {
 /**
  * GET /orders/:id/steps/:code/checklist — 그 단계의 체크리스트.
  *
- * 처음 열면 **그때의 서식을 사본으로 얼려** 만든다. 서식이 비어 있으면 만들지 않고
+ * 처음 열면 서식을 사본으로 만들고, **제출 전에는 열 때마다 지금 서식과 맞춘다**(제출하면 얼린다). 서식이 비어 있으면 만들지 않고
  * `null` 을 돌려준다 — 낼 것이 없는 빈 체크리스트가 생기면 완료가 영영 막힌다.
  */
 stepsRouter.get('/:id/steps/:code/checklist', rbac('ADMIN', 'SALES', 'MAKER'),
@@ -955,7 +955,7 @@ stepsRouter.patch('/:id/steps/:code/checklist', rbac('ADMIN', 'MAKER'), requireP
     }
 
     const after = await prisma!.orderChecklist.findUniqueOrThrow({
-      where: { id: cl.id }, include: { lines: { select: { result: true } } },
+      where: { id: cl.id }, include: { lines: { where: { retired_at: null }, select: { result: true } } },
     });
     const allPass = checklistPasses(after.lines);
 

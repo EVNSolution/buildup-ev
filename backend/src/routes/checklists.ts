@@ -9,8 +9,8 @@ import { STEP_BY_CODE, CHECKLIST_STEPS } from '@buildup-ev/shared/process';
  * 규칙은 코드에 있고(어느 단계에 붙는가·누가 적는가·채워야 넘어간다),
  * 여기서 고치는 것은 **무엇을 확인하는가**뿐이다.
  *
- * ⚠️ 여기를 고쳐도 **이미 작성한 체크리스트는 바뀌지 않는다.** 작성 시점의 항목이
- *    주문에 사본으로 얼려 있기 때문이다 — 발주서 단가와 같은 원칙이다.
+ * ⚠️ 여기를 고치면 **제출 전** 체크리스트는 다음에 열 때 따라간다(문구가 바뀐 항목은 판정이 비워진다).
+ *    **제출한** 체크리스트는 그때 항목 그대로다 — 발주서 단가와 같은 원칙이다(services/checklist syncWithTemplate).
  * ⚠️ 지우지 않는다. 끄면(`active=false`) **새로 만드는** 체크리스트에서만 빠진다.
  */
 export const checklistsRouter = Router();
