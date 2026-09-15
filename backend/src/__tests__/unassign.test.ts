@@ -114,7 +114,14 @@ describe.runIf(live)('배정 취소', () => {
 });
 
 describe.runIf(live)('배정 취소한 주문은 뒤 단계에서 사라진다(2026-09-15 제보)', () => {
-  const listed = async (id: number, cookie: string, q = '') => ((await request(app).get(`/api/v1/orders${q}`).set('Cookie', cookie)).body.data as { id: number }[]).some(o => o.id === id);
+  // 전체 목록 조회라 다른 시험 파일이 같은 순간 자기 데이터를 지우면 드물게 500 이 난다 — 한 번 더 묻는다(운영에는 행 삭제가 없다)
+  const listed = async (id: number, cookie: string, q = ''): Promise<boolean> => {
+    for (let i = 0; i < 3; i++) {
+      const r = await request(app).get(`/api/v1/orders${q}`).set('Cookie', cookie);
+      if (r.status === 200) return (r.body.data as { id: number }[]).some(o => o.id === id);
+    }
+    throw new Error('주문 목록을 읽지 못했다');
+  };
 
   it('🔴 목록에 안 나온다 — 견적 상태(계약완료)만 보고 「특장 진행」으로 분류되던 것', async () => {
     const { id } = await pendingOrder();
@@ -181,7 +188,7 @@ describe('화면', () => {
     const page = src('frontend/src/pages/SalesPage.tsx');
     expect(page).toMatch(/function needsAssignRequest\(q: ApiQuote\): boolean \{\s*return q\.status === 'contracted' && !q\.assign_requested_at/);
     expect(page).toMatch(/filterByCustomer\(quotes, nameQuery\)\.filter\(q => !onlyRequest \|\| needsAssignRequest\(q\)\)/);
-    expect(page).toMatch(/\{needsAssignRequest\(q\) && \(/);
+    expect(page).toMatch(/needsAssignRequest\(q\) \? \(/);
     expect(page).toMatch(/t\('배정 요청 필요건만'\)/);
   });
 });

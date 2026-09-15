@@ -142,9 +142,14 @@ describe('규칙이 한 곳씩', () => {
   });
   it('🔴 영업 화면 — 계약완료 + 요청 전에만 「배정 요청」, 요청 뒤엔 글씨', () => {
     const page = src('frontend/src/pages/SalesPage.tsx');
-    expect(page).toMatch(/\{needsAssignRequest\(q\) && \(/);
+    // 2026-09-15 — 서명이 끝난 건은 「서명 요청」 자리에 배정 요청 / 배정 요청됨(관리자 「제작 배정」 모양), 필요한 줄만 초록 하이라이트
+    expect(page).toMatch(/\{isSigned\(q\) \? \(\s*needsAssignRequest\(q\) \? \(/);
     expect(page).toMatch(/t\('배정 요청'\)/);
-    expect(page).toMatch(/\{q\.status === 'contracted' && q\.assign_requested_at && \(/);
+    expect(page).toMatch(/\) : q\.status === 'contracted' && q\.assign_requested_at \? \(\s*<span style=\{lv\.requested\}>\{t\('배정 요청됨'\)\}<\/span>/);
+    expect(page).toMatch(/\) : canSign && \(/);   // 서명 전에만 서명 요청
+    expect(page).toMatch(/assignReqBtn: \{ \.\.\.BTN\.rowPrimary, color: 'var\(--lime\)', fontWeight: 700 \}/);
+    expect(page).toMatch(/<tr key=\{q\.id\} style=\{needsAssignRequest\(q\) \? lv\.rowNeed : undefined\}>/);
+    expect(page).toMatch(/function isSigned\(q: ApiQuote\): boolean \{\s*return q\.contract\?\.status === 'COMPLETED'/);
   });
   it('🔴 관리자 — 제작 배정 버튼·현황판 배정 대기는 요청된 건만', () => {
     const admin = src('frontend/src/pages/AdminPage.tsx');

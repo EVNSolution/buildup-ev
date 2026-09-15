@@ -569,8 +569,9 @@ function MyListView() {
                   const noContract = isVehicleOnly(q)
                   const noContractWhy = t('차량만 견적은 특장 매매계약이 아니라 계약서를 만들지 않습니다')
                   return (
-                    <tr key={q.id}>
-                      <td style={lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
+                    /* 배정 요청이 필요한 줄 — 관리자 목록의 「배정 필요」와 같은 초록 하이라이트. 요청하면 꺼진다 */
+                    <tr key={q.id} style={needsAssignRequest(q) ? lv.rowNeed : undefined}>
+                      <td style={needsAssignRequest(q) ? lv.tdNeedFirst : lv.td}>{q.quote_no ?? `#${q.id}`}<QuoteKindTag quote={q} /></td>
                       <td style={lv.td}>{q.customer?.name ?? '—'}</td>
                       <td style={{ ...lv.td, fontVariantNumeric: 'tabular-nums', textAlign: 'right' as const }}>{fmtPrice(q.final_price)}</td>
                       <td style={lv.td}>
@@ -664,21 +665,6 @@ function MyListView() {
                               onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
                             >{t('서명본')}</button>
                           )}
-                          {/*
-                            배정 요청 — 서명본을 확인한 뒤 누른다. 누르기 전에는 관리자 화면에 제작 배정 버튼이 없다.
-                            요청한 뒤(아직 배정 전)에는 글씨로만 남긴다. 배정 거부·주문 삭제로 돌아온 건은 이미 요청돼 있다.
-                          */}
-                          {needsAssignRequest(q) && (
-                            <button
-                              style={requestBusy === q.id ? { ...lv.confirmBtn, opacity: 0.45 } : lv.confirmBtn}
-                              disabled={requestBusy === q.id}
-                              title={t('서명본을 확인하고 관리자에게 제작 배정을 요청합니다')}
-                              onClick={() => void handleRequestAssign(q)}
-                            >{requestBusy === q.id ? '…' : t('배정 요청')}</button>
-                          )}
-                          {q.status === 'contracted' && q.assign_requested_at && (
-                            <span style={lv.requested}>{t('배정 요청됨')}</span>
-                          )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           {/*
                             이메일은 견적 단계 필수가 아니다(문자로 받길 원하는 고객이 많다).
@@ -699,7 +685,23 @@ function MyListView() {
                               })}
                             >{tc('메일 전달', 'btn')}</button>
                           )}
-                          {canSign && (
+                          {/*
+                            **서명이 끝난 건은 서명 요청이 필요 없다**(2026-09-15) — 그 자리에 「배정 요청」을 둔다.
+                            모양은 관리자 「제작 배정」과 같다(검정 바탕 초록 글씨). 요청한 뒤에는 같은 자리에 「배정 요청됨」.
+                            배정 거부·주문 삭제·배정 취소로 돌아온 건은 요청이 살아 있어 「배정 요청됨」으로 남는다.
+                          */}
+                          {isSigned(q) ? (
+                            needsAssignRequest(q) ? (
+                              <button
+                                style={requestBusy === q.id ? { ...lv.assignReqBtn, opacity: 0.45 } : lv.assignReqBtn}
+                                disabled={requestBusy === q.id}
+                                title={t('서명본을 확인하고 관리자에게 제작 배정을 요청합니다')}
+                                onClick={() => void handleRequestAssign(q)}
+                              >{requestBusy === q.id ? '…' : t('배정 요청')}</button>
+                            ) : q.status === 'contracted' && q.assign_requested_at ? (
+                              <span style={lv.requested}>{t('배정 요청됨')}</span>
+                            ) : null
+                          ) : canSign && (
                           <button
                             style={(q.status === 'draft' || noContract) ? { ...lv.sendBtn, opacity: 0.4, cursor: 'not-allowed' } : lv.sendBtn}
                             disabled={q.status === 'draft' || noContract}
@@ -747,6 +749,11 @@ function MyListView() {
     </div>
     </>
   )
+}
+
+/** 서명이 끝났는가 — 전자서명 완료 또는 서명본 등록(둘 다 계약 COMPLETED). 계약완료 이후 상태도 서명이 끝난 것이다 */
+function isSigned(q: ApiQuote): boolean {
+  return q.contract?.status === 'COMPLETED' || ['contracted', 'assigned', 'ordered', 'completed'].includes(q.status)
 }
 
 /** 배정 요청이 필요한 견적 — 서명(계약완료)은 끝났고 영업이 아직 「배정 요청」을 안 눌렀다. 버튼 조건과 같다 */
@@ -1418,5 +1425,11 @@ const lv: Record<string, React.CSSProperties> = {
   pdfBtn: BTN.row,
   sendBtn: BTN.rowSend,
   confirmBtn: BTN.rowPrimary,
-  requested: { alignSelf: 'center', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--muted)', padding: '0 4px' },
+  // 「배정 요청」 — 관리자 「제작 배정」(qt.assignBtn)과 같은 모양: 검정 바탕 초록 글씨
+  assignReqBtn: { ...BTN.rowPrimary, color: 'var(--lime)', fontWeight: 700 },
+  // 「배정 요청됨」 — 같은 자리·같은 크기, 누를 것이 아니라 흐린 테두리 칸
+  requested: { ...BTN.row, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', cursor: 'default' },
+  // 배정 요청이 필요한 줄 — 관리자 목록(qt.rowPublic·tdPublicFirst)과 같은 하이라이트
+  rowNeed: { background: 'var(--lime-bg)' },
+  tdNeedFirst: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)', verticalAlign: 'middle', whiteSpace: 'nowrap', boxShadow: 'inset 3px 0 0 0 var(--lime)' },
 }
