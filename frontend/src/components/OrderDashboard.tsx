@@ -1,4 +1,4 @@
-import type { ApiOrder } from '@shared/types/index'
+import type { ApiOrder, ApiQuote } from '@shared/types/index'
 import { TRACK_LABEL, TRACKS, type Track } from '@shared/process/steps'
 import { ADDON_TRACK_LABEL, ADDON_TRACKS, type AddonTrack } from '@shared/process/addon'
 import { dueInfo } from '@shared/process/due'
@@ -203,7 +203,7 @@ export function OrderDashboard({
  * 누르면 그 주문을 연다. 배정 대기 줄은 그 자리에서 「제작 배정」.
  */
 export function DashboardList({
-  title, orders, waiting, track, addonTrack, addonMode = false, makerName, onOpen, onAssign, onUnassign, onRejectedOpen, onClose,
+  title, orders, waiting, track, addonTrack, addonMode = false, makerName, onOpen, onAssign, onRejectAssign, onUnassign, onRejectedOpen, onClose,
 }: {
   title: string
   orders?: ApiOrder[]
@@ -218,6 +218,8 @@ export function DashboardList({
   onOpen: (o: ApiOrder) => void
   /** 배정 권한이 없으면 넘기지 않는다 — 버튼째 감춘다 */
   onAssign?: (quoteId: number) => void
+  /** 배정 대기 줄 「배정 거부」 — 영업의 배정 요청을 사유와 함께 돌려보낸다. 권한이 없으면 넘기지 않는다 */
+  onRejectAssign?: (quote: ApiQuote) => void
   /** 수락 대기 목록에서만 넘긴다 — 줄 끝 「배정 취소」. 권한이 없으면 넘기지 않는다 */
   onUnassign?: (o: ApiOrder) => void
   onRejectedOpen: (o: ApiOrder) => void
@@ -245,9 +247,12 @@ export function DashboardList({
             )}
           </span>
           <span style={s.rowSub}>{tf('{0}일째', daysFrom(w.quote.contract?.completed_at ?? w.quote.created_at) ?? 0)}</span>
-          {onAssign
-            ? <button type="button" style={BTN.rowPrimary} onClick={() => onAssign(w.quote.id)}>{t('제작 배정')}</button>
-            : <span />}
+          <span style={s.rowActions}>
+            {onRejectAssign && (
+              <button type="button" style={BTN.rowDangerOutline} onClick={() => onRejectAssign(w.quote)}>{t('배정 거부')}</button>
+            )}
+            {onAssign && <button type="button" style={BTN.rowPrimary} onClick={() => onAssign(w.quote.id)}>{t('제작 배정')}</button>}
+          </span>
         </div>
       ))}
 
@@ -385,6 +390,8 @@ const s: Record<string, React.CSSProperties> = {
     padding: '10px 0', borderTop: 'var(--hairline)',
   },
   // 줄 버튼 + 오른쪽 버튼. 윗줄은 바깥 칸이 갖는다(안쪽 줄 버튼의 윗줄과 겹치지 않게 안쪽 것을 지운다)
+  // 배정 대기 줄 끝 버튼 둘 — 좁으면 아래로 접힌다
+  rowActions: { display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' },
   rowWithAction: { display: 'flex', alignItems: 'center', gap: 10, borderTop: 'var(--hairline)' },
   rowBtn: {
     display: 'grid', gridTemplateColumns: '52px minmax(0, 1fr) auto 48px', alignItems: 'center', gap: 10,

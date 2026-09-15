@@ -488,6 +488,10 @@ model Quote {
   /// 배정 거부·주문 삭제로 되돌아온 건은 이미 요청된 것으로 두어 바로 재배정한다.
   assign_requested_at DateTime?
   assign_requested_by String?   @db.VarChar(120)
+  /// 「배정 거부」 — 관리자가 배정 요청을 사유와 함께 돌려보냈다. 영업이 다시 요청하면 비운다(이력은 quote_change_log)
+  assign_rejected_at   DateTime?
+  assign_rejected_by   String?   @db.VarChar(120)
+  assign_reject_reason String?   @db.VarChar(500)
   /// 숨김 — **지우지 않고 화면에서만 감춘다.** null 이면 보인다.
   /// ⚠️ 임시저장(draft)만 숨길 수 있다. 확정 이상은 퍼널 통계가 왜곡되고
   ///    진행 중인 거래가 화면에서 사라진다. 계약이 붙어 있으면 무조건 거부.

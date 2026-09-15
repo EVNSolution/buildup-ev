@@ -27,6 +27,7 @@ import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderUnassignModal } from '../components/OrderUnassignModal'
+import { AssignRejectModal } from '../components/AssignRejectModal'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
 import { useLiveReload } from '../lib/liveReload'
@@ -1324,6 +1325,8 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
    */
   const [filterStatus, setFilterStatus] = useState('')
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
+  /** 배정 거부 창 — 배정 요청을 사유와 함께 돌려보낸다 */
+  const [rejectingAssign, setRejectingAssign] = useState<ApiQuote | null>(null)
   // 공개 문의 → 영업 배정
   const [assignSalesId, setAssignSalesId] = useState<number | null>(null)
   const [salesUsers, setSalesUsers] = useState<User[]>([])
@@ -1569,6 +1572,7 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
                     <button key="sales" style={{ ...BTN.rowPrimary, width: '100%' }} onClick={() => handleOpenAssignSales(q.id)}>{t('영업 배정')}</button>,
                   )
                   if (makerAssign) row.push(
+                    <button key="reject" style={{ ...qt.rejectAssignBtn, width: '100%' }} onClick={() => setRejectingAssign(q)}>{t('배정 거부')}</button>,
                     <button key="maker" style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>{t('제작 배정')}</button>,
                   )
                   if (awaitingRequest) row.push(
@@ -1688,6 +1692,10 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
                       {canAssignMaker(q) && (
                         <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>{t('제작 배정')}</button>
                       )}
+                      {/* 배정 거부는 제작 배정 **뒤** — 표가 넓어 오른쪽이 잘릴 때 먼저 할 일(배정)이 보이게 */}
+                      {canAssignMaker(q) && (
+                        <button style={qt.rejectAssignBtn} onClick={() => setRejectingAssign(q)}>{t('배정 거부')}</button>
+                      )}
                       {q.status === 'contracted' && !q.assign_requested_at && (
                         <span style={qt.awaitRequest}>{t('영업 배정 요청 대기')}</span>
                       )}
@@ -1725,8 +1733,14 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
           onClose={() => { setConfirmingId(null); setConfirmError('') }}
         />
       )}
-      
-      
+      {rejectingAssign && (
+        <AssignRejectModal
+          quoteId={rejectingAssign.id}
+          label={`${rejectingAssign.quote_no ?? `#${rejectingAssign.id}`} ${rejectingAssign.customer?.name ?? ''}`.trim()}
+          onClose={() => setRejectingAssign(null)}
+          onDone={() => { setRejectingAssign(null); load() }}
+        />
+      )}
     </div>
   )
 }
@@ -1776,6 +1790,8 @@ function KanbanTab({ deepLink, initialView }: {
   const canAssign = usePermission('order.confirm')
   /** 현황판 목록에서 연 주문을 어느 탭으로 열지 — 부가작업 목록이면 부가작업 탭 */
   const [detailTab, setDetailTab] = useState<'addon' | undefined>(undefined)
+  /** 배정 대기 줄의 「배정 거부」 창 */
+  const [rejectingAssign, setRejectingAssign] = useState<ApiQuote | null>(null)
   const [confirmingId, setConfirmingId] = useState<number | null>(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState('')
@@ -1926,6 +1942,7 @@ function KanbanTab({ deepLink, initialView }: {
             setSelectedOrderId(o.id)
           }}
           onAssign={canAssign ? id => { setConfirmingId(id); setConfirmError('') } : undefined}
+          onRejectAssign={canAssign ? q => setRejectingAssign(q) : undefined}
           /* 수락 대기 목록에서만 — 특장사가 받기 전의 발주를 거둔다(제작 배정과 같은 권한) */
           onUnassign={canAssign && sel.kind === 'tile' && sel.key === 'pending' ? o => setUnassigning(o) : undefined}
           onRejectedOpen={o => setViewingPo(o)}
@@ -1968,6 +1985,14 @@ function KanbanTab({ deepLink, initialView }: {
           /* 아직 수락 전인 발주만 — 발주서를 보다가 그 자리에서 거둔다 */
           onUnassign={canAssign && !viewingPo.accepted_at && !!viewingPo.maker_org_id
             ? () => setUnassigning(viewingPo) : undefined}
+        />
+      )}
+      {rejectingAssign && (
+        <AssignRejectModal
+          quoteId={rejectingAssign.id}
+          label={`${rejectingAssign.quote_no ?? `#${rejectingAssign.id}`} ${rejectingAssign.customer?.name ?? ''}`.trim()}
+          onClose={() => setRejectingAssign(null)}
+          onDone={() => { setRejectingAssign(null); load(true) }}
         />
       )}
       {unassigning && (
@@ -2273,6 +2298,8 @@ const qt: Record<string, React.CSSProperties> = {
    * 라임은 흰 바탕에서 흐리지만 검은 바탕에서는 또렷하다.
    */
   assignBtn: { ...BTN.rowPrimary, color: 'var(--lime)', fontWeight: 700 },
+  /** 배정 거부 — 제작 배정 옆, 같은 크기. 돌려보내는 조작이라 경고색 테두리 */
+  rejectAssignBtn: { ...BTN.rowDangerOutline },
   /** 서명은 끝났고 영업의 배정 요청을 기다리는 중 — 누를 것이 없다는 것을 글씨로만 */
   awaitRequest: { display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' },
   filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },

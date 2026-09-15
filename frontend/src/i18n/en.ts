@@ -656,6 +656,10 @@ export const EN: Record<string, string> = {
   '영업 메모': 'Sales note',
   '영업 배정': 'Sales assignment',
   '배정 요청': 'Request assignment',
+  '배정 거부': 'Reject assignment',
+  '배정 거부에 실패했습니다': 'Could not reject the assignment request',
+  '견적이 담당 영업에게 돌아가 목록 맨 위에 표시되고 알림이 갑니다. 영업이 다시 배정 요청하면 배정 대기로 돌아옵니다.': 'The quote goes back to the sales rep, shown at the top of their list, and they are notified. It returns to awaiting assignment when they request again.',
+  '예) 서명본에 고객 서명 누락 / 사양 확인 필요': 'e.g. Customer signature missing / Specs need checking',
   '특장사 진행': 'Body builder steps',
   '부가작업 진행': 'Add-on work steps',
   '여기를 고치면 아직 제출하지 않은 체크리스트에도 반영됩니다. 문구를 바꾼 항목은 판정을 다시 해야 합니다. 이미 제출한 체크리스트는 그대로 남습니다.': 'Edits here also apply to checklists not yet submitted. Items whose wording changes must be checked again. Submitted checklists stay as they were.',
@@ -1183,6 +1187,8 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '{0} 배정 요청을 거부합니다': 'Reject the assignment request for {0}',
+  '배정 거부 · {0}': 'Assignment rejected · {0}',
   '{0} 비고': 'Note for {0}',
   '배정 취소로 돌아온 발주서입니다 — 내용은 그대로 두었습니다. {0} · {1}': 'This purchase order came back after the assignment was cancelled — its contents are kept. {0} · {1}',
   '주문 #{0} 배정을 취소합니다': 'Cancel the assignment of order #{0}',
