@@ -193,18 +193,70 @@ describe.runIf(live)('PDI 체크리스트', () => {
     expect(after.lines[0].logs[0].memo).toBe('안 들어옴');
   }, 30_000);
 
-  it('🔴 서식을 고쳐도 이미 작성한 것은 바뀌지 않는다', async () => {
+  /*
+   * 2026-09-15 규칙 변경 — **제출 전에는 서식 수정을 따라간다**(작성을 시작했다는 이유로 고친 항목이 안 들어가 제보).
+   * **제출한** 체크리스트만 그때 항목 그대로다.
+   */
+  it('🔴 제출 전 — 서식을 고치면 따라간다: 새 항목 추가 · 빠진 항목 감춤(지우지 않음) · 문구 바뀐 항목은 판정 비움 · 구분만 바뀌면 판정 유지', async () => {
+    const saved = (await putItems(STEP, [
+      { category: '시험 외관', content: '적재함 도장 상태' },
+      { category: '시험 외관', content: '도어 개폐' },
+      { category: '시험 전장', content: '실내등' },
+    ])).body.data as { id: number; content: string }[];
+    const id = (c: string) => saved.find(x => x.content === c)!.id;
+    const order = await acceptedOrder();
+    const before = (await getCl(order.id, makerCookie)).body.data;
+    expect(before.lines).toHaveLength(3);
+    // 셋 다 합격으로 적어 둔다(제출은 안 한다)
+    expect((await patchCl(order.id, makerCookie, { lines: before.lines.map((l: { id: number }) => ({ id: l.id, result: 'pass' })) })).status).toBe(200);
+
+    await putItems(STEP, [
+      { id: id('적재함 도장 상태'), category: '시험 외관', content: '적재함 도장 · 스크래치' } as never,   // 문구 변경
+      { id: id('도어 개폐'), category: '시험 도어', content: '도어 개폐' } as never,                     // 구분만 변경
+      { category: '시험 안전', content: '소화기 비치' },                                                  // 새 항목
+      // 실내등은 뺐다
+    ]);
+
+    const after = (await getCl(order.id, makerCookie)).body.data;
+    const pick = (c: string) => after.lines.find((l: { content: string }) => l.content === c);
+    expect(after.lines.map((l: { content: string }) => l.content)).toEqual(['적재함 도장 · 스크래치', '도어 개폐', '소화기 비치']);
+    expect(pick('적재함 도장 · 스크래치').result, '문구가 바뀌었는데 옛 합격이 남았다').toBeNull();
+    expect(pick('도어 개폐').result, '구분만 바뀌었는데 판정이 지워졌다').toBe('pass');
+    expect(pick('도어 개폐').category).toBe('시험 도어');
+    expect(pick('소화기 비치').result).toBeNull();
+    // 빠진 항목의 줄은 지우지 않고 감춘다 — 판정 이력이 붙어 있다
+    const hidden = await prisma!.orderChecklistLine.findFirst({ where: { content: '실내등', checklist: { order_id: order.id } } });
+    expect(hidden, '줄이 지워졌다').not.toBeNull();
+    expect(hidden!.retired_at).not.toBeNull();
+    expect(await prisma!.orderChecklistLineLog.count({ where: { line_id: hidden!.id } })).toBe(1);
+
+    // 새 서식 기준으로 판정한다 — 합격이 아닌 줄이 남아 완료가 막힌다
+    const blocked = await completeStep(order.id, makerCookie);
+    expect(blocked.status).toBe(409);
+  }, 30_000);
+
+  it('🔴 제출한 체크리스트는 서식을 고쳐도 그대로다', async () => {
     await putItems(STEP, [{ category: '시험 외관', content: '적재함 도장 상태' }]);
     const order = await acceptedOrder();
     const before = (await getCl(order.id, makerCookie)).body.data;
-    expect(before.lines[0].content).toBe('적재함 도장 상태');
+    expect((await patchCl(order.id, makerCookie, { lines: [{ id: before.lines[0].id, result: 'pass' }], submit: true })).status).toBe(200);
 
-    // 서식을 통째로 바꾼다
     await putItems(STEP, [{ category: '시험 안전', content: '완전히 다른 항목' }]);
 
     const after = (await getCl(order.id, makerCookie)).body.data;
-    expect(after.lines, '작성 중이던 체크리스트가 서식을 따라 바뀌었다').toHaveLength(1);
+    expect(after.submitted_at).not.toBeNull();
+    expect(after.lines, '제출한 체크리스트가 서식을 따라 바뀌었다').toHaveLength(1);
     expect(after.lines[0].content).toBe('적재함 도장 상태');
+  }, 30_000);
+
+  it('🔴 이 기능 전에 만든 줄(item_id 없음)도 구분·문구가 같은 항목과 짝지어 판정을 지킨다', async () => {
+    await putItems(STEP, [{ category: '시험 외관', content: '적재함 도장 상태' }]);
+    const order = await acceptedOrder();
+    const before = (await getCl(order.id, makerCookie)).body.data;
+    await patchCl(order.id, makerCookie, { lines: [{ id: before.lines[0].id, result: 'pass' }] });
+    await prisma!.orderChecklistLine.update({ where: { id: before.lines[0].id }, data: { item_id: null } });   // 옛 줄 흉내
+    const after = (await getCl(order.id, makerCookie)).body.data;
+    expect(after.lines.map((l: { id: number; result: string }) => [l.id, l.result])).toEqual([[before.lines[0].id, 'pass']]);
   }, 30_000);
 
   it('🔴 지운 항목은 꺼질 뿐 사라지지 않는다 — 옛 기록이 무엇을 봤는지 되짚을 수 있어야 한다', async () => {

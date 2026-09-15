@@ -8,9 +8,15 @@ import { notify, appRecipients } from './push.js';
  * 무엇을 확인하는지는 관리자가 화면에서 고친다(`checklist_item`). 어느 단계에
  * 붙고 누가 적는지, 그리고 「채워야 넘어간다」는 규칙은 shared 카탈로그에 있다.
  *
- * ⚠️ 작성을 시작하는 순간 그 시점의 서식을 **주문에 사본으로 얼린다.** 발주서 단가와
- *    같은 원칙 — 서식이 나중에 바뀌어도 이미 합격 처리한 항목의 뜻이 바뀌면 안 된다.
+ * ⚠️ **제출하면 얼린다.** 발주서 단가와 같은 원칙 — 제출한 뒤 서식이 바뀌어도 합격 처리한 항목의 뜻이 바뀌면 안 된다.
+ * ⚠️ **제출 전에는 서식을 따라간다**(2026-09-15 제보 — 작성을 시작했다는 이유로 고친 항목이 반영되지 않았다).
+ *    열 때마다 지금 서식과 맞춘다: 새 항목은 줄을 더하고, 빠진 항목은 줄을 감추고(지우지 않는다),
+ *    문구가 바뀐 항목은 **판정을 비운다**(다른 것을 확인하라는 뜻이 됐으니 옛 합격이 남으면 안 된다).
+ *    구분·순서만 바뀐 항목은 판정을 그대로 둔다.
  */
+
+/** 보이는 줄 — 서식에서 빠져 감춘 줄은 뺀다 */
+const LIVE_LINES = { where: { retired_at: null }, orderBy: { seq: 'asc' as const } };
 
 /** 이 단계에 체크리스트가 붙는가 — 붙는다면 적는 사람은 누구인가 */
 export function checklistActor(code: string): string | null {
@@ -27,9 +33,12 @@ export async function openChecklist(orderId: number, stepCode: string) {
   if (!prisma) return null;
   const found = await prisma.orderChecklist.findUnique({
     where: { order_id_step_code: { order_id: orderId, step_code: stepCode } },
-    include: { lines: { orderBy: { seq: 'asc' } } },
+    select: { id: true, submitted_at: true },
   });
-  if (found) return found;
+  if (found) {
+    if (!found.submitted_at) await syncWithTemplate(found.id, stepCode);
+    return prisma.orderChecklist.findUniqueOrThrow({ where: { id: found.id }, include: { lines: LIVE_LINES } });
+  }
 
   const items = await prisma.checklistItem.findMany({
     where: { step_code: stepCode, active: true },
@@ -37,17 +46,76 @@ export async function openChecklist(orderId: number, stepCode: string) {
   });
   if (items.length === 0) return null;
 
-  return prisma.orderChecklist.create({
-    data: {
-      order_id: orderId, step_code: stepCode,
-      lines: {
-        create: items.map((it, i) => ({
-          seq: it.seq || i + 1, category: it.category, content: it.content,
-        })),
+  try {
+    return await prisma.orderChecklist.create({
+      data: {
+        order_id: orderId, step_code: stepCode,
+        lines: {
+          create: items.map((it, i) => ({
+            seq: it.seq || i + 1, category: it.category, content: it.content, item_id: it.id,
+          })),
+        },
       },
-    },
-    include: { lines: { orderBy: { seq: 'asc' } } },
-  });
+      include: { lines: LIVE_LINES },
+    });
+  } catch {
+    // 두 화면이 동시에 처음 열었다 — 먼저 만든 쪽을 쓴다(order_id·step_code 유일)
+    return prisma.orderChecklist.findUnique({
+      where: { order_id_step_code: { order_id: orderId, step_code: stepCode } },
+      include: { lines: LIVE_LINES },
+    });
+  }
+}
+
+/**
+ * **제출 전 체크리스트를 지금 서식과 맞춘다.**
+ *
+ * 짝은 `item_id` 로 짓는다. 이 칸이 생기기 전에 만든 줄(item_id 없음)은 구분·문구가 같은 서식 항목과 짝지어
+ * 그때 item_id 를 채운다 — 짝이 없으면 서식에서 빠진 것으로 보고 감춘다.
+ */
+export async function syncWithTemplate(checklistId: number, stepCode: string): Promise<void> {
+  if (!prisma) return;
+  const now = new Date();
+  const [items, lines] = await Promise.all([
+    prisma.checklistItem.findMany({ where: { step_code: stepCode, active: true }, orderBy: [{ seq: 'asc' }, { id: 'asc' }] }),
+    prisma.orderChecklistLine.findMany({ where: { checklist_id: checklistId }, orderBy: { id: 'asc' } }),
+  ]);
+
+  const byItem = new Map<number, typeof lines[number]>();
+  for (const l of lines) if (l.item_id != null) byItem.set(l.item_id, l);
+  // 옛 줄 — 구분·문구가 같은 항목과 짝짓는다
+  for (const l of lines) {
+    if (l.item_id != null) continue;
+    const it = items.find(x => !byItem.has(x.id) && x.category === l.category && x.content === l.content);
+    if (it) { byItem.set(it.id, l); await prisma.orderChecklistLine.update({ where: { id: l.id }, data: { item_id: it.id } }); l.item_id = it.id; }
+  }
+
+  const liveIds = new Set(items.map(i => i.id));
+  for (const [i, it] of items.entries()) {
+    const seq = it.seq || i + 1;
+    const l = byItem.get(it.id);
+    if (!l) {
+      await prisma.orderChecklistLine.createMany({
+        data: [{ checklist_id: checklistId, seq, category: it.category, content: it.content, item_id: it.id }],
+        skipDuplicates: true,
+      });
+      continue;
+    }
+    const textChanged = l.content !== it.content;
+    if (textChanged || l.category !== it.category || l.seq !== seq || l.retired_at) {
+      await prisma.orderChecklistLine.update({
+        where: { id: l.id },
+        data: {
+          seq, category: it.category, content: it.content, retired_at: null,
+          // 확인할 내용이 바뀌었다 — 옛 판정은 이 문구에 대한 것이 아니다(이력은 남는다)
+          ...(textChanged ? { result: null, memo: null, checked_at: null, checked_by: null } : {}),
+        },
+      });
+    }
+  }
+  // 서식에서 빠진 항목의 줄 · 짝을 못 찾은 옛 줄 — 감춘다
+  const gone = lines.filter(l => !l.retired_at && (l.item_id == null || !liveIds.has(l.item_id))).map(l => l.id);
+  if (gone.length) await prisma.orderChecklistLine.updateMany({ where: { id: { in: gone } }, data: { retired_at: now } });
 }
 
 /**
@@ -59,10 +127,18 @@ export async function openChecklist(orderId: number, stepCode: string) {
 export async function checklistGate(orderId: number, stepCode: string): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!prisma || !checklistActor(stepCode)) return { ok: true };
   const active = await prisma.checklistItem.count({ where: { step_code: stepCode, active: true } });
-  const cl = await prisma.orderChecklist.findUnique({
+  let cl = await prisma.orderChecklist.findUnique({
     where: { order_id_step_code: { order_id: orderId, step_code: stepCode } },
-    include: { lines: { select: { result: true } } },
+    include: { lines: { where: { retired_at: null }, select: { result: true } } },
   });
+  // 제출 전이면 지금 서식 기준으로 판정한다
+  if (cl && !cl.submitted_at) {
+    await syncWithTemplate(cl.id, stepCode);
+    cl = await prisma.orderChecklist.findUnique({
+      where: { id: cl.id },
+      include: { lines: { where: { retired_at: null }, select: { result: true } } },
+    });
+  }
   if (active === 0 && !cl) return { ok: true };          // 아직 서식이 없는 단계
   if (!cl) return { ok: false, reason: '체크리스트를 먼저 작성해야 합니다' };
   if (cl.lines.length === 0) return { ok: true };
