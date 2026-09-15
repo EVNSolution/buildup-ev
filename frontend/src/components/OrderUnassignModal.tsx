@@ -53,7 +53,8 @@ export function OrderUnassignModal({ orderId, makerName, onClose, onDone }: {
 
 const s: Record<string, React.CSSProperties> = {
   overlay: {
-    position: 'fixed', inset: 0, background: 'var(--scrim)', zIndex: 80,
+    // ⚠️ 발주서 조회 창(AcceptOrderModal, 1000) **위에서** 열린다 — 80 이었을 때 발주서에 가려 안 보였다(제보)
+    position: 'fixed', inset: 0, background: 'var(--scrim)', zIndex: 1100,
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--sp-4)',
   },
   box: {
