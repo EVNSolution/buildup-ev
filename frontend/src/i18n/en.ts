@@ -1183,6 +1183,7 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '{0} 비고': 'Note for {0}',
   '배정 취소로 돌아온 발주서입니다 — 내용은 그대로 두었습니다. {0} · {1}': 'This purchase order came back after the assignment was cancelled — its contents are kept. {0} · {1}',
   '주문 #{0} 배정을 취소합니다': 'Cancel the assignment of order #{0}',
   '{0}에 맡긴 발주를 거두고 배정 대기로 되돌립니다. 특장사 목록에서 사라지고 알림이 가며, 바로 다시 배정할 수 있습니다.': 'Withdraws the purchase order from {0} and returns it to awaiting assignment. It disappears from the body builder\'s list, they are notified, and you can assign it again right away.',

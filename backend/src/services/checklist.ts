@@ -39,10 +39,6 @@ export async function checklistPayload(orderId: number, code: string) {
   if (!actor) return null;
   const cl = await openChecklist(orderId, code);
   if (!cl) return null;
-  const logs = await prisma.orderChecklistLineLog.findMany({
-    where: { line: { checklist_id: cl.id } },
-    orderBy: { id: 'asc' },
-  });
   return {
     step_code: code,
     /** 적는 사람 — 이 역할이 아니면 화면에서 보기만 한다 */
@@ -53,9 +49,6 @@ export async function checklistPayload(orderId: number, code: string) {
       id: l.id, seq: l.seq, category: l.category, content: l.content,
       result: l.result, memo: l.memo,
       checked_at: l.checked_at?.toISOString() ?? null, checked_by: l.checked_by,
-      /* 조치 후 재검이 남는다 — 「한 번에 통과」와 「고쳐서 통과」는 다른 이야기다 */
-      logs: logs.filter(g => g.line_id === l.id)
-        .map(g => ({ result: g.result, memo: g.memo, at: g.at.toISOString(), by: g.by })),
     })),
   };
 }
@@ -70,27 +63,32 @@ export async function judgeChecklist(
   const cl = await openChecklist(orderId, code);
   if (!cl) return { status: 409, body: { error: { code: 'STEP_BLOCKED', message: '이 단계의 체크리스트 서식이 아직 없습니다' } } };
 
-  const inLines = Array.isArray(body.lines) ? body.lines as { id?: number; result?: string; memo?: string }[] : [];
+  const inLines = Array.isArray(body.lines) ? body.lines as { id?: number; result?: unknown; memo?: unknown }[] : [];
   const mine = new Map(cl.lines.map(l => [l.id, l]));
   const now = new Date();
 
+  /*
+   * 한 줄에 보낼 수 있는 것(2026-09-15 화면 개편):
+   *   · result 'pass'|'fail' — 판정.  result null — **판정 취소**(눌린 버튼을 다시 눌렀다)
+   *   · memo 만 — 비고만 고친다(판정은 그대로)
+   * ⚠️ 판정 이력(order_checklist_line_log)은 더 쌓지 않는다 — 이력이 필요 없다는 지시. 옛 이력 행은 지우지 않고 남긴다.
+   */
   for (const raw of inLines) {
     const line = typeof raw.id === 'number' ? mine.get(raw.id) : undefined;
     if (!line) continue;                                  // 남의 줄·감춘 줄은 무시한다
-    const result = raw.result === 'pass' || raw.result === 'fail' ? raw.result : null;
-    if (!result) continue;
-    const memo = typeof raw.memo === 'string' ? raw.memo.trim().slice(0, 300) : null;
-    // 같은 판정을 같은 메모로 다시 보내면 이력을 늘리지 않는다
-    if (line.result === result && (line.memo ?? null) === (memo || null)) continue;
-    await prisma!.$transaction([
-      prisma!.orderChecklistLine.update({
-        where: { id: line.id },
-        data: { result, memo: memo || null, checked_at: now, checked_by: who },
-      }),
-      prisma!.orderChecklistLineLog.create({
-        data: { line_id: line.id, result, memo: memo || null, by: who },
-      }),
-    ]);
+    const data: { result?: string | null; memo?: string | null; checked_at?: Date | null; checked_by?: string | null } = {};
+    if ('result' in raw) {
+      if (raw.result === 'pass' || raw.result === 'fail') {
+        if (line.result !== raw.result) Object.assign(data, { result: raw.result, checked_at: now, checked_by: who });
+      } else if (raw.result === null) {
+        if (line.result !== null) Object.assign(data, { result: null, checked_at: null, checked_by: null });
+      }
+    }
+    if (typeof raw.memo === 'string') {
+      const memo = raw.memo.trim().slice(0, 300) || null;
+      if ((line.memo ?? null) !== memo) data.memo = memo;
+    }
+    if (Object.keys(data).length) await prisma!.orderChecklistLine.update({ where: { id: line.id }, data });
   }
 
   const after = await prisma!.orderChecklist.findUniqueOrThrow({

@@ -20,8 +20,6 @@ export interface OrderChecklistLine {
   memo: string | null
   checked_at: string | null
   checked_by: string | null
-  /** 조치 후 재검 이력 — 「한 번에 통과」와 「고쳐서 통과」는 다른 이야기다 */
-  logs: { result: CheckResult; memo: string | null; at: string; by: string }[]
 }
 
 export interface OrderChecklist {
@@ -73,7 +71,8 @@ export async function fetchOrderChecklist(orderId: number, step: string, scope: 
 
 export async function saveOrderChecklist(
   orderId: number, step: string,
-  lines: { id: number; result: CheckResult; memo?: string }[],
+  /** result null = 판정 취소 · result 없이 memo 만 = 비고만 고침 */
+  lines: { id: number; result?: CheckResult | null; memo?: string }[],
   submit = false,
   scope: ChecklistScope = 'steps',
 ): Promise<{ all_pass: boolean }> {

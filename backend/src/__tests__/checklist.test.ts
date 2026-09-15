@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
  * 여기서 지키는 것.
  *   ① 서식이 **비어 있으면 막지 않는다** — 항목을 안 정한 단계에서 주문이 서면 안 된다
  *   ② 항목이 있으면 **모두 합격**이라야 그 단계를 완료할 수 있다
- *   ③ 불합격 → 조치 → 재검이 **항목별로 남는다**(마지막 판정만 남기지 않는다)
+ *   ③ 판정은 바꿀 수 있고 눌린 것을 다시 누르면 취소된다(이력은 쌓지 않는다 — 2026-09-15)
  *   ④ 제출 전에는 서식 수정을 따라가고, **제출한 것은 바뀌지 않는다**
  *   ⑦ **모든 단계**(특장사 진행·부가작업 진행)에 붙일 수 있다 — 비어 있으면 안 뜨고 안 막는다(2026-09-15)
  *   ⑤ 적는 사람이 정해져 있다 — 인도 체크리스트를 특장사가 적지 못한다
@@ -180,19 +180,39 @@ describe.runIf(live)('PDI 체크리스트', () => {
     expect(res.status, `합격인데 막혔다: ${JSON.stringify(res.body)}`).toBe(200);
   }, 60_000);
 
-  it('🔴 불합격 → 조치 → 재검이 항목별로 남는다', async () => {
+  /*
+   * 2026-09-15 — 판정 이력은 필요 없다(지시). 대신 **눌린 버튼을 다시 누르면 판정이 취소**되고, 비고만 따로 고칠 수 있다.
+   */
+  it('🔴 판정을 바꾸고, 같은 판정을 다시 보내면(null) 취소 — 비고만 따로 고칠 수 있다 · 이력은 쌓지 않는다', async () => {
     await putItems(STEP, [{ category: '시험 전장', content: '실내등 점등' }]);
     const order = await acceptedOrder();
     const cl = (await getCl(order.id, makerCookie)).body.data;
     const lineId = cl.lines[0].id;
+    const line = async () => (await getCl(order.id, makerCookie)).body.data.lines[0];
 
     await patchCl(order.id, makerCookie, { lines: [{ id: lineId, result: 'fail', memo: '안 들어옴' }] });
-    await patchCl(order.id, makerCookie, { lines: [{ id: lineId, result: 'pass', memo: '전구 교체' }] });
+    expect([(await line()).result, (await line()).memo]).toEqual(['fail', '안 들어옴']);
+    await patchCl(order.id, makerCookie, { lines: [{ id: lineId, result: 'pass' }] });
+    expect((await line()).result).toBe('pass');
+    // 비고만 — 판정은 그대로
+    await patchCl(order.id, makerCookie, { lines: [{ id: lineId, memo: '전구 교체' }] });
+    expect([(await line()).result, (await line()).memo]).toEqual(['pass', '전구 교체']);
+    // 취소
+    await patchCl(order.id, makerCookie, { lines: [{ id: lineId, result: null }] });
+    const after = await line();
+    expect([after.result, after.checked_at]).toEqual([null, null]);
+    expect(after.logs, '이력을 화면에 준다').toBeUndefined();
+    expect(await prisma!.orderChecklistLineLog.count({ where: { line_id: lineId } }), '이력을 쌓았다').toBe(0);
+  }, 30_000);
 
-    const after = (await getCl(order.id, makerCookie)).body.data;
-    expect(after.lines[0].result).toBe('pass');
-    expect(after.lines[0].logs.map((l: { result: string }) => l.result), '마지막 판정만 남았다').toEqual(['fail', 'pass']);
-    expect(after.lines[0].logs[0].memo).toBe('안 들어옴');
+  it('🔴 제출한 뒤 판정을 취소하면 제출이 거둬진다', async () => {
+    await putItems(STEP, [{ category: '시험 전장', content: '실내등 점등' }]);
+    const order = await acceptedOrder();
+    const cl = (await getCl(order.id, makerCookie)).body.data;
+    await patchCl(order.id, makerCookie, { lines: [{ id: cl.lines[0].id, result: 'pass' }], submit: true });
+    expect((await getCl(order.id, makerCookie)).body.data.submitted_at).not.toBeNull();
+    await patchCl(order.id, makerCookie, { lines: [{ id: cl.lines[0].id, result: null }] });
+    expect((await getCl(order.id, makerCookie)).body.data.submitted_at).toBeNull();
   }, 30_000);
 
   /*
@@ -230,7 +250,7 @@ describe.runIf(live)('PDI 체크리스트', () => {
     const hidden = await prisma!.orderChecklistLine.findFirst({ where: { content: '실내등', checklist: { order_id: order.id } } });
     expect(hidden, '줄이 지워졌다').not.toBeNull();
     expect(hidden!.retired_at).not.toBeNull();
-    expect(await prisma!.orderChecklistLineLog.count({ where: { line_id: hidden!.id } })).toBe(1);
+    expect(hidden!.result, '감춘 줄의 판정이 지워졌다').toBe('pass');
 
     // 새 서식 기준으로 판정한다 — 합격이 아닌 줄이 남아 완료가 막힌다
     const blocked = await completeStep(order.id, makerCookie);

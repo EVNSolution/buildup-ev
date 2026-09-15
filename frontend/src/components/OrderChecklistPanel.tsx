@@ -44,10 +44,22 @@ export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone, scop
   const canWrite = myRoles.includes(data.actor)
   const left = data.lines.filter(l => l.result !== 'pass').length
 
-  async function mark(lineId: number, result: 'pass' | 'fail') {
+  /**
+   * 합격·불합격 — **눌린 버튼을 다시 누르면 판정이 취소된다**(2026-09-15). 비고는 적어 둔 것을 함께 보낸다.
+   */
+  async function mark(lineId: number, current: 'pass' | 'fail' | null, pressed: 'pass' | 'fail') {
+    await save({ id: lineId, result: current === pressed ? null : pressed, ...(memo[lineId] !== undefined ? { memo: memo[lineId] } : {}) })
+  }
+  /** 비고만 — 칸을 벗어날 때 저장한다(판정은 그대로) */
+  async function saveMemo(lineId: number, before: string | null) {
+    const v = memo[lineId]
+    if (v === undefined || v.trim() === (before ?? '')) return
+    await save({ id: lineId, memo: v })
+  }
+  async function save(line: { id: number; result?: 'pass' | 'fail' | null; memo?: string }) {
     setBusy(true); setErr('')
     try {
-      await saveOrderChecklist(orderId, stepCode, [{ id: lineId, result, memo: memo[lineId] ?? '' }], false, scope)
+      await saveOrderChecklist(orderId, stepCode, [line], false, scope)
       await load()
     } catch (e) { setErr(e instanceof Error ? e.message : t('저장하지 못했습니다')) }
     finally { setBusy(false) }
@@ -72,45 +84,45 @@ export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone, scop
         {!canWrite && <span style={s.muted}>{t('조회만 가능합니다')}</span>}
       </div>
 
+      {/*
+        **한 항목 = 두 줄**(2026-09-15 휴대폰 제보 — 좁은 칸에 비고·버튼이 겹쳐 항목 글자가 안 보였다).
+          윗줄: 왼쪽 항목(구분)·내용 / 오른쪽 비고
+          아랫줄: 합격 · 불합격(반반) — 눌린 것을 다시 누르면 취소
+        판정 이력 표시는 없앴다(지시).
+      */}
       <div style={s.list}>
         {data.lines.map(l => {
           const failed = l.result === 'fail'
+          const passed = l.result === 'pass'
           return (
-            <div key={l.id} style={l.result === 'pass' ? s.rowPass : failed ? s.rowFail : s.row}>
-              <div style={s.seq}>{l.seq}</div>
-              <div style={s.body}>
-                <div style={s.cat}>{l.category}</div>
-                <div style={s.content}>{l.content}</div>
-                {/* 재검 이력 — 두 번 이상 봤을 때만 보여 준다(한 번에 통과한 줄은 조용히) */}
-                {l.logs.length > 1 && (
-                  <div style={s.logs}>
-                    {l.logs.map((g, i) => (
-                      <span key={i} style={g.result === 'fail' ? s.logFail : s.logPass}>
-                        {g.result === 'fail' ? t('불합격') : t('합격')}
-                        {g.memo ? ` · ${g.memo}` : ''}
-                      </span>
-                    ))}
+            <div key={l.id} style={passed ? s.rowPass : failed ? s.rowFail : s.row}>
+              <div style={s.top}>
+                <div style={s.body}>
+                  <div style={s.cat}><span style={s.seq}>{l.seq}</span>{l.category}</div>
+                  <div style={s.content}>{l.content}</div>
+                </div>
+                {canWrite ? (
+                  <input
+                    style={s.memo} placeholder={t('비고')} maxLength={300} aria-label={tf('{0} 비고', l.content)}
+                    defaultValue={l.memo ?? ''} disabled={busy}
+                    onChange={e => setMemo(m => ({ ...m, [l.id]: e.target.value }))}
+                    onBlur={() => void saveMemo(l.id, l.memo)}
+                  />
+                ) : (
+                  <div style={s.readSide}>
+                    <span style={passed ? s.tagPass : failed ? s.tagFail : s.muted}>
+                      {passed ? t('합격') : failed ? t('불합격') : t('아직')}
+                    </span>
+                    {l.memo && <span style={s.muted}>{l.memo}</span>}
                   </div>
                 )}
               </div>
-              {canWrite ? (
-                <div style={s.actions}>
-                  <input
-                    style={s.memo} placeholder={t('비고')} maxLength={300}
-                    defaultValue={l.memo ?? ''} disabled={busy}
-                    onChange={e => setMemo(m => ({ ...m, [l.id]: e.target.value }))}
-                  />
-                  <button style={l.result === 'pass' ? s.passOn : BTN.smSecondary} disabled={busy}
-                    onClick={() => void mark(l.id, 'pass')}>{t('합격')}</button>
-                  <button style={failed ? s.failOn : BTN.smSecondary} disabled={busy}
-                    onClick={() => void mark(l.id, 'fail')}>{t('불합격')}</button>
-                </div>
-              ) : (
-                <div style={s.actions}>
-                  <span style={l.result === 'pass' ? s.tagPass : failed ? s.tagFail : s.muted}>
-                    {l.result === 'pass' ? t('합격') : failed ? t('불합격') : t('아직')}
-                  </span>
-                  {l.memo && <span style={s.muted}>{l.memo}</span>}
+              {canWrite && (
+                <div style={s.buttons}>
+                  <button type="button" style={passed ? s.passOn : s.choice} disabled={busy} aria-pressed={passed}
+                    onClick={() => void mark(l.id, l.result as 'pass' | 'fail' | null, 'pass')}>{t('합격')}</button>
+                  <button type="button" style={failed ? s.failOn : s.choice} disabled={busy} aria-pressed={failed}
+                    onClick={() => void mark(l.id, l.result as 'pass' | 'fail' | null, 'fail')}>{t('불합격')}</button>
                 </div>
               )}
             </div>
@@ -141,27 +153,36 @@ const s: Record<string, React.CSSProperties> = {
   head: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)', fontSize: 'var(--fs-body)', flexWrap: 'wrap' },
   done: { color: 'var(--lime-ink)', fontSize: 'var(--fs-caption)' },
   left: { color: 'var(--warn)', fontSize: 'var(--fs-caption)' },
-  list: { display: 'flex', flexDirection: 'column', gap: 4 },
+  list: { display: 'flex', flexDirection: 'column', gap: 6 },
+  // ⚠️ 테두리는 한 줄(border)로만 — borderColor 만 덮었다 걷으면 React 가 그 값만 지워 색이 남는다
   row: {
-    display: 'flex', gap: 'var(--sp-2)', alignItems: 'flex-start',
-    padding: 'var(--sp-2)', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
+    display: 'flex', flexDirection: 'column', gap: 8,
+    padding: '10px 12px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
   },
-  get rowPass() { return { ...this['row'], borderColor: 'var(--lime)', background: 'var(--lime-bg)' } as React.CSSProperties },
-  get rowFail() { return { ...this['row'], borderColor: 'var(--warn)', background: 'var(--warnbg)' } as React.CSSProperties },
-  seq: { width: 20, color: 'var(--muted)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'tabular-nums' },
-  body: { flex: 1, minWidth: 0 },
-  cat: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  content: { fontSize: 'var(--fs-label)', color: 'var(--dark)' },
-  logs: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 3 },
-  logPass: { fontSize: 'var(--fs-caption)', color: 'var(--lime-ink)' },
-  logFail: { fontSize: 'var(--fs-caption)', color: 'var(--warn)' },
-  actions: { display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  rowPass: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+    padding: '10px 12px', border: '1px solid var(--lime)', borderRadius: 'var(--r-sm)', background: 'var(--lime-bg)',
+  },
+  rowFail: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+    padding: '10px 12px', border: '1px solid var(--warn)', borderRadius: 'var(--r-sm)', background: 'var(--warnbg)',
+  },
+  // 윗줄 — 좁아지면 비고가 아래로 내려간다(항목 글자를 먼저 지킨다)
+  top: { display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' },
+  body: { flex: '1 1 160px', minWidth: 0 },
+  seq: { color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', marginRight: 6 },
+  cat: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.4 },
+  content: { fontSize: 'var(--fs-body)', color: 'var(--dark)', lineHeight: 1.45, wordBreak: 'keep-all', overflowWrap: 'anywhere' },
   memo: {
-    fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '2px 6px', width: 140,
-    border: 'var(--hairline)', borderRadius: 'var(--r-sm)',
+    flex: '1 1 140px', minWidth: 0, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)',
+    padding: '6px 8px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
   },
-  get passOn() { return { ...BTN['smPrimary'] } as React.CSSProperties },
-  get failOn() { return { ...BTN['smDanger'] } as React.CSSProperties },
+  readSide: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 },
+  // 아랫줄 — 합격·불합격 반반
+  buttons: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 },
+  choice: { ...BTN.smSecondary, width: '100%' },
+  passOn: { ...BTN.smPrimary, width: '100%' },
+  failOn: { ...BTN.smDanger, width: '100%' },
   tagPass: { color: 'var(--lime-ink)', fontSize: 'var(--fs-caption)' },
   tagFail: { color: 'var(--warn)', fontSize: 'var(--fs-caption)' },
   foot: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' },
