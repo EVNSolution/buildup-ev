@@ -47,7 +47,9 @@ describe('주문 목록', () => {
      * 거부됨이 따로 구획을 갖게 됐다(2026-09-11). 진행 중은 여전히 「나머지 전부」이고,
      * 거부된 건은 **자기 구획에** 보인다 — 어느 쪽이든 목록에서 사라지는 건은 없다.
      */
-    expect(SECTIONS).toMatch(/const active\s*=\s*orders\.filter\(o => o\.quote\.status !== 'assigned' && !finished\(o\) && !rejected\(o\)\)/);
+    // 2026-09-15 — 특장사가 있는 행만 수락 대기·진행 중·완료에 든다(거부 행은 거부 구획, 배정 취소 행은 서버가 뺀다)
+    expect(SECTIONS).toMatch(/const assigned = \(o: ApiOrder\) => o\.maker_org_id != null/);
+    expect(SECTIONS).toMatch(/const active\s*=\s*orders\.filter\(o => assigned\(o\) && o\.quote\.status !== 'assigned' && !finished\(o\)\)/);
     expect(SECTIONS).toMatch(/const refused = orders\.filter\(rejected\)/);
     expect(SECTIONS, '거부된 건을 걸러 놓고 그리지 않는다').toMatch(/orders=\{refused\}/);
   });

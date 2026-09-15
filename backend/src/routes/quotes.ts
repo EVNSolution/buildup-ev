@@ -1214,6 +1214,15 @@ quotesRouter.get('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confir
       where: { quote_id: id, maker_org_id: null, canceled_at: null },
     });
     if (!rejected) { res.json({ data: null }); return; }
+    /*
+     * ⚠️ **관리자가 배정 취소해 돌아온 건은 「거부」가 아니다**(2026-09-15 제보). 둘 다 특장사가 비어 있는 행이라
+     *    예전엔 전부 「특장사가 거부해 돌아온 발주서」로 말했다. 가장 최근 일로 가른다 — 배정 취소 기록(견적 이력
+     *    assign_canceled)이 거부 시각보다 뒤면 배정 취소다(거부됐다가 재배정 후 취소된 경우도 이렇게 가려진다).
+     */
+    const canceledLog = await prisma.quoteChangeLog.findFirst({
+      where: { quote_id: id, field: 'assign_canceled' }, orderBy: { changed_at: 'desc' },
+    });
+    const byUnassign = !!canceledLog && (!rejected.rejected_at || canceledLog.changed_at > rejected.rejected_at);
     res.json({
       data: {
         quote_id: id,
@@ -1222,11 +1231,13 @@ quotesRouter.get('/:id/po-draft', rbac('ADMIN'), requirePermission('order.confir
         custom_badge: rejected.custom_badge,
         appendix: rejected.appendix,
         po_lines: rejected.po_lines ?? null,
-        saved_at: (rejected.rejected_at ?? rejected.created_at).toISOString(),
-        saved_by: rejected.rejected_by ?? '',
+        saved_at: (byUnassign ? canceledLog!.changed_at : (rejected.rejected_at ?? rejected.created_at)).toISOString(),
+        saved_by: byUnassign ? canceledLog!.changed_by : (rejected.rejected_by ?? ''),
         /** 거절돼 돌아온 발주서다 — 화면이 「이어 적는 중」이라고 알려 준다 */
-        from_rejected: true,
-        reject_reason: rejected.reject_reason,
+        from_rejected: !byUnassign,
+        /** 관리자가 배정 취소해 돌아온 발주서다 */
+        from_unassigned: byUnassign,
+        reject_reason: byUnassign ? (canceledLog!.new_value ?? null) : rejected.reject_reason,
       },
     });
   } catch {

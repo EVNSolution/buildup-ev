@@ -113,6 +113,49 @@ describe.runIf(live)('배정 취소', () => {
   }, 30_000);
 });
 
+describe.runIf(live)('배정 취소한 주문은 뒤 단계에서 사라진다(2026-09-15 제보)', () => {
+  const listed = async (id: number, cookie: string, q = '') => ((await request(app).get(`/api/v1/orders${q}`).set('Cookie', cookie)).body.data as { id: number }[]).some(o => o.id === id);
+
+  it('🔴 목록에 안 나온다 — 견적 상태(계약완료)만 보고 「특장 진행」으로 분류되던 것', async () => {
+    const { id } = await pendingOrder();
+    expect((await unassign(id)).status).toBe(200);
+    expect(await listed(id, admin), '관리자 목록에 남았다').toBe(false);
+    expect(await listed(id, admin, '?board=admin')).toBe(false);
+    expect(await listed(id, maker)).toBe(false);
+  }, 30_000);
+
+  it('🔴 단계를 진행할 수 없다', async () => {
+    const { id } = await pendingOrder();
+    expect((await unassign(id)).status).toBe(200);
+    const r = await request(app).patch(`/api/v1/orders/${id}/steps/build_started`).set('Cookie', admin).send({});
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe('NOT_ASSIGNED');
+  }, 30_000);
+
+  it('🔴 발주서를 다시 열면 「거부」가 아니라 「배정 취소로 돌아온」 발주서 — 누가·왜', async () => {
+    const { id, quoteId } = await pendingOrder();
+    expect((await unassign(id, admin, '사양 재확인')).status).toBe(200);
+    const d = (await request(app).get(`/api/v1/quotes/${quoteId}/po-draft`).set('Cookie', admin)).body.data;
+    expect([d.from_unassigned, d.from_rejected, d.saved_by, d.reject_reason]).toEqual([true, false, ADMIN, '사양 재확인']);
+  }, 30_000);
+
+  it('🔴 거부로 돌아온 건은 여전히 「거부」로 말하고 배정 대기 표시를 위해 목록에 남는다', async () => {
+    const { id, quoteId } = await pendingOrder();
+    const rej = await request(app).patch(`/api/v1/orders/${id}/reject`).set('Cookie', maker).send({ reason: '일정 불가' });
+    expect(rej.status, JSON.stringify(rej.body)).toBe(200);
+    const d = (await request(app).get(`/api/v1/quotes/${quoteId}/po-draft`).set('Cookie', admin)).body.data;
+    expect([d.from_rejected, d.from_unassigned, d.reject_reason]).toEqual([true, false, '일정 불가']);
+    expect(await listed(id, admin)).toBe(true);
+  }, 30_000);
+
+  it('🔴 관리자 주문 진행(board=admin)은 숨긴 견적의 주문을 뺀다 — 특장사 목록에는 남는다', async () => {
+    const { id, quoteId } = await pendingOrder();
+    await prisma!.quote.update({ where: { id: quoteId }, data: { hidden_at: new Date(), hidden_by: ADMIN } });
+    expect(await listed(id, admin, '?board=admin')).toBe(false);
+    expect(await listed(id, maker), '제작 중인 특장사 목록에서 사라졌다').toBe(true);
+  }, 30_000);
+});
+
 describe('화면', () => {
   const ROOT = path.resolve(__dirname, '../../..');
   const src = (p: string) => readFileSync(path.join(ROOT, p), 'utf8');
@@ -128,6 +171,11 @@ describe('화면', () => {
     const po = z('frontend/src/components/AcceptOrderModal.tsx');
     expect(po).toBeGreaterThan(0);
     expect(z('frontend/src/components/OrderUnassignModal.tsx'), '발주서 창에 가린다').toBeGreaterThan(po);
+  });
+  it('🔴 주문 구획·현황판은 특장사가 없는 행을 진행 칸에 넣지 않는다', () => {
+    expect(src('frontend/src/components/OrderSections.tsx')).toMatch(/const active  = orders\.filter\(o => assigned\(o\) && /);
+    expect(src('frontend/src/lib/orderDashboard.ts')).toMatch(/const live = orders\.filter\(o => o\.maker_org_id != null\)/);
+    expect(src('frontend/src/pages/AdminPage.tsx')).toMatch(/fetchOrders\(\{ board: 'admin' \}\)/);
   });
   it('🔴 영업 목록 「배정 요청 필요건만」 — 버튼과 같은 조건으로 거른다', () => {
     const page = src('frontend/src/pages/SalesPage.tsx');

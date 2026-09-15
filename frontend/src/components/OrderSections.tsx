@@ -62,10 +62,12 @@ export function OrderSections({ orders, onOpen, onPendingOpen, onRejectedOpen }:
 
   /** 거부돼 돌아간 건 — 배정이 풀렸고 누가 거부했는지 남아 있다. 다시 배정되면 빠진다 */
   const rejected = (o: ApiOrder) => o.maker_org_id == null && !!o.rejected_by_org
-  const pending = orders.filter(o => o.quote.status === 'assigned' && !finished(o) && !rejected(o))
+  // 특장사가 없는 행(거부로 돌아왔거나 배정 취소)은 수락 대기·진행 중·완료에 넣지 않는다 — 배정 취소된 건이 「진행 중」에 떴다(제보)
+  const assigned = (o: ApiOrder) => o.maker_org_id != null
+  const pending = orders.filter(o => assigned(o) && o.quote.status === 'assigned' && !finished(o))
   const refused = orders.filter(rejected)
-  const done    = orders.filter(o => finished(o) && !rejected(o))
-  const active  = orders.filter(o => o.quote.status !== 'assigned' && !finished(o) && !rejected(o))
+  const done    = orders.filter(o => assigned(o) && finished(o))
+  const active  = orders.filter(o => assigned(o) && o.quote.status !== 'assigned' && !finished(o))
 
   if (orders.length === 0) return <div style={s.empty}>{t('배정된 주문이 없습니다.')}</div>
 

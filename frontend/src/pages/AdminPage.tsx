@@ -366,6 +366,10 @@ function ConfirmModal({ quoteId, makerOrgs, loading, error, onConfirm, onClose }
           <div style={draft?.from_rejected && !savedAt ? modal.rejectedNote : modal.draftNote}>
             {savedAt
               ? tf('임시저장했습니다 ({0})', new Date(savedAt).toLocaleString())
+              : draft!.from_unassigned
+                /* 관리자가 거둔 발주서 — 특장사가 거부한 것이 아니다. 경고색 없이 누가 언제 취소했는지만 */
+                ? tf('배정 취소로 돌아온 발주서입니다 — 내용은 그대로 두었습니다. {0} · {1}',
+                     draft!.saved_by, draft!.reject_reason || t('(사유 없음)'))
               : draft!.from_rejected
                 /*
                   임시저장이 아니라 **한 번 나갔다 돌아온 발주서**다. 그렇게 말해 줘야
@@ -1788,7 +1792,7 @@ function KanbanTab({ deepLink, initialView }: {
   function load(silent = false) {
     if (!silent) setLoading(true)
     setErr('')
-    Promise.all([fetchOrders({}), fetchQuotes({ status: 'contracted' })])
+    Promise.all([fetchOrders({ board: 'admin' }), fetchQuotes({ status: 'contracted' })])
       .then(([os, qs]) => { setOrders(os); setContracted(qs) })
       .catch(e => setErr(e.message))
       .finally(() => { if (!silent) setLoading(false) })
