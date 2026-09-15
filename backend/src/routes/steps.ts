@@ -267,6 +267,8 @@ stepsRouter.patch('/:id/steps/:code', rbac('ADMIN', 'SALES', 'MAKER'), canChange
   if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
   const r = await loadOrder(id, req);
   if ('err' in r) { denyOrder(res, r.err); return; }
+  // 배정이 풀린 주문(거부·배정 취소)은 진행하지 않는다 — 다시 배정되기 전까지 일감이 아니다
+  if (!r.order.maker_org_id) { res.status(409).json({ error: { code: 'NOT_ASSIGNED', message: '배정되지 않은 주문은 진행할 수 없습니다' } }); return; }
 
   const defs = stepsFor(r.order.body_only);
   await ensureSteps(id, r.order.assigned_at ?? r.order.created_at, defs);
@@ -374,6 +376,7 @@ stepsRouter.patch('/:id/steps/:code/undo', rbac('ADMIN', 'SALES', 'MAKER'), canC
   if (id === null || !STEP_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 단계입니다' } }); return; }
   const r = await loadOrder(id, req);
   if ('err' in r) { denyOrder(res, r.err); return; }
+  if (!r.order.maker_org_id) { res.status(409).json({ error: { code: 'NOT_ASSIGNED', message: '배정되지 않은 주문은 진행할 수 없습니다' } }); return; }
 
   const rows = await prisma!.orderStep.findMany({ where: { order_id: id }, select: { code: true, status: true } });
   const gate = canUndo(code, rows.map(x => ({ code: x.code, status: x.status as StepState['status'] })), stepsFor(r.order.body_only));

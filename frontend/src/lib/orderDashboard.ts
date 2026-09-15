@@ -59,7 +59,8 @@ export const isFinished = (o: ApiOrder) =>
   || (!!o.steps && o.steps.total > 0 && o.steps.done >= o.steps.total)
 
 export function buildDashboard(orders: ApiOrder[], contracted: ApiQuote[], now = new Date(), addonEnabled = false): Dashboard {
-  const live = orders.filter(o => !isRejected(o))
+  // 특장사가 없는 행은 진행 칸에 세지 않는다 — 거부로 돌아온 건은 배정 대기(거부 표시), 배정 취소된 건은 서버가 이미 뺀다
+  const live = orders.filter(o => o.maker_org_id != null)
   /** 특장사 단계를 다 끝냈다(공장 출고) — 견적 상태가 아니라 단계로 본다 */
   const factoryDone = (o: ApiOrder) => !!o.steps && o.steps.total > 0 && (o.steps.finished === true || o.steps.done >= o.steps.total)
   const pending = live.filter(o => o.quote.status === 'assigned' && !isFinished(o))

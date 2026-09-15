@@ -422,7 +422,9 @@ export interface PoDraft {
    * 「누가 적어 둔 초안」과 「특장사가 거부해 돌아온 건」은 다른 이야기다.
    */
   from_rejected?: boolean
-  /** 그때 적힌 거부 사유 */
+  /** **관리자가 배정 취소해** 돌아온 발주서 — 거부와 다른 이야기라 문구를 따로 쓴다 */
+  from_unassigned?: boolean
+  /** 그때 적힌 사유(거부 사유 또는 배정 취소 사유) */
   reject_reason?: string | null
 }
 

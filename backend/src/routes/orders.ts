@@ -25,13 +25,24 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
     return;
   }
   const auth = req.auth!;
-  const { status, from, to, scope } = req.query as Record<string, string | undefined>;
+  const { status, from, to, scope, board } = req.query as Record<string, string | undefined>;
 
   /*
    * 치운 주문은 목록에서 뺀다 — **행은 남아 있지만 일감이 아니다.**
    * 여기서 거르지 않으면 「삭제」를 눌러도 그대로 보여, 치운 뜻이 없어진다.
+   *
+   * **배정이 풀린 주문도 뺀다**(2026-09-15 제보) — 특장사도 없고 거부한 곳도 없는 행은 배정 취소로 돌아간 것이다.
+   * 견적은 배정 대기로 돌아갔고 이 행은 다음 배정 때 다시 쓰일 뿐 일감이 아니다. 거르지 않으면 견적 상태(계약완료)만 보고
+   * 화면이 「특장 진행」으로 분류했다. 거부로 돌아온 행(rejected_by_org 있음)은 남긴다 — 거부한 특장사와의 대화·배정 대기 표시에 쓴다.
    */
   const where: Prisma.OrderWhereInput = { canceled_at: null };
+  const and: Prisma.OrderWhereInput[] = [{ NOT: { AND: [{ maker_org_id: null }, { rejected_by_org: null }] } }];
+  /*
+   * 관리자 「주문 진행」(`board=admin`)은 **숨긴 견적의 주문을 뺀다** — 숨긴 건이 현황판에 남으면 숨긴 뜻이 없다(제보).
+   * 특장사·영업 화면은 이 값을 보내지 않는다 — 관리자가 견적을 숨겼다고 제작 중인 특장사 목록에서 사라지면 안 된다.
+   */
+  if (board === 'admin' && isAdmin(auth)) and.push({ quote: { hidden_at: null } });
+  where.AND = and;
   /*
    * 범위는 **가진 역할 전부**로 정한다. 관리자면 전체, 아니면 겸직한 역할만큼 넓힌다
    * (영업+특장 겸직이면 자기 견적의 주문 ∪ 자기 조직에 배정된 주문).

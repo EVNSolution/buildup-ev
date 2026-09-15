@@ -2,10 +2,12 @@ import type { ApiOrder, ApiOrderMakerDetail, OrderVehicleInfo, Org } from '@shar
 
 export async function fetchOrders(
   /** `scope: 'mine'` — 영업 화면에서 붙인다(겸직 계정이라도 남의 주문은 안 본다) */
-  params: { status?: string; from?: string; to?: string; scope?: 'mine' },
+  params: { status?: string; from?: string; to?: string; scope?: 'mine'; board?: 'admin' },
 ): Promise<ApiOrder[]> {
   const q = new URLSearchParams()
   if (params.scope) q.set('scope', params.scope)
+  // 관리자 주문 진행 — 숨긴 견적의 주문은 서버가 뺀다
+  if (params.board) q.set('board', params.board)
   if (params.status) q.set('status', params.status)
   if (params.from) q.set('from', params.from)
   if (params.to) q.set('to', params.to)
