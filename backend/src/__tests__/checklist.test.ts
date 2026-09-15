@@ -7,7 +7,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
  *   ① 서식이 **비어 있으면 막지 않는다** — 항목을 안 정한 단계에서 주문이 서면 안 된다
  *   ② 항목이 있으면 **모두 합격**이라야 그 단계를 완료할 수 있다
  *   ③ 불합격 → 조치 → 재검이 **항목별로 남는다**(마지막 판정만 남기지 않는다)
- *   ④ 서식을 고쳐도 **이미 작성한 것은 바뀌지 않는다**(작성 시점 사본)
+ *   ④ 제출 전에는 서식 수정을 따라가고, **제출한 것은 바뀌지 않는다**
+ *   ⑦ **모든 단계**(특장사 진행·부가작업 진행)에 붙일 수 있다 — 비어 있으면 안 뜨고 안 막는다(2026-09-15)
  *   ⑤ 적는 사람이 정해져 있다 — 인도 체크리스트를 특장사가 적지 못한다
  *   ⑥ 제출하면 관리자에게 알림이 간다
  */
@@ -67,6 +68,7 @@ afterAll(async () => {
   for (const id of madeQuotes) {
     await prisma.orderStepComment.deleteMany({ where: { order: { quote_id: id } } });
     await prisma.orderStep.deleteMany({ where: { order: { quote_id: id } } });
+    await prisma.orderAddonStep.deleteMany({ where: { order: { quote_id: id } } });
     await prisma.order.deleteMany({ where: { quote_id: id } });
     await prisma.quoteChangeLog.deleteMany({ where: { quote_id: id } });
     await prisma.quote.deleteMany({ where: { id } });
@@ -86,7 +88,7 @@ afterAll(async () => {
  *    보려면 그 단계의 서식을 확실히 쥐어야 한다 — 실제로 화면에서 만들어 둔 항목과
  *    부딪혀 한 번 깨졌다. 시험이 도는 동안만 꺼 두고 끝나면 되돌린다.
  */
-const STEPS_UNDER_TEST = ['car_arrived', 'build_done', 'delivered'];
+const STEPS_UNDER_TEST = ['car_arrived', 'build_done', 'delivered', 'temp_plate_returned', 'addon_car_arrived', 'addon_pdi'];
 let borrowed: number[] = [];
 
 beforeEach(async () => {
@@ -303,6 +305,60 @@ describe.runIf(live)('PDI 체크리스트', () => {
     expect(after.submitted_at, '불합격인데 제출 상태가 남았다').toBeNull();
     const res = await completeStep(order.id, makerCookie);
     expect(res.status).toBe(409);
+  }, 30_000);
+
+  it('🔴 모든 단계를 고를 수 있다 — 특장사 진행·부가작업 진행 두 묶음, 켜진 항목 수와 함께', async () => {
+    await putItems('temp_plate_returned', [{ category: '시험 번호판', content: '임시번호판 파손 없음' }]);
+    const list = (await request(app).get('/api/v1/checklists/steps').set('Cookie', adminCookie)).body.data as { group: string; code: string; actor: string; count: number }[];
+    const { STEPS } = await import('@buildup-ev/shared/process');
+    const { ADDON_STEPS } = await import('@buildup-ev/shared/process/addon');
+    expect(list.filter(x => x.group === 'maker').map(x => x.code)).toEqual(STEPS.map(x => x.code));
+    expect(list.filter(x => x.group === 'addon').map(x => x.code)).toEqual(ADDON_STEPS.map(x => x.code));
+    expect(list.find(x => x.code === 'temp_plate_returned')).toMatchObject({ actor: 'MAKER', count: 1 });
+    expect(list.find(x => x.code === 'insurance_checked')?.actor).toBe('ADMIN');
+    expect(list.find(x => x.code === 'addon_pdi')?.actor).toBe('ADMIN');
+  }, 30_000);
+
+  it('🔴 예전엔 체크리스트가 없던 단계도 — 항목이 있으면 뜨고 막고, 없으면 안 뜨고 안 막는다', async () => {
+    const order = await acceptedOrder();
+    // 비어 있으면 null — 화면에 아무것도 안 뜬다
+    expect((await getCl(order.id, makerCookie, 'temp_plate_returned')).body.data).toBeNull();
+    await putItems('temp_plate_returned', [{ category: '시험 번호판', content: '임시번호판 파손 없음' }]);
+    const cl = (await getCl(order.id, makerCookie, 'temp_plate_returned')).body.data;
+    expect(cl.actor).toBe('MAKER');
+    expect(cl.lines).toHaveLength(1);
+  }, 30_000);
+
+  it('🔴 부가작업 단계 체크리스트 — 관리자 경로에서만, 항목이 있으면 제출해야 완료, 특장사는 못 본다', async () => {
+    const order = await acceptedOrder();
+    // 공장 출고까지 끝낸 상태로
+    const { STEPS } = await import('@buildup-ev/shared/process');
+    for (const st of STEPS) {
+      await prisma!.orderStep.upsert({
+        where: { order_id_code: { order_id: order.id, code: st.code } },
+        update: { status: 'done', done_at: new Date() },
+        create: { order_id: order.id, code: st.code, track: st.track, status: 'done', done_at: new Date() },
+      });
+    }
+    const addonCl = (method: 'get' | 'patch', cookie: string, body: object = {}) =>
+      request(app)[method](`/api/v1/orders/${order.id}/addon/steps/addon_car_arrived/checklist`).set('Cookie', cookie).send(body);
+    const complete = () => request(app).patch(`/api/v1/orders/${order.id}/addon/steps/addon_car_arrived`).set('Cookie', adminCookie).send({});
+
+    expect((await addonCl('get', adminCookie)).body.data, '서식이 비었는데 체크리스트가 뜬다').toBeNull();
+    await putItems('addon_car_arrived', [{ category: '시험 입고', content: '출고 차량 외관 확인' }]);
+
+    expect((await addonCl('get', makerCookie)).status, '특장사가 부가작업 체크리스트를 봤다').toBe(403);
+    expect((await request(app).get(`/api/v1/orders/${order.id}/steps/addon_car_arrived/checklist`).set('Cookie', makerCookie)).status).toBe(400);
+
+    const cl = (await addonCl('get', adminCookie)).body.data;
+    expect(cl.actor).toBe('ADMIN');
+    const blocked = await complete();
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('CHECKLIST_INCOMPLETE');
+
+    expect((await addonCl('patch', adminCookie, { lines: [{ id: cl.lines[0].id, result: 'pass' }], submit: true })).status).toBe(200);
+    const ok = await complete();
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
   }, 30_000);
 
   it('🔴 서식을 고치는 것은 권한이 있는 관리자만', async () => {

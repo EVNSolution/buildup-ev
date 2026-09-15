@@ -41,7 +41,10 @@ async function json<T>(res: Response, what: string): Promise<T> {
   return (await res.json() as { data: T }).data
 }
 
-export async function fetchChecklistSteps(): Promise<{ code: string; label: string; actor: string }[]> {
+/** 서식을 붙일 수 있는 단계 — 특장사 진행(maker)·부가작업 진행(addon) 두 묶음, count = 켜진 항목 수 */
+export interface ChecklistStepOption { group: 'maker' | 'addon'; track: string; code: string; label: string; actor: string; count: number }
+
+export async function fetchChecklistSteps(): Promise<ChecklistStepOption[]> {
   return json(await fetch('/api/v1/checklists/steps', { credentials: 'include' }), '단계 목록을 불러오지 못했습니다')
 }
 
@@ -59,16 +62,22 @@ export async function saveChecklistItems(
   }), '서식을 저장하지 못했습니다')
 }
 
-export async function fetchOrderChecklist(orderId: number, step: string): Promise<OrderChecklist | null> {
-  return json(await fetch(`/api/v1/orders/${orderId}/steps/${step}/checklist`, { credentials: 'include' }), '체크리스트를 불러오지 못했습니다')
+/** 특장사 단계는 `steps`, 부가작업 단계(관리자 전용)는 `addon` 경로 */
+export type ChecklistScope = 'steps' | 'addon'
+const checklistPath = (orderId: number, step: string, scope: ChecklistScope) =>
+  `/api/v1/orders/${orderId}/${scope === 'addon' ? 'addon/steps' : 'steps'}/${step}/checklist`
+
+export async function fetchOrderChecklist(orderId: number, step: string, scope: ChecklistScope = 'steps'): Promise<OrderChecklist | null> {
+  return json(await fetch(checklistPath(orderId, step, scope), { credentials: 'include' }), '체크리스트를 불러오지 못했습니다')
 }
 
 export async function saveOrderChecklist(
   orderId: number, step: string,
   lines: { id: number; result: CheckResult; memo?: string }[],
   submit = false,
+  scope: ChecklistScope = 'steps',
 ): Promise<{ all_pass: boolean }> {
-  return json(await fetch(`/api/v1/orders/${orderId}/steps/${step}/checklist`, {
+  return json(await fetch(checklistPath(orderId, step, scope), {
     method: 'PATCH', credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ lines, submit }),

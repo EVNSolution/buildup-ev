@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { t, tf } from '../i18n'
-import { fetchOrderChecklist, saveOrderChecklist, type OrderChecklist } from '../api/checklists'
+import { fetchOrderChecklist, saveOrderChecklist, type OrderChecklist, type ChecklistScope } from '../api/checklists'
 import { BTN } from '../styles/buttons'
 import { rolesOf } from '@shared/types/index'
 import { useAuth } from '../contexts/AuthContext'
@@ -14,8 +14,10 @@ import { useAuth } from '../contexts/AuthContext'
  * 불합격은 **끝이 아니다.** 고쳐서 다시 합격을 주면 되고, 그 과정이 항목별 이력으로
  * 남는다. 「한 번에 통과했다」와 「고쳐서 통과했다」는 다음 차를 만들 때 다른 이야기다.
  */
-export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone }: {
+export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone, scope = 'steps' }: {
   orderId: number
+  /** 부가작업 단계면 `addon` — 관리자 전용 경로로 읽고 쓴다 */
+  scope?: ChecklistScope
   stepCode: string
   stepLabel: string
   /** 제출까지 끝났다 — 바깥 단계 화면을 다시 읽게 한다 */
@@ -29,10 +31,10 @@ export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone }: {
   const [memo, setMemo] = useState<Record<number, string>>({})
 
   async function load() {
-    try { setData(await fetchOrderChecklist(orderId, stepCode)) }
+    try { setData(await fetchOrderChecklist(orderId, stepCode, scope)) }
     catch (e) { setErr(e instanceof Error ? e.message : t('체크리스트를 불러오지 못했습니다')); setData(null) }
   }
-  useEffect(() => { void load() }, [orderId, stepCode])
+  useEffect(() => { void load() }, [orderId, stepCode, scope])   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (data === 'loading') return <div style={s.muted}>{t('불러오는 중…')}</div>
   // 서식이 아직 없는 단계 — 자리를 만들지 않는다(빈 표는 「없다」를 말해 주지 않는다)
@@ -45,7 +47,7 @@ export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone }: {
   async function mark(lineId: number, result: 'pass' | 'fail') {
     setBusy(true); setErr('')
     try {
-      await saveOrderChecklist(orderId, stepCode, [{ id: lineId, result, memo: memo[lineId] ?? '' }])
+      await saveOrderChecklist(orderId, stepCode, [{ id: lineId, result, memo: memo[lineId] ?? '' }], false, scope)
       await load()
     } catch (e) { setErr(e instanceof Error ? e.message : t('저장하지 못했습니다')) }
     finally { setBusy(false) }
@@ -54,7 +56,7 @@ export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone }: {
   async function submit() {
     setBusy(true); setErr('')
     try {
-      await saveOrderChecklist(orderId, stepCode, [], true)
+      await saveOrderChecklist(orderId, stepCode, [], true, scope)
       await load(); onDone()
     } catch (e) { setErr(e instanceof Error ? e.message : t('제출하지 못했습니다')) }
     finally { setBusy(false) }

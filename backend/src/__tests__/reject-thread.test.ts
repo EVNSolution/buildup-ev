@@ -94,8 +94,14 @@ const say = (oid: number, cookie: string, body: string, step = 'po') =>
   request(app).post(`/api/v1/orders/${oid}/steps/${step}/comments`).set('Cookie', cookie).field('body', body);
 const thread = (oid: number, cookie: string) =>
   request(app).get(`/api/v1/orders/${oid}/step-comments`).set('Cookie', cookie);
-const list = async (cookie: string) =>
-  ((await request(app).get('/api/v1/orders').set('Cookie', cookie)).body.data as { id: number }[]).map(o => o.id);
+// 전체 목록 조회라 다른 시험 파일이 같은 순간 자기 데이터를 지우면 드물게 500 이 난다 — 다시 묻는다(운영에는 행 삭제가 없다)
+const list = async (cookie: string): Promise<number[]> => {
+  for (let i = 0; i < 3; i++) {
+    const r = await request(app).get('/api/v1/orders').set('Cookie', cookie);
+    if (r.status === 200) return (r.body.data as { id: number }[]).map(o => o.id);
+  }
+  throw new Error('주문 목록을 읽지 못했다');
+};
 const reject = (oid: number) =>
   request(app).patch(`/api/v1/orders/${oid}/reject`).set('Cookie', brainCookie).send({ reason: '10/13 까지만 가능' });
 

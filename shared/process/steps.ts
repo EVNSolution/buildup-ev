@@ -524,8 +524,19 @@ export function stalledDays(enteredAt: Date | null, now: Date): number | null {
   return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000));
 }
 
-/** 체크리스트가 붙는 단계들 — 화면이 탭을 그릴 때 쓴다 */
-export const CHECKLIST_STEPS: StepDef[] = STEPS.filter(s => s.checklist);
+/**
+ * 체크리스트를 **적는 사람** — 단계에 적어 둔 값(`checklist`)이 있으면 그것, 없으면 그 단계를 처리하는 쪽
+ * (특장사 단계는 특장사, 나머지는 관리자).
+ */
+export function checklistActorOf(def: StepDef): Actor {
+  return def.checklist ?? (def.actor === 'MAKER' ? 'MAKER' : 'ADMIN');
+}
+
+/**
+ * 체크리스트를 붙일 수 있는 단계 — **모든 단계**(2026-09-15 지시, 예전엔 셋뿐).
+ * 서식이 비어 있는 단계는 화면에 아무것도 뜨지 않고 완료도 막지 않는다 — 항목이 하나라도 있을 때만 관문이다.
+ */
+export const CHECKLIST_STEPS: StepDef[] = STEPS;
 
 /** 체크리스트 판정 — 셋뿐이다. 「보류」는 두지 않는다(넘어갈 수 있다는 뜻이 되어 버린다) */
 export type CheckResult = 'pass' | 'fail';
