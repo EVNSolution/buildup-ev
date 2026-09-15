@@ -123,6 +123,12 @@ describe('화면', () => {
     const modal = src('frontend/src/components/AcceptOrderModal.tsx');
     expect(modal).toMatch(/\{readOnly && onUnassign && \(/);
   });
+  it('🔴 배정 취소 확인창은 발주서 조회 창보다 위에 뜬다 — 발주서 창에서 여는 창이다', () => {
+    const z = (f: string) => Number(/overlay: \{[^}]*zIndex: (\d+)/.exec(src(f).replace(/\/\/[^\n]*\n/g, '\n'))?.[1]);
+    const po = z('frontend/src/components/AcceptOrderModal.tsx');
+    expect(po).toBeGreaterThan(0);
+    expect(z('frontend/src/components/OrderUnassignModal.tsx'), '발주서 창에 가린다').toBeGreaterThan(po);
+  });
   it('🔴 영업 목록 「배정 요청 필요건만」 — 버튼과 같은 조건으로 거른다', () => {
     const page = src('frontend/src/pages/SalesPage.tsx');
     expect(page).toMatch(/function needsAssignRequest\(q: ApiQuote\): boolean \{\s*return q\.status === 'contracted' && !q\.assign_requested_at/);
