@@ -142,7 +142,7 @@ describe('규칙이 한 곳씩', () => {
   });
   it('🔴 영업 화면 — 계약완료 + 요청 전에만 「배정 요청」, 요청 뒤엔 글씨', () => {
     const page = src('frontend/src/pages/SalesPage.tsx');
-    expect(page).toMatch(/\{q\.status === 'contracted' && !q\.assign_requested_at && \(/);
+    expect(page).toMatch(/\{needsAssignRequest\(q\) && \(/);
     expect(page).toMatch(/t\('배정 요청'\)/);
     expect(page).toMatch(/\{q\.status === 'contracted' && q\.assign_requested_at && \(/);
   });
@@ -152,9 +152,9 @@ describe('규칙이 한 곳씩', () => {
     expect(admin).not.toMatch(/\{q\.status === 'contracted' && \(\s*<button style=\{qt\.assignBtn\}/);
     expect(src('frontend/src/lib/orderDashboard.ts')).toMatch(/q\.status === 'contracted' && !!q\.assign_requested_at/);
   });
-  it('🔴 거부·삭제 경로가 계약완료로 돌리기 전에 요청을 살린다', () => {
+  it('🔴 거부·삭제·배정 취소 경로가 계약완료로 돌리기 전에 요청을 살린다', () => {
     const orders = src('backend/src/routes/orders.ts');
-    expect(orders.match(/await keepAssignRequested\(order\.quote\.id, [^)]*\);\s*await setQuoteStatus\(order\.quote\.id, 'contracted'/g)?.length).toBe(2);
+    expect(orders.match(/await keepAssignRequested\(order\.quote\.id, [^)]*\);\s*await setQuoteStatus\(order\.quote\.id, 'contracted'/g)?.length).toBe(3);
   });
   it('🔴 특장만 견적서에 차량가·탁송료·보조금 안내 문구가 없다', () => {
     expect(src('doc-templates/quote-template.html')).not.toContain('차량 가격·탁송료·EV보조금·차량 등록비는 포함되지 않습니다');

@@ -656,6 +656,12 @@ export const EN: Record<string, string> = {
   '영업 메모': 'Sales note',
   '영업 배정': 'Sales assignment',
   '배정 요청': 'Request assignment',
+  '배정 요청 필요건만': 'Needs assignment request only',
+  '배정 요청이 필요한 견적이 없습니다': 'No quotes need an assignment request',
+  '체크를 풀면 전체가 다시 보입니다.': 'Uncheck to see everything again.',
+  '배정 취소': 'Cancel assignment',
+  '배정 취소에 실패했습니다': 'Could not cancel the assignment',
+  '예) 특장사 변경 / 사양 재확인': 'e.g. Change body builder / Recheck specs',
   '배정 요청됨': 'Assignment requested',
   '배정 요청 실패': 'Assignment request failed',
   '영업 배정 요청 대기': 'Awaiting sales request',
@@ -1173,6 +1179,8 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '주문 #{0} 배정을 취소합니다': 'Cancel the assignment of order #{0}',
+  '{0}에 맡긴 발주를 거두고 배정 대기로 되돌립니다. 특장사 목록에서 사라지고 알림이 가며, 바로 다시 배정할 수 있습니다.': 'Withdraws the purchase order from {0} and returns it to awaiting assignment. It disappears from the body builder\'s list, they are notified, and you can assign it again right away.',
   '계약 단가가 없는 항목 {0}개는 배정할 때마다 금액을 적어야 합니다: {1}': '{0} item(s) have no contract price — you will enter an amount each time you assign: {1}',
   '금액을 적어야 배정할 수 있습니다: {0}': 'Enter amounts before assigning: {0}',
   '한 장에 담기는 줄은 {0}개까지입니다.': 'A single page holds up to {0} rows.',

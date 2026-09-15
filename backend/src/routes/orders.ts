@@ -517,6 +517,68 @@ ordersRouter.patch('/:id/reject', rbac('ADMIN', 'MAKER'), requirePermission('ord
   }
 });
 
+// ── PATCH /orders/:id/unassign — 수락 대기 건의 배정 취소(관리자) ─────────────
+/**
+ * **배정 취소** — 특장사가 아직 수락하지 않은 주문을 관리자가 거둬 **배정 대기로 되돌린다**(2026-09-15).
+ *
+ * 특장사를 잘못 골랐거나 사정이 바뀐 경우다. 주문 삭제는 「목록에서 빼는」 무거운 조작이고,
+ * 거부는 특장사의 행위다 — 관리자가 맡긴 것을 도로 거두는 길이 따로 있어야 한다.
+ *
+ *  · 수락 전(accepted_at 없음)만 — 수락한 뒤에는 납기를 약속한 거래라 주문 삭제로 다룬다
+ *  · 조건을 쓰는 순간에 함께 건다 — 특장사가 같은 순간 수락하면 둘 중 하나만 된다
+ *  · 영업의 배정 요청은 살려 둔다 — 바로 다른 특장사로 재배정
+ *  · 행을 지우지 않는다. 누구에게 맡겼다가 누가 왜 거뒀는지는 견적 변경이력에 남는다
+ *  · 거둔 특장사에게는 목록에서 사라지고 앱 알림이 간다
+ */
+ordersRouter.patch('/:id/unassign', rbac('ADMIN'), requirePermission('order.confirm'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
+  const reason = readReason(req.body);
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { id: true, maker_org_id: true, assigned_at: true, accepted_at: true, canceled_at: true, quote: { select: { id: true, status: true } } },
+    });
+    if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    if (!order.maker_org_id || order.canceled_at || order.accepted_at || order.quote.status !== 'assigned') {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '수락 대기 중인 주문만 배정을 취소할 수 있습니다' } }); return;
+    }
+    const who = req.auth?.email ?? 'unknown';
+    const won = await prisma.order.updateMany({
+      where: { id, maker_org_id: order.maker_org_id, accepted_at: null, canceled_at: null },
+      data: {
+        maker_org_id: null, assigned_at: null, delivery_due: null,
+        // 새로 맡는 특장사가 별지를 다시 확인해야 한다 · 앞서 거부한 특장사에게 「거부됨」으로 되살아나지 않게
+        appendix_ack_at: null, appendix_ack_by: null, rejected_by_org: null,
+      },
+    });
+    if (won.count === 0) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락되었거나 배정이 바뀐 주문입니다' } }); return; }
+    await prisma.quoteChangeLog.create({ data: {
+      quote_id: order.quote.id, section: 'status', field: 'assign_canceled',
+      old_value: `${order.maker_org_id} ${order.assigned_at?.toISOString() ?? ''}`.slice(0, 300),
+      new_value: (reason ?? '').slice(0, 300) || null, changed_by: who,
+    } });
+    await keepAssignRequested(order.quote.id, '배정 취소 — 재배정');
+    await setQuoteStatus(order.quote.id, 'contracted', who);
+
+    const makers = await prisma.user.findMany({ where: { org_code: order.maker_org_id, active: true, status: 'active' }, select: { email: true } });
+    const to = await appRecipients(makers.map(m => m.email));
+    if (to.length > 0) {
+      notify(to, {
+        title: `주문 #${id} 배정 취소`,
+        body: reason ? `관리자가 배정을 취소했습니다 · ${reason}` : '관리자가 배정을 취소했습니다',
+        url: '/',
+        tag: `unassign-${id}`,
+      });
+    }
+    res.json({ data: { ok: true } });
+  } catch (e) {
+    console.error('[PATCH /orders/:id/unassign]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '배정 취소 중 오류가 발생했습니다.' } });
+  }
+});
+
 // ── PATCH /orders/:id/cancel — 관리자가 주문을 치운다 (행은 남는다) ──────────
 /**
  * 잘못 만든 주문을 **목록에서 치운다.**
@@ -905,8 +967,12 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
      * 상태가 생길 수 있다 — 나중에 「못 봤다」는 이야기가 나올 때 근거가 사라진다.
      * 이미 확인한 주문이면 **처음 확인한 시각을 덮어쓰지 않는다.**
      */
+    /*
+     * ⚠️ 배정도 **그대로인지** 함께 건다(2026-09-15 배정 취소). 관리자가 같은 순간 배정을 취소하면
+     *    accepted_at 만 보고는 둘 다 통과해, 거둔 주문이 수락되고 견적은 계약완료·주문진행이 뒤섞였다(시험으로 재현).
+     */
     const won = await prisma.order.updateMany({
-      where: { id, accepted_at: null },
+      where: { id, accepted_at: null, maker_org_id: order.maker_org_id, canceled_at: null },
       data: {
         delivery_due: toDbDate(due), accepted_at: now,
         ...(ackNow && !order.appendix_ack_at
@@ -915,7 +981,7 @@ ordersRouter.patch('/:id/accept', rbac('ADMIN', 'MAKER'), requirePermission('ord
       },
     });
     if (won.count === 0) {
-      res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락된 주문입니다' } });
+      res.status(409).json({ error: { code: 'CONFLICT', message: '이미 수락되었거나 배정이 취소된 주문입니다' } });
       return;
     }
     await setQuoteStatus(order.quote.id, 'ordered', req.auth?.email ?? 'unknown');

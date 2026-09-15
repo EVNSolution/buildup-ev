@@ -87,6 +87,20 @@ export async function rejectOrder(orderId: number, reason: string): Promise<void
  * 주문 치우기(관리자) — 목록에서 뺀다. **행은 남는다.**
  * 권한은 기능모듈 `order.remove` 로 계정별로 켠다.
  */
+/** 배정 취소 — 수락 대기 주문을 배정 대기로 되돌린다(관리자). 사유는 선택 */
+export async function unassignOrder(orderId: number, reason: string): Promise<void> {
+  const res = await fetch(`/api/v1/orders/${orderId}/unassign`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: { message?: string } }
+    throw new Error(body.error?.message ?? `배정 취소 실패: ${res.status}`)
+  }
+}
+
 export async function cancelOrder(orderId: number, reason: string): Promise<void> {
   const res = await fetch(`/api/v1/orders/${orderId}/cancel`, {
     method: 'PATCH',
