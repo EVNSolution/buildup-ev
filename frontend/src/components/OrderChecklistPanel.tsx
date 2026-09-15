@@ -85,9 +85,8 @@ export function OrderChecklistPanel({ orderId, stepCode, stepLabel, onDone, scop
       </div>
 
       {/*
-        **한 항목 = 두 줄**(2026-09-15 휴대폰 제보 — 좁은 칸에 비고·버튼이 겹쳐 항목 글자가 안 보였다).
-          윗줄: 왼쪽 항목(구분)·내용 / 오른쪽 비고
-          아랫줄: 합격 · 불합격(반반) — 눌린 것을 다시 누르면 취소
+        **한 항목 = 세 줄**(2026-09-15 휴대폰 제보 — 좁은 칸에 비고·버튼이 겹쳐 항목 글자가 안 보였다).
+          항목(구분)·내용 → 비고(한 줄 전체) → 합격 · 불합격(반반). 눌린 것을 다시 누르면 취소
         판정 이력 표시는 없앴다(지시).
       */}
       <div style={s.list}>
@@ -167,17 +166,17 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column', gap: 8,
     padding: '10px 12px', border: '1px solid var(--warn)', borderRadius: 'var(--r-sm)', background: 'var(--warnbg)',
   },
-  // 윗줄 — 좁아지면 비고가 아래로 내려간다(항목 글자를 먼저 지킨다)
-  top: { display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' },
-  body: { flex: '1 1 160px', minWidth: 0 },
+  // 항목·내용 위, 비고는 그 아래 한 줄 전체(2026-09-15 — 옆에 두면 좁아 쓰기 어렵다)
+  top: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  body: { minWidth: 0 },
   seq: { color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', marginRight: 6 },
   cat: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.4 },
   content: { fontSize: 'var(--fs-body)', color: 'var(--dark)', lineHeight: 1.45, wordBreak: 'keep-all', overflowWrap: 'anywhere' },
   memo: {
-    flex: '1 1 140px', minWidth: 0, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)',
+    width: '100%', minWidth: 0, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)',
     padding: '6px 8px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
   },
-  readSide: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 },
+  readSide: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
   // 아랫줄 — 합격·불합격 반반
   buttons: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 },
   choice: { ...BTN.smSecondary, width: '100%' },
