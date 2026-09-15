@@ -128,7 +128,7 @@ async function buildPoLines(
   const rows = (await prisma.makerPrice.findMany({ where: { maker_org_id: makerOrgId, active: true } }))
     .map(r => ({
       label: r.label, group_code: r.group_code, value_code: r.value_code, top_code: r.top_code,
-      section: r.section, work_by: r.work_by, unit: r.unit, qty: r.qty,
+      section: r.section, work_by: r.work_by, unit: r.unit,
       unit_price: r.unit_price, sort_order: r.sort_order, memo: r.memo,
     }));
   const picked = options.map(o => ({

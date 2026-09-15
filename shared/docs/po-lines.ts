@@ -54,11 +54,26 @@ export interface MakerPriceRow {
    */
   work_by: string;
   unit: string;
-  qty: number;
   /** 계약에 단가가 없으면 `null` — 그러면 발주서에 **금액만 빈 칸으로** 뜬다 */
   unit_price: number | null;
   sort_order: number;
   memo: string | null;
+}
+
+/**
+ * **발주 수량** — 단가표에 적어 두지 않고 **선택으로 정한다**(2026-09-15 지시).
+ *
+ *   · 도어 변경(DOORTYPE) — 도어 추가가 **없으면 1**, 있으면 **2**. 추가한 운전석 도어도 같은 종류로
+ *     바꿔야 하니 변경 금액이 두 번 든다. 도어 추가 자체(운전석 스윙도어)는 따로 한 줄이다.
+ *   · 그 밖의 줄 — 1
+ *
+ * ⚠️ 예전엔 단가표 행마다 수량 칸이 있었고 슬라이딩 변경이 「좌·우 2개」로 **늘 2** 였다 —
+ *    도어 추가 없이 바꿔도 변경 금액이 두 번 실렸다. 수량은 사람이 표에 적는 값이 아니다.
+ *    (`maker_price.qty` 컬럼은 지우지 않고 남겨 두되 읽지 않는다)
+ */
+export function lineQty(groupCode: string | null | undefined, selections: Record<string, string>): number {
+  if (groupCode === 'DOORTYPE') return selections['DOORADD'] === 'ADD_DRIVER' ? 2 : 1;
+  return 1;
 }
 
 /** 고른 옵션 하나 — 발주서에 실릴 후보다 */
@@ -104,16 +119,19 @@ export function contractLines(
   }
 
   picked.sort((a, b) => a.sort_order - b.sort_order);
-  return picked.map(r => ({
+  return picked.map(r => {
+    const qty = lineQty(r.group_code, selections);
+    return {
     label: r.label,
-    section: r.section === 'BASE' ? 'BASE' : 'OPTION',
+    section: r.section === 'BASE' ? 'BASE' as const : 'OPTION' as const,
     unit: r.unit,
-    qty: r.qty,
+    qty,
     unit_price: r.unit_price!,
-    amount: r.unit_price! * r.qty,
+    amount: r.unit_price! * qty,
     ...(r.memo ? { memo: r.memo } : {}),
     source: 'CONTRACT' as const,
-  }));
+    };
+  });
 }
 
 /**
@@ -156,7 +174,7 @@ export function autoLines(
       label: match?.label || o.value_name,
       section: 'OPTION',
       unit: match?.unit || 'EA',
-      qty: match?.qty ?? 1,
+      qty: lineQty(o.group_code, selections),
       unit_price: 0,
       amount: 0,
       source: 'AUTO',

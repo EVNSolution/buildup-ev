@@ -78,7 +78,7 @@ async function newQuote(sel: Record<string, string> = SEL): Promise<number> {
   return q.id;
 }
 
-type Line = { label: string; unit: string; qty: number; unit_price: number; amount: number; source: string; section: string; ref?: string };
+type Line = { label: string; unit: string; qty: number; unit_price: number; amount: number; source: string; section: string; ref?: string; memo?: string };
 const find = (ls: Line[], label: string) => ls.find(l => l.label === label);
 
 /**
@@ -109,15 +109,30 @@ describe.runIf(live)('발주서 공급가 표', () => {
     expect(base!.unit).toBe('SET');
     expect(base!.section).toBe('BASE');
 
-    // 슬라이딩 도어 변경은 **좌·우 2개** — 계약서 발주서 예시가 그렇다
+    // 도어 추가 없이 슬라이딩으로 바꾸면 변경 금액 **한 번**(2026-09-15 — 추가가 있을 때만 두 번)
     const slide = find(lines, '슬라이딩 도어 변경');
-    expect(slide!.qty).toBe(2);
+    expect(slide!.qty).toBe(1);
     expect(slide!.unit_price).toBe(275_000);
-    expect(slide!.amount).toBe(550_000);
+    expect(slide!.amount).toBe(275_000);
 
     expect(find(lines, '격벽(그물망)')!.unit_price).toBe(65_000);
     // 도어추가를 안 골랐으니 그 줄은 없다
     expect(find(lines, '운전석 스윙도어'), '고르지 않은 옵션이 실렸다').toBeUndefined();
+  }, 30_000);
+
+  it('🔴 도어 추가 + 슬라이딩 — 변경 금액 두 번과 운전석 도어 추가 한 줄(실제 API)', async () => {
+    const quoteId = await newQuote({ ...SEL, DOORADD: 'ADD_DRIVER' });
+    const res = await request(app)
+      .get(`/api/v1/quotes/${quoteId}/order-preview?maker_org_id=${MAKER_ORG}`)
+      .set('Cookie', COOKIE);
+    expect(res.status).toBe(200);
+    const lines = res.body.data.po_lines as Line[];
+    const slide = find(lines, '슬라이딩 도어 변경');
+    expect([slide!.qty, slide!.amount]).toEqual([2, 550_000]);
+    const add = find(lines, '운전석 스윙도어');
+    expect([add!.qty, add!.unit_price]).toEqual([1, 480_000]);
+    // 비고에 옛 설명(좌·우 2개)이 남지 않는다
+    expect(slide!.memo ?? '').not.toContain('좌·우 2개');
   }, 30_000);
 
   it('🔴 탑 높이가 다르면 그 높이의 단가가 온다', async () => {
