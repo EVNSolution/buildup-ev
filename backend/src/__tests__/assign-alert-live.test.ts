@@ -21,7 +21,7 @@ process.env['MAIL_SMTP_PASS'] ||= 'test-pass';
 delete process.env['NOTIFY_ADMIN_TO'];
 
 const { prisma } = await import('../lib/prisma.js');
-const { setQuoteStatus } = await import('../services/quote-status.js');
+const { setQuoteStatus, keepAssignRequested } = await import('../services/quote-status.js');
 
 const MASTER = 'vitest-master@example.invalid';
 let quoteId = 0;
@@ -59,8 +59,18 @@ afterAll(async () => {
 });
 
 describe.runIf(live)('계약완료가 되면 실제로 배정 알림이 나간다', () => {
-  it('🔴 아무도 토글을 켜 두지 않아도 마스터에게 나간다', async () => {
+  it('🔴 서명만 끝나고 영업의 배정 요청 전이면 관리자에게 보내지 않는다(2026-09-15 — 요청이 관문)', async () => {
     sendMail.mockClear();
+    expect(await setQuoteStatus(quoteId, 'contracted', 'vitest')).toBe(true);
+    await new Promise(r => setTimeout(r, 500));
+    expect(sendMail).not.toHaveBeenCalled();
+    // 다음 시험을 위해 배정된 상태로 옮겨 둔다
+    expect(await setQuoteStatus(quoteId, 'assigned', 'vitest')).toBe(true);
+  });
+
+  it('🔴 배정 요청이 살아 있는 건이 계약완료로 돌아오면(거부·삭제) 아무도 토글을 켜 두지 않아도 마스터에게 나간다', async () => {
+    sendMail.mockClear();
+    await keepAssignRequested(quoteId, 'vitest');
     const changed = await setQuoteStatus(quoteId, 'contracted', 'vitest');
     expect(changed).toBe(true);
 

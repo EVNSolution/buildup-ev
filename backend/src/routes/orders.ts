@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { rbac, requirePermission, isAdmin, ownOrgOnly, canSeeQuotePrices, scopedToMine, hasPermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { assertOrderQuoteOwner, makerReaches, salesReaches } from '../lib/quote-access.js';
-import { setQuoteStatus } from '../services/quote-status.js';
+import { setQuoteStatus, keepAssignRequested } from '../services/quote-status.js';
 import type { Prisma } from '@prisma/client';
 import { sortSpecOptions } from '@buildup-ev/shared/types';
 import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
@@ -506,7 +506,8 @@ ordersRouter.patch('/:id/reject', rbac('ADMIN', 'MAKER'), requirePermission('ord
         maker_org_id: null, assigned_at: null, delivery_due: null,
       },
     });
-    // 계약이 깨진 것이 아니라 만들 곳을 다시 찾는 것이다
+    // 계약이 깨진 것이 아니라 만들 곳을 다시 찾는 것이다 — 영업이 배정 요청을 다시 누르지 않아도 바로 재배정
+    await keepAssignRequested(order.quote.id, '배정 거부 — 재배정');
     await setQuoteStatus(order.quote.id, 'contracted', req.auth?.email ?? 'unknown');
     const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });
     res.json({ data: { quote: updated, reason } });
@@ -563,6 +564,8 @@ ordersRouter.patch('/:id/cancel', rbac('ADMIN'), requirePermission('order.remove
      * 그래서 그 밖의 상태는 손대지 않는다.
      */
     if (order.quote.status === 'assigned' || order.quote.status === 'ordered') {
+      // 주문 삭제로 돌아온 건도 요청을 다시 받지 않는다 — 바로 재배정
+      await keepAssignRequested(order.quote.id, '주문 삭제 — 재배정');
       await setQuoteStatus(order.quote.id, 'contracted', req.auth?.email ?? 'unknown');
     }
     const updated = await prisma.quote.findUnique({ where: { id: order.quote.id } });

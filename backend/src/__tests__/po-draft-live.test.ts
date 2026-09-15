@@ -74,6 +74,8 @@ async function newQuote(status: 'contracted' | 'confirmed' = 'contracted'): Prom
   const q = await prisma!.quote.create({
     data: {
       model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status,
+      // 배정은 영업의 배정 요청이 있어야 열린다 — 배정 경로를 시험하는 준비 데이터라 요청된 상태로 둔다
+      assign_requested_at: status === 'contracted' ? new Date() : null,
       customer_id: customerId, final_price: 50_000_000,
     },
     select: { id: true },

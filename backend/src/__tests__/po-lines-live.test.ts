@@ -69,7 +69,7 @@ afterAll(async () => {
 async function newQuote(sel: Record<string, string> = SEL): Promise<number> {
   const q = await prisma!.quote.create({
     data: {
-      model_code: 'PV5_OPENBED', selections: sel, inputs: {}, status: 'contracted',
+      model_code: 'PV5_OPENBED', selections: sel, inputs: {}, status: 'contracted', assign_requested_at: new Date(),
       customer_id: customerId, final_price: 50_000_000,
     },
     select: { id: true },

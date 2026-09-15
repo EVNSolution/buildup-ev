@@ -130,7 +130,7 @@ describe.skipIf(shouldSkip || !AUTH_OK)('관리자 관제 — 확정·배정·�
   it('배정 — 특장사가 없으면 400', async () => {
     const { prisma } = await import('../lib/prisma.js');
     // 전자서명까지 끝난 상태로 옮긴다 — 배정은 여기서만 열린다
-    await prisma!.quote.update({ where: { id: quoteId }, data: { status: 'contracted' } });
+    await prisma!.quote.update({ where: { id: quoteId }, data: { status: 'contracted', assign_requested_at: new Date() } });
 
     const res = await request(app)
       .patch(`/api/v1/quotes/${quoteId}/assign`)

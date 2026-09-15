@@ -310,6 +310,9 @@ export interface ApiQuote {
    * 공개 문의는 배정만으로 담당이 정해졌다고 보지 않는다 — 영업이 직접 받아야 한다.
    */
   sales_accepted_at?: string | null;
+  /** 「배정 요청」 시각 — 서명 완료 뒤 영업이 누른다. 있어야 관리자가 제작 배정한다(거부·삭제로 돌아온 건은 이미 있다) */
+  assign_requested_at?: string | null;
+  assign_requested_by?: string | null;
   /** 'sales' = 영업 작성 / 'public' = 고객이 공개 화면에서 직접 접수한 문의 */
   source?: string;
   customer_id: number | null;

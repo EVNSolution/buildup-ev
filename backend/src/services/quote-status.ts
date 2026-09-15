@@ -9,6 +9,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { notifyAssignNeeded } from './notify.js';
+import { notify, appRecipients } from './push.js';
 import type { QuoteStatus } from '@prisma/client';
 
 /** 상태 전이는 변경이력에 section='status' 로 쌓인다(옵션·고객정보와 같은 표). */
@@ -50,8 +51,38 @@ export async function setQuoteStatus(
    *
    * 기다리지 않는다(fire-and-forget). 메일 서버가 느리다고 계약 처리가 느려지면 안 된다.
    */
-  if (next === 'contracted') void notifyAssignNeeded('maker', quoteId);
+  /*
+   * ⚠️ 2026-09-15 — 서명이 끝났다고 곧장 배정 대기가 아니다. **영업이 서명본을 확인하고 「배정 요청」을 눌러야**
+   *    관리자 배정이 열린다. 그래서 관리자 알림은 요청이 이미 있는 건(거부·삭제로 돌아온 건)에만 여기서 내고,
+   *    처음 계약완료가 된 건은 담당 영업에게 「배정 요청」을 재촉한다. 요청 시점의 관리자 알림은 요청 API 가 낸다.
+   */
+  if (next === 'contracted') {
+    const q = await prisma.quote.findUnique({ where: { id: quoteId }, select: { assign_requested_at: true, sales_user_id: true, quote_no: true, customer: { select: { name: true } } } });
+    if (q?.assign_requested_at) void notifyAssignNeeded('maker', quoteId);
+    else if (q?.sales_user_id) {
+      const salesTo = q.sales_user_id;
+      void appRecipients([salesTo]).then(to => notify(to, {
+        title: `배정 요청 필요 — ${q.quote_no ?? `#${quoteId}`}`,
+        body: [q.customer?.name, '계약서 서명이 완료되었습니다. 서명본을 확인하고 「배정 요청」을 눌러 주세요.'].filter(Boolean).join(' · '),
+        url: '/sales?tab=list',
+        tag: `assign-request-${quoteId}`,
+      })).catch(e => console.warn('[notify] 배정 요청 알림 실패', e));
+    }
+  }
   return true;
+}
+
+/**
+ * 배정 거부·주문 삭제로 **계약완료로 되돌아가는** 건 — 영업이 다시 요청하지 않아도 바로 재배정되게 요청을 살려 둔다.
+ * 이 기능 전에 배정된 옛 건은 요청 기록이 없어 여기서 채운다. 이미 있으면 그대로 둔다(처음 요청한 사람·시각 유지).
+ * `setQuoteStatus(…, 'contracted')` **보다 먼저** 불러야 관리자 알림이 나간다.
+ */
+export async function keepAssignRequested(quoteId: number, why: string): Promise<void> {
+  if (!prisma) return;
+  await prisma.quote.updateMany({
+    where: { id: quoteId, assign_requested_at: null },
+    data: { assign_requested_at: new Date(), assign_requested_by: `system(${why})` },
+  });
 }
 
 /**

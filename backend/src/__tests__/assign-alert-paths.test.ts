@@ -60,7 +60,8 @@ describe('알림을 내는 자리', () => {
   const PUBLIC = read('backend/src/routes/public.ts');
 
   it('🔴 계약완료 전이 한 곳에서 낸다 — 경로마다 챙기지 않는다', () => {
-    expect(STATUS).toMatch(/if \(next === 'contracted'\) void notifyAssignNeeded\('maker', quoteId\)/);
+    // 2026-09-15 — 계약완료 전이 한 곳에서 내되, 관리자 알림은 **영업의 배정 요청이 있는 건**만(없으면 영업에게 요청 재촉)
+    expect(STATUS).toMatch(/if \(next === 'contracted'\) \{[^]*?if \(q\?\.assign_requested_at\) void notifyAssignNeeded\('maker', quoteId\)/);
   });
 
   it('🔴 전자서명 경로가 따로 부르지 않는다 — 그래야 다른 경로도 함께 산다', () => {

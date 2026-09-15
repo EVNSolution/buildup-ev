@@ -78,7 +78,9 @@ describe('관리자 견적 목록', () => {
     /*
      * `source === 'public'` 만 보면 지정이 끝난 건까지 영원히 강조된 채 남는다(제보).
      */
-    expect(ADMIN).toMatch(/q\.source === 'public' && !q\.sales_user_id\) \|\| q\.status === 'contracted'/);
+    expect(ADMIN).toMatch(/q\.source === 'public' && !q\.sales_user_id\) \|\| canAssignMaker\(q\)/);
+    // 제작 배정 필요 = 계약완료 + 영업의 배정 요청(2026-09-15)
+    expect(ADMIN).toMatch(/return q\.status === 'contracted' && !!q\.assign_requested_at/);
   });
 });
 

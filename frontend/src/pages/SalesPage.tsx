@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { customOptionError } from '../lib/customOptionError'
 import { t , tc, tf} from '../i18n'
 import { QuoteKindTag } from '../components/QuoteKindTag'
@@ -13,7 +14,7 @@ import type { CustomOptionDraft } from '@shared/pricing/core'
 import type { QuoteResult } from '@shared/pricing/core'
 import { quotePriceExtras } from '@shared/pricing/quote-request'
 import { fetchPricingBundle } from '../api/models'
-import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs, acceptSalesQuote } from '../api/quotes'
+import { saveQuote, fetchLocalSubsidy, fetchQuotes, fetchRegions, duplicateQuote, saveQuoteCustomer, saveQuoteInputs, acceptSalesQuote, requestAssign } from '../api/quotes'
 import type { SaveQuoteRequest } from '../api/quotes'
 import { fetchOrders } from '../api/orders'
 import { BTN } from '../styles/buttons'
@@ -172,6 +173,22 @@ function MyListView() {
    * 같은 고객·같은 옵션으로 새 견적을 만든다.
    * 전자서명을 보낸 견적은 고정되어 고칠 수 없다 — 조건을 바꿔 다시 내려면 이 길을 쓴다.
    */
+  /*
+   * **배정 요청** — 서명이 끝났다고 곧장 제작으로 넘기지 않는다(2026-09-15). 영업이 서명본을 열어 확인하고 누른다.
+   * 누르면 관리자에게 「제작 배정 필요」 알림이 가고 배정 버튼이 열린다. 되돌리는 길은 없어 한 번 묻는다.
+   */
+  const [requestBusy, setRequestBusy] = useState<number | null>(null)
+  async function handleRequestAssign(q: ApiQuote) {
+    if (!window.confirm(t('서명본을 확인하셨나요? 배정 요청하면 관리자에게 제작 배정 알림이 갑니다.'))) return
+    setRequestBusy(q.id); setErr('')
+    try {
+      await requestAssign(q.id)
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('배정 요청 실패'))
+    } finally { setRequestBusy(null) }
+  }
+
   async function handleDuplicate(q: ApiQuote) {
     if (!window.confirm(
       `${q.quote_no ?? `#${q.id}`} 의 옵션·고객정보·할부 조건을 그대로 복사해\n`
@@ -626,6 +643,21 @@ function MyListView() {
                               onClick={() => openPdf(`/api/v1/quotes/${q.id}/contract/signed`, `계약서_서명본_${q.customer?.name ?? q.id}.pdf`)}
                             >{t('서명본')}</button>
                           )}
+                          {/*
+                            배정 요청 — 서명본을 확인한 뒤 누른다. 누르기 전에는 관리자 화면에 제작 배정 버튼이 없다.
+                            요청한 뒤(아직 배정 전)에는 글씨로만 남긴다. 배정 거부·주문 삭제로 돌아온 건은 이미 요청돼 있다.
+                          */}
+                          {q.status === 'contracted' && !q.assign_requested_at && (
+                            <button
+                              style={requestBusy === q.id ? { ...lv.confirmBtn, opacity: 0.45 } : lv.confirmBtn}
+                              disabled={requestBusy === q.id}
+                              title={t('서명본을 확인하고 관리자에게 제작 배정을 요청합니다')}
+                              onClick={() => void handleRequestAssign(q)}
+                            >{requestBusy === q.id ? '…' : t('배정 요청')}</button>
+                          )}
+                          {q.status === 'contracted' && q.assign_requested_at && (
+                            <span style={lv.requested}>{t('배정 요청됨')}</span>
+                          )}
                           {/* 발송 채널 둘의 성격이 다르다 — 참고용 전달 vs 법적 서명 요청. 이름으로 구분되게 둔다 */}
                           {/*
                             이메일은 견적 단계 필수가 아니다(문자로 받길 원하는 고객이 많다).
@@ -705,6 +737,9 @@ export function SalesPage() {
   // 휴대폰은 3D 를 접는다 — 그 크기의 차량 그림은 보여 주는 것이 없고, 자리는 옵션에 필요하다
   const phone = useIsPhone()
   const [salesTab, setSalesTab] = useState<'config' | 'list' | 'me'>('config')
+  // 「배정 요청 필요」 알림은 `/sales?tab=list` 로 연다 — 견적·주문 목록을 펴서 시작한다
+  const [searchParams] = useSearchParams()
+  useEffect(() => { if (searchParams.get('tab') === 'list') setSalesTab('list') }, [searchParams])
   // 권한 없는 탭은 **버튼째** 감춘다. 눌러서 「권한이 없습니다」를 보게 두면
   // 왜 있는 버튼인지 알 수 없고, 없는 기능을 있는 것처럼 보이게 한다.
   const canSeeStats = usePermission('stats.own')
@@ -1351,4 +1386,5 @@ const lv: Record<string, React.CSSProperties> = {
   pdfBtn: BTN.row,
   sendBtn: BTN.rowSend,
   confirmBtn: BTN.rowPrimary,
+  requested: { alignSelf: 'center', whiteSpace: 'nowrap', fontSize: 12, color: 'var(--muted)', padding: '0 4px' },
 }

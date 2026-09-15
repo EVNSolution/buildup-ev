@@ -420,7 +420,13 @@ function needsAssign(q: ApiQuote): boolean {
    * 「배정 필요건만」으로 걸러도 할 일 없는 건이 섞여 나온다.
    * 지정하는 순간 할 일은 끝난 것이므로, 그때 강조도 꺼져야 한다.
    */
-  return (q.source === 'public' && !q.sales_user_id) || q.status === 'contracted'
+  // 제작 배정은 **영업이 배정 요청한 건만** — 서명만 끝난 건은 아직 영업 확인 전이다(2026-09-15)
+  return (q.source === 'public' && !q.sales_user_id) || canAssignMaker(q)
+}
+
+/** 제작 배정 버튼을 띄우는가 — 계약완료 + 영업의 배정 요청(거부·삭제로 돌아온 건은 요청이 살아 있다) */
+function canAssignMaker(q: ApiQuote): boolean {
+  return q.status === 'contracted' && !!q.assign_requested_at
 }
 
 // ── 영업 배정 모달(공개 문의) ──────────────────────────────────────────────
@@ -1541,7 +1547,9 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
                 {(() => {
                   const signed = q.contract?.status === 'COMPLETED'
                   const salesAssign = q.source === 'public' && !q.sales_user_id
-                  const makerAssign = q.status === 'contracted'
+                  const makerAssign = canAssignMaker(q)
+                  // 서명은 끝났는데 영업이 아직 배정 요청 전 — 버튼 대신 기다린다는 글씨만
+                  const awaitingRequest = q.status === 'contracted' && !q.assign_requested_at
                   const row: React.ReactNode[] = []
 
                   if (signed) row.push(
@@ -1557,6 +1565,9 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
                   )
                   if (makerAssign) row.push(
                     <button key="maker" style={{ ...qt.assignBtn, width: '100%' }} onClick={() => handleOpenConfirm(q.id)}>{t('제작 배정')}</button>,
+                  )
+                  if (awaitingRequest) row.push(
+                    <span key="await" style={qt.awaitRequest}>{t('영업 배정 요청 대기')}</span>,
                   )
                   if (row.length === 0) return null
 
@@ -1669,8 +1680,11 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
                       {q.source === 'public' && !q.sales_user_id && (
                         <button style={BTN.rowPrimary} onClick={() => handleOpenAssignSales(q.id)}>{t('영업 배정')}</button>
                       )}
-                      {q.status === 'contracted' && (
+                      {canAssignMaker(q) && (
                         <button style={qt.assignBtn} onClick={() => handleOpenConfirm(q.id)}>{t('제작 배정')}</button>
+                      )}
+                      {q.status === 'contracted' && !q.assign_requested_at && (
+                        <span style={qt.awaitRequest}>{t('영업 배정 요청 대기')}</span>
                       )}
                     </div>
                   </td>
@@ -2239,6 +2253,8 @@ const qt: Record<string, React.CSSProperties> = {
    * 라임은 흰 바탕에서 흐리지만 검은 바탕에서는 또렷하다.
    */
   assignBtn: { ...BTN.rowPrimary, color: 'var(--lime)', fontWeight: 700 },
+  /** 서명은 끝났고 영업의 배정 요청을 기다리는 중 — 누를 것이 없다는 것을 글씨로만 */
+  awaitRequest: { display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' },
   filterBar: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' },
   /*
    * 좁히는 줄의 칸 — 늘어나지는 않고(0) 좁아지면 줄어든다(1).
