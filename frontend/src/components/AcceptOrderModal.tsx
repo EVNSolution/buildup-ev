@@ -25,7 +25,7 @@ import { usePermission } from './PermGate'
  *
  * 특장사가 보는 서류는 발주서뿐이다(계약서·견적서는 서버에서 막았다).
  */
-export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error, onAccept, onClose, onReject, readOnly = false }: {
+export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error, onAccept, onClose, onReject, onUnassign, readOnly = false }: {
   orderId: number
   makerOrgName: string
   /** 납기 한도의 기산점 = 배정일(발주일) */
@@ -46,6 +46,8 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
    * 않은 주문의 납기를 지게 된다(대행 수락은 하지 않기로 정했다).
    */
   readOnly?: boolean
+  /** 관리자 조회 창에서만 — 수락 전 발주를 거두는 「배정 취소」. 없으면 버튼이 없다 */
+  onUnassign?: () => void
 }) {
   // Esc 로도 닫힌다 — 바깥 클릭과 닫기 버튼은 둘 다 마우스가 필요한 길이다
   useEscapeClose(onClose)
@@ -285,6 +287,9 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
         {error && <div style={m.err}>{error}</div>}
 
         <div style={m.actions}>
+          {readOnly && onUnassign && (
+            <button style={m.rejectBtn} onClick={onUnassign}>{t('배정 취소')}</button>
+          )}
           <button style={BTN.secondary} onClick={onClose} disabled={busy}>{readOnly ? t('닫기') : t('취소')}</button>
           {readOnly ? null : !rejecting ? (
             <>

@@ -203,7 +203,7 @@ export function OrderDashboard({
  * 누르면 그 주문을 연다. 배정 대기 줄은 그 자리에서 「제작 배정」.
  */
 export function DashboardList({
-  title, orders, waiting, track, addonTrack, addonMode = false, makerName, onOpen, onAssign, onRejectedOpen, onClose,
+  title, orders, waiting, track, addonTrack, addonMode = false, makerName, onOpen, onAssign, onUnassign, onRejectedOpen, onClose,
 }: {
   title: string
   orders?: ApiOrder[]
@@ -218,6 +218,8 @@ export function DashboardList({
   onOpen: (o: ApiOrder) => void
   /** 배정 권한이 없으면 넘기지 않는다 — 버튼째 감춘다 */
   onAssign?: (quoteId: number) => void
+  /** 수락 대기 목록에서만 넘긴다 — 줄 끝 「배정 취소」. 권한이 없으면 넘기지 않는다 */
+  onUnassign?: (o: ApiOrder) => void
   onRejectedOpen: (o: ApiOrder) => void
   onClose: () => void
 }) {
@@ -276,8 +278,8 @@ export function DashboardList({
         const since = track ? o.steps?.lanes?.[track]?.since : (o.accepted_at ?? o.assigned_at ?? o.created_at)
         // 그 단계의 약속일을 넘겼거나, 주문 납기가 지났으면 빨갛게
         const late = (track ? !!o.steps?.lanes?.[track]?.late : false) || due.state === 'overdue'
-        return (
-          <button key={o.id} type="button" style={s.rowBtn} onClick={() => onOpen(o)}>
+        const row = (
+          <button key={o.id} type="button" style={onUnassign ? s.rowBtnInner : s.rowBtn} onClick={() => onOpen(o)}>
             <span style={s.rowNo}>#{o.id}</span>
             <span style={s.rowMain}>
               <span style={s.rowName}>{o.quote.customer?.name ?? '—'}</span>
@@ -290,6 +292,17 @@ export function DashboardList({
             </span>
             <span style={s.rowDays}>{tf('{0}일째', daysFrom(since) ?? 0)}</span>
           </button>
+        )
+        /*
+         * 수락 대기 — 줄 끝에 「배정 취소」. 줄 전체가 버튼이라 그 안에 버튼을 넣을 수 없어(중첩 금지)
+         * 줄 버튼 옆에 나란히 세운다. 배정 대기의 「제작 배정」과 같은 자리·같은 크기.
+         */
+        if (!onUnassign) return row
+        return (
+          <div key={o.id} style={s.rowWithAction}>
+            {row}
+            <button type="button" style={BTN.row} onClick={() => onUnassign(o)}>{t('배정 취소')}</button>
+          </div>
         )
       })}
     </div>
@@ -371,12 +384,20 @@ const s: Record<string, React.CSSProperties> = {
     display: 'grid', gridTemplateColumns: 'minmax(70px, auto) minmax(0, 1fr) auto auto', alignItems: 'center', gap: 10,
     padding: '10px 0', borderTop: 'var(--hairline)',
   },
+  // 줄 버튼 + 오른쪽 버튼. 윗줄은 바깥 칸이 갖는다(안쪽 줄 버튼의 윗줄과 겹치지 않게 안쪽 것을 지운다)
+  rowWithAction: { display: 'flex', alignItems: 'center', gap: 10, borderTop: 'var(--hairline)' },
   rowBtn: {
     display: 'grid', gridTemplateColumns: '52px minmax(0, 1fr) auto 48px', alignItems: 'center', gap: 10,
     padding: '11px 0', width: '100%', textAlign: 'left',
     // 버튼 기본 테두리를 지운 **다음에** 윗줄만 — 순서가 바뀌면 윗줄이 굵은 검은 선이 된다(실측)
     border: 'none', borderTop: 'var(--hairline)',
     background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+  },
+  // 옆에 버튼이 붙는 줄 — 윗줄은 바깥 칸이 긋는다. 폭은 버튼 몫을 뺀 나머지
+  rowBtnInner: {
+    display: 'grid', gridTemplateColumns: '52px minmax(0, 1fr) auto 48px', alignItems: 'center', gap: 10,
+    padding: '11px 0', flex: '1 1 auto', minWidth: 0, textAlign: 'left',
+    border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
   },
   rowNo: { fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
   rowMain: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },

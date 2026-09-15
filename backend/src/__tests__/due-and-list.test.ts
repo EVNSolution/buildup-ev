@@ -75,7 +75,8 @@ describe('견적 목록 이름 검색', () => {
 
   it('🔴 찾는 중에는 날짜 묶음을 전부 편다 — 접힌 날짜 안에 있으면 「없다」로 보인다', () => {
     expect(read('frontend/src/pages/SalesPage.tsx'))
-      .toMatch(/if \(nameQuery\.trim\(\)\) \{ setCollapsed\(new Set\(\)\); return \}/);
+      // 「배정 요청 필요건만」으로 좁힐 때도 같은 이유로 전부 편다(2026-09-15)
+      .toMatch(/if \(nameQuery\.trim\(\) \|\| onlyRequest\) \{ setCollapsed\(new Set\(\)\); return \}/);
   });
 });
 

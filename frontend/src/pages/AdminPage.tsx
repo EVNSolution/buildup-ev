@@ -26,6 +26,7 @@ import { ADDON_TRACK_LABEL } from '@shared/process/addon'
 import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
+import { OrderUnassignModal } from '../components/OrderUnassignModal'
 import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
 import { useLiveReload } from '../lib/liveReload'
@@ -1754,6 +1755,8 @@ function KanbanTab({ deepLink, initialView }: {
    * 주문의 납기를 지게 된다.
    */
   const [viewingPo, setViewingPo] = useState<ApiOrder | null>(null)
+  /** 배정 취소 확인창 — 수락 대기 목록 줄 끝 · 발주서 조회 창에서 연다 */
+  const [unassigning, setUnassigning] = useState<ApiOrder | null>(null)
   /** 발주서에 적히는 특장사 이름 — 목록 응답에는 코드만 있어 따로 받아 온다 */
   const [makerNames, setMakerNames] = useState<Record<string, string>>({})
 
@@ -1919,6 +1922,8 @@ function KanbanTab({ deepLink, initialView }: {
             setSelectedOrderId(o.id)
           }}
           onAssign={canAssign ? id => { setConfirmingId(id); setConfirmError('') } : undefined}
+          /* 수락 대기 목록에서만 — 특장사가 받기 전의 발주를 거둔다(제작 배정과 같은 권한) */
+          onUnassign={canAssign && sel.kind === 'tile' && sel.key === 'pending' ? o => setUnassigning(o) : undefined}
           onRejectedOpen={o => setViewingPo(o)}
           onClose={() => setSel(null)}
         />
@@ -1956,6 +1961,17 @@ function KanbanTab({ deepLink, initialView }: {
           busy={false}
           error=""
           onClose={() => { setViewingPo(null); load(true) }}
+          /* 아직 수락 전인 발주만 — 발주서를 보다가 그 자리에서 거둔다 */
+          onUnassign={canAssign && !viewingPo.accepted_at && !!viewingPo.maker_org_id
+            ? () => setUnassigning(viewingPo) : undefined}
+        />
+      )}
+      {unassigning && (
+        <OrderUnassignModal
+          orderId={unassigning.id}
+          makerName={makerNames[unassigning.maker_org_id ?? ''] ?? unassigning.maker_org_id ?? '—'}
+          onClose={() => setUnassigning(null)}
+          onDone={() => { setUnassigning(null); setViewingPo(null); load(true) }}
         />
       )}
     </div>

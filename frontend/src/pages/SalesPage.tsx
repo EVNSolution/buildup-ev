@@ -274,7 +274,15 @@ function MyListView() {
    * 서버가 최신순으로 주므로 **순서를 다시 정렬하지 않는다**(Map 이 삽입 순서를 지킨다).
    */
   /** 이름으로 좁힌 목록 — 날짜 묶음도 이것을 기준으로 만든다(찾은 건만 남아야 한다) */
-  const shownQuotes = useMemo(() => filterByCustomer(quotes, nameQuery), [quotes, nameQuery])
+  /**
+   * 「배정 요청 필요건만」 — 관리자 「배정 필요건만」과 같은 방식(2026-09-15). 서명은 끝났는데 아직 요청 안 한 건.
+   * 불러온 것 안에서 거른다(서버를 다시 부르지 않는다). 이름 좁히기와 함께 걸린다.
+   */
+  const [onlyRequest, setOnlyRequest] = useState(false)
+  const shownQuotes = useMemo(
+    () => filterByCustomer(quotes, nameQuery).filter(q => !onlyRequest || needsAssignRequest(q)),
+    [quotes, nameQuery, onlyRequest],
+  )
 
   const byDate = useMemo(() => {
     const m = new Map<string, ApiQuote[]>()
@@ -292,9 +300,10 @@ function MyListView() {
    * 「없다」로 보인다.
    */
   useEffect(() => {
-    if (nameQuery.trim()) { setCollapsed(new Set()); return }
+    // 필요건만 볼 때도 전부 펼친다 — 오래된 날짜에 묻힌 건이 「없다」로 보이면 안 된다
+    if (nameQuery.trim() || onlyRequest) { setCollapsed(new Set()); return }
     if (byDate.length > 1) setCollapsed(new Set(byDate.slice(1).map(([d]) => d)))
-  }, [byDate.length, nameQuery])
+  }, [byDate.length, nameQuery, onlyRequest])
 
   /*
    * ⚠️ 첫 로드에서만 「로딩 중…」으로 갈아친다.
@@ -469,16 +478,23 @@ function MyListView() {
       />
       <div style={lv.section}>
         <div style={lv.listHead}>
-          <div style={lv.sectionTitle}>{t('내 견적')} ({shownQuotes.length}{nameQuery.trim() && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
-          {/* 이름을 치면 바로 좁아진다 — 다시 조회할 필요가 없다 */}
-          <input
-            type="text"
-            value={nameQuery}
-            onChange={e => setNameQuery(e.target.value)}
-            placeholder={t('고객 이름')}
-            aria-label={t('고객 이름으로 좁히기')}
-            style={lv.search}
-          />
+          <div style={lv.sectionTitle}>{t('내 견적')} ({shownQuotes.length}{(nameQuery.trim() || onlyRequest) && shownQuotes.length !== quotes.length ? ` / ${quotes.length}` : ''})</div>
+          <div style={lv.filters}>
+            {/* 좁히는 조건끼리 한자리에 — 관리자 목록의 「배정 필요건만」과 같은 체크 칸 */}
+            <label style={lv.onlyRequest}>
+              <input type="checkbox" checked={onlyRequest} onChange={e => setOnlyRequest(e.target.checked)} />
+              <span>{t('배정 요청 필요건만')}</span>
+            </label>
+            {/* 이름을 치면 바로 좁아진다 — 다시 조회할 필요가 없다 */}
+            <input
+              type="text"
+              value={nameQuery}
+              onChange={e => setNameQuery(e.target.value)}
+              placeholder={t('고객 이름')}
+              aria-label={t('고객 이름으로 좁히기')}
+              style={lv.search}
+            />
+          </div>
         </div>
         {quotes.length === 0 ? (
           <EmptyState
@@ -486,10 +502,15 @@ function MyListView() {
             description="컨피규레이터에서 옵션을 고르고 견적을 저장하면 여기에 쌓입니다."
           />
         ) : shownQuotes.length === 0 ? (
-          <EmptyState
-            title={`「${nameQuery.trim()}」에 맞는 견적이 없습니다`}
-            description="이름을 지우면 전체가 다시 보입니다."
-          />
+          nameQuery.trim()
+            ? <EmptyState
+                title={`「${nameQuery.trim()}」에 맞는 견적이 없습니다`}
+                description="이름을 지우면 전체가 다시 보입니다."
+              />
+            : <EmptyState
+                title={t('배정 요청이 필요한 견적이 없습니다')}
+                description={t('체크를 풀면 전체가 다시 보입니다.')}
+              />
         ) : (
           <div style={lv.tableWrap}>
             <table style={lv.table}>
@@ -647,7 +668,7 @@ function MyListView() {
                             배정 요청 — 서명본을 확인한 뒤 누른다. 누르기 전에는 관리자 화면에 제작 배정 버튼이 없다.
                             요청한 뒤(아직 배정 전)에는 글씨로만 남긴다. 배정 거부·주문 삭제로 돌아온 건은 이미 요청돼 있다.
                           */}
-                          {q.status === 'contracted' && !q.assign_requested_at && (
+                          {needsAssignRequest(q) && (
                             <button
                               style={requestBusy === q.id ? { ...lv.confirmBtn, opacity: 0.45 } : lv.confirmBtn}
                               disabled={requestBusy === q.id}
@@ -726,6 +747,11 @@ function MyListView() {
     </div>
     </>
   )
+}
+
+/** 배정 요청이 필요한 견적 — 서명(계약완료)은 끝났고 영업이 아직 「배정 요청」을 안 눌렀다. 버튼 조건과 같다 */
+function needsAssignRequest(q: ApiQuote): boolean {
+  return q.status === 'contracted' && !q.assign_requested_at
 }
 
 // ── SalesPage ───────────────────────────────────────────────────────────────
@@ -1345,6 +1371,12 @@ const lv: Record<string, React.CSSProperties> = {
   /** 제목 줄 — 왼쪽 제목, 오른쪽 이름 검색 */
   listHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', justifyContent: 'space-between', flexWrap: 'wrap' as const },
   search: { width: 160, minWidth: 0, marginBottom: 12 },
+  filters: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexWrap: 'wrap' as const },
+  // 관리자 「배정 필요건만」(qt.onlyAssign)과 같은 모양. 검색칸과 아랫선을 맞추려고 같은 아래 여백
+  onlyRequest: {
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginBottom: 12,
+    fontSize: 'var(--fs-label)', color: 'var(--dark)', cursor: 'pointer', minHeight: 'var(--h-control-sm)', whiteSpace: 'nowrap' as const,
+  },
   empty: { color: 'var(--muted)', fontSize: 13, padding: '24px 0', textAlign: 'center' },
   tableWrap: { overflowX: 'auto' },
   /*
