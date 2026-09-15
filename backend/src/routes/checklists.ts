@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { rbac, requirePermission } from '../middleware/rbac.js';
-import { STEP_BY_CODE, CHECKLIST_STEPS } from '@buildup-ev/shared/process';
+import { CHECKLIST_STEPS, TRACK_LABEL, checklistActorOf } from '@buildup-ev/shared/process';
+import { ADDON_STEPS, ADDON_TRACK_LABEL } from '@buildup-ev/shared/process/addon';
+import { checklistActor } from '../services/checklist.js';
 
 /**
  * 체크리스트 **서식** — 관리자가 단계별로 고친다.
@@ -15,17 +17,27 @@ import { STEP_BY_CODE, CHECKLIST_STEPS } from '@buildup-ev/shared/process';
  */
 export const checklistsRouter = Router();
 
-/** 서식이 붙을 수 있는 단계 목록 — 화면이 탭을 그릴 때 쓴다 */
-checklistsRouter.get('/steps', rbac('ADMIN'), (_req: Request, res: Response): void => {
+/**
+ * 서식을 붙일 수 있는 단계 — **모든 단계**(2026-09-15). 「특장사 진행」·「부가작업 진행」 두 묶음,
+ * 단계마다 켜진 항목 수를 함께 준다(0 이면 그 단계에는 체크리스트가 뜨지 않는다).
+ */
+checklistsRouter.get('/steps', rbac('ADMIN'), async (_req: Request, res: Response): Promise<void> => {
+  const counts = prisma
+    ? await prisma.checklistItem.groupBy({ by: ['step_code'], where: { active: true }, _count: { _all: true } })
+    : [];
+  const n = (code: string) => counts.find(c => c.step_code === code)?._count._all ?? 0;
   res.json({
-    data: CHECKLIST_STEPS.map(s => ({ code: s.code, label: s.label, actor: s.checklist })),
+    data: [
+      ...CHECKLIST_STEPS.map(s => ({ group: 'maker', track: TRACK_LABEL[s.track], code: s.code, label: s.label, actor: checklistActorOf(s), count: n(s.code) })),
+      ...ADDON_STEPS.map(s => ({ group: 'addon', track: ADDON_TRACK_LABEL[s.track], code: s.code, label: s.label, actor: 'ADMIN', count: n(s.code) })),
+    ],
   });
 });
 
 checklistsRouter.get('/', rbac('ADMIN'), async (req: Request, res: Response): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const step = String(req.query['step'] ?? '').trim();
-  if (!STEP_BY_CODE[step]?.checklist) {
+  if (!checklistActor(step)) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '체크리스트가 붙지 않는 단계입니다' } }); return;
   }
   try {
@@ -50,7 +62,7 @@ checklistsRouter.put('/', rbac('ADMIN'), requirePermission('checklist.manage'), 
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const body = req.body as { step?: unknown; items?: unknown };
   const step = String(body.step ?? '').trim();
-  if (!STEP_BY_CODE[step]?.checklist) {
+  if (!checklistActor(step)) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '체크리스트가 붙지 않는 단계입니다' } }); return;
   }
   if (!Array.isArray(body.items)) {

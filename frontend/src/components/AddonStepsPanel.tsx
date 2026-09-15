@@ -5,6 +5,7 @@ import { ADDON_TRACKS, ADDON_TRACK_LABEL, type AddonTrack } from '@shared/proces
 import { fetchAddon, completeAddonStep, undoAddonStep, type AddonView, type AddonStepView } from '../api/addon'
 import { toDateInput } from '@shared/schedule/businessDays'
 import { BTN } from '../styles/buttons'
+import { OrderChecklistPanel } from './OrderChecklistPanel'
 
 /**
  * **부가작업 탭** — 공장 출고 뒤 우리 쪽 작업(관리자 + addon.manage 만).
@@ -61,8 +62,8 @@ export function AddonStepsPanel({ orderId, onChanged }: { orderId: number; onCha
               <span style={s.trackCount}>{n}/{list.length}</span>
             </div>
             {list.map(x => (
+              <div key={x.code}>
               <StepRow
-                key={x.code}
                 step={x}
                 busy={busy === x.code}
                 date={dates[x.code] ?? toDateInput(new Date())}
@@ -70,6 +71,17 @@ export function AddonStepsPanel({ orderId, onChanged }: { orderId: number; onCha
                 onComplete={() => void run(x.code, () => completeAddonStep(orderId, x.code, x.date_label ? (dates[x.code] ?? toDateInput(new Date())) : undefined))}
                 onUndo={() => void run(x.code, () => undoAddonStep(orderId, x.code))}
               />
+              {/*
+                체크리스트 — 지금 할 수 있는 단계에만. 서식에 항목이 없으면 패널이 아무것도 그리지 않는다.
+                항목이 있으면 모두 합격·제출해야 완료된다(서버가 막는다).
+              */}
+              {!x.done && x.can_complete.ok && (
+                <div style={s.checklist}>
+                  <OrderChecklistPanel orderId={orderId} stepCode={x.code} stepLabel={t(x.label)} scope="addon"
+                    onDone={() => { fetchAddon(orderId).then(setView).catch(() => {}) }} />
+                </div>
+              )}
+              </div>
             ))}
           </section>
         )
@@ -124,6 +136,7 @@ function StepRow({ step, busy, date, onDate, onComplete, onUndo }: {
 
 const s: Record<string, React.CSSProperties> = {
   muted: { color: 'var(--muted)', fontSize: 'var(--fs-body)', padding: 'var(--sp-4) 0' },
+  checklist: { padding: '0 0 var(--sp-2) 28px' },
   record: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-5)', padding: 'var(--sp-3) 0', borderBottom: 'var(--hairline)', marginBottom: 'var(--sp-2)' },
   rec: { display: 'flex', alignItems: 'baseline', gap: 8 },
   recLabel: { fontSize: 'var(--fs-label)', color: 'var(--muted)' },

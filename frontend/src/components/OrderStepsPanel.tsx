@@ -368,15 +368,13 @@ export function OrderStepsPanel({ orderId, canEdit = true, onUnreadChange, dueKe
                       ))}
 
                       {/*
-                        PDI 체크리스트 — **채워야 넘어간다.**
-                        서식이 없는 단계에서는 아무것도 그리지 않는다(빈 표는 「없다」를 말해 주지 않는다).
+                        체크리스트 — **채워야 넘어간다.** 모든 단계에 붙을 수 있다(2026-09-15).
+                        서식이 비어 있는 단계는 패널이 스스로 아무것도 그리지 않는다(빈 표는 「없다」를 말해 주지 않는다).
                       */}
-                      {def.checklist && (
-                        <OrderChecklistPanel
-                          orderId={orderId} stepCode={def.code} stepLabel={t(def.label)}
-                          onDone={load}
-                        />
-                      )}
+                      <OrderChecklistPanel
+                        orderId={orderId} stepCode={def.code} stepLabel={t(def.label)}
+                        onDone={load}
+                      />
 
                       {/* 왜 아직 못 누르는지 — 버튼만 잠가 두면 이유를 알 수 없다 */}
                       {!gate.ok && <div style={s.blocked}>{gateReason(gate)}</div>}

@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
-import { STEP_BY_CODE, checklistPasses } from '@buildup-ev/shared/process';
+import { STEP_BY_CODE, checklistPasses, checklistActorOf } from '@buildup-ev/shared/process';
+import { ADDON_BY_CODE } from '@buildup-ev/shared/process/addon';
 import { notify, appRecipients } from './push.js';
 
 /**
@@ -18,9 +19,101 @@ import { notify, appRecipients } from './push.js';
 /** 보이는 줄 — 서식에서 빠져 감춘 줄은 뺀다 */
 const LIVE_LINES = { where: { retired_at: null }, orderBy: { seq: 'asc' as const } };
 
-/** 이 단계에 체크리스트가 붙는가 — 붙는다면 적는 사람은 누구인가 */
+/**
+ * 이 단계의 체크리스트를 **누가 적는가** — 모든 단계에 붙을 수 있다(2026-09-15).
+ * 특장사 단계는 단계 정의로, 부가작업 단계(관리자 전용)는 관리자. 모르는 코드면 null.
+ * 서식이 비어 있으면 붙어도 아무 일이 없다(openChecklist 가 null, checklistGate 가 통과).
+ */
 export function checklistActor(code: string): string | null {
-  return STEP_BY_CODE[code]?.checklist ?? null;
+  const def = STEP_BY_CODE[code];
+  if (def) return checklistActorOf(def);
+  return ADDON_BY_CODE[code] ? 'ADMIN' : null;
+}
+
+/**
+ * 화면에 주는 체크리스트 — 특장사 단계 라우트와 부가작업 라우트가 같이 쓴다. 서식이 없으면 null.
+ */
+export async function checklistPayload(orderId: number, code: string) {
+  if (!prisma) return null;
+  const actor = checklistActor(code);
+  if (!actor) return null;
+  const cl = await openChecklist(orderId, code);
+  if (!cl) return null;
+  const logs = await prisma.orderChecklistLineLog.findMany({
+    where: { line: { checklist_id: cl.id } },
+    orderBy: { id: 'asc' },
+  });
+  return {
+    step_code: code,
+    /** 적는 사람 — 이 역할이 아니면 화면에서 보기만 한다 */
+    actor,
+    submitted_at: cl.submitted_at?.toISOString() ?? null,
+    submitted_by: cl.submitted_by,
+    lines: cl.lines.map(l => ({
+      id: l.id, seq: l.seq, category: l.category, content: l.content,
+      result: l.result, memo: l.memo,
+      checked_at: l.checked_at?.toISOString() ?? null, checked_by: l.checked_by,
+      /* 조치 후 재검이 남는다 — 「한 번에 통과」와 「고쳐서 통과」는 다른 이야기다 */
+      logs: logs.filter(g => g.line_id === l.id)
+        .map(g => ({ result: g.result, memo: g.memo, at: g.at.toISOString(), by: g.by })),
+    })),
+  };
+}
+
+/**
+ * 항목을 판정하고(쌓는다) `submit` 이면 제출한다 — 역할 확인은 부르는 쪽이 한다.
+ * 결과는 HTTP 로 그대로 돌려줄 모양이다.
+ */
+export async function judgeChecklist(
+  orderId: number, code: string, body: { lines?: unknown; submit?: unknown }, who: string,
+): Promise<{ status: number; body: unknown }> {
+  const cl = await openChecklist(orderId, code);
+  if (!cl) return { status: 409, body: { error: { code: 'STEP_BLOCKED', message: '이 단계의 체크리스트 서식이 아직 없습니다' } } };
+
+  const inLines = Array.isArray(body.lines) ? body.lines as { id?: number; result?: string; memo?: string }[] : [];
+  const mine = new Map(cl.lines.map(l => [l.id, l]));
+  const now = new Date();
+
+  for (const raw of inLines) {
+    const line = typeof raw.id === 'number' ? mine.get(raw.id) : undefined;
+    if (!line) continue;                                  // 남의 줄·감춘 줄은 무시한다
+    const result = raw.result === 'pass' || raw.result === 'fail' ? raw.result : null;
+    if (!result) continue;
+    const memo = typeof raw.memo === 'string' ? raw.memo.trim().slice(0, 300) : null;
+    // 같은 판정을 같은 메모로 다시 보내면 이력을 늘리지 않는다
+    if (line.result === result && (line.memo ?? null) === (memo || null)) continue;
+    await prisma!.$transaction([
+      prisma!.orderChecklistLine.update({
+        where: { id: line.id },
+        data: { result, memo: memo || null, checked_at: now, checked_by: who },
+      }),
+      prisma!.orderChecklistLineLog.create({
+        data: { line_id: line.id, result, memo: memo || null, by: who },
+      }),
+    ]);
+  }
+
+  const after = await prisma!.orderChecklist.findUniqueOrThrow({
+    where: { id: cl.id }, include: { lines: { where: { retired_at: null }, select: { result: true } } },
+  });
+  const allPass = checklistPasses(after.lines);
+
+  if (body.submit === true) {
+    if (!allPass) {
+      return { status: 409, body: { error: { code: 'CHECKLIST_INCOMPLETE', message: '합격이 아닌 항목이 남아 있어 제출할 수 없습니다' } } };
+    }
+    if (!after.submitted_at) {
+      await prisma!.orderChecklist.update({ where: { id: cl.id }, data: { submitted_at: now, submitted_by: who } });
+      await notifyChecklistSubmitted(orderId, code, who);
+    }
+  } else if (!allPass && after.submitted_at) {
+    /*
+     * 제출한 뒤에 불합격이 생기면 **제출을 거둔다.** 그대로 두면 「제출됨」인데
+     * 안에는 불합격이 있는 상태가 남아, 관문이 무엇을 보는지 흐려진다.
+     */
+    await prisma!.orderChecklist.update({ where: { id: cl.id }, data: { submitted_at: null, submitted_by: null } });
+  }
+  return { status: 200, body: { data: { ok: true, all_pass: allPass } } };
 }
 
 /**
@@ -158,7 +251,7 @@ export async function checklistGate(orderId: number, stepCode: string): Promise<
  */
 export async function notifyChecklistSubmitted(orderId: number, stepCode: string, by: string): Promise<void> {
   if (!prisma) return;
-  const label = STEP_BY_CODE[stepCode]?.label ?? stepCode;
+  const label = STEP_BY_CODE[stepCode]?.label ?? ADDON_BY_CODE[stepCode]?.label ?? stepCode;
   const admins = await prisma.user.findMany({
     where: { active: true, status: 'active', OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }] },
     select: { email: true },

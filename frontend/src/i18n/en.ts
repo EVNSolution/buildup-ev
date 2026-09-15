@@ -656,6 +656,8 @@ export const EN: Record<string, string> = {
   '영업 메모': 'Sales note',
   '영업 배정': 'Sales assignment',
   '배정 요청': 'Request assignment',
+  '특장사 진행': 'Body builder steps',
+  '부가작업 진행': 'Add-on work steps',
   '여기를 고치면 아직 제출하지 않은 체크리스트에도 반영됩니다. 문구를 바꾼 항목은 판정을 다시 해야 합니다. 이미 제출한 체크리스트는 그대로 남습니다.': 'Edits here also apply to checklists not yet submitted. Items whose wording changes must be checked again. Submitted checklists stay as they were.',
   '(사유 없음)': '(no reason)',
   '발주 수량은 선택한 옵션으로 정해집니다. 도어 변경은 도어 추가가 없으면 1개, 도어 추가가 있으면 2개로 계산됩니다.': 'Order quantities follow the selected options. A door change counts as 1 without a door add, and 2 with a door add.',

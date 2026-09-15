@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { t, tf } from '../i18n'
 import {
-  fetchChecklistSteps, fetchChecklistItems, saveChecklistItems, type ChecklistItem,
+  fetchChecklistSteps, fetchChecklistItems, saveChecklistItems, type ChecklistItem, type ChecklistStepOption,
 } from '../api/checklists'
 import { BTN } from '../styles/buttons'
+import { usePermission } from './PermGate'
 
 /**
  * 체크리스트 **서식** — 단계별로 무엇을 확인할지 정한다.
@@ -19,7 +20,9 @@ import { BTN } from '../styles/buttons'
 type Row = { id?: number; category: string; content: string }
 
 export function ChecklistTab() {
-  const [steps, setSteps] = useState<{ code: string; label: string; actor: string }[]>([])
+  const [steps, setSteps] = useState<ChecklistStepOption[]>([])
+  // 부가작업 단계 서식은 부가작업을 다루는 관리자만 — 권한이 없으면 그 묶음을 두지 않는다
+  const canAddon = usePermission('addon.manage')
   const [step, setStep] = useState('')
   const [rows, setRows] = useState<Row[]>([])
   const [off, setOff] = useState<ChecklistItem[]>([])
@@ -65,6 +68,8 @@ export function ChecklistTab() {
       const items = await saveChecklistItems(step, rows.filter(r => r.content.trim() !== ''))
       setRows(items.filter(i => i.active).map(i => ({ id: i.id, category: i.category, content: i.content })))
       setOff(items.filter(i => !i.active))
+      // 고르기 칸의 항목 수도 바로 맞춘다 — 0 이 되면 그 단계에 체크리스트가 안 뜬다는 뜻이다
+      setSteps(list => list.map(o => (o.code === step ? { ...o, count: items.filter(i => i.active).length } : o)))
       setSaved(t('저장했습니다'))
     } catch (e) { setErr(e instanceof Error ? e.message : t('저장하지 못했습니다')) }
     finally { setBusy(false) }
@@ -73,8 +78,22 @@ export function ChecklistTab() {
   return (
     <div style={s.root}>
       <div style={s.bar}>
+        {/*
+          모든 단계(2026-09-15) — 「특장사 진행」·「부가작업 진행」 두 묶음, 그 안은 트랙 순서. 항목이 있는 단계는 개수를 붙인다
+          (0 이면 그 단계에는 체크리스트가 뜨지 않는다).
+        */}
         <select style={s.pick} value={step} onChange={e => setStep(e.target.value)} aria-label={t('단계 고르기')}>
-          {steps.map(o => <option key={o.code} value={o.code}>{t(o.label)}</option>)}
+          {([['maker', t('특장사 진행')], ['addon', t('부가작업 진행')]] as const)
+            .filter(([g]) => g === 'maker' || canAddon)
+            .map(([g, name]) => (
+              <optgroup key={g} label={name}>
+                {steps.filter(o => o.group === g).map(o => (
+                  <option key={o.code} value={o.code}>
+                    {`${t(o.track)} · ${t(o.label)}${o.count ? ` (${o.count})` : ''}`}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
         </select>
         {actor && <span style={s.muted}>{tf('{0}가 적습니다', actorKo)}</span>}
         <div style={{ flex: 1 }} />

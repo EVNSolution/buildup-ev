@@ -5,6 +5,8 @@
  *   PATCH /orders/:id/addon/target             — 고객 인도 목표일(배정 이후 언제든, 비우면 지운다)
  *   PATCH /orders/:id/addon/steps/:code        — 단계 완료(인도 완료는 실제 인도일 필수)
  *   PATCH /orders/:id/addon/steps/:code/undo   — 되돌리기(지우지 않고 pending 으로)
+ *   GET   /orders/:id/addon/steps/:code/checklist — 그 단계 체크리스트(서식이 없으면 null)
+ *   PATCH /orders/:id/addon/steps/:code/checklist — 판정·제출(관리자가 적는다)
  *
  * ⚠️ **관리자 + 기능모듈 `addon.manage`** 만. 특장사에게는 이 경로도, 이 데이터도 없다 —
  *    특장사 화면·API 는 order_step 만 읽고, 부가작업은 order_addon_step·order_addon 에 따로 있다.
@@ -19,6 +21,7 @@ import {
   ADDON_STEPS, ADDON_BY_CODE, ADDON_LAST, ADDON_OPENS_AFTER, addonCanComplete, addonCanUndo, addonSpots,
 } from '@buildup-ev/shared/process/addon';
 import { fromDateInput, toDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
+import { checklistGate, checklistPayload, judgeChecklist } from '../services/checklist.js';
 
 export const addonRouter = Router();
 
@@ -125,6 +128,9 @@ addonRouter.patch('/:id/addon/steps/:code', ...guard, async (req: Request, res: 
     const done = new Set(o.addon_steps.filter(r => r.status === 'done').map(r => r.code));
     const gate = addonCanComplete(code, done, o.steps.some(s => s.status === 'done'));
     if (!gate.ok) { res.status(409).json({ error: { code: 'STEP_BLOCKED', message: gate.reason } }); return; }
+    // 체크리스트 — 서식에 항목이 있는 단계만 관문이다(특장사 단계와 같은 규칙)
+    const cl = await checklistGate(id, code);
+    if (!cl.ok) { res.status(409).json({ error: { code: 'CHECKLIST_INCOMPLETE', message: cl.reason } }); return; }
 
     /*
      * 날짜를 받는 단계(인도 완료) — **실제 인도일을 직접 적는다.** 목표일과 다를 수 있다.
@@ -201,5 +207,37 @@ addonRouter.patch('/:id/addon/steps/:code/undo', ...guard, async (req: Request, 
   } catch (e) {
     console.error('[PATCH /orders/:id/addon/steps/:code/undo]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '부가작업 단계를 되돌리지 못했습니다.' } });
+  }
+});
+
+// ── 부가작업 체크리스트 — 관리자 + addon.manage 만(특장사 경로로는 부가작업 코드가 열리지 않는다) ─────────
+addonRouter.get('/:id/addon/steps/:code/checklist', ...guard, async (req: Request, res: Response): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = orderIdOf(req);
+  const code = String(req.params['code'] ?? '');
+  if (id === null || !ADDON_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 부가작업 단계입니다' } }); return; }
+  try {
+    const o = await loadAddon(id);
+    if (!o) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    res.json({ data: await checklistPayload(id, code) });
+  } catch (e) {
+    console.error('[GET /orders/:id/addon/steps/:code/checklist]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '체크리스트를 불러오지 못했습니다.' } });
+  }
+});
+
+addonRouter.patch('/:id/addon/steps/:code/checklist', ...guard, async (req: Request, res: Response): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = orderIdOf(req);
+  const code = String(req.params['code'] ?? '');
+  if (id === null || !ADDON_BY_CODE[code]) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 부가작업 단계입니다' } }); return; }
+  try {
+    const o = await loadAddon(id);
+    if (!o) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
+    const r = await judgeChecklist(id, code, req.body as { lines?: unknown; submit?: unknown }, req.auth?.email ?? 'unknown');
+    res.status(r.status).json(r.body);
+  } catch (e) {
+    console.error('[PATCH /orders/:id/addon/steps/:code/checklist]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '체크리스트를 저장하지 못했습니다.' } });
   }
 });
