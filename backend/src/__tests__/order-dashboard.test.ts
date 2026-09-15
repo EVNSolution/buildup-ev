@@ -29,7 +29,7 @@ function order(id: number, o: Partial<ApiOrder> & { status?: string; lanes?: Par
     ...rest,
   } as unknown as ApiOrder;
 }
-const quote = (id: number, status = 'contracted') => ({ id, status, quote_no: `Q-${id}`, created_at: '2026-09-01', customer: { name: 'x' } }) as unknown as ApiQuote;
+const quote = (id: number, status = 'contracted', requested = true) => ({ id, status, quote_no: `Q-${id}`, created_at: '2026-09-01', assign_requested_at: requested ? '2026-09-02T00:00:00Z' : null, customer: { name: 'x' } }) as unknown as ApiQuote;
 const spot = (code: string, late = false): Lane => ({ code, label: code, since: '2026-09-02', late });
 const NOW = new Date('2026-09-14T09:00:00');
 
@@ -41,7 +41,8 @@ describe('현황판 분류', () => {
     order(4, { done: 15, total: 15 }),                                                         // 인도 완료
     order(5, { status: 'contracted', maker_org_id: null, rejected_by_org: 'ORG_A', quote_id: 505 }), // 거부돼 돌아온 건
   ];
-  const dash = buildDashboard(orders, [quote(505), quote(506)], NOW);
+  // 507 = 서명은 끝났지만 영업이 아직 배정 요청 전 — 배정 대기에 없어야 한다
+  const dash = buildDashboard(orders, [quote(505), quote(506), quote(507, 'contracted', false)], NOW);
 
   it('🔴 칸마다 맞게 센다', () => {
     expect(dash.pending.map(o => o.id)).toEqual([1]);
@@ -200,7 +201,7 @@ describe.runIf(!!process.env['DATABASE_URL'] || true)('주문 목록 응답에 �
   });
 
   it.runIf(live)('🔴 막 수락한 주문 — 차량 「차량 도착」, 특장 「제작 착수」, 튜닝·출고는 없음', async () => {
-    const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', customer_id: customerId, final_price: 1 }, select: { id: true } });
+    const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', assign_requested_at: new Date(), customer_id: customerId, final_price: 1 }, select: { id: true } });
     quotes.push(q.id);
     expect((await request(app).patch(`/api/v1/quotes/${q.id}/assign`).set('Cookie', admin).send({ maker_org_id: 'ORG_BRAIN' })).status).toBe(200);
     const o = await prisma!.order.findFirstOrThrow({ where: { quote_id: q.id } });

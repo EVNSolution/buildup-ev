@@ -122,8 +122,10 @@ describe('제작 배정 버튼', () => {
      * 두 화면(좁은 화면 카드 · 넓은 화면 표) 모두에서 **계약완료 건에만** 뜬다.
      * 카드 쪽은 조건을 변수로 뽑아 쓰므로 표현이 다르다 — 조건 자체가 같은지를 본다.
      */
-    expect(ADMIN).toMatch(/const makerAssign = q\.status === 'contracted'/);   // 카드
-    expect(ADMIN).toMatch(/\{q\.status === 'contracted' && \(/);              // 표
+    // 2026-09-15 — 계약완료 + 영업의 배정 요청(canAssignMaker). 두 화면이 같은 함수를 쓴다
+    expect(ADMIN).toMatch(/function canAssignMaker\(q: ApiQuote\): boolean \{\s*return q\.status === 'contracted' && !!q\.assign_requested_at/);
+    expect(ADMIN).toMatch(/const makerAssign = canAssignMaker\(q\)/);   // 카드
+    expect(ADMIN).toMatch(/\{canAssignMaker\(q\) && \(/);              // 표
     // 그 밖의 상태에서 배정 버튼이 열리면 안 된다
     expect(ADMIN).not.toMatch(/status === 'confirmed'.{0,40}제작 배정/s);
   });

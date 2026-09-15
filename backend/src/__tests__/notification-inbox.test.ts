@@ -154,7 +154,7 @@ describe.runIf(live)('알림함', () => {
 
   it('🔴 실제 알림 — 납기일이 바뀌면 특장사 알림함에 온다(「앱 알림」 모듈을 꺼 둬도)', async () => {
     const q = await prisma!.quote.create({
-      data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', customer_id: customerId, final_price: 50_000_000 },
+      data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', assign_requested_at: new Date(), customer_id: customerId, final_price: 50_000_000 },
       select: { id: true },
     });
     madeQuotes.push(q.id);

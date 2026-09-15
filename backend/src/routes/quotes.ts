@@ -23,6 +23,7 @@ import { upsertCustomer } from '../services/customer-master.js';
 import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 import { setQuoteStatus } from '../services/quote-status.js';
+import { notifyAssignNeeded } from '../services/notify.js';
 import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
@@ -1103,6 +1104,42 @@ quotesRouter.patch('/:id/accept-sales', rbac('SALES', 'ADMIN'), async (req: Requ
 });
 
 /**
+ * **배정 요청** — 계약서 서명(전자서명·서명본 등록)이 끝난 뒤, 담당 영업이 서명본을 확인하고 누른다(2026-09-15).
+ *
+ * 서명이 끝나자마자 관리자 배정 버튼이 뜨면, 서명본에 문제가 있는 건(빠진 서명·잘못 올린 파일)까지 제작으로 넘어간다.
+ * 영업이 한 번 확인하는 관문을 둔다. 요청하면 관리자에게 「제작 배정 필요」 알림이 간다.
+ *
+ * ⚠️ 한 번만 — 조건을 쓰는 순간에 건다(동시에 두 번 눌러도 알림·이력이 한 번).
+ * ⚠️ 배정 거부·주문 삭제로 돌아온 건은 이미 요청된 상태로 남아 다시 누를 일이 없다(keepAssignRequested).
+ */
+quotesRouter.patch('/:id/assign-request', rbac('SALES', 'ADMIN'), async (req: Request, res): Promise<void> => {
+  if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
+  const id = Number(req.params['id']);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 quote id' } }); return; }
+  if (!(await assertQuoteOwner(req, res, id))) return;
+  try {
+    const quote = await prisma.quote.findUnique({ where: { id }, select: { status: true, assign_requested_at: true } });
+    if (!quote) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return; }
+    if (quote.status !== 'contracted') {
+      res.status(409).json({ error: { code: 'CONFLICT', message: '계약서 서명이 완료된 견적만 배정 요청할 수 있습니다' } }); return;
+    }
+    const who = req.auth?.email ?? 'unknown';
+    const now = new Date();
+    const won = await prisma.quote.updateMany({
+      where: { id, status: 'contracted', assign_requested_at: null },
+      data: { assign_requested_at: now, assign_requested_by: who },
+    });
+    if (won.count === 0) { res.status(409).json({ error: { code: 'CONFLICT', message: '이미 배정 요청한 견적입니다' } }); return; }
+    await logQuoteChanges(id, 'inputs', { assign_requested_at: '' }, { assign_requested_at: now.toISOString() }, who, ['assign_requested_at']);
+    void notifyAssignNeeded('maker', id);
+    res.json({ data: { ok: true, assign_requested_at: now.toISOString() } });
+  } catch (e) {
+    console.error('[PATCH /quotes/:id/assign-request]', e);
+    res.status(500).json({ error: { code: 'INTERNAL', message: '배정 요청 중 오류가 발생했습니다.' } });
+  }
+});
+
+/**
  * 배정 **전에** 발주서를 미리 보여 주기 위한 자료.
  *
  * 관리자는 무엇을 발주하는지 보고 비고를 적어야 하고, 그때 보는 발주서는 특장사가
@@ -1289,6 +1326,11 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
     res.status(409).json({ error: { code: 'CONFLICT', message: `전자서명이 완료된 계약완료 견적만 배정할 수 있습니다 (현재 ${quote.status})` } });
     return;
   }
+  // 영업이 서명본을 확인하고 「배정 요청」을 눌러야 배정한다(2026-09-15). 거부·삭제로 돌아온 건은 요청이 살아 있다
+  if (!quote.assign_requested_at) {
+    res.status(409).json({ error: { code: 'ASSIGN_NOT_REQUESTED', message: '담당 영업의 배정 요청이 아직 없습니다' } });
+    return;
+  }
   if (!makerOrg || makerOrg.type !== 'MAKER') {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효한 특장사 org가 아닙니다' } });
     return;
@@ -1406,14 +1448,47 @@ quotesRouter.patch('/:id/assign', rbac('ADMIN'), requirePermission('order.confir
      * 그래서 배정이 풀린 행이 있으면 **그 행을 다시 쓴다.** 거절 기록
      * (`rejected_at`·`reject_reason`)은 지우지 않는다 — 왜 한 번 돌아왔는지가 남는다.
      */
-    const revive = await prisma.order.findFirst({
-      where: { quote_id: id, maker_org_id: null, canceled_at: null },
-      select: { id: true },
+    /*
+     * ⚠️ **주문 삭제(cancel)로 돌아온 건도 그 행을 다시 쓴다**(2026-09-15). 삭제는 행을 남기고 견적만 계약완료로
+     *    돌리는데, 여기서 배정이 풀린 행(maker 없음)만 찾아 **재배정이 「이미 배정된 견적입니다」로 막혔다**
+     *    — 배정 버튼은 떠 있는데 누르면 실패했다. 지시: 삭제로 돌아온 건도 바로 재배정.
+     *    삭제 기록(누가·언제·왜)은 지우기 전에 견적 변경이력에 옮기고, 이전 진행은 단계마다 메모로 남긴 뒤 처음부터 시작한다
+     *    (새로 맡는 특장사가 앞 진행을 제 것처럼 이어받으면 안 된다).
+     */
+    const existing = await prisma.order.findUnique({
+      where: { quote_id: id },
+      select: { id: true, maker_org_id: true, canceled_at: true, canceled_by: true, cancel_reason: true },
     });
+    const revive = existing && (existing.canceled_at || existing.maker_org_id === null) ? existing : null;
+    if (revive?.canceled_at) {
+      const who = req.auth?.email ?? 'unknown';
+      await prisma.quoteChangeLog.create({ data: {
+        quote_id: id, section: 'status', field: 'order_cancel_reassigned',
+        old_value: `${revive.canceled_at.toISOString()} ${revive.canceled_by ?? ''} — ${revive.cancel_reason ?? ''}`.slice(0, 300),
+        new_value: `재배정 ${maker_org_id}`, changed_by: who,
+      } });
+      const stamp = `${now.toISOString().slice(0, 10)} 주문 삭제 후 재배정으로 초기화`;
+      const doneSteps = await prisma.orderStep.findMany({ where: { order_id: revive.id, status: { not: 'pending' } }, select: { id: true, status: true, done_at: true, done_by: true } });
+      for (const st of doneSteps) {
+        await prisma.orderStep.update({ where: { id: st.id }, data: {
+          status: 'pending', done_at: null, done_by: null, planned_at: null, entered_at: now,
+          note: `${stamp} (이전 ${st.status} ${st.done_at?.toISOString().slice(0, 10) ?? ''} ${st.done_by ?? ''})`.slice(0, 300),
+        } });
+      }
+      await prisma.orderAddonStep.updateMany({ where: { order_id: revive.id, status: 'done' }, data: { status: 'pending', done_at: null, done_by: null, done_on: null, note: stamp } });
+    }
     const [updatedQuote, order] = await prisma.$transaction([
       prisma.quote.findUnique({ where: { id } }),
       revive
-        ? prisma.order.update({ where: { id: revive.id }, data: poFields })
+        ? prisma.order.update({ where: { id: revive.id }, data: {
+            ...poFields,
+            // 삭제로 돌아온 건 — 삭제 표시와 앞 특장사의 수락·납기를 비운다(기록은 위에서 옮겼다). 거부로 돌아온 건은 이미 비어 있다
+            ...(revive.canceled_at ? {
+              canceled_at: null, canceled_by: null, cancel_reason: null,
+              accepted_at: null, delivery_due: null, delivery_due_original: null,
+              appendix_ack_at: null, appendix_ack_by: null,
+            } : {}),
+          } })
         : prisma.order.create({ data: { quote_id: id, ...poFields } }),
     ]);
 

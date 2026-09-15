@@ -70,7 +70,7 @@ afterAll(async () => {
 });
 
 async function acceptedOrder() {
-  const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', customer_id: customerId, final_price: 1 }, select: { id: true } });
+  const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', assign_requested_at: new Date(), customer_id: customerId, final_price: 1 }, select: { id: true } });
   quotes.push(q.id);
   expect((await request(app).patch(`/api/v1/quotes/${q.id}/assign`).set('Cookie', admin).send({ maker_org_id: 'ORG_BRAIN' })).status).toBe(200);
   const o = await prisma!.order.findFirstOrThrow({ where: { quote_id: q.id } });

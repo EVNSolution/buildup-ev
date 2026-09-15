@@ -87,7 +87,8 @@ export function buildDashboard(orders: ApiOrder[], contracted: ApiQuote[], now =
 
   const rejectedByQuote = new Map(orders.filter(isRejected).map(o => [o.quote_id, o]))
   const assign = contracted
-    .filter(q => q.status === 'contracted')
+    // 영업이 배정 요청한 건만 — 서명만 끝난 건은 영업 확인 전이라 관리자 몫이 아니다(2026-09-15)
+    .filter(q => q.status === 'contracted' && !!q.assign_requested_at)
     .map(q => ({ quote: q, rejected: rejectedByQuote.get(q.id) ?? null }))
 
   const lanes = {} as Record<Track, StepChip[]>

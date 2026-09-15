@@ -47,7 +47,7 @@ afterAll(async () => {
 
 describe.runIf(live)('차량 도착 · 출고 실제 날짜', () => {
   it('🔴 완료하면 실제 날짜가 실리고, 되돌리면 비어 예정일로 돌아간다 — 목록·상세·특장사 상세 모두', async () => {
-    const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', customer_id: customerId, final_price: 1 }, select: { id: true } });
+    const q = await prisma!.quote.create({ data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, status: 'contracted', assign_requested_at: new Date(), customer_id: customerId, final_price: 1 }, select: { id: true } });
     quotes.push(q.id);
     expect((await request(app).patch(`/api/v1/quotes/${q.id}/assign`).set('Cookie', admin).send({ maker_org_id: 'ORG_BRAIN' })).status).toBe(200);
     const o = await prisma!.order.findFirstOrThrow({ where: { quote_id: q.id } });

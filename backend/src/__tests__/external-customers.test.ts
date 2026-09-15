@@ -84,7 +84,7 @@ describe.skipIf(shouldSkipDb)('문서 제공 — 견적서·계약서 (실 DB)',
     const signedPath = pathMod.join(dir, 'contract_paper_1.jpg');
     await wf(signedPath, 'jpg-bytes');
     const quote = await prisma!.quote.create({
-      data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, supply_price: 1, final_price: 1, status: 'contracted' },
+      data: { model_code: 'PV5_OPENBED', selections: {}, inputs: {}, supply_price: 1, final_price: 1, status: 'contracted', assign_requested_at: new Date() },
       select: { id: true },
     });
     const contract = await prisma!.purchaseContract.create({

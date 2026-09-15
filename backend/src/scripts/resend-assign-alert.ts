@@ -49,8 +49,8 @@ async function main(): Promise<void> {
   const where = quoteArg
     ? { id: Number(quoteArg) }
     : customer
-      ? { customer: { name: { contains: customer } }, status: 'contracted' as const }
-      : { status: 'contracted' as const };
+      ? { customer: { name: { contains: customer } }, status: 'contracted' as const, assign_requested_at: { not: null } }
+      : { status: 'contracted' as const, assign_requested_at: { not: null } };   // 영업이 배정 요청한 건만 — 요청 전은 관리자 몫이 아니다
 
   const quotes = await prisma.quote.findMany({
     where,
