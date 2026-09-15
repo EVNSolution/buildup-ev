@@ -101,7 +101,6 @@ export function MakerPriceTab() {
               <th style={s.thMid}>{t('탑크기')}</th>
               <th style={s.thMid}>{t('분류')}</th>
               <th style={s.thMid}>{t('단위')}</th>
-              <th style={s.thNum}>{t('수량')}</th>
               <th style={s.thNum}>{t('단가')}</th>
             </tr>
           </thead>
@@ -137,14 +136,6 @@ export function MakerPriceTab() {
                     />
                   </td>
                   <td style={s.tdNum}>
-                    <input
-                      style={{ ...s.input, width: 56, textAlign: 'right' }} type="number" min={1}
-                      value={r.qty} disabled={!maker}
-                      onChange={e => setRows(prev => prev.map(x => x.id === r.id ? { ...x, qty: Math.max(1, Math.trunc(Number(e.target.value) || 1)) } : x))}
-                      onBlur={e => patch(r.id, { qty: Math.max(1, Math.trunc(Number(e.target.value) || 1)) })}
-                    />
-                  </td>
-                  <td style={s.tdNum}>
                     {/*
                       비울 수 있다 — 계약에 값이 없다는 뜻이다.
                       0 으로 채워 두면 「무상으로 해 주기로 했다」가 되어 특장사에게 그대로 나간다.
@@ -168,6 +159,10 @@ export function MakerPriceTab() {
 
       <p style={s.foot}>
         {t('항목은 옵션에 맞춰 미리 만들어져 있습니다. 여기서는 값만 고칩니다.')}
+      </p>
+      {/* 수량 칸은 없앴다(2026-09-15) — 수량은 표에 적는 값이 아니라 고른 옵션이 정한다(shared/docs/po-lines lineQty) */}
+      <p style={s.foot}>
+        {t('발주 수량은 선택한 옵션으로 정해집니다. 도어 변경은 도어 추가가 없으면 1개, 도어 추가가 있으면 2개로 계산됩니다.')}
       </p>
     </div>
   )

@@ -656,6 +656,7 @@ export const EN: Record<string, string> = {
   '영업 메모': 'Sales note',
   '영업 배정': 'Sales assignment',
   '배정 요청': 'Request assignment',
+  '발주 수량은 선택한 옵션으로 정해집니다. 도어 변경은 도어 추가가 없으면 1개, 도어 추가가 있으면 2개로 계산됩니다.': 'Order quantities follow the selected options. A door change counts as 1 without a door add, and 2 with a door add.',
   '배정 요청 필요건만': 'Needs assignment request only',
   '배정 요청이 필요한 견적이 없습니다': 'No quotes need an assignment request',
   '체크를 풀면 전체가 다시 보입니다.': 'Uncheck to see everything again.',

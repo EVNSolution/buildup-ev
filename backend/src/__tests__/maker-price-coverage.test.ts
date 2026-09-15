@@ -106,8 +106,8 @@ describe('특장사 단가표 — 옵션과의 맞물림', () => {
     expect(find('DOOR_SLIDE', 'TOP_STD')?.['unit_price'], '슬라이딩 표준').toBe('295000');
     expect(find('PART_NET', 'TOP_LOW')?.['unit_price'], '격벽 저상').toBe('65000');
     expect(find('PART_NET', 'TOP_STD')?.['unit_price'], '격벽 표준').toBe('65000');
-    // 슬라이딩은 좌·우 2개 — 계약서 발주서 예시(별첨3)가 2 EA 다
-    expect(find('DOOR_SLIDE', 'TOP_LOW')?.['qty'], '슬라이딩 수량').toBe('2');
+    // 수량은 표에 적지 않는다 — 도어 변경은 도어 추가 유무로 1·2(shared/docs/po-lines lineQty). 표에 「좌·우 2개」가 남으면 발주서 비고에 틀린 설명이 찍힌다
+    expect(PRICES.filter(p => p['group_code'] === 'DOORTYPE').map(p => p['memo'] ?? '').join('|')).not.toContain('좌·우 2개');
   });
 
   it('🔴 행은 옵션에 **묶여 있다** — 아무 코드로나 만들 수 없다', () => {
