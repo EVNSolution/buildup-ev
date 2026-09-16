@@ -16,6 +16,8 @@ export const EN: Record<string, string> = {
   '명': '',
   '건': '',
   '예정': 'Planned',
+  '이번 달 손익': 'P&L this month',
+  '발행': 'Invoiced',
   '주문·제작': 'Orders & build',
   '성과·손익': 'Performance & P&L',
   '기준데이터': 'Reference data',

@@ -4,6 +4,8 @@ import { fetchOrders } from '../../api/orders'
 import { fetchQuotes } from '../../api/quotes'
 import { fetchSalesStats, type SalesStat } from '../../api/stats'
 import { fetchFolders, type ApiFolderRow } from '../../api/customerFolders'
+import { fetchPnl, type PnlView } from '../../api/pnl'
+import { sumP } from '@shared/finance/pnl'
 import type { ApiOrder, ApiQuote } from '@shared/types/index'
 import { buildDashboard } from '../../lib/orderDashboard'
 import { DASH_STEPS } from '../../lib/salesFunnel'
@@ -34,7 +36,7 @@ import { useAuth } from '../../contexts/AuthContext'
  *   · 성과·진행 현황·일정은 **한 줄을 통째로** 쓴다. 숫자 칸은 남는 폭을 나눠 가진다
  *   · 목록이 드는 카드는 **칸 높이를 못 박고 목록만 구른다** — 0건이든 100건이든 카드 크기가 같아야 아래가 안 들썩인다
  */
-type CardKey = 'perf' | 'progress' | 'assignRequest' | 'assignQueue' | 'late' | 'customer' | 'calendar'
+type CardKey = 'perf' | 'progress' | 'assignRequest' | 'assignQueue' | 'late' | 'customer' | 'calendar' | 'pnl'
 
 export interface DashboardDef {
   /** 역할 프리셋 코드(shared/rbac/presets) */
@@ -53,8 +55,9 @@ export const DASHBOARDS: DashboardDef[] = [
   { code: 'sales_mgr', label: '영업관리', cards: ['perf', 'progress', 'assignRequest', 'customer', 'calendar'] },
   // 제작을 굴린다 — 지금 배정할 건과 납기가 급한 건. 성과·고객은 이 자리의 일이 아니다
   { code: 'prod_mgr', label: '생산관리', cards: ['progress', 'assignQueue', 'late', 'calendar'] },
-  // 보기만 한다 — 숫자와 일정. 손대는 카드(배정·고객 서류)는 넣지 않는다
-  { code: 'exec', label: '경영관리', cards: ['perf', 'progress', 'calendar'] },
+  // 숫자를 본다 — 성과와 손익. 손대는 카드(배정·고객 서류)는 넣지 않는다.
+  // 손익만은 **직접 적는 자리**라(세금계산서 발행일·입금·원가) 할 일 수를 앞에 둔다
+  { code: 'exec', label: '경영관리', cards: ['perf', 'pnl', 'progress', 'calendar'] },
 ]
 
 /** 이 계정이 볼 수 있는 마이페이지들 — 마스터는 전부, 나머지는 지정된 프리셋 하나(없으면 빈 목록) */
@@ -66,7 +69,7 @@ export function dashboardsFor(user: { is_master?: boolean; admin_preset?: string
 
 export function AdminDashboard({ onGo }: {
   /** 카드를 눌렀을 때 옮겨 갈 탭 — 대시보드는 요약만 보여 주고 일은 원래 화면에서 한다 */
-  onGo: (tab: 'perf' | 'kanban') => void
+  onGo: (tab: 'perf' | 'kanban' | 'pnl') => void
 }) {
   const isMobile = useIsMobile()
   const { session } = useAuth()
@@ -84,9 +87,11 @@ export function AdminDashboard({ onGo }: {
   const canOrders = usePermission('order.view')
   const canAssign = usePermission('order.confirm')
   const canCustomer = usePermission('customer.view')
+  const canPnl = usePermission('pnl.view')
   const shows = (key: CardKey): boolean => {
     if (!board?.cards.includes(key)) return false
     if (key === 'perf') return canPerf
+    if (key === 'pnl') return canPnl
     if (key === 'customer') return canCustomer
     if (key === 'assignRequest' || key === 'assignQueue') return canAssign
     return canOrders
@@ -128,6 +133,7 @@ export function AdminDashboard({ onGo }: {
       {err && <div style={s.err}>{err}</div>}
       <div style={{ ...s.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
         {shows('perf') && <PerfCard isMobile={isMobile} onGo={() => onGo('perf')} />}
+        {shows('pnl') && <PnlCard isMobile={isMobile} onGo={() => onGo('pnl')} />}
         {shows('progress') && <ProgressCard orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />}
         {shows('assignQueue') && <AssignQueueCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
         {shows('assignRequest') && <AssignRequestCard contracted={contracted} />}
@@ -190,6 +196,10 @@ interface Tile {
   n: number
   /** 명 · 건 */
   unit: string
+  /** 숫자 대신 적을 글자(금액·비율처럼 수로 못 적는 것). 있으면 이쪽을 쓴다 */
+  text?: string
+  /** 결론 숫자 — 브랜드 라임으로 키운다(컨피규레이터 실구매가와 같은 색) */
+  profit?: boolean
   /** 숫자 아래 한 줄(금액·건수). 자리를 비워도 줄 높이는 지킨다 */
   sub?: string
   warn?: boolean
@@ -208,11 +218,24 @@ interface Tile {
  * 「이름 + 숫자 + 아래 줄」 전체의 한가운데에 서서, 정작 맞춰야 할 **숫자 줄과 어긋났다**(제보).
  * 그래서 격자로 바꾸고 줄(이름/숫자/아래)과 칸을 좌표로 못 박는다 — 꺾쇠는 숫자 줄에만 놓인다.
  */
-function TileRow({ tiles, isMobile, mobileCols, big }: {
-  tiles: Tile[]; isMobile: boolean; mobileCols: number; big?: boolean
+function TileRow({ tiles, isMobile, mobileCols, big, small }: {
+  tiles: Tile[]; isMobile: boolean; mobileCols: number
+  /** 첫 카드(영업 성과) — 한 단계 크게 */
+  big?: boolean
+  /** 금액이 섞인 줄 — **한 단계 작게.** 자릿수가 길어 큰 글씨로는 칸끼리 붙어 읽힌다(제보) */
+  small?: boolean
 }) {
   // ⚠️ 칸 변수를 t 로 두지 말 것 — 번역 함수 t() 를 가려 그 블록만 한국어가 남는다
-  const numStyle = (x: Tile) => (x.warn && x.n > 0 ? s.numValWarn : big ? s.perfVal : s.numVal)
+  // 글자로 적는 칸(금액·비율)은 셀 수가 없다 — 경고는 「0보다 큰가」가 아니라 **경고로 표시했는가**로 본다
+  const numStyle = (x: Tile) => {
+    const base = x.warn && (x.text !== undefined || x.n > 0) ? s.numValWarn
+      : x.profit ? (big ? s.perfValProfit : s.numValProfit)
+        : big ? s.perfVal : s.numVal
+    return small ? { ...base, ...s.smNum } : base
+  }
+  const value = (x: Tile) => (x.text !== undefined
+    ? <span style={small ? s.tileTextSm : s.tileText}>{x.text}</span>
+    : <>{x.n}<span style={s.unit}>{t(x.unit)}</span></>)
 
   if (isMobile) {
     return (
@@ -220,7 +243,7 @@ function TileRow({ tiles, isMobile, mobileCols, big }: {
         {tiles.map(x => (
           <div key={x.key} style={s.tileCell}>
             <div style={s.numLabel}>{t(x.label)}</div>
-            <div style={numStyle(x)}>{x.n}<span style={s.unit}>{t(x.unit)}</span></div>
+            <div style={numStyle(x)}>{value(x)}</div>
             {x.sub !== undefined && <div style={s.numSub}>{x.sub}</div>}
           </div>
         ))}
@@ -238,9 +261,7 @@ function TileRow({ tiles, isMobile, mobileCols, big }: {
           {/* 가운데 정렬이라야 꺾쇠가 **두 숫자의 정확히 한가운데**에 선다 — 왼쪽으로 붙이면
               칸마다 글자 너비가 달라 꺾쇠가 뒷 숫자에 딸려 붙은 것처럼 보인다(제보) */}
           <div style={{ ...s.numLabel, ...s.mid, gridColumn: i * 2 + 1, gridRow: 1 }}>{t(x.label)}</div>
-          <div style={{ ...numStyle(x), ...s.mid, gridColumn: i * 2 + 1, gridRow: 2 }}>
-            {x.n}<span style={s.unit}>{t(x.unit)}</span>
-          </div>
+          <div style={{ ...numStyle(x), ...s.mid, gridColumn: i * 2 + 1, gridRow: 2 }}>{value(x)}</div>
           <div style={{ ...s.numSub, ...s.mid, gridColumn: i * 2 + 1, gridRow: 3 }}>{x.sub ?? ''}</div>
         </Fragment>
       ))}
@@ -286,6 +307,8 @@ function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
   const tiles: Tile[] = shown ? DASH_STEPS.map((step, i) => ({
     key: step.key, label: step.label, unit: step.unit,
     n: step.get(shown), sub: sub(step.key, shown),
+    // 깔때기의 끝 — **인도 완료가 결론**이다. 손익의 수익과 같은 색으로 둔다(2026-09-16 지시)
+    ...(step.key === 'completed' ? { profit: true } : {}),
     ...(i > 0 ? { sep: 'arrow' as const } : {}),
   })) : []
   return (
@@ -315,6 +338,42 @@ function ScopeToggle({ scope, onChange }: { scope: Scope; onChange: (v: Scope) =
   )
 }
 
+/**
+ * **이번 달 손익** — 경영관리가 매일 먼저 보는 자리(2026-09-16 지시).
+ *
+ * 앞에 「입력 필요」를 둔다. 손익표는 보는 표이기 전에 **적는 표**라, 적지 않은 건이 몇인지가
+ * 먼저 눈에 들어와야 한다 — 발행일을 안 적으면 그 달 숫자 자체가 거짓이 된다.
+ * 결론인 수익·수익률은 브랜드 라임으로 키운다(손익 탭의 요약과 같은 말을 한다).
+ *
+ * 삭제한 줄은 빼고 센다 — 손익 탭의 합계와 한 글자도 달라서는 안 된다(같은 함수를 쓴다).
+ */
+function PnlCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
+  const [view, setView] = useState<PnlView | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetchPnl().then(v => { if (alive) setView(v) }).catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
+    return () => { alive = false }
+  }, [])
+
+  const total = useMemo(() => sumP((view?.rows ?? []).filter(r => !r.voided_at)), [view])
+  const loss = total.profit < 0
+  const tiles: Tile[] = view ? [
+    { key: 'todo', label: '입력 필요', n: view.pending.length, unit: '건', warn: true },
+    { key: 'count', label: '발행', n: total.count, unit: '건', sep: 'divider' },
+    { key: 'gross', label: '공급대가', n: 0, unit: '', text: won(total.gross) },
+    { key: 'cost', label: '원가', n: 0, unit: '', text: won(total.cost) },
+    { key: 'profit', label: '수익', n: 0, unit: '', text: won(total.profit), profit: !loss, warn: loss, sep: 'arrow' },
+    { key: 'margin', label: '수익률', n: 0, unit: '', text: total.margin === null ? '—' : `${(total.margin * 100).toFixed(1)}%`, profit: !loss, warn: loss },
+  ] : []
+
+  return (
+    <Card title={t('이번 달 손익')} full onGo={onGo}>
+      {!view ? <div style={s.muted}>{t('불러오는 중…')}</div>
+        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} small />}
+    </Card>
+  )
+}
+
 /** 지금 어디까지 왔나 — 「주문 진행」 현황판의 요약 칸과 같은 셈(lib/orderDashboard) */
 function ProgressCard({ orders, contracted, isMobile, onGo }: {
   orders: ApiOrder[] | null; contracted: ApiQuote[] | null; isMobile: boolean; onGo: () => void
@@ -333,7 +392,8 @@ function ProgressCard({ orders, contracted, isMobile, onGo }: {
     { key: 'pending', label: '수락 대기', n: dash.pending.length, sep: 'arrow' },
     { key: 'active', label: '특장 진행', n: dash.active.length, sep: 'arrow' },
     { key: 'addon', label: '부가 작업', n: dash.addon.length, sep: 'arrow' },
-    { key: 'done', label: '인도 완료', n: dash.done.length, sep: 'arrow' },
+    // 여기서도 끝이 결론이다 — 영업 성과·손익과 같은 색
+    { key: 'done', label: '인도 완료', n: dash.done.length, sep: 'arrow', profit: true },
     { key: 'late', label: '납기일 경과', n: dash.late.length, warn: true, sep: 'divider' },
   ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' })) : []
   return (
@@ -682,6 +742,18 @@ function DayModal({ day, list, isMobile, onClose }: {
   )
 }
 
+/**
+ * 달력 한 칸 — **PC 에서 글자가 너무 작았다**(제보). 휴대폰에서는 칸이 좁아 작아도 읽히지만,
+ * 넓은 화면에서는 같은 크기가 먼지처럼 보인다. 칸을 키우고 글자도 앱의 라벨 크기(`--fs-label`)로 올린다.
+ * 그 크기는 휴대폰에서 더 커지므로(토큰이 기기별로 다르다) 따로 가르지 않아도 된다.
+ */
+const CAL_H = 74
+const calCell: React.CSSProperties = {
+  minHeight: CAL_H, border: 'var(--hairline)', borderRadius: 6, padding: '5px 6px',
+  display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0,
+  background: '#fff', fontFamily: 'inherit', alignItems: 'stretch',
+}
+
 const cardBase: React.CSSProperties = {
   background: '#fff', border: 'var(--hairline)', borderRadius: 'var(--r-md)',
   padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minWidth: 0,
@@ -720,6 +792,14 @@ const s: Record<string, React.CSSProperties> = {
   numLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   numVal: { fontSize: 26, fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
   numValWarn: { fontSize: 26, fontWeight: 700, color: 'var(--req)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
+  // 결론 숫자 — 컨피규레이터 실구매가와 같은 색. 흰 바탕 대비가 낮아 **큰 글씨 전용**이다
+  numValProfit: { fontSize: 26, fontWeight: 700, color: 'var(--lime-ink)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
+  perfValProfit: { fontSize: 30, fontWeight: 700, color: 'var(--lime-ink)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
+  // 금액은 자릿수가 길다 — 숫자 칸보다 한 단계 작게 잡아야 옆 칸을 안 밀친다
+  tileText: { fontSize: '0.72em', fontWeight: 700, whiteSpace: 'nowrap' },
+  // 금액이 섞인 줄 전체를 한 단계 줄인다 — 큰 글씨로는 칸끼리 붙어 어느 숫자가 어느 이름인지 안 보인다
+  smNum: { fontSize: 19 },
+  tileTextSm: { fontSize: 17, fontWeight: 700, whiteSpace: 'nowrap' },
   numSub: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   // 단위(명·건)는 숫자보다 작게 — 없으면 「고객 3」과 「계약 3」이 같은 것으로 읽힌다
   unit: { fontSize: '0.5em', fontWeight: 400, color: 'var(--muted)', marginLeft: 2 },
@@ -770,16 +850,16 @@ const s: Record<string, React.CSSProperties> = {
   calNav: { border: 'var(--hairline)', background: '#fff', borderRadius: 6, width: 28, height: 28, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--dark)' },
   calMonth: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums' },
   legend: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', color: 'var(--muted)', flexWrap: 'wrap' },
-  calGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3 },
-  calDow: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', textAlign: 'center', padding: '2px 0' },
-  calEmpty: { minHeight: 56 },
-  calDay: { minHeight: 56, border: 'var(--hairline)', borderRadius: 6, padding: '3px 4px', display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', alignItems: 'stretch' },
-  calDayIdle: { minHeight: 56, border: 'var(--hairline)', borderRadius: 6, padding: '3px 4px', display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, background: '#fff', cursor: 'default', fontFamily: 'inherit', alignItems: 'stretch' },
-  calDayToday: { minHeight: 56, border: '1px solid var(--dark)', borderRadius: 6, padding: '3px 4px', display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', alignItems: 'stretch' },
-  calNum: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', textAlign: 'left' },
-  calMark: { display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
-  calMarkDone: { display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dark)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
-  dotArrival: { width: 6, height: 6, borderRadius: 999, background: 'var(--dark)', display: 'inline-block' },
-  dotDue: { width: 6, height: 6, borderRadius: 999, background: 'var(--lime)', display: 'inline-block' },
-  dotHandover: { width: 6, height: 6, borderRadius: 999, background: 'var(--alert)', display: 'inline-block' },
+  calGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 },
+  calDow: { fontSize: 'var(--fs-label)', color: 'var(--muted)', textAlign: 'center', padding: '3px 0' },
+  calEmpty: { minHeight: CAL_H },
+  calDay: { ...calCell, cursor: 'pointer' },
+  calDayIdle: { ...calCell, cursor: 'default' },
+  calDayToday: { ...calCell, border: '1px solid var(--dark)', cursor: 'pointer' },
+  calNum: { fontSize: 'var(--fs-label)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums', textAlign: 'left' },
+  calMark: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-label)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
+  calMarkDone: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+  dotArrival: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: 'var(--dark)', display: 'inline-block' },
+  dotDue: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: 'var(--lime)', display: 'inline-block' },
+  dotHandover: { width: 8, height: 8, borderRadius: 999, flexShrink: 0, background: 'var(--alert)', display: 'inline-block' },
 }
