@@ -28,6 +28,7 @@ import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderUnassignModal } from '../components/OrderUnassignModal'
+import { AdminDashboard } from '../components/dashboard/AdminDashboard'
 import { AssignRejectModal } from '../components/AssignRejectModal'
 import { useOrderDeepLink, useViewDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
@@ -111,7 +112,7 @@ const MODULE_DESC: Record<string, string> = {
   'notify.push': '앱 알림 받기 (알림함·휴대폰 팝업)',
   'notify.assign': '구 「제작 배정 알림 메일」 — 이제 역할 프리셋이 정한다(쓰지 않음)',
 }
-type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
+type TabKey = 'home' | 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -2080,7 +2081,8 @@ export function AdminPage() {
   const isMobile = useIsMobile()
   const [modules, setModules] = useState<FeatureModule[]>([])
   const [ac, setAc] = useState<AccessControl[]>([])
-  const [activeTab, setActiveTab] = useState<TabKey>('quotes')
+  /* 첫 화면 = 마이페이지(주문 조회 권한이 없으면 견적 목록) — 알림·깊은 링크는 아래에서 탭을 바꾼다 */
+  const [activeTab, setActiveTab] = useState<TabKey>('home')
   const [saving, setSaving] = useState<string | null>(null)
   /** 프리셋 구성 저장 실패 — 기능모듈 탭 위에 한 줄로 */
   const [presetErr, setPresetErr] = useState('')
@@ -2157,6 +2159,8 @@ export function AdminPage() {
     holidays: usePermission('basedata.holiday'),
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
+    /* 첫 자리는 **내 화면** — 자리에 맞는 카드를 모아 둔 곳(2026-09-16). 영업 화면은 컨피규레이터가 첫 자리다 */
+    { key: 'home',     label: t('마이페이지'), show: perm.orders },
     { key: 'quotes',   label: t('견적 목록'), show: true },
     { key: 'customers', label: t('고객'),    show: perm.customers },
     { key: 'perf',     label: t('영업 성과'), show: perm.stats },
@@ -2197,6 +2201,7 @@ export function AdminPage() {
 
       <div style={{ ...styles.body, padding: isMobile ? '14px 14px' : '20px 24px' }}>
 
+        {activeTab === 'home' && <AdminDashboard onGo={tab => setActiveTab(tab)} />}
         {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
