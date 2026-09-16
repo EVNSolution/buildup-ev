@@ -24,3 +24,4 @@ basedata.dims,치수 프리셋 관리,관리자,18,Y
 basedata.optiondb,옵션DB 관리,관리자,19,Y
 basedata.makerprice,특장사 단가 관리,관리자,20,Y
 basedata.holiday,공휴일 관리,관리자,21,Y
+addon.view,부가작업 조회,관리자,22,Y

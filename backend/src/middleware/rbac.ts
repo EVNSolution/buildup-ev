@@ -68,6 +68,8 @@ async function loadAccessControls(auth: AuthContext): Promise<PermissionRecord[]
       OR: [
         { subject_type: 'role', subject_ref: { in: auth.roles } },
         { subject_type: 'user', subject_ref: auth.email },
+        // 역할 프리셋 구성 — 기능모듈 화면에서 고친 값이 여기 있다(2026-09-16)
+        { subject_type: 'preset' },
       ],
     },
   });

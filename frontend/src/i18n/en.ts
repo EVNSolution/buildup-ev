@@ -659,6 +659,20 @@ export const EN: Record<string, string> = {
   '프리셋을 바꾸지 못했습니다': 'Could not change the preset',
   '역할 프리셋 — 관리자 안의 자리': 'Role preset — the seat inside admin',
   '역할 프리셋': 'Role preset',
+  '프리셋 구성을 바꾸지 못했습니다': 'Could not change the preset',
+  '이 자리 기본값': 'Default for this seat',
+  '고객 목록·서류함 조회': 'View customer list and document folders',
+  '체크리스트 서식 만들기·고치기 (단계별 확인 항목)': 'Create and edit checklist forms (per-step items)',
+  '무게상수 관리 (하중 계산에 쓰는 상수)': 'Weight constants (used by load calculations)',
+  '치수 프리셋 관리 (사양별 튜닝 후 치수)': 'Dimension presets (post-tuning sizes per spec)',
+  '옵션DB 관리 (고객 견적 단가·보조금·세율)': 'Option DB (customer prices, subsidies, tax rates)',
+  '특장사 단가 관리 (우리가 특장사에 지급하는 값)': 'Body-builder prices (what we pay the builder)',
+  '공휴일 관리 (납기 영업일 계산 기준)': 'Holidays (basis for business-day due dates)',
+  '주문 치우기 — 목록에서 감춘다(행은 남는다)': 'Remove an order — hides it from lists (the record stays)',
+  '앱 알림 받기 (알림함·휴대폰 팝업)': 'Receive app notifications (inbox and phone pop-ups)',
+  '구 「제작 배정 알림 메일」 — 이제 역할 프리셋이 정한다(쓰지 않음)': 'Old assignment-mail toggle — role presets decide now (unused)',
+  '부가작업 진행 · 고객 인도 목표일 (특장사 출고 뒤 우리 쪽 작업)': 'Run add-on work and set the customer handover target (our work after factory release)',
+  '부가작업 조회 (보기 전용 — 진행은 「부가작업 진행」)': 'View add-on work (read-only — running it needs the other module)',
   '프리셋': 'Preset',
   '견적·고객·영업 성과를 보고 제작 배정까지 — 만드는 일(체크리스트·기준데이터)은 다루지 않는다': 'Quotes, customers, sales performance, and production assignment — not the making side (checklists, base data)',
   '제품·기준데이터의 주인 — 옵션DB·무게상수·치수 프리셋·특장사 단가와 체크리스트 서식': 'Owner of product and base data — option DB, weight constants, dimension presets, body-builder prices, checklist forms',
@@ -1202,6 +1216,7 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '역할 프리셋 · {0}': 'Role preset · {0}',
   '{0} 배정 요청을 거부합니다': 'Reject the assignment request for {0}',
   '배정 거부 · {0}': 'Assignment rejected · {0}',
   '{0} 비고': 'Note for {0}',

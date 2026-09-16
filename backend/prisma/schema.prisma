@@ -83,6 +83,8 @@ model User {
 enum SubjectType {
   role
   user
+  /// 역할 프리셋(관리자 안의 자리) 구성 — 기능모듈 화면에서 자리마다 켜고 끈다(2026-09-16)
+  preset
 }
 
 model FeatureModule {

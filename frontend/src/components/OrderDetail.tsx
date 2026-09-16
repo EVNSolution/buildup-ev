@@ -433,7 +433,9 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
   /**
    * 부가작업(공장 출고 뒤 우리 쪽 작업) — 관리자 + addon.manage 만. 특장사 화면(makerView)에는 탭도 목표일도 없다
    */
-  const canAddon = usePermission('addon.manage') && isAdmin && !makerView
+  const canAddon = usePermission('addon.view') && isAdmin && !makerView
+  /** 단계를 누르고 목표일을 찍는 것은 관리 권한 — 영업관리·경영관리는 보기만 한다(2026-09-16) */
+  const canAddonEdit = usePermission('addon.manage') && isAdmin && !makerView
   const [tab, setTab] = useState<'steps' | 'addon' | 'spec' | 'docs' | 'load' | 'chat'>(initialTab === 'addon' && !canAddon ? 'steps' : (initialTab ?? 'steps'))
 
   /*
@@ -570,7 +572,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
               delivery_due: next,
             } : d)),
           }}
-          target={canAddon}
+          target={canAddonEdit}
           refreshKey={datesKey}
         />
       </div>
@@ -647,7 +649,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
 
       {tab === 'addon' && canAddon && (
         <div style={det.section}>
-          <AddonStepsPanel orderId={detail.id} onChanged={refreshDates} />
+          <AddonStepsPanel orderId={detail.id} canEdit={canAddonEdit} onChanged={refreshDates} />
         </div>
       )}
 

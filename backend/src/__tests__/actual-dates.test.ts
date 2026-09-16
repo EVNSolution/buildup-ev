@@ -113,7 +113,7 @@ describe('화면 — 예정 검정 · 완료 초록 · 늦은 완료 빨강', ()
   });
   it('🔴 단계·부가작업을 바꾸면 상세의 날짜 띠가 다시 읽는다', () => {
     const det = src('frontend/src/components/OrderDetail.tsx');
-    expect(det).toMatch(/<AddonStepsPanel orderId=\{detail\.id\} onChanged=\{refreshDates\} \/>/);
+    expect(det).toMatch(/<AddonStepsPanel orderId=\{detail\.id\} canEdit=\{canAddonEdit\} onChanged=\{refreshDates\} \/>/);
     expect(det).toMatch(/onChanged=\{refreshDates\}\s*\/>/);
     expect(det).toMatch(/refreshKey=\{datesKey\}/);
     const panel = src('frontend/src/components/OrderStepsPanel.tsx');

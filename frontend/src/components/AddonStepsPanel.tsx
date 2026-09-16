@@ -8,13 +8,14 @@ import { BTN } from '../styles/buttons'
 import { OrderChecklistPanel } from './OrderChecklistPanel'
 
 /**
- * **부가작업 탭** — 공장 출고 뒤 우리 쪽 작업(관리자 + addon.manage 만).
+ * **부가작업 탭** — 공장 출고 뒤 우리 쪽 작업.
+ * 보는 것은 `addon.view`(영업관리·경영관리도), **누르는 것은 `addon.manage`**(PM·생산관리·마스터) — 2026-09-16.
  *
  * 특장사 단계 탭과 같은 모양: 트랙(작업 전 · 작업 중 · 고객 인도)마다 진척 막대와 단계 줄.
  * 단계는 누르면 끝나고, 인도 완료는 **실제 인도일**을 골라야 끝난다. 잘못 눌렀으면 되돌린다
  * (뒤 단계가 끝났으면 막힌다 — 규칙은 서버와 같은 shared/process/addon.ts).
  */
-export function AddonStepsPanel({ orderId, onChanged }: { orderId: number; onChanged?: () => void }) {
+export function AddonStepsPanel({ orderId, canEdit = true, onChanged }: { orderId: number; canEdit?: boolean; onChanged?: () => void }) {
   const [view, setView] = useState<AddonView | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -64,6 +65,7 @@ export function AddonStepsPanel({ orderId, onChanged }: { orderId: number; onCha
             {list.map(x => (
               <div key={x.code}>
               <StepRow
+                canEdit={canEdit}
                 step={x}
                 busy={busy === x.code}
                 date={dates[x.code] ?? toDateInput(new Date())}
@@ -75,7 +77,7 @@ export function AddonStepsPanel({ orderId, onChanged }: { orderId: number; onCha
                 체크리스트 — 지금 할 수 있는 단계에만. 서식에 항목이 없으면 패널이 아무것도 그리지 않는다.
                 항목이 있으면 모두 합격·제출해야 완료된다(서버가 막는다).
               */}
-              {!x.done && x.can_complete.ok && (
+              {canEdit && !x.done && x.can_complete.ok && (
                 <div style={s.checklist}>
                   <OrderChecklistPanel orderId={orderId} stepCode={x.code} stepLabel={t(x.label)} scope="addon"
                     onDone={() => { fetchAddon(orderId).then(setView).catch(() => {}) }} />
@@ -99,11 +101,13 @@ function Rec({ label, value, strong }: { label: string; value: string; strong?: 
   )
 }
 
-function StepRow({ step, busy, date, onDate, onComplete, onUndo }: {
+function StepRow({ step, busy, date, canEdit, onDate, onComplete, onUndo }: {
   step: AddonStepView; busy: boolean; date: string
+  /** 누를 수 있는가 — 보기 전용 자리(영업관리·경영관리)에서는 완료·되돌리기 버튼을 두지 않는다 */
+  canEdit: boolean
   onDate: (v: string) => void; onComplete: () => void; onUndo: () => void
 }) {
-  const open = !step.done && step.can_complete.ok
+  const open = canEdit && !step.done && step.can_complete.ok
   return (
     <div style={open ? s.rowNow : s.row}>
       <span style={step.done ? s.dotDone : open ? s.dotNow : s.dotLater} aria-hidden="true">{step.done ? '✓' : '●'}</span>
@@ -126,7 +130,7 @@ function StepRow({ step, busy, date, onDate, onComplete, onUndo }: {
             {busy ? t('저장 중') : t('완료')}
           </button>
         )}
-        {step.done && step.can_undo.ok && (
+        {canEdit && step.done && step.can_undo.ok && (
           <button type="button" style={s.undo} disabled={busy} onClick={onUndo}>{t('되돌리기')}</button>
         )}
       </span>

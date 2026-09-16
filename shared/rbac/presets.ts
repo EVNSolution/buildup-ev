@@ -53,7 +53,7 @@ export const PRESETS: PresetDef[] = [
     code: 'sales_mgr',
     label: '영업관리',
     desc: '견적·고객·영업 성과를 보고 제작 배정까지 — 만드는 일(체크리스트·기준데이터)은 다루지 않는다',
-    modules: [...BASE, 'customer.view', 'stats.all', 'order.confirm', 'doc.send.email', 'doc.send.sign'],
+    modules: [...BASE, 'customer.view', 'stats.all', 'order.confirm', 'doc.send.email', 'doc.send.sign', 'addon.view'],
   },
   {
     code: 'pm',
@@ -74,8 +74,8 @@ export const PRESETS: PresetDef[] = [
   {
     code: 'exec',
     label: '경영관리',
-    desc: '보기만 한다 — 견적·성과·주문 진행·파일. 배정·단계·기준데이터는 손대지 않는다',
-    modules: [...BASE, 'stats.all'],
+    desc: '보기만 한다 — 견적·성과·주문 진행·부가작업·파일. 배정·단계·기준데이터는 손대지 않는다',
+    modules: [...BASE, 'stats.all', 'addon.view'],
   },
   {
     code: 'master',
@@ -85,7 +85,7 @@ export const PRESETS: PresetDef[] = [
       ...BASE, 'customer.view', 'stats.all', 'quote.create', 'quote.delete', 'doc.send.email', 'doc.send.sign',
       'order.confirm', 'order.control', 'order.remove', 'addon.manage', 'checklist.manage',
       'basedata.weights', 'basedata.dims', 'basedata.optiondb', 'basedata.makerprice', 'basedata.holiday',
-      'basedata.manage', 'account.manage', 'notify.assign',
+      'basedata.manage', 'account.manage', 'notify.assign', 'addon.view',
     ],
   },
 ];
