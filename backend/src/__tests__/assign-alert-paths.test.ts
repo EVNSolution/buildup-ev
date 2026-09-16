@@ -52,6 +52,21 @@ describe('누가 배정 알림을 받는가', () => {
     expect(isAssignRecipient(user(), [ac('role', 'ADMIN', true)])).toBe(true);
     expect(isAssignRecipient(user({ email: 'b@x.com' }), [ac('role', 'ADMIN', true)])).toBe(true);
   });
+
+  /*
+   * 2026-09-16 점검 — 배정 알림 메일에는 고객 이름·실구매가·담당 영업이 담긴다.
+   * 기능모듈은 **관리자 중 누가 받을지**를 정할 뿐, 역할을 넘겨주지 않는다.
+   */
+  it('🔴 관리자가 아닌 계정은 토글을 켜도 받지 않는다 — 특장사·영업', () => {
+    for (const role of ['MAKER', 'SALES']) {
+      expect(isAssignRecipient(user({ role }), [ac('user', 'a@x.com', true)]), role).toBe(false);
+      expect(isAssignRecipient(user({ role }), [ac('role', role, true)]), role).toBe(false);
+    }
+  });
+
+  it('🔴 겸직(특장사+관리자)은 받는다 — 역할 하나라도 관리자면 관리자다', () => {
+    expect(isAssignRecipient(user({ role: 'MAKER', extra_roles: ['ADMIN'] }), [ac('user', 'a@x.com', true)])).toBe(true);
+  });
 });
 
 describe('알림을 내는 자리', () => {

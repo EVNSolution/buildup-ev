@@ -28,7 +28,7 @@ import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderUnassignModal } from '../components/OrderUnassignModal'
 import { AssignRejectModal } from '../components/AssignRejectModal'
-import { useOrderDeepLink, type OrderDeepLink } from '../lib/deepLink'
+import { useOrderDeepLink, useViewDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
 import { useLiveReload } from '../lib/liveReload'
 import { filterByCustomer } from '../lib/quoteSearch'
@@ -1746,10 +1746,15 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
 }
 
 // ── 주문 칸반 탭 ──────────────────────────────────────────────────────────
-function KanbanTab({ deepLink, initialView }: {
+function KanbanTab({ deepLink, initialView, openAssignAt = 0 }: {
   deepLink?: OrderDeepLink | null
   /** 「제작 배정 필요」 알림으로 들어왔으면 배정 대기 목록을 펴서 시작한다 */
   initialView?: 'assign' | null
+  /**
+   * 이미 이 탭에 있는데 알림을 또 눌렀다 — 그때마다 올라가는 숫자.
+   * 마운트할 때만 보는 `initialView` 로는 **화면이 그대로 있어 아무 일도 일어나지 않았다**(2026-09-16 제보).
+   */
+  openAssignAt?: number
 }) {
   const { session } = useAuth()
   const canControl = session?.user.is_master ?? false
@@ -1764,6 +1769,8 @@ function KanbanTab({ deepLink, initialView }: {
    * 알림을 누른 의미가 없다.
    */
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(deepLink?.orderId ?? null)
+  // 알림을 누를 때마다 — 이 탭에 이미 있어도 그 주문을 연다
+  useEffect(() => { if (deepLink) setSelectedOrderId(deepLink.orderId) }, [deepLink])
   /**
    * 수락 대기 카드를 눌렀을 때 여는 **발주서** — 특장사가 받는 그 화면 그대로다.
    *
@@ -1785,6 +1792,8 @@ function KanbanTab({ deepLink, initialView }: {
   const [contracted, setContracted] = useState<ApiQuote[]>([])
   const [makerOrgs, setMakerOrgs] = useState<Org[]>([])
   const [sel, setSel] = useState<DashSelection | null>(initialView === 'assign' ? { kind: 'tile', key: 'assign' } : null)
+  // 「제작 배정 필요」 알림 — 이 탭에 이미 있어도 배정 대기 목록을 편다
+  useEffect(() => { if (openAssignAt > 0) { setSelectedOrderId(null); setSel({ kind: 'tile', key: 'assign' }) } }, [openAssignAt])
   const [maker, setMaker] = useState<string | null>(null)
   /** 제작 배정 권한 — 없으면 목록에 배정 버튼을 두지 않는다(조회만) */
   const canAssign = usePermission('order.confirm')
@@ -2051,11 +2060,9 @@ export function AdminPage() {
    */
   const [kanbanView] = useState<'assign' | null>(() =>
     new URLSearchParams(window.location.search).get('view') === 'assign' ? 'assign' : null)
-  useEffect(() => {
-    if (!kanbanView) return
-    setActiveTab('kanban')
-    window.history.replaceState(null, '', window.location.pathname + window.location.hash)
-  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  /* 이미 관리자 화면에 있을 때 알림을 눌러도 열려야 한다 — 주소가 바뀔 때마다 본다(2026-09-16) */
+  const [openAssignAt, setOpenAssignAt] = useState(0)
+  useViewDeepLink('view', 'assign', () => { setActiveTab('kanban'); setOpenAssignAt(n => n + 1) })
 
   // 탭마다 필요한 권한 — 없으면 **버튼째** 감춘다.
   // 눌러서 「권한이 없습니다」를 보게 두면 왜 있는 버튼인지 알 수 없다.
@@ -2110,7 +2117,7 @@ export function AdminPage() {
         {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
-        {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} initialView={kanbanView} />}
+        {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} initialView={kanbanView} openAssignAt={openAssignAt} />}
         {activeTab === 'checklist' && <ChecklistTab />}
         {activeTab === 'holidays' && <HolidayTab />}
 

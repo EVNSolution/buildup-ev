@@ -5,6 +5,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { HomeGate } from './components/HomeGate'
+import { SwNavigate } from './components/SwNavigate'
 import { useLang } from './i18n'
 import { RefreshProvider } from './contexts/RefreshContext'
 import { SalesPage } from './pages/SalesPage'
@@ -35,6 +36,8 @@ export function App() {
     <AuthProvider>
       <RefreshProvider>
       <BrowserRouter>
+        {/* 알림(푸시)을 누르면 서비스워커가 여기로 「어디로 가라」고 말한다 */}
+        <SwNavigate />
         <Routes>
           {/*
             기본 화면 = 컨피규레이터. 로그인하지 않아도 사양을 고르고 금액을 볼 수 있다.

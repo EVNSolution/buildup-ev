@@ -45,11 +45,34 @@ describe('알림 → 주문 대화 탭', () => {
     expect(read('frontend/src/components/OrderChatTab.tsx')).toMatch(/initialStep/);
   });
 
-  it('🔴 주소는 한 번 읽고 지운다 — 안 지우면 새로고침마다 다시 열린다', () => {
+  it('🔴 주소는 읽고 지운다 — 안 지우면 새로고침마다 다시 열린다 · 뒤로가기 이력은 더럽히지 않는다', () => {
     const lib = read('frontend/src/lib/deepLink.ts');
-    expect(lib).toMatch(/replaceState/);
-    // 뒤로가기 이력을 더럽히지 않는다
+    expect(lib).toMatch(/navigate\(pathname \+ hash, \{ replace: true \}\)/);
     expect(lib).not.toMatch(/pushState/);
+  });
+
+  /*
+   * 2026-09-16 제보 — 휴대폰에서 알림을 눌러도 아무 일도 없었다. 이미 그 화면에 있으면
+   * 주소만 바뀌고 화면은 그대로였다(예전엔 마운트할 때 한 번만 읽었다).
+   */
+  it('🔴 주소가 바뀔 때마다 읽는다 — 이미 그 화면에 있어도 열린다', () => {
+    const lib = read('frontend/src/lib/deepLink.ts');
+    expect(lib).toMatch(/const \{ search, pathname, hash \} = useLocation\(\)/);
+    expect(lib.match(/\}, \[search\]\)/g)?.length, '주소 변화를 안 본다').toBeGreaterThanOrEqual(2);
+    const admin = read('frontend/src/pages/AdminPage.tsx');
+    expect(admin).toMatch(/useViewDeepLink\('view', 'assign'/);
+    expect(admin).toMatch(/if \(openAssignAt > 0\)/);
+    expect(admin).toMatch(/if \(deepLink\) setSelectedOrderId\(deepLink\.orderId\)/);
+  });
+
+  it('🔴 설치한 앱 — 서비스워커가 열린 화면에 「여기로 가라」고 말한다(창을 직접 옮기는 것은 자주 실패한다)', () => {
+    const sw = read('frontend/public/sw.js');
+    expect(sw).toMatch(/postMessage\(\{ type: 'navigate', url \}\)/);
+    expect(sw).toMatch(/openWindow\(url\)/);
+    const app = read('frontend/src/components/SwNavigate.tsx');
+    expect(app).toMatch(/d\?\.type !== 'navigate'/);
+    expect(app).toMatch(/d\.url\.startsWith\('\/'\)/);   // 앱 안 주소만 따라간다
+    expect(read('frontend/src/App.tsx')).toMatch(/<SwNavigate \/>/);
   });
 
   it('🔴 주소가 이상해도 무시한다 — 손으로 고친 주소로 깨지지 않게', () => {

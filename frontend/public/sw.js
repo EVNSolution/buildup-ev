@@ -36,14 +36,23 @@ self.addEventListener('push', (event) => {
   ]));
 });
 
+/**
+ * 알림을 누르면 그 자리로 간다.
+ *
+ * ⚠️ **열려 있는 창에는 「여기로 가라」고 말한다**(2026-09-16 제보 — 설치한 앱에서 알림을 눌러도 아무 일도 없었다).
+ *    `client.navigate()` 는 설치한 앱(독립 실행)에서 조용히 실패하는 일이 잦다. 화면이 스스로 옮기면(라우터)
+ *    실패하지 않고, 보던 상태도 그대로 남는다. 말이 닿지 않을 때만 예전 방식으로 창을 옮기거나 새로 연다.
+ */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    // 이미 열려 있는 창이 있으면 그것을 쓴다 — 누를 때마다 창이 늘어나면 안 된다
-    for (const c of all) {
-      if ('focus' in c) { await c.focus(); if ('navigate' in c) await c.navigate(url).catch(() => {}); return; }
+    const open = all.find((c) => 'focus' in c);
+    if (open) {
+      try { await open.focus(); } catch { /* 초점은 못 줘도 이동은 해 본다 */ }
+      try { open.postMessage({ type: 'navigate', url }); return; } catch { /* 말이 안 닿는다 — 아래로 */ }
+      if ('navigate' in open) { await open.navigate(url).catch(() => {}); return; }
     }
     await self.clients.openWindow(url);
   })());

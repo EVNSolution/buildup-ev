@@ -59,6 +59,14 @@ export function isAssignRecipient(
   acs: { subject_type: string; subject_ref: string; module_code: string; enabled: boolean }[],
 ): boolean {
   /*
+   * ⚠️ **관리자(또는 마스터)가 아니면 받지 않는다**(2026-09-16 점검).
+   *    배정 알림 메일에는 고객 이름·실구매가·담당 영업이 담긴다. 예전에는 기능모듈만 보고 역할은 보지 않아,
+   *    특장사·영업 계정에 「제작 배정 알림 메일」이 켜져 있으면 그 메일을 그대로 받았다.
+   *    기능모듈은 **관리자 중에서 누가 받을지**를 정하는 값이지, 역할을 넘겨주는 값이 아니다.
+   */
+  const isAdminRole = user.is_master === true || user.role === 'ADMIN' || user.extra_roles.includes('ADMIN');
+  if (!isAdminRole) return false;
+  /*
    * **마스터는 토글과 무관하게 늘 받는다.**
    *
    * 실제로 스캔본을 올렸는데 아무에게도 메일이 가지 않은 일이 있었다. 원인은 둘이었고

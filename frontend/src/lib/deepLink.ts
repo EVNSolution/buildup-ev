@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 /**
  * **알림을 눌러 들어온 주소를 읽는다.**
@@ -26,19 +27,39 @@ export function readOrderDeepLink(search: string): OrderDeepLink | null {
 }
 
 /**
- * 조건을 한 번 처리하고 **주소에서 지운다.**
+ * 조건을 처리하고 **주소에서 지운다.**
  *
  * ⚠️ 지우지 않으면 주문을 닫고 목록으로 돌아가도 새로고침할 때마다 다시 열린다.
- *    `replaceState` 라 뒤로가기 이력에도 남지 않는다.
+ *    `replace` 라 뒤로가기 이력에도 남지 않는다.
+ *
+ * ⚠️ **주소가 바뀔 때마다 본다**(2026-09-16 제보 — 휴대폰에서 알림을 눌러도 아무 일도 없었다).
+ *    예전에는 화면이 처음 뜰 때 한 번만 읽었다. 이미 그 화면에 있는 사람이 알림을 누르면
+ *    주소만 바뀌고 화면은 그대로였다 — PC 는 대개 다른 화면에 있다가 들어와 마운트되므로 열렸다.
  */
 export function useOrderDeepLink(onOpen: (link: OrderDeepLink) => void): void {
+  const { search, pathname, hash } = useLocation()
+  const navigate = useNavigate()
   useEffect(() => {
-    const link = readOrderDeepLink(window.location.search)
+    const link = readOrderDeepLink(search)
     if (!link) return
     onOpen(link)
-    const url = window.location.pathname + window.location.hash
-    window.history.replaceState(null, '', url)
-    // 주소는 처음 들어올 때 한 번만 읽는다 — onOpen 이 매 렌더 새 함수여도 다시 돌지 않게
+    navigate(pathname + hash, { replace: true })
+    // onOpen 은 매 렌더 새 함수라 넣지 않는다 — 주소가 바뀔 때만 돈다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [search])
+}
+
+/**
+ * 알림이 가리키는 **화면 안의 자리** — `?view=assign` 처럼 주문 번호가 아닌 조건.
+ * 같은 이유로 주소가 바뀔 때마다 보고, 처리하면 주소에서 지운다.
+ */
+export function useViewDeepLink(key: string, value: string, onHit: () => void): void {
+  const { search, pathname, hash } = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (new URLSearchParams(search).get(key) !== value) return
+    onHit()
+    navigate(pathname + hash, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 }
