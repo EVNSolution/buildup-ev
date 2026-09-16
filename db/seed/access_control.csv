@@ -8,7 +8,6 @@ role,SALES,doc.send.sign,Y,
 role,SALES,stats.own,Y,
 role,ADMIN,quote.confirm,Y,
 role,ADMIN,quote.edit,Y,
-role,ADMIN,quote.delete,N,계정별로 켠다
 role,ADMIN,order.confirm,Y,
 role,ADMIN,order.view,Y,
 role,ADMIN,order.control,N,계정별로 켠다
@@ -16,24 +15,20 @@ role,ADMIN,order.remove,Y,
 role,ADMIN,doc.view,Y,
 role,ADMIN,doc.send.email,Y,
 role,ADMIN,doc.send.sign,Y,
-role,ADMIN,notify.push,Y,
 role,ADMIN,addon.manage,Y,
 role,ADMIN,stats.own,Y,
 role,ADMIN,stats.all,Y,
-role,ADMIN,basedata.manage,N,계정별로 켠다
 role,ADMIN,account.manage,N,계정별로 켠다
 role,ADMIN,checklist.manage,N,계정별로 켠다
 role,MAKER,order.view,Y,
 role,MAKER,order.control,Y,
 role,MAKER,doc.view,Y,
-role,MAKER,notify.push,Y,
 role,ADMIN,customer.view,Y,프리셋 도입 전과 같게 — 관리자 기본
 preset,sales_mgr,addon.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,customer.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,doc.send.email,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,doc.send.sign,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,doc.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,sales_mgr,notify.push,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,order.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,order.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,sales_mgr,quote.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
@@ -47,7 +42,6 @@ preset,pm,basedata.optiondb,Y,프리셋 기본값 — 기능모듈 화면에서 
 preset,pm,basedata.weights,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,pm,checklist.manage,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,pm,doc.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,pm,notify.push,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,pm,order.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,pm,order.control,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,pm,order.remove,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
@@ -60,7 +54,6 @@ preset,prod_mgr,addon.manage,Y,프리셋 기본값 — 기능모듈 화면에서
 preset,prod_mgr,basedata.makerprice,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,prod_mgr,checklist.manage,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,prod_mgr,doc.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,prod_mgr,notify.push,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,prod_mgr,order.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,prod_mgr,order.control,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,prod_mgr,order.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
@@ -70,7 +63,6 @@ preset,prod_mgr,stats.all,Y,프리셋 기본값 — 기능모듈 화면에서 �
 preset,prod_mgr,stats.own,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,exec,addon.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,exec,doc.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,exec,notify.push,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,exec,order.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,exec,quote.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,exec,quote.edit,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
@@ -82,7 +74,6 @@ preset,master,addon.view,Y,프리셋 기본값 — 기능모듈 화면에서 고
 preset,master,basedata.dims,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,basedata.holiday,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,basedata.makerprice,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,master,basedata.manage,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,basedata.optiondb,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,basedata.weights,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,checklist.manage,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
@@ -90,15 +81,12 @@ preset,master,customer.view,Y,프리셋 기본값 — 기능모듈 화면에서 
 preset,master,doc.send.email,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,doc.send.sign,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,doc.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,master,notify.assign,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,master,notify.push,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,order.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,order.control,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,order.remove,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,order.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,quote.confirm,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,quote.create,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
-preset,master,quote.delete,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,quote.edit,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,stats.all,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,stats.own,Y,프리셋 기본값 — 기능모듈 화면에서 고친다

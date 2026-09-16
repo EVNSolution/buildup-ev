@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { LOCK_MODULE, mergePermissions } from '../lib/permissions.js';
 import { rolesOf, type Role } from '@buildup-ev/shared/types';
 import { isPresetCode } from '@buildup-ev/shared/rbac/presets';
+import { isRetired } from '@buildup-ev/shared/rbac/modules';
 
 export const accessControlRouter = Router();
 
@@ -29,6 +30,15 @@ accessControlRouter.post('/', rbac('ADMIN'), requirePermission('account.manage')
   }
   if (!['role', 'user', 'preset'].includes(subject_type)) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 대상입니다' } }); return;
+  }
+  /*
+   * **물러난 모듈은 새로 켜지 못한다**(2026-09-16 전수조사).
+   * 켜도 아무 일이 없는 토글을 켜 놓고 「왜 안 되지」를 찾게 된다.
+   * 이미 켜 둔 기록은 건드리지 않는다 — **끄는 것은 언제나 된다.**
+   * (아예 없는 코드는 여기서 막지 않는다 — 외래키가 막고, DB 에만 있는 모듈도 끌 수는 있어야 한다)
+   */
+  if (isRetired(module_code) && enabled === true) {
+    res.status(400).json({ error: { code: 'MODULE_RETIRED', message: '더 이상 쓰지 않는 기능모듈입니다.' } }); return;
   }
   /*
    * **역할 프리셋 구성**(2026-09-16) — 기능모듈 화면에서 자리마다 켜고 끈다.

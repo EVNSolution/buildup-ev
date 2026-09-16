@@ -199,8 +199,15 @@ describe.runIf(live)('프리셋 — 실제 API', () => {
 
   it('🔴 옛 우산(basedata.manage)만 켜 둔 계정은 쪼갠 화면을 그대로 쓴다', async () => {
     expect((await setPreset(null)).status).toBe(200);
-    await request(app).post('/api/v1/access-control').set('Cookie', master)
-      .send({ subject_type: 'user', subject_ref: ADMIN, module_code: 'basedata.manage', enabled: true });
+    /*
+     * ⚠️ **행을 직접 넣는다.** 우산은 2026-09-16 에 물러났고, 그 뒤로 화면·API 로는 새로 켤 수 없다.
+     *    지켜야 하는 것은 「옛날에 켜 둔 계정이 지금도 다섯 화면을 쓴다」이므로, 옛날 행을 흉내 낸다.
+     */
+    await prisma!.accessControl.upsert({
+      where: { subject_type_subject_ref_module_code: { subject_type: 'user', subject_ref: ADMIN, module_code: 'basedata.manage' } },
+      update: { enabled: true },
+      create: { subject_type: 'user', subject_ref: ADMIN, module_code: 'basedata.manage', enabled: true },
+    });
     expect((await request(app).get('/api/v1/holidays/admin?year=2026').set('Cookie', admin)).status).toBe(200);
     expect((await request(app).get('/api/v1/quotes/maker-prices/ORG_BRAIN').set('Cookie', admin)).status).toBe(200);
     await prisma!.accessControl.deleteMany({ where: { subject_ref: ADMIN, module_code: 'basedata.manage' } });

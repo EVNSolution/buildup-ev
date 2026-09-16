@@ -1,29 +1,29 @@
 code,name,surface,sort_order,active
-quote.create,견적 생성,영업,1,Y
-quote.confirm,견적서 확정·생성,"영업,관리자",2,Y
-quote.edit,견적 수정·복제,"영업,관리자",3,Y
-quote.delete,견적 삭제,관리자,4,Y
-doc.send.email,메일 발송,"영업,관리자",5,Y
-doc.send.sign,전자서명 발송,"영업,관리자",6,Y
-order.confirm,주문 전환·배정,관리자,7,Y
-order.view,주문 진행 조회,"영업,관리자,특장사",8,Y
-order.control,주문 상태 변경,"관리자,특장사",9,Y
-doc.view,구조변경 서류 조회,"관리자,특장사",10,Y
-notify.assign,제작 배정 알림 메일(구 — 역할 프리셋이 대신한다),관리자,10,N
-notify.push,앱 알림,공통,11,N
-order.remove,주문 치우기(관리자),관리자,11,Y
-stats.own,내 실적 조회,"영업,관리자",11,Y
-stats.all,전체 실적 조회,관리자,12,Y
-basedata.manage,옵션DB·무게상수 관리,관리자,13,Y
-account.manage,계정 관리,관리자,14,Y
-checklist.manage,체크리스트 서식 관리,관리자,15,Y
-addon.manage,부가작업 관리,관리자,12,Y
-customer.view,고객 목록,관리자,16,Y
-basedata.weights,무게상수 관리,관리자,17,Y
-basedata.dims,치수 프리셋 관리,관리자,18,Y
+quote.create,견적 만들기,영업,1,Y
+quote.edit,견적 고치기,"영업,관리자",2,Y
+quote.confirm,견적 확정,"영업,관리자",3,Y
+doc.send.email,견적서·계약서 메일 발송,"영업,관리자",4,Y
+doc.send.sign,전자서명 요청,"영업,관리자",5,Y
+doc.view,구조변경 서류 보기,"관리자,특장사",6,Y
+customer.view,고객·서류함 보기,관리자,7,Y
+order.view,주문 진행 보기,"영업,관리자,특장사",8,Y
+order.confirm,제작 배정,관리자,9,Y
+order.control,제작 단계 진행,"관리자,특장사",10,Y
+order.remove,주문 치우기,관리자,11,Y
+addon.view,부가작업 보기,관리자,12,Y
+addon.manage,부가작업 진행,관리자,13,Y
+checklist.manage,체크리스트 서식 관리,관리자,14,Y
+stats.own,내 실적 보기,"영업,관리자",15,Y
+stats.all,전체 실적 보기,관리자,16,Y
+pnl.view,손익 보기,관리자,17,Y
+pnl.manage,손익 입력,관리자,18,Y
 basedata.optiondb,옵션DB 관리,관리자,19,Y
-basedata.makerprice,특장사 단가 관리,관리자,20,Y
-basedata.holiday,공휴일 관리,관리자,21,Y
-addon.view,부가작업 조회,관리자,22,Y
-pnl.view,손익 조회,관리자,23,Y
-pnl.manage,손익 관리,관리자,24,Y
+basedata.weights,무게상수 관리,관리자,20,Y
+basedata.dims,치수 프리셋 관리,관리자,21,Y
+basedata.makerprice,특장사 단가 관리,관리자,22,Y
+basedata.holiday,공휴일 관리,관리자,23,Y
+account.manage,계정·권한 관리,관리자,24,Y
+quote.delete,견적 삭제,관리자,25,N
+notify.assign,제작 배정 알림 메일,관리자,26,N
+notify.push,앱 알림,"영업,관리자,특장사",27,N
+basedata.manage,기준데이터 관리(옛 우산),관리자,28,N

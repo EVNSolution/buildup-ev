@@ -61,60 +61,40 @@ const ROLES: Role[] = ['SALES', 'ADMIN', 'MAKER']
 const ROLE_KO: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAKER: '특장사' }
 const ROLE_SURFACE: Record<Role, string> = { SALES: '영업', ADMIN: '관리자', MAKER: '특장사' }
 
+/**
+ * 그 역할 화면에 있는 모듈. **순서는 서버가 준 차례 그대로**다 —
+ * 카탈로그(shared/rbac/modules)에 적힌 순서이고, 번호를 따로 매기지 않는다(매기면 겹친다).
+ */
 function getModulesForRole(modules: FeatureModule[], role: Role): FeatureModule[] {
   const surface = ROLE_SURFACE[role]
-  return modules
-    .filter(m => m.surface.split(',').map(s => s.trim()).includes(surface))
-    .sort((a, b) => a.sort_order - b.sort_order)
+  return modules.filter(m => m.surface.split(',').map(s => s.trim()).includes(surface))
 }
 
 /** 겸직 계정 — 가진 역할들의 모듈을 합쳐서 본다(같은 모듈이 두 번 나오지 않게 코드로 묶는다). */
 function getModulesForRoles(modules: FeatureModule[], roles: Role[]): FeatureModule[] {
   const seen = new Map<string, FeatureModule>()
-  for (const r of roles) for (const m of getModulesForRole(modules, r)) seen.set(m.code, m)
-  return [...seen.values()].sort((a, b) => a.sort_order - b.sort_order)
+  // 목록 차례를 지키려면 **원본 순서**로 돌면서 걸러야 한다(역할별로 돌면 순서가 섞인다)
+  const allowed = new Set(roles.flatMap(r => getModulesForRole(modules, r)).map(m => m.code))
+  for (const m of modules) if (allowed.has(m.code)) seen.set(m.code, m)
+  return [...seen.values()]
 }
+
+/**
+ * 묶음이 바뀌는 자리에 **구분 줄**을 끼운다 — 모듈이 스물넷이라 한 덩어리로 늘어놓으면
+ * 무엇이 어디쯤 있는지 알 수 없다. 묶음은 카탈로그(shared/rbac/modules)가 정한다.
+ */
+function GroupRow({ mods, i, span }: { mods: FeatureModule[]; i: number; span: number }) {
+  const cur = mods[i]?.group
+  if (!cur || (i > 0 && mods[i - 1]?.group === cur)) return null
+  return <tr><td colSpan={span} style={styles.modGroupRow}>{t(cur)}</td></tr>
+}
+
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   draft: '임시저장', confirmed: '견적 완료', contracted: '계약 완료',
   assigned: '배정 완료', ordered: '주문 진행', completed: '완료', expired: '만료',
 }
 
 
-/**
- * 기능모듈 설명 — **DB 의 feature_module 코드와 짝이 맞아야 한다.**
- * 예전에는 존재하지 않는 코드(kanban.*·admin.*·document.generate)를 적어 두고
- * 정작 실재하는 여러 모듈에는 설명이 없었다 — 켜고 끄는 사람이 무엇을 켜는지 알 수 없다.
- */
-const MODULE_DESC: Record<string, string> = {
-  'quote.create': '견적 작성 및 저장',
-  'quote.edit': '견적 수정·복제',
-  'quote.delete': '견적 삭제',
-  'quote.confirm': '견적서 확정·생성',
-  'order.confirm': '주문 전환 및 특장사 배정',
-  'order.view': '주문 진행 조회',
-  'order.control': '주문 단계 완료·증빙 등록 (끄면 조회만)',
-  'doc.view': '구조변경 서류 조회',
-  'doc.send.email': '견적서·계약서 메일 발송',
-  'doc.send.sign': '전자서명 발송',
-  'account.manage': '계정 발급 및 권한 관리',
-  'basedata.manage': '옵션DB·무게상수 관리',
-  'addon.manage': '부가작업 진행 · 고객 인도 목표일 (특장사 출고 뒤 우리 쪽 작업)',
-  'addon.view': '부가작업 조회 (보기 전용 — 진행은 「부가작업 진행」)',
-  'stats.own': '내 실적 조회',
-  'stats.all': '전체 실적 조회',
-  'customer.view': '고객 목록·서류함 조회',
-  'checklist.manage': '체크리스트 서식 만들기·고치기 (단계별 확인 항목)',
-  'basedata.weights': '무게상수 관리 (하중 계산에 쓰는 상수)',
-  'basedata.dims': '치수 프리셋 관리 (사양별 튜닝 후 치수)',
-  'basedata.optiondb': '옵션DB 관리 (고객 견적 단가·보조금·세율)',
-  'basedata.makerprice': '특장사 단가 관리 (우리가 특장사에 지급하는 값)',
-  'basedata.holiday': '공휴일 관리 (납기 영업일 계산 기준)',
-  'order.remove': '주문 치우기 — 목록에서 감춘다(행은 남는다)',
-  'notify.push': '앱 알림 받기 (알림함·휴대폰 팝업)',
-  'notify.assign': '구 「제작 배정 알림 메일」 — 이제 역할 프리셋이 정한다(쓰지 않음)',
-  'pnl.view': '손익 조회 — 판매건별 매출·원가·수익 (보기 전용)',
-  'pnl.manage': '손익 입력 — 세금계산서 발행일·입금·원가를 적는다',
-}
 type TabKey = 'home' | 'quotes' | 'customers' | 'perf' | 'pnl' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
@@ -794,7 +774,7 @@ function AccountsTab() {
           {user.is_master ? t('마스터 — 전체 모듈') : `계정 모듈 override — ${presetOf(user) ? `${PRESET_BY_CODE[presetOf(user)!]!.label} 프리셋` : myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
         </div>
         <div style={acc.moduleGrid}>
-          {(user.is_master ? modules : getModulesForRoles(modules, myRoles)).map(mod => {
+          {(user.is_master ? modules : getModulesForRoles(modules, myRoles)).map((mod, i, arr) => {
             /*
              * 겸직이면 역할 중 하나라도 켜 두었으면 켜진 것 — 서버 판정(mergePermissions)과 같다.
              * **프리셋이 있으면 프리셋이 역할 기본값을 덮는다**(2026-09-16) — 화면도 서버와 같은 순서로 본다.
@@ -808,9 +788,14 @@ function AccountsTab() {
             const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
             const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
             const hasOverride = userOverride !== undefined
+            const newGroup = i === 0 || arr[i - 1]?.group !== mod.group
             return (
-              <div key={mod.code} style={acc.moduleItem}>
+              <Fragment key={mod.code}>
+              {/* 묶음이 바뀌면 줄을 하나 끼운다 — 스물넷이 한 덩어리면 무엇이 어디쯤인지 알 수 없다 */}
+              {newGroup && <div style={acc.modGroup}>{t(mod.group)}</div>}
+              <div style={acc.moduleItem}>
                 <div style={acc.modName}>{t(mod.name)}</div>
+                {mod.desc && <div style={acc.modDesc}>{t(mod.desc)}</div>}
                 <div style={acc.modCode}>{mod.code}</div>
                 <div style={acc.modMeta}>
                   {hasOverride
@@ -825,6 +810,7 @@ function AccountsTab() {
                   {effective ? 'ON' : 'OFF'}
                 </button>
               </div>
+              </Fragment>
             )
           })}
         </div>
@@ -2248,16 +2234,16 @@ export function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {getModulesForRole(modules, 'ADMIN').map(mod => {
+                    {getModulesForRole(modules, 'ADMIN').map((mod, i, arr) => {
                       const enabled = isEnabled(ac, 'preset', preset.code, mod.code)
                       const key = `preset:${preset.code}:${mod.code}`
                       return (
-                        <tr key={mod.code}>
+                        <Fragment key={mod.code}>
+                        <GroupRow mods={arr} i={i} span={2} />
+                        <tr>
                           <td style={styles.tdModule}>
                             <div style={styles.modName}>{t(mod.name)}</div>
-                            {MODULE_DESC[mod.code] && MODULE_DESC[mod.code] !== mod.name && (
-                              <div style={styles.modDesc}>{t(MODULE_DESC[mod.code]!)}</div>
-                            )}
+                            {mod.desc && <div style={styles.modDesc}>{t(mod.desc)}</div>}
                             <div style={styles.modCode}>{mod.code}</div>
                           </td>
                           <td style={styles.tdToggle}>
@@ -2270,6 +2256,7 @@ export function AdminPage() {
                             </button>
                           </td>
                         </tr>
+                        </Fragment>
                       )
                     })}
                   </tbody>
@@ -2290,18 +2277,18 @@ export function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {roleMods.map(mod => {
+                      {roleMods.map((mod, i, arr) => {
                         const enabled = isEnabled(ac, 'role', role, mod.code)
                         const key = `${role}:${mod.code}`
                         return (
-                          <tr key={mod.code}>
+                          <Fragment key={mod.code}>
+                          <GroupRow mods={arr} i={i} span={2} />
+                          <tr>
                             <td style={styles.tdModule}>
                               <div style={styles.modName}>{t(mod.name)}</div>
                               {/* 설명은 **글로 보여 준다**(2026-09-16) — 툴팁은 휴대폰에서 뜨지 않아 무엇을 켜는지 알 수 없었다.
                                   이름과 같은 말이면 두 번 적지 않는다 */}
-                              {MODULE_DESC[mod.code] && MODULE_DESC[mod.code] !== mod.name && (
-                                <div style={styles.modDesc}>{t(MODULE_DESC[mod.code]!)}</div>
-                              )}
+                              {mod.desc && <div style={styles.modDesc}>{t(mod.desc)}</div>}
                               <div style={styles.modCode}>{mod.code}</div>
                             </td>
                             <td style={styles.tdToggle}>
@@ -2314,6 +2301,7 @@ export function AdminPage() {
                               </button>
                             </td>
                           </tr>
+                          </Fragment>
                         )
                       })}
                     </tbody>
@@ -2384,6 +2372,11 @@ const styles: Record<string, React.CSSProperties> = {
   tdModule: { padding: '10px 12px', borderBottom: '0.5px solid var(--line)' },
   tdToggle: { textAlign: 'center' as const, padding: '10px 12px', borderBottom: '0.5px solid var(--line)' },
   modName: { fontSize: 13, color: 'var(--dark)' },
+  /** 기능모듈 표의 묶음 줄 — 견적·서류·주문·제작 … 으로 스물넷을 갈라 놓는다 */
+  modGroupRow: {
+    padding: '12px 8px 3px', fontSize: 'var(--fs-caption)', color: 'var(--muted)',
+    fontWeight: 700, letterSpacing: '.02em', borderBottom: 'var(--hairline)',
+  },
   modCode: { fontSize: 11, color: 'var(--muted)', marginTop: 2 },
   // 높이·폭은 표 안 버튼과 같은 값으로 — 한 화면에서 버튼 크기가 갈리지 않게
   toggleOn: { ...BTN.smPrimary, background: 'var(--lime)', color: 'var(--dark)', border: 'none', fontWeight: 700 },
@@ -2729,6 +2722,8 @@ const acc: Record<string, React.CSSProperties> = {
   moduleGrid: { display: 'flex', flexWrap: 'wrap' as const, gap: 8 },
   moduleItem: { background: '#fff', border: '0.5px solid var(--line)', borderRadius: 8, padding: '8px 12px', minWidth: 140, display: 'flex', flexDirection: 'column', gap: 3 },
   modName: { fontSize: 12, fontWeight: 600, color: 'var(--dark)' },
+  modGroup: { gridColumn: '1 / -1', padding: '10px 2px 2px', fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 700 },
+  modDesc: { gridColumn: '1 / -1', fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.5 },
   modCode: { fontSize: 10, color: 'var(--muted)' },
   modMeta: { marginBottom: 4 },
   overrideTag: { fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: 'var(--warnbg)', color: 'var(--warn)' },

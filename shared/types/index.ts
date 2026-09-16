@@ -199,13 +199,19 @@ export function rolesOf(u: { role: Role; extra_roles?: Role[] | null; is_master?
 }
 
 /** F3. 기능 모듈 카탈로그 */
+/**
+ * 기능모듈 한 칸 — **이름·설명·묶음은 카탈로그(shared/rbac/modules)에서** 온다.
+ * DB 의 `feature_module` 은 권한 행이 가리키는 자리일 뿐이라, 화면에 내려오는 것은 카탈로그 쪽이다.
+ */
 export interface FeatureModule {
   code: string;
   name: string;
+  /** 한 줄 설명 — 켜면 무엇을 할 수 있는지 */
+  desc: string;
+  /** 목록에서 줄을 나누는 묶음(견적·서류·주문·제작 …) */
+  group: string;
   /** 콤마 구분 (예: '영업,관리자') */
   surface: string;
-  sort_order: number;
-  active: boolean;
 }
 
 /** F4. 권한 토글 (역할 기본값 + 계정 override) */

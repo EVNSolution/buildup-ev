@@ -19,6 +19,7 @@
     "./process/addon": "./process/addon.ts",
     "./process/actual": "./process/actual.ts",
     "./rbac/presets": "./rbac/presets.ts",
+    "./rbac/modules": "./rbac/modules.ts",
     "./finance/pnl": "./finance/pnl.ts"
   },
   "scripts": {
