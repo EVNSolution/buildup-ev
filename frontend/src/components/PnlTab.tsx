@@ -89,7 +89,7 @@ export function PnlTab() {
       {err && <div style={s.err}>{err}</div>}
 
       {/* ① 요약 — 그 달 전체 */}
-      <SummaryBar total={total} isMobile={isMobile} />
+      <SummaryBar total={total} />
 
       {/* ② 입력 필요 — 맨 위에 따로 둔다. 여기서 발행일을 적으면 그 달 표로 들어간다 */}
       <PendingBox pending={view?.pending ?? []} canEdit={canEdit} isMobile={isMobile} onFile={file} />
@@ -152,8 +152,19 @@ function MonthBar({ month, months, busy, onPick }: {
 const won = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`
 const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)}%`)
 
-function SummaryBar({ total, isMobile }: { total: ReturnType<typeof sumP>; isMobile: boolean }) {
-  const tiles: { label: string; value: string; tone?: 'warn' | 'good' }[] = [
+/**
+ * 그 달 요약 — **열 칸**(2026-09-16 지시).
+ *
+ * 수익과 수익률을 한 칸에 「금액 · %」로 붙여 놨더니 긴 글자가 되어 눈에 안 들어왔다.
+ * 갈라서 각자 한 칸씩 주고, **숫자만** 브랜드 라임으로 키운다 — 이 표를 보는 이유가 그 둘이다.
+ * 색은 컨피규레이터의 **실구매가와 같은 값**(`--lime-ink`)이다. 칸을 칠하지 않는다 —
+ * 칸을 칠하면 덩어리가 되어 옆 칸들과 무게가 뒤집힌다(가격바가 배경을 걷은 것과 같은 이유).
+ * ⚠️ 이 색은 흰 바탕에서 대비가 낮아 **큰 글씨 전용**이다. 그래서 이 둘만 22px 로 키운다.
+ * 손실이면 빨강으로 뒤집는다(라임으로 물든 손실만큼 위험한 것이 없다).
+ */
+function SummaryBar({ total }: { total: ReturnType<typeof sumP> }) {
+  const loss = total.profit < 0
+  const tiles: { label: string; value: string; tone?: 'warn' | 'profit' | 'loss' }[] = [
     { label: '발행 건수', value: tf('{0}건', total.count) },
     { label: '공급가액', value: won(total.supply_amount) },
     { label: 'VAT', value: won(total.vat) },
@@ -163,15 +174,20 @@ function SummaryBar({ total, isMobile }: { total: ReturnType<typeof sumP>; isMob
     // 아직 안 들어온 돈 — 음수가 정상이다
     { label: '입금 차액', value: won(total.pay_diff), tone: total.pay_diff < 0 ? 'warn' : undefined },
     { label: '원가', value: won(total.cost) },
-    { label: '수익', value: `${won(total.profit)} · ${pct(total.margin)}`, tone: total.profit < 0 ? 'warn' : 'good' },
+    { label: '수익', value: won(total.profit), tone: loss ? 'loss' : 'profit' },
+    { label: '수익률', value: pct(total.margin), tone: loss ? 'loss' : 'profit' },
   ]
   return (
     <section style={s.card}>
-      <div style={{ ...s.sumGrid, gridTemplateColumns: `repeat(${isMobile ? 2 : 5}, minmax(0, 1fr))` }}>
+      {/*
+        칸 수를 못 박지 않는다 — 다섯으로 고정했더니 좁은 화면에서 칸이 131px 이 되어
+        22px 짜리 수익 금액(143px)이 옆 칸을 침범했다(제보). 폭에 맞춰 칸 수가 준다.
+      */}
+      <div style={s.sumGrid}>
         {tiles.map(x => (
           <div key={x.label} style={s.sumCell}>
             <div style={s.sumLabel}>{t(x.label)}</div>
-            <div style={x.tone === 'warn' ? s.sumValWarn : x.tone === 'good' ? s.sumValGood : s.sumVal}>{x.value}</div>
+            <div style={x.tone === 'warn' ? s.sumValWarn : x.tone === 'profit' ? s.sumValProfit : x.tone === 'loss' ? s.sumValLoss : s.sumVal}>{x.value}</div>
           </div>
         ))}
       </div>
@@ -229,6 +245,8 @@ function PendingBox({ pending, canEdit, isMobile, onFile }: {
 /** 새 줄에 적을 것 전부 — 표의 칸과 하나씩 짝이 맞는다 */
 interface Draft {
   invoice_on: string
+  /** 사업자명 — 적을 수도, 안 적을 수도 있다 */
+  biz_name: string
   capital: number
   deposit_paid_on: string
   capital_paid_on: string
@@ -250,7 +268,7 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
   onFile: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
   const [d, setD] = useState<Draft>(() => ({
-    invoice_on: '', capital: 0,
+    invoice_on: '', biz_name: '', capital: 0,
     deposit_paid_on: '', capital_paid_on: '',
     cost: 0, memo: '',
   }))
@@ -267,6 +285,7 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
     try {
       await onFile(item.quote_id, {
         invoice_on: d.invoice_on,
+        biz_name: d.biz_name.trim() || null,
         capital: d.capital,
         deposit_paid_on: d.deposit_paid_on || null,
         capital_paid_on: d.capital_paid_on || null,
@@ -300,6 +319,11 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
             </Field>
             {/* 계약서에서 오는 값 — 보여만 준다(고쳐야 하는 예외가 생기면 그때 다시 본다) */}
             <Field label={t('고객명')}><span style={s.calcText}>{item.customer ?? '—'}</span></Field>
+            {/* 사업자명은 따로 적는다 — 적는 건도 있고 안 적는 건도 있다 */}
+            <Field label={t('사업자명')}>
+              <input style={s.textInput} value={d.biz_name} maxLength={120} disabled={!canEdit || busy}
+                aria-label={t('사업자명')} onChange={e => set('biz_name', e.target.value)} />
+            </Field>
             <Field label={t('공급가액')}><span style={s.calc}>{won(fixed.supply_amount)}</span></Field>
             <Field label={t('VAT')}><span style={s.calc}>{won(calc.vat)}</span></Field>
 
@@ -449,7 +473,9 @@ function useRowWriter(row: PnlRow, onWrite: (quoteId: number, patch: PnlPatch) =
  * 둘이 섞이므로 글자 쪽도 입력과 **같은 높이**를 차지하게 해 줄을 맞춘다(`tdCalc`).
  */
 const COLS: { w: number | string; head: string; num?: boolean }[] = [
-  { w: 128, head: '고객명' },
+  // 견적번호는 빼 두었다 — 옆에 붙이면 고객명이 잘린다(제보). 번호로 찾을 일은 견적 목록에서 한다
+  { w: 132, head: '고객명' },
+  { w: 132, head: '사업자명' },
   { w: 112, head: '발행일' },
   { w: 108, head: '공급가액', num: true },
   { w: 100, head: 'VAT', num: true },
@@ -485,7 +511,7 @@ function RowTable({ rows, canEdit, onWrite, onVoid }: {
         </tbody>
         <tfoot>
           <tr>
-            <td style={s.tfLabel} colSpan={2}>{t('합계')}</td>
+            <td style={s.tfLabel} colSpan={3}>{t('합계')}</td>
             <td style={s.tfNum}>{won(total.supply_amount)}</td>
             <td style={s.tfNum}>{won(total.vat)}</td>
             <td style={s.tfNum}>{won(total.gross)}</td>
@@ -517,11 +543,15 @@ function TableRow({ row, canEdit, onWrite, onVoid }: {
     <>
       {/* 삭제된 줄은 **회색**이고, 그 위에 반투명 레이어가 덮여 사유가 적힌다(아래 VoidLayer) */}
       <tr style={dead ? s.trDead : undefined}>
+        {/* 계약서에서 오는 고객명 — 글자다. 저장 표시(✓)만 뒤에 붙는다 */}
         <td style={s.td}>
           <div style={s.nameRow}>
             <span style={s.name}>{row.customer ?? '—'}</span>
-            <span style={s.no}>{row.quote_no ?? `#${row.quote_id}`}{mark && <b style={failed ? s.markFail : s.mark}> {mark}</b>}</span>
+            {mark && <span style={failed ? s.markFail : s.mark}>{mark}</span>}
           </div>
+        </td>
+        <td style={s.td}>
+          <TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} dense onSave={v => put({ biz_name: v })} />
         </td>
         <td style={s.td}>
           <DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} />
@@ -673,6 +703,7 @@ function RowCard({ row, canEdit, onWrite, onVoid }: {
       {open && (
         <div style={s.fields}>
           <Field label={t('세금계산서 발행일')}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} onSave={v => put({ invoice_on: v })} /></Field>
+          <Field label={t('사업자명')}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} onSave={v => put({ biz_name: v })} /></Field>
           {/* 계약서에서 오는 값 — 보여만 준다 */}
           <Field label={t('공급가액')}><span style={s.calc}>{won(row.supply_amount)}</span></Field>
           <Field label={t('VAT')}><span style={s.calc}>{won(d.vat)}</span></Field>
@@ -775,12 +806,14 @@ const s: Record<string, React.CSSProperties> = {
   // 줄이 바뀌어도 폭을 다 먹지 않게 — 고르개가 화면 한 줄을 차지하면 달 이동 단추가 멀어진다
   monthSelect: { flex: '0 0 auto', maxWidth: 200, fontFamily: 'inherit', fontSize: 'var(--fs-input)', padding: '5px 8px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff' },
 
-  sumGrid: { display: 'grid', gap: 'var(--sp-3)' },
+  sumGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(152px, 1fr))', gap: 'var(--sp-3)' },
   sumCell: { minWidth: 0 },
   sumLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap' },
   sumVal: { fontSize: 18, fontWeight: 700, color: 'var(--dark)', ...cellNum, textAlign: 'left' },
   sumValWarn: { fontSize: 18, fontWeight: 700, color: 'var(--req)', ...cellNum, textAlign: 'left' },
-  sumValGood: { fontSize: 18, fontWeight: 700, color: 'var(--dark)', ...cellNum, textAlign: 'left' },
+  // 결론 숫자 — 컨피규레이터의 실구매가와 같은 색·같은 크기. 칸은 칠하지 않는다
+  sumValProfit: { fontSize: 22, fontWeight: 700, color: 'var(--lime-ink)', letterSpacing: '-0.01em', ...cellNum, textAlign: 'left' },
+  sumValLoss: { fontSize: 22, fontWeight: 700, color: 'var(--req)', letterSpacing: '-0.01em', ...cellNum, textAlign: 'left' },
 
   // 밀린 건이 백 줄이어도 아래 표가 화면 밖으로 밀리지 않게 높이를 묶는다
   pendList: { display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 320, overflowY: 'auto' },
@@ -808,6 +841,7 @@ const s: Record<string, React.CSSProperties> = {
   tdCalc: { ...tdText, color: 'var(--muted)' },
   tdCalcStrong: { ...tdText, color: 'var(--dark)', fontWeight: 700 },
   tdCalcWarn: { ...tdText, color: 'var(--req)', fontWeight: 700 },
+  // ⚠️ 표의 수익은 **검정**이다 — 라임은 흰 바탕 대비가 낮아 본문 크기에서 흐려 보인다(가격바 주석)
   tdCalcGood: { ...tdText, color: 'var(--dark)', fontWeight: 700 },
   tfLabel: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)' },
   tfNum: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)', ...cellNum },
@@ -816,7 +850,7 @@ const s: Record<string, React.CSSProperties> = {
   nameRow: { display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, padding: '0 2px' },
   name: { color: 'var(--dark)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 },
   no: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 400 },
-  mark: { color: 'var(--lime)' },
+  mark: { color: 'var(--lime-ink)', flexShrink: 0, fontWeight: 700 },
   markFail: { color: 'var(--req)' },
 
   // ── 폼(입력 필요 · 휴대폰 카드 · 원가 창) ──
@@ -826,6 +860,8 @@ const s: Record<string, React.CSSProperties> = {
   dateInput: { ...CONTROL, minWidth: 0, justifyContent: 'space-between' },
   costBtn: { ...CONTROL, cursor: 'pointer', color: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   calc: { ...readOnly(CONTROL), color: 'var(--body)' },
+  /** 글자로 보여 주는 값(고객명 등) — 숫자가 아니라 왼쪽에 붙인다 */
+  calcText: { ...readOnly(CONTROL), color: 'var(--dark)', fontWeight: 700, justifyContent: 'flex-start', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', lineHeight: 'var(--h-control)' },
   calcStrong: { ...readOnly(CONTROL), color: 'var(--dark)', fontWeight: 700 },
   calcWarn: { ...readOnly(CONTROL), color: 'var(--req)', fontWeight: 700 },
 

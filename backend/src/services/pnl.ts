@@ -19,6 +19,8 @@ export interface PnlRow {
   quote_id: number;
   quote_no: string | null;
   customer: string | null;
+  /** 사업자명 — 고객명과 따로 적는다(안 적을 수도 있다) */
+  biz_name: string | null;
   sales_user_id: string | null;
   maker_org: string | null;
   invoice_on: string | null;
@@ -54,7 +56,7 @@ const day = (d: Date | null | undefined): string | null => (d ? d.toISOString().
 
 /** DB 행 + 견적을 화면 모양으로 */
 type RowWithQuote = {
-  quote_id: number; invoice_on: Date | null;
+  quote_id: number; invoice_on: Date | null; biz_name: string | null;
   supply_amount: bigint; deposit: bigint; capital: bigint;
   deposit_paid_on: Date | null; capital_paid_on: Date | null;
   cost: bigint; cost_source: string; memo: string | null; updated_by: string | null;
@@ -73,6 +75,7 @@ function toRow(r: RowWithQuote): PnlRow {
     customer: r.quote.customer?.name ?? null,
     sales_user_id: r.quote.sales_user_id,
     maker_org: r.quote.order?.maker_org?.name ?? null,
+    biz_name: r.biz_name,
     invoice_on: day(r.invoice_on),
     supply_amount: n(r.supply_amount),
     deposit: n(r.deposit),
@@ -211,6 +214,7 @@ export async function pnlPending(): Promise<PnlPending[]> {
  */
 export interface PnlPatch {
   invoice_on?: string | null;
+  biz_name?: string | null;
   capital?: number;
   deposit_paid_on?: string | null;
   capital_paid_on?: string | null;
@@ -244,6 +248,7 @@ export async function savePnl(quoteId: number, patch: PnlPatch, by: string): Pro
   const data: Record<string, unknown> = { updated_by: by };
   const put = (key: string, v: unknown) => { if (v !== undefined) data[key] = v; };
   put('invoice_on', dateOf(patch.invoice_on));
+  put('biz_name', text(patch.biz_name, 120));
   put('capital', money(patch.capital));
   put('deposit_paid_on', dateOf(patch.deposit_paid_on));
   put('capital_paid_on', dateOf(patch.capital_paid_on));

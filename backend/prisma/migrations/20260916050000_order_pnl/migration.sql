@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS "order_pnl" (
   "quote_id"          INTEGER NOT NULL UNIQUE,
   -- 세금계산서 발행일 — **이 날짜가 몇 월 표에 들어갈지를 정한다.** 비어 있으면 「입력 필요」에 남는다
   "invoice_on"        DATE,
+  -- 사업자명 — 고객명과 따로 적는다. **적는 건도 있고 안 적는 건도 있어** 비워 둘 수 있다
+  "biz_name"          VARCHAR(120),
   -- 공급가액(VAT 별도)·계약금 — **계약서에서 그대로 가져와 굳힌다.** 화면에서 고치지 않는다(2026-09-16 지시).
   -- 굳혀 두는 이유: 단가표를 나중에 고쳐도 이미 세금계산서가 나간 줄의 금액은 그대로여야 한다
   "supply_amount"     BIGINT  NOT NULL DEFAULT 0,

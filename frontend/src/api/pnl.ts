@@ -6,6 +6,8 @@ export interface PnlRow {
   quote_id: number
   quote_no: string | null
   customer: string | null
+  /** 사업자명 — 고객명과 따로 적는다(안 적을 수도 있다) */
+  biz_name: string | null
   sales_user_id: string | null
   maker_org: string | null
   invoice_on: string | null
@@ -50,7 +52,7 @@ export interface PnlView {
  * ⚠️ **공급가액·계약금은 없다** — 계약서에서 가져와 굳힌 값이라 고치지 않는다(서버도 받지 않는다).
  */
 export type PnlPatch = Partial<Pick<PnlRow,
-  'invoice_on' | 'capital' | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
+  'invoice_on' | 'biz_name' | 'capital' | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
 >>
 
 async function jsonOf<T>(res: Response): Promise<T> {

@@ -16,6 +16,7 @@ export const EN: Record<string, string> = {
   '명': '',
   '건': '',
   '예정': 'Planned',
+  '수익률': 'Margin',
   '삭제됨': 'Voided',
   '줄은 지워지지 않습니다. 회색으로 남고 합계에서만 빠지며, 사유가 그 줄 위에 적힙니다.': 'The row is not deleted. It stays greyed out, drops out of the totals, and the reason is shown over it.',
   '입력': 'Enter',

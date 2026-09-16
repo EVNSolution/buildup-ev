@@ -473,12 +473,15 @@ model OrderPnl {
   quote_id Int @unique
 
   /// 세금계산서 발행일 — **이 날짜가 몇 월 표에 들어갈지를 정한다.** 비어 있으면 「입력 필요」에 남는다
-  invoice_on    DateTime? @db.Date
+  invoice_on DateTime? @db.Date
+
+  /// 사업자명 — 고객명과 따로 적는다. 적는 건도 있고 안 적는 건도 있어 비워 둘 수 있다
+  biz_name      String? @db.VarChar(120)
   /// 공급가액(VAT 별도)·계약금 — **계약서에서 가져와 굳힌다.** 화면에서 고치지 않는다(2026-09-16 지시)
-  supply_amount BigInt    @default(0)
-  deposit       BigInt    @default(0)
+  supply_amount BigInt  @default(0)
+  deposit       BigInt  @default(0)
   /// 캐피탈 — 경영관리가 직접 적는다
-  capital       BigInt    @default(0)
+  capital       BigInt  @default(0)
 
   deposit_paid_on DateTime? @db.Date
   capital_paid_on DateTime? @db.Date
