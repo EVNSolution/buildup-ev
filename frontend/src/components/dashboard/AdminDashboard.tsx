@@ -4,8 +4,7 @@ import { fetchOrders } from '../../api/orders'
 import { fetchQuotes } from '../../api/quotes'
 import { fetchSalesStats, type SalesStat } from '../../api/stats'
 import { fetchFolders, type ApiFolderRow } from '../../api/customerFolders'
-import { fetchPnl, type PnlView } from '../../api/pnl'
-import { sumP } from '@shared/finance/pnl'
+import { fetchPnlSummary, type PnlSummary, type PnlTotals } from '../../api/pnl'
 import type { ApiOrder, ApiQuote } from '@shared/types/index'
 import { buildDashboard } from '../../lib/orderDashboard'
 import { DASH_STEPS } from '../../lib/salesFunnel'
@@ -132,14 +131,19 @@ export function AdminDashboard({ onGo }: {
       )}
       {err && <div style={s.err}>{err}</div>}
       <div style={{ ...s.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
-        {shows('perf') && <PerfCard isMobile={isMobile} onGo={() => onGo('perf')} />}
-        {shows('pnl') && <PnlCard isMobile={isMobile} onGo={() => onGo('pnl')} />}
-        {shows('progress') && <ProgressCard orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />}
-        {shows('assignQueue') && <AssignQueueCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
-        {shows('assignRequest') && <AssignRequestCard contracted={contracted} />}
-        {shows('late') && <LateCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
-        {shows('customer') && <CustomerSearchCard folders={folders} />}
-        {shows('calendar') && <CalendarCard orders={orders} isMobile={isMobile} />}
+        {/*
+          ⚠️ **열쇠를 못 박는다.** 판(영업관리·생산관리·경영관리)마다 카드 묶음이 달라, 열쇠가 없으면
+             React 가 자리로 짝을 맞춘다 — 같은 카드인데 자리가 달라졌다는 이유로 **다시 만들어져**
+             빈 채로 떴다가 채워진다. 판을 바꿀 때 화면이 일그러지던 원인이다(제보).
+        */}
+        {shows('perf') && <PerfCard key="perf" isMobile={isMobile} onGo={() => onGo('perf')} />}
+        {shows('pnl') && <PnlCard key="pnl" isMobile={isMobile} onGo={() => onGo('pnl')} />}
+        {shows('progress') && <ProgressCard key="progress" orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />}
+        {shows('assignQueue') && <AssignQueueCard key="assignQueue" orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
+        {shows('assignRequest') && <AssignRequestCard key="assignRequest" contracted={contracted} />}
+        {shows('late') && <LateCard key="late" orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
+        {shows('customer') && <CustomerSearchCard key="customer" folders={folders} />}
+        {shows('calendar') && <CalendarCard key="calendar" orders={orders} isMobile={isMobile} />}
       </div>
     </div>
   )
@@ -155,6 +159,24 @@ function monthStart(): string {
 }
 
 /**
+ * 값이 오기 전의 **자리표** — 이름은 그대로 두고 숫자만 「—」로 둔다.
+ *
+ * 높이를 숫자로 짐작해 맞추면(minHeight) 화면 폭마다 어긋난다 — 휴대폰에서는 칸이 접혀 키가 달라진다.
+ * **같은 뼈대를 그리는 것**만이 어느 폭에서든 정확히 같은 자리를 차지한다.
+ * 그래야 값이 들어올 때 카드가 커지지 않고, 아래 카드들이 밀려 올라갔다 내려오지 않는다(제보).
+ */
+const skeleton = (tiles: Tile[]): Tile[] =>
+  tiles.map(x => ({ ...x, n: 0, unit: '', text: '—', warn: false, profit: false, sub: x.sub === undefined ? undefined : '\u00a0' }))
+
+/** 빈 값 — 자리표를 그릴 때만 쓴다(숫자는 어차피 「—」로 덮인다) */
+const BLANK_SALES = {
+  sales_user_id: '', reached: {}, customers: {}, amount: { confirmed: 0, contracted: 0, completed: 0 },
+  activity: { quotes: 0, emailed: 0, sign_requested: 0, edits: 0 },
+} as unknown as SalesStat
+const BLANK_TOTALS = { count: 0, supply_amount: 0, vat: 0, gross: 0, deposit: 0, capital: 0, pay_diff: 0, cost: 0, profit: 0, margin: null } as PnlTotals
+const BLANK_DASH = { assign: [], pending: [], active: [], addon: [], done: [], late: [] } as unknown as ReturnType<typeof buildDashboard>
+
+/**
  * 카드 한 장 — 제목 줄과 본문. 누를 수 있는 카드는 제목 오른쪽에 「열기」.
  *
  * ⚠️ **설명 문구를 달지 않는다**(2026-09-16 지시). 카드마다 한 줄씩 붙이면 제목 줄이
@@ -163,7 +185,13 @@ function monthStart(): string {
  */
 function Card({ title, extra, full, onGo, children }: {
   title: string
-  /** 제목 오른쪽에 붙는 조작 — 지금은 성과 카드의 기간 토글뿐이다 */
+  /**
+   * 카드의 조작·곁수치(기간 토글·건수) — **오른쪽 끝, 「열기」 바로 왼쪽**에 붙는다.
+   *
+   * ⚠️ 제목 옆에 두면 **카드마다 자리가 달라진다** — 「영업 성과」와 「손익」은 제목 길이가 달라
+   *    토글이 좌우로 어긋나 보였다(제보). 오른쪽에 붙이면 제목이 몇 글자든 늘 같은 자리다.
+   *    앞으로 붙는 카드도 이 자리를 쓴다.
+   */
   extra?: React.ReactNode
   /** 한 줄을 통째로 쓰는 카드 */
   full?: boolean
@@ -174,8 +202,8 @@ function Card({ title, extra, full, onGo, children }: {
     <section style={full ? s.cardFull : s.card}>
       <div style={s.cardHead}>
         <span style={s.cardTitle}>{title}</span>
-        {extra}
         <span style={s.headGap} />
+        {extra}
         {onGo && <button type="button" style={s.go} onClick={onGo}>{t('열기')} ›</button>}
       </div>
       {children}
@@ -284,6 +312,7 @@ function TileRow({ tiles, isMobile, mobileCols, big, small }: {
 function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
   const [scope, setScope] = useState<Scope>('month')
   const [shown, setShown] = useState<SalesStat | null>(null)
+  const [busy, setBusy] = useState(false)
   /** 이미 부른 기간은 다시 부르지 않는다 — 토글을 오갈 때마다 기다리게 하지 않는다 */
   const cache = useRef(new Map<Scope, SalesStat>())
 
@@ -291,10 +320,17 @@ function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
     const hit = cache.current.get(scope)
     if (hit) { setShown(hit); return }
     let alive = true
-    setShown(null)
+    /*
+     * ⚠️ **앞의 숫자를 지우지 않는다**(제보: 토글을 누르면 화면이 순간 일그러진다).
+     *    지우면 카드 속이 「불러오는 중」 한 줄로 줄었다가 도로 커지는데, 그 한 번의 들썩임에
+     *    아래 카드들이 통째로 밀려 올라갔다 내려온다. 새 숫자가 올 때까지 옛 숫자를 그대로 두면
+     *    **높이가 변하지 않아** 아무것도 움직이지 않는다.
+     */
+    setBusy(true)
     fetchSalesStats(scope === 'month' ? { from: monthStart() } : {})
       .then(r => { cache.current.set(scope, r.total); if (alive) setShown(r.total) })
       .catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
+      .finally(() => { if (alive) setBusy(false) })
     return () => { alive = false }
   }, [scope])
 
@@ -304,20 +340,24 @@ function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
     if (key === 'completed') return won(st.amount.completed)
     return ''
   }
-  const tiles: Tile[] = shown ? DASH_STEPS.map((step, i) => ({
+  const make = (st: SalesStat): Tile[] => DASH_STEPS.map((step, i) => ({
     key: step.key, label: step.label, unit: step.unit,
-    n: step.get(shown), sub: sub(step.key, shown),
+    n: step.get(st), sub: sub(step.key, st),
     // 깔때기의 끝 — **인도 완료가 결론**이다. 손익의 수익과 같은 색으로 둔다(2026-09-16 지시)
     ...(step.key === 'completed' ? { profit: true } : {}),
     ...(i > 0 ? { sep: 'arrow' as const } : {}),
-  })) : []
+  }))
+  // 값이 오기 전에도 같은 뼈대를 그린다 — 카드 키가 안 변하니 아래가 들썩이지 않는다
+  const tiles = shown ? make(shown) : skeleton(make(BLANK_SALES))
   return (
     <Card
       title={t('영업 성과')} full onGo={onGo}
       extra={<ScopeToggle scope={scope} onChange={setScope} />}
     >
-      {!shown ? <div style={s.muted}>{t('불러오는 중…')}</div>
-        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} big />}
+      {/* 바꾸는 중에도 자리를 지킨다 — aria-busy 로만 알리고 눈에 보이는 것은 그대로 둔다 */}
+      <div aria-busy={busy}>
+        <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} big />
+      </div>
     </Card>
   )
 }
@@ -339,37 +379,39 @@ function ScopeToggle({ scope, onChange }: { scope: Scope; onChange: (v: Scope) =
 }
 
 /**
- * **이번 달 손익** — 경영관리가 매일 먼저 보는 자리(2026-09-16 지시).
+ * **손익** — 경영관리가 매일 먼저 보는 자리(2026-09-16 지시). 영업 성과처럼 **이번 달/전체**를 오간다.
  *
  * 앞에 「입력 필요」를 둔다. 손익표는 보는 표이기 전에 **적는 표**라, 적지 않은 건이 몇인지가
  * 먼저 눈에 들어와야 한다 — 발행일을 안 적으면 그 달 숫자 자체가 거짓이 된다.
- * 결론인 수익·수익률은 브랜드 라임으로 키운다(손익 탭의 요약과 같은 말을 한다).
+ * 입력 필요는 달과 상관없다(아직 어느 달에도 안 들어간 건이다) — 토글을 눌러도 그대로다.
  *
- * 삭제한 줄은 빼고 센다 — 손익 탭의 합계와 한 글자도 달라서는 안 된다(같은 함수를 쓴다).
+ * 이번 달과 전체를 **한 번에 받아** 두고 화면에서만 바꾼다 — 누를 때마다 기다리지 않게.
+ * 삭제한 줄은 빼고 센다. 셈은 손익 탭과 같은 함수라 두 화면 숫자가 갈릴 수 없다.
  */
 function PnlCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
-  const [view, setView] = useState<PnlView | null>(null)
+  const [scope, setScope] = useState<Scope>('month')
+  const [sum, setSum] = useState<PnlSummary | null>(null)
   useEffect(() => {
     let alive = true
-    fetchPnl().then(v => { if (alive) setView(v) }).catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
+    fetchPnlSummary().then(v => { if (alive) setSum(v) }).catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
     return () => { alive = false }
   }, [])
 
-  const total = useMemo(() => sumP((view?.rows ?? []).filter(r => !r.voided_at)), [view])
-  const loss = total.profit < 0
-  const tiles: Tile[] = view ? [
-    { key: 'todo', label: '입력 필요', n: view.pending.length, unit: '건', warn: true },
-    { key: 'count', label: '발행', n: total.count, unit: '건', sep: 'divider' },
-    { key: 'gross', label: '공급대가', n: 0, unit: '', text: won(total.gross) },
-    { key: 'cost', label: '원가', n: 0, unit: '', text: won(total.cost) },
-    { key: 'profit', label: '수익', n: 0, unit: '', text: won(total.profit), profit: !loss, warn: loss, sep: 'arrow' },
-    { key: 'margin', label: '수익률', n: 0, unit: '', text: total.margin === null ? '—' : `${(total.margin * 100).toFixed(1)}%`, profit: !loss, warn: loss },
-  ] : []
+  const total: PnlTotals | null = sum ? (scope === 'month' ? sum.month_total : sum.all_total) : null
+  const loss = !!total && total.profit < 0
+  const make = (v: PnlTotals): Tile[] => [
+    { key: 'todo', label: '입력 필요', n: sum?.pending ?? 0, unit: '건', warn: true },
+    { key: 'count', label: '발행', n: v.count, unit: '건', sep: 'divider' },
+    { key: 'gross', label: '공급대가', n: 0, unit: '', text: won(v.gross) },
+    { key: 'cost', label: '원가', n: 0, unit: '', text: won(v.cost) },
+    { key: 'profit', label: '수익', n: 0, unit: '', text: won(v.profit), profit: !loss, warn: loss, sep: 'arrow' },
+    { key: 'margin', label: '수익률', n: 0, unit: '', text: v.margin === null ? '—' : `${(v.margin * 100).toFixed(1)}%`, profit: !loss, warn: loss },
+  ]
+  const tiles = total ? make(total) : skeleton(make(BLANK_TOTALS))
 
   return (
-    <Card title={t('이번 달 손익')} full onGo={onGo}>
-      {!view ? <div style={s.muted}>{t('불러오는 중…')}</div>
-        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} small />}
+    <Card title={t('손익')} full onGo={onGo} extra={<ScopeToggle scope={scope} onChange={setScope} />}>
+      <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} small />
     </Card>
   )
 }
@@ -387,19 +429,19 @@ function ProgressCard({ orders, contracted, isMobile, onGo }: {
    * 「납기일 경과」는 다음 단계가 아니라 **어디에 있든 늦은 건**이라, 꺾쇠 대신 세로선으로 끊는다 —
    * 꺾쇠로 이으면 인도 완료 다음에 납기일 경과가 오는 것처럼 읽힌다.
    */
-  const tiles: Tile[] = dash ? ([
-    { key: 'assign', label: '배정 대기', n: dash.assign.length },
-    { key: 'pending', label: '수락 대기', n: dash.pending.length, sep: 'arrow' },
-    { key: 'active', label: '특장 진행', n: dash.active.length, sep: 'arrow' },
-    { key: 'addon', label: '부가 작업', n: dash.addon.length, sep: 'arrow' },
+  const make = (d: NonNullable<typeof dash>): Tile[] => ([
+    { key: 'assign', label: '배정 대기', n: d.assign.length },
+    { key: 'pending', label: '수락 대기', n: d.pending.length, sep: 'arrow' },
+    { key: 'active', label: '특장 진행', n: d.active.length, sep: 'arrow' },
+    { key: 'addon', label: '부가 작업', n: d.addon.length, sep: 'arrow' },
     // 여기서도 끝이 결론이다 — 영업 성과·손익과 같은 색
-    { key: 'done', label: '인도 완료', n: dash.done.length, sep: 'arrow', profit: true },
-    { key: 'late', label: '납기일 경과', n: dash.late.length, warn: true, sep: 'divider' },
-  ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' })) : []
+    { key: 'done', label: '인도 완료', n: d.done.length, sep: 'arrow', profit: true },
+    { key: 'late', label: '납기일 경과', n: d.late.length, warn: true, sep: 'divider' },
+  ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' }))
+  const tiles = dash ? make(dash) : skeleton(make(BLANK_DASH))
   return (
     <Card title={t('주문 진행 현황')} full onGo={onGo}>
-      {!dash ? <div style={s.muted}>{t('불러오는 중…')}</div>
-        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={3} />}
+      <TileRow tiles={tiles} isMobile={isMobile} mobileCols={3} />
     </Card>
   )
 }
@@ -754,6 +796,13 @@ const calCell: React.CSSProperties = {
   background: '#fff', fontFamily: 'inherit', alignItems: 'stretch',
 }
 
+/** 토글 한 칸 — `flex: 1 1 0` 이라야 글자 수와 상관없이 **정확히 반**이다(basis 를 0 으로 둔다) */
+const toggleSeg: React.CSSProperties = {
+  flex: '1 1 0', minWidth: 0, border: 'none', cursor: 'pointer',
+  fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '4px 0',
+  textAlign: 'center', whiteSpace: 'nowrap',
+}
+
 const cardBase: React.CSSProperties = {
   background: '#fff', border: 'var(--hairline)', borderRadius: 'var(--r-md)',
   padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minWidth: 0,
@@ -771,13 +820,19 @@ const s: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gap: 'var(--sp-3)', alignItems: 'start' },
   card: cardBase,
   cardFull: { ...cardBase, gridColumn: '1 / -1' },
-  cardHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)', flexWrap: 'wrap' },
+  cardHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexWrap: 'wrap' },
   cardTitle: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], color: 'var(--dark)' },
-  headGap: { marginRight: 'auto' },
+  // 제목과 오른쪽 묶음(토글·곁수치·열기) 사이를 벌린다 — 오른쪽은 늘 같은 자리에 선다
+  headGap: { flex: 1, minWidth: 0 },
   headCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
-  toggle: { display: 'inline-flex', border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff' },
-  toggleOn: { border: 'none', background: 'var(--dark)', color: '#fff', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
-  toggleOff: { border: 'none', background: 'none', color: 'var(--muted)', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
+  /**
+   * 기간 토글 — **칸을 정확히 반으로 가른다.**
+   * 글자 수에 맞춰 넓이를 잡으면(「이번 달」 3자 · 「전체」 2자) 가르는 선이 가운데가 아니게 되고,
+   * 카드마다 토글 모양이 달라 보인다(제보). 넓이를 못 박고 두 칸이 똑같이 나눠 갖는다.
+   */
+  toggle: { display: 'inline-flex', width: 132, flexShrink: 0, border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff' },
+  toggleOn: { ...toggleSeg, background: 'var(--dark)', color: '#fff' },
+  toggleOff: { ...toggleSeg, background: 'none', color: 'var(--muted)' },
   go: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
 
   // 한 줄을 가득 채운다. 줄(이름/숫자/아래)을 격자로 못 박아야 꺾쇠가 **숫자 줄**에 선다
@@ -814,7 +869,8 @@ const s: Record<string, React.CSSProperties> = {
   listSub: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
   listLate: { color: 'var(--req)', fontSize: 'var(--fs-caption)', fontWeight: 700, whiteSpace: 'nowrap' },
   tagWarn: { color: 'var(--req)', fontSize: 'var(--fs-caption)', border: '1px solid var(--req)', borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap' },
-  boardBar: { display: 'inline-flex', border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff', alignSelf: 'flex-start' },
+  // 마이페이지 고르개도 같은 규칙 — 칸을 똑같이 나눈다
+  boardBar: { display: 'inline-flex', width: 264, border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff', alignSelf: 'flex-start' },
   hitRow: {
     display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 2px', width: '100%',
     border: 'none', borderBottom: 'var(--hairline)', background: 'none', cursor: 'pointer',
