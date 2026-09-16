@@ -339,7 +339,7 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
               <MoneyField value={d.cost_etc} disabled={!canEdit || busy} label={t('기타')} onChange={v => set('cost_etc', v)} />
             </Field>
             <Field label={t('총원가')}><span style={s.calc}>{won(calc.cost_total)}</span></Field>
-            <Field label={t('수익')}>
+            <Field label={t('수익')} wide>
               <span style={calc.profit < 0 ? s.calcWarn : s.calcStrong}>{won(calc.profit)} · {pct(calc.margin)}</span>
             </Field>
 
@@ -387,14 +387,14 @@ function MoneyField({ value, disabled, label, onChange }: {
 }
 
 /** 금액 칸 — 세 자리마다 쉼표로 보여 주고 숫자로 돌려준다. 칸을 벗어날 때 저장한다 */
-function MoneyCell({ value, disabled, label, onSave }: {
-  value: number; disabled?: boolean; label: string; onSave: (v: number) => void
+function MoneyCell({ value, disabled, label, dense, onSave }: {
+  value: number; disabled?: boolean; label: string; dense?: boolean; onSave: (v: number) => void
 }) {
   const [draft, setDraft] = useState<string | null>(null)
   const shown = draft ?? (value ? value.toLocaleString('ko-KR') : '')
   return (
     <input
-      style={s.moneyInput} value={shown} disabled={disabled} inputMode="numeric" aria-label={label}
+      style={dense ? s.moneyCell : s.moneyInput} value={shown} disabled={disabled} inputMode="numeric" aria-label={label}
       onChange={e => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
       onBlur={() => {
         if (draft === null) return
@@ -411,23 +411,24 @@ function MoneyCell({ value, disabled, label, onSave }: {
  * 화면 아래쪽 줄에서 잘린다(ui-compact 검사가 이걸 지킨다).
  * 날짜는 고르는 순간이 곧 확정이라 **고르면 바로 저장**한다.
  */
-function DateCell({ value, disabled, label, onSave }: {
-  value: string | null; disabled?: boolean; label: string; onSave: (v: string | null) => void
+function DateCell({ value, disabled, label, dense, onSave }: {
+  value: string | null; disabled?: boolean; label: string; dense?: boolean; onSave: (v: string | null) => void
 }) {
   return (
     <DateField
-      value={value ?? ''} disabled={disabled} ariaLabel={label} style={s.dateInput} clearable
+      value={value ?? ''} disabled={disabled} ariaLabel={label} style={dense ? s.dateCell : s.dateInput} clearable
       onChange={v => { const next = v || null; if (next !== value) onSave(next) }}
     />
   )
 }
 
-function TextCell({ value, disabled, label, onSave, wide }: {
-  value: string | null; disabled?: boolean; label: string; wide?: boolean; onSave: (v: string | null) => void
+function TextCell({ value, disabled, label, onSave, wide, dense }: {
+  value: string | null; disabled?: boolean; label: string; wide?: boolean; dense?: boolean; onSave: (v: string | null) => void
 }) {
   return (
     <input
-      style={wide ? s.textInputWide : s.textInput} defaultValue={value ?? ''} disabled={disabled}
+      style={dense ? (wide ? s.textCellWide : s.textCell) : (wide ? s.textInputWide : s.textInput)}
+      defaultValue={value ?? ''} disabled={disabled}
       maxLength={label === '비고' ? 500 : 120} aria-label={label}
       onBlur={e => {
         const next = e.target.value.trim() || null
@@ -504,26 +505,26 @@ function TableRow({ row, canEdit, onWrite }: {
         <span style={s.name}>{row.customer ?? '—'}</span>
         <span style={s.no}>{row.quote_no ?? `#${row.quote_id}`}{mark && <b style={failed ? s.markFail : s.mark}> {mark}</b>}</span>
       </td>
-      <td style={s.td}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} onSave={v => put({ biz_name: v })} /></td>
-      <td style={s.td}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} onSave={v => put({ invoice_on: v })} /></td>
-      <td style={s.tdNum}><MoneyCell value={row.supply_amount} disabled={ro} label={t('공급가액')} onSave={v => put({ supply_amount: v })} /></td>
+      <td style={s.td}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} dense onSave={v => put({ biz_name: v })} /></td>
+      <td style={s.td}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} /></td>
+      <td style={s.tdNum}><MoneyCell value={row.supply_amount} disabled={ro} label={t('공급가액')} dense onSave={v => put({ supply_amount: v })} /></td>
       <td style={s.tdCalc}>{won(d.vat)}</td>
       <td style={s.tdCalc}>{won(d.gross)}</td>
-      <td style={s.tdNum}><MoneyCell value={row.deposit} disabled={ro} label={t('계약금')} onSave={v => put({ deposit: v })} /></td>
-      <td style={s.tdNum}><MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} onSave={v => put({ capital: v })} /></td>
+      <td style={s.tdNum}><MoneyCell value={row.deposit} disabled={ro} label={t('계약금')} dense onSave={v => put({ deposit: v })} /></td>
+      <td style={s.tdNum}><MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} dense onSave={v => put({ capital: v })} /></td>
       <td style={d.pay_diff < 0 ? s.tdCalcWarn : s.tdCalc}>{won(d.pay_diff)}</td>
       <td style={s.td}>
         <div style={s.payRow}><span style={s.payTag}>{t('계약금')}</span>
-          <DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} onSave={v => put({ deposit_paid_on: v })} /></div>
+          <DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} dense onSave={v => put({ deposit_paid_on: v })} /></div>
         <div style={s.payRow}><span style={s.payTag}>{t('캐피탈')}</span>
-          <DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} onSave={v => put({ capital_paid_on: v })} /></div>
+          <DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} dense onSave={v => put({ capital_paid_on: v })} /></div>
       </td>
       <td style={s.tdNum}>
-        <button type="button" style={s.costBtn} onClick={() => setCostOpen(true)}>{won(d.cost_total)} ✎</button>
+        <button type="button" style={s.costCell} onClick={() => setCostOpen(true)}>{won(d.cost_total)} ✎</button>
         {costOpen && <CostModal row={row} canEdit={canEdit} onClose={() => setCostOpen(false)} onSave={put} />}
       </td>
       <td style={d.profit < 0 ? s.tdCalcWarn : s.tdCalcGood}>{won(d.profit)}</td>
-      <td style={s.td}><TextCell value={row.memo} disabled={ro} label={t('비고')} wide onSave={v => put({ memo: v })} /></td>
+      <td style={s.td}><TextCell value={row.memo} disabled={ro} label={t('비고')} wide dense onSave={v => put({ memo: v })} /></td>
     </tr>
   )
 }
@@ -635,6 +636,33 @@ const cardBase: React.CSSProperties = {
 }
 const cellNum: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', textAlign: 'right', whiteSpace: 'nowrap' }
 
+/**
+ * **적는 칸은 한 벌이다.** 높이도 글자 크기도 앱 기준 토큰(`--h-control`·`--fs-input`)을 쓴다.
+ *
+ * 손으로 padding 을 주면 입력칸·날짜칸·버튼이 저마다 1~4px 씩 어긋나고, 칸이 열몇 개인 표에서는
+ * 그 어긋남이 줄마다 쌓여 눈에 띈다(제보). 계산해서 보여만 주는 값도 **같은 높이**를 차지하게
+ * 두어야 줄이 맞는다 — 테두리만 투명하게 한다.
+ */
+const CONTROL: React.CSSProperties = {
+  boxSizing: 'border-box', width: '100%', minWidth: 0,
+  // ⚠️ minHeight 도 같이 준다 — DateField 의 방아쇠가 `minHeight: --h-control` 을 들고 있어
+  //    height 만 주면 그 칸만 8px 더 커진다(실제로 표에서 그랬다)
+  height: 'var(--h-control)', minHeight: 'var(--h-control)',
+  fontFamily: 'inherit', fontSize: 'var(--fs-input)',
+  color: 'var(--body)', padding: '0 10px',
+  border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff',
+}
+/** 표 안 — 칸이 열셋이라 한 단계 촘촘하게(`--h-control-sm`·`--fs-label`). 휴대폰에서는 표를 안 쓴다 */
+const CELL: React.CSSProperties = {
+  ...CONTROL, height: 'var(--h-control-sm)', minHeight: 'var(--h-control-sm)',
+  fontSize: 'var(--fs-label)', padding: '0 7px',
+}
+/** 계산해서 보여만 주는 값 — 적는 칸과 **같은 자리**를 차지한다(테두리만 없다) */
+const readOnly = (base: React.CSSProperties): React.CSSProperties => ({
+  ...base, border: '1px solid transparent', background: 'none',
+  display: 'flex', alignItems: 'center', justifyContent: 'flex-end', ...cellNum,
+})
+
 const s: Record<string, React.CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   card: cardBase,
@@ -680,11 +708,11 @@ const s: Record<string, React.CSSProperties> = {
   tableWrap: { overflowX: 'auto' },
   table: { borderCollapse: 'collapse', width: '100%', minWidth: 1180 },
   th: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, textAlign: 'left', padding: '6px 6px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' },
-  td: { padding: '5px 6px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', verticalAlign: 'middle' },
-  tdNum: { padding: '5px 6px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', ...cellNum },
-  tdCalc: { padding: '5px 6px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--muted)', ...cellNum },
-  tdCalcWarn: { padding: '5px 6px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 700, ...cellNum },
-  tdCalcGood: { padding: '5px 6px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700, ...cellNum },
+  td: { padding: '4px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', verticalAlign: 'middle' },
+  tdNum: { padding: '4px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', ...cellNum },
+  tdCalc: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--muted)', ...cellNum },
+  tdCalcWarn: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 700, ...cellNum },
+  tdCalcGood: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700, ...cellNum },
   tfLabel: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)' },
   tfNum: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)', ...cellNum },
   tfNumWarn: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--req)', fontSize: 'var(--fs-label)', ...cellNum },
@@ -694,13 +722,24 @@ const s: Record<string, React.CSSProperties> = {
   mark: { color: 'var(--lime)' },
   markFail: { color: 'var(--req)' },
 
-  moneyInput: { width: '100%', minWidth: 88, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)', padding: '5px 6px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff', textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
-  dateInput: { boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)', padding: '4px 6px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff' },
-  textInput: { width: '100%', minWidth: 90, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)', padding: '5px 6px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff' },
-  textInputWide: { width: '100%', minWidth: 140, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 'var(--fs-input)', padding: '5px 6px', border: 'var(--hairline)', borderRadius: 'var(--r-sm)', background: '#fff' },
+  // ── 폼(입력 필요 · 휴대폰 카드 · 원가 창) ──
+  moneyInput: { ...CONTROL, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  textInput: CONTROL,
+  textInputWide: CONTROL,
+  dateInput: { ...CONTROL, minWidth: 0, justifyContent: 'space-between' },
+  costBtn: { ...CONTROL, cursor: 'pointer', color: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+  calc: { ...readOnly(CONTROL), color: 'var(--body)' },
+  calcStrong: { ...readOnly(CONTROL), color: 'var(--dark)', fontWeight: 700 },
+  calcWarn: { ...readOnly(CONTROL), color: 'var(--req)', fontWeight: 700 },
+
+  // ── 표(PC·태블릿) — 칸이 열셋이라 한 단계 촘촘하게 ──
+  moneyCell: { ...CELL, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  textCell: CELL,
+  textCellWide: { ...CELL, minWidth: 140 },
+  dateCell: { ...CELL, minWidth: 0, justifyContent: 'space-between' },
+  costCell: { ...CELL, cursor: 'pointer', color: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   payRow: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 },
   payTag: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', width: 38, whiteSpace: 'nowrap' },
-  costBtn: { border: 'var(--hairline)', background: '#fff', borderRadius: 'var(--r-sm)', padding: '5px 8px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--fs-label)', color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
 
   cards: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   rowCard: { border: 'var(--hairline)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 6 },
@@ -714,9 +753,6 @@ const s: Record<string, React.CSSProperties> = {
   field: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 },
   fieldWide: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, gridColumn: '1 / -1' },
   fieldLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
-  calc: { fontSize: 'var(--fs-label)', color: 'var(--body)', ...cellNum, textAlign: 'left', padding: '5px 0' },
-  calcStrong: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700, ...cellNum, textAlign: 'left', padding: '5px 0' },
-  calcWarn: { fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 700, ...cellNum, textAlign: 'left', padding: '5px 0' },
 
   overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--sp-4)' },
   modal: { background: '#fff', borderRadius: 12, width: 'min(520px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(22,24,15,.22)' },
