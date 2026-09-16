@@ -16,6 +16,8 @@ export const EN: Record<string, string> = {
   '명': '',
   '건': '',
   '예정': 'Planned',
+  '삭제됨': 'Voided',
+  '줄은 지워지지 않습니다. 회색으로 남고 합계에서만 빠지며, 사유가 그 줄 위에 적힙니다.': 'The row is not deleted. It stays greyed out, drops out of the totals, and the reason is shown over it.',
   '입력': 'Enter',
   '접기': 'Collapse',
   '여기서 다 적고 저장하면 아래 그 달 표로 내려갑니다': 'Fill it in here and save — the row drops into that month below',
@@ -1262,7 +1264,9 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
-  '계약 {0}': 'Signed {0}',
+  '{0} 손익 삭제': 'Void P&L · {0}',
+  '삭제 {0}건': '{0} voided',
+  '수락 {0}': 'Accepted {0}',
   '{0}일 경과': '{0}d over',
   '{0}일 남음': '{0}d left',
   '{0} 일정': 'Schedule for {0}',

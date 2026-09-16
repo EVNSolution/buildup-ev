@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { t, tf } from '../i18n'
-import { fetchPnl, savePnl, type PnlRow, type PnlPending, type PnlPatch } from '../api/pnl'
+import { fetchPnl, savePnl, voidPnl, unvoidPnl, type PnlRow, type PnlPending, type PnlPatch } from '../api/pnl'
 import { deriveP, sumP, monthOf } from '@shared/finance/pnl'
 import { usePermission } from './PermGate'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { useEscapeClose } from '../lib/escClose'
 import { BTN } from '../styles/buttons'
 import { DateField } from './ui/DateField'
 
@@ -68,8 +69,16 @@ export function PnlTab() {
     return saved
   }, [month, load])
 
+  /** 줄 하나가 바뀌면 그 줄만 갈아 끼운다(삭제·되돌리기도 같은 길) */
+  const replace = useCallback((saved: PnlRow) => {
+    setView(v => v && ({ ...v, rows: v.rows.map(r => (r.quote_id === saved.quote_id ? saved : r)) }))
+  }, [])
+
   const rows = view?.rows ?? []
-  const total = useMemo(() => sumP(rows), [rows])
+  // **삭제된 줄은 합계에서 뺀다.** 표에는 회색으로 남지만 그 달 숫자는 아니다
+  const alive = useMemo(() => rows.filter(r => !r.voided_at), [rows])
+  const total = useMemo(() => sumP(alive), [alive])
+  const voided = rows.length - alive.length
 
   return (
     <div style={s.root}>
@@ -89,16 +98,17 @@ export function PnlTab() {
       <section style={s.card}>
         <div style={s.cardHead}>
           <span style={s.cardTitle}>{month ? tf('{0}년 {1}월', Number(month.slice(0, 4)), Number(month.slice(5, 7))) : t('손익')}</span>
-          <span style={s.cardCount}>{tf('{0}건', rows.length)}</span>
+          <span style={s.cardCount}>{tf('{0}건', alive.length)}</span>
+          {voided > 0 && <span style={s.voidCount}>{tf('삭제 {0}건', voided)}</span>}
         </div>
         {rows.length === 0 ? (
           <div style={s.empty}>{t('이 달에 세금계산서가 발행된 건이 없습니다.')}</div>
         ) : isMobile ? (
           <div style={s.cards}>
-            {rows.map(r => <RowCard key={r.quote_id} row={r} canEdit={canEdit} onWrite={write} />)}
+            {rows.map(r => <RowCard key={r.quote_id} row={r} canEdit={canEdit} onWrite={write} onVoid={replace} />)}
           </div>
         ) : (
-          <RowTable rows={rows} canEdit={canEdit} onWrite={write} />
+          <RowTable rows={rows} canEdit={canEdit} onWrite={write} onVoid={replace} />
         )}
       </section>
     </div>
@@ -178,6 +188,13 @@ function PendingBox({ pending, canEdit, isMobile, onFile }: {
   const [open, setOpen] = useState(true)
   /** 한 번에 한 건만 편다 — 스무 건이 동시에 펴지면 그 아래 표가 화면 밖으로 밀린다 */
   const [editing, setEditing] = useState<number | null>(null)
+  /*
+   * ⚠️ **편 줄이 목록에서 사라진 뒤에는 접은 것으로 본다**(제보: 한 번 저장하면 다시 안 열렸다).
+   *    저장하면 그 건은 「입력 필요」에서 빠지는데 `editing` 은 그 번호를 들고 있었다. 그러면
+   *    「그 건만 보여 주는」 규칙에 걸려 **목록이 통째로 비고**, 누를 줄조차 없어진다.
+   *    지우는 것을 잊지 않게 여기서도 한 번 더 본다 — 저장 쪽에서 비우는 것과 이중으로 막는다.
+   */
+  const live = editing !== null && pending.some(p => p.quote_id === editing) ? editing : null
   return (
     <section style={pending.length > 0 ? s.cardAlert : s.card}>
       <button type="button" style={s.cardHeadBtn} onClick={() => setOpen(v => !v)} aria-expanded={open}>
@@ -193,13 +210,14 @@ function PendingBox({ pending, canEdit, isMobile, onFile }: {
          * 적는 중에는 **그 건만** 남긴다. 밀린 건이 백 줄이면 목록이 화면을 다 먹어
          * 적다가 어디를 보고 있는지 잃는다. 닫힌 목록은 높이를 묶고 구른다.
          */
-        <div style={editing === null ? s.pendList : s.pendListOne}>
-          {(editing === null ? pending : pending.filter(p => p.quote_id === editing)).map(p => (
+        <div style={live === null ? s.pendList : s.pendListOne}>
+          {(live === null ? pending : pending.filter(p => p.quote_id === live)).map(p => (
             <PendingRow
               key={p.quote_id} item={p} canEdit={canEdit} isMobile={isMobile}
-              open={editing === p.quote_id}
+              open={live === p.quote_id}
               onToggle={() => setEditing(v => (v === p.quote_id ? null : p.quote_id))}
-              onFile={onFile}
+              // 저장이 끝나면 목록으로 돌아온다 — 다음 건을 바로 고를 수 있어야 한다
+              onFile={async (id, patch) => { const r = await onFile(id, patch); setEditing(null); return r }}
             />
           ))}
         </div>
@@ -210,10 +228,7 @@ function PendingBox({ pending, canEdit, isMobile, onFile }: {
 
 /** 새 줄에 적을 것 전부 — 표의 칸과 하나씩 짝이 맞는다 */
 interface Draft {
-  biz_name: string
   invoice_on: string
-  supply_amount: number
-  deposit: number
   capital: number
   deposit_paid_on: string
   capital_paid_on: string
@@ -235,28 +250,23 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
   onFile: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
   const [d, setD] = useState<Draft>(() => ({
-    biz_name: item.biz_default ?? item.customer ?? '',
-    invoice_on: '',
-    supply_amount: item.supply_default ?? 0,
-    deposit: item.deposit_default,
-    capital: 0,
+    invoice_on: '', capital: 0,
     deposit_paid_on: '', capital_paid_on: '',
     cost: 0, memo: '',
   }))
+  /** 계약서에서 오는 값 — 보여만 준다 */
+  const fixed = { supply_amount: item.supply_default ?? 0, deposit: item.deposit_default }
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD(x => ({ ...x, [k]: v }))
-  const calc = deriveP(d)
+  const calc = deriveP({ ...fixed, capital: d.capital, cost: d.cost })
 
   const save = async () => {
     if (!d.invoice_on || busy) return
     setBusy(true); setErr('')
     try {
       await onFile(item.quote_id, {
-        biz_name: d.biz_name.trim() || null,
         invoice_on: d.invoice_on,
-        supply_amount: d.supply_amount,
-        deposit: d.deposit,
         capital: d.capital,
         deposit_paid_on: d.deposit_paid_on || null,
         capital_paid_on: d.capital_paid_on || null,
@@ -275,7 +285,8 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
         <span style={s.caret}>{open ? '▾' : '▸'}</span>
         <span style={s.pendNo}>{item.quote_no ?? `#${item.quote_id}`}</span>
         <span style={s.pendName}>{item.customer ?? '—'}</span>
-        <span style={s.pendSub}>{tf('계약 {0}', item.contracted_on ?? '—')}</span>
+        {/* 특장사가 수락한 날 — 이 순서(오래된 것 먼저)가 곧 처리 순서다 */}
+        <span style={s.pendSub}>{tf('수락 {0}', item.accepted_on ?? '—')}</span>
         <span style={s.pendAmount}>{item.supply_default === null ? '—' : won(item.supply_default)}</span>
         {!open && <span style={s.pendCta}>{t('입력')}</span>}
       </button>
@@ -287,19 +298,13 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
               <DateField value={d.invoice_on} onChange={v => set('invoice_on', v)} disabled={!canEdit || busy}
                 ariaLabel={t('세금계산서 발행일')} style={s.dateInput} clearable />
             </Field>
-            <Field label={t('사업자명')}>
-              <input style={s.textInput} value={d.biz_name} maxLength={120} disabled={!canEdit || busy}
-                aria-label={t('사업자명')} onChange={e => set('biz_name', e.target.value)} />
-            </Field>
-            <Field label={t('공급가액')}>
-              <MoneyField value={d.supply_amount} disabled={!canEdit || busy} label={t('공급가액')} onChange={v => set('supply_amount', v)} />
-            </Field>
+            {/* 계약서에서 오는 값 — 보여만 준다(고쳐야 하는 예외가 생기면 그때 다시 본다) */}
+            <Field label={t('고객명')}><span style={s.calcText}>{item.customer ?? '—'}</span></Field>
+            <Field label={t('공급가액')}><span style={s.calc}>{won(fixed.supply_amount)}</span></Field>
             <Field label={t('VAT')}><span style={s.calc}>{won(calc.vat)}</span></Field>
 
             <Field label={t('공급대가')}><span style={s.calcStrong}>{won(calc.gross)}</span></Field>
-            <Field label={t('계약금')}>
-              <MoneyField value={d.deposit} disabled={!canEdit || busy} label={t('계약금')} onChange={v => set('deposit', v)} />
-            </Field>
+            <Field label={t('계약금')}><span style={s.calc}>{won(fixed.deposit)}</span></Field>
             <Field label={t('캐피탈')}>
               <MoneyField value={d.capital} disabled={!canEdit || busy} label={t('캐피탈')} onChange={v => set('capital', v)} />
             </Field>
@@ -370,7 +375,8 @@ function MoneyCell({ value, disabled, label, dense, onSave }: {
   const shown = draft ?? (value ? value.toLocaleString('ko-KR') : '')
   return (
     <input
-      style={dense ? s.moneyCell : s.moneyInput} value={shown} disabled={disabled} inputMode="numeric" aria-label={label}
+      style={{ ...(dense ? s.moneyCell : s.moneyInput), ...(disabled ? OFF : {}) }}
+      value={shown} disabled={disabled} inputMode="numeric" aria-label={label}
       onChange={e => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
       onBlur={() => {
         if (draft === null) return
@@ -392,7 +398,8 @@ function DateCell({ value, disabled, label, dense, onSave }: {
 }) {
   return (
     <DateField
-      value={value ?? ''} disabled={disabled} ariaLabel={label} style={dense ? s.dateCell : s.dateInput} clearable
+      value={value ?? ''} disabled={disabled} ariaLabel={label} clearable
+      style={{ ...(dense ? s.dateCell : s.dateInput), ...(disabled ? OFF : {}) }}
       onChange={v => { const next = v || null; if (next !== value) onSave(next) }}
     />
   )
@@ -403,7 +410,7 @@ function TextCell({ value, disabled, label, onSave, wide, dense }: {
 }) {
   return (
     <input
-      style={dense ? (wide ? s.textCellWide : s.textCell) : (wide ? s.textInputWide : s.textInput)}
+      style={{ ...(dense ? (wide ? s.textCellWide : s.textCell) : (wide ? s.textInputWide : s.textInput)), ...(disabled ? OFF : {}) }}
       defaultValue={value ?? ''} disabled={disabled}
       maxLength={label === '비고' ? 500 : 120} aria-label={label}
       onBlur={e => {
@@ -430,66 +437,65 @@ function useRowWriter(row: PnlRow, onWrite: (quoteId: number, patch: PnlPatch) =
 /* ── PC·태블릿 표 ─────────────────────────────────────────────────────── */
 
 /**
- * PC·태블릿 표 — **한 화면에 다 들어가게** 짠다(2026-09-16 지시).
+ * PC·태블릿 표 — **한 줄에 한 칸씩, 줄마다 높이가 같게**(2026-09-16 지시).
  *
- * 처음엔 칸을 열셋으로 늘어놓고 옆으로 밀게 했다. PC 에서 가로 스크롤은 잘 안 되고,
- * 밀지 않으면 글자가 잘린 채로 읽힌다 — 표를 보는 뜻이 사라진다. 그래서 칸을 **열로 줄였다**.
+ * 처음엔 폭을 줄이려고 값을 위아래로 쌓았다(고객명 아래 사업자명, 공급가액 아래 VAT·공급대가).
+ * 그러자 칸마다 높이가 달라지고 숫자가 세로로 몰려 읽기 어려워졌다(제보) — 표를 보는 뜻이 사라진다.
  *
- *   · 고객명과 사업자명을 한 칸에 위아래로 (사업자명은 이름이 길다 — 폭을 줘야 안 잘린다)
- *   · 공급가액 아래에 VAT 를 작게 (같은 수에서 나오는 값이라 붙여 두는 편이 읽기 쉽다)
- *   · 계약금·캐피탈 아래에 각각의 입금일 (따로 두던 「입금일」 칸이 없어졌다)
+ * 그래서 **쌓지 않는다.** 칸은 하나씩 옆으로 늘어놓고, 다 넣으면 폭이 남으니
+ * 화면이 좁을 때는 **표만** 옆으로 민다(페이지가 아니라 표에 스크롤이 붙는다).
  *
- * 폭은 `table-layout: fixed` 로 못 박는다 — 숫자 칸은 잘리지 않을 만큼 주고, 남는 폭은 비고가 먹는다.
+ * 계약서에서 오는 값(고객명·공급가액·VAT·공급대가·계약금)은 **글자**이고, 적는 칸은 **입력**이다.
+ * 둘이 섞이므로 글자 쪽도 입력과 **같은 높이**를 차지하게 해 줄을 맞춘다(`tdCalc`).
  */
-const COLS: { w: string; head: string; sub?: string }[] = [
-  { w: '13%', head: '고객명', sub: '사업자명' },
-  { w: '108px', head: '발행일' },
-  // 공급가액에서 나오는 값(VAT·공급대가)은 **그 아래**에 붙인다 — 칸을 둘 더 쓰면 화면을 넘는다
-  { w: '116px', head: '공급가액', sub: 'VAT · 합계' },
-  { w: '110px', head: '계약금', sub: '입금일' },
-  { w: '110px', head: '캐피탈', sub: '입금일' },
-  { w: '104px', head: '입금 차액' },
-  { w: '96px', head: '원가' },
-  { w: '104px', head: '수익' },
+const COLS: { w: number | string; head: string; num?: boolean }[] = [
+  { w: 128, head: '고객명' },
+  { w: 112, head: '발행일' },
+  { w: 108, head: '공급가액', num: true },
+  { w: 100, head: 'VAT', num: true },
+  { w: 112, head: '공급대가', num: true },
+  { w: 92, head: '계약금', num: true },
+  { w: 108, head: '캐피탈', num: true },
+  { w: 108, head: '입금 차액', num: true },
+  { w: 112, head: '계약금 입금일' },
+  { w: 112, head: '캐피탈 입금일' },
+  { w: 108, head: '원가', num: true },
+  { w: 108, head: '수익', num: true },
   { w: 'auto', head: '비고' },
+  { w: 40, head: '' },
 ]
+/** 비고를 뺀 폭의 합 + 비고 최소폭 — 이보다 좁아지면 표만 옆으로 민다 */
+const TABLE_MIN = COLS.reduce<number>((n, c) => n + (typeof c.w === 'number' ? c.w : 0), 0) + 180
 
-function RowTable({ rows, canEdit, onWrite }: {
+function RowTable({ rows, canEdit, onWrite, onVoid }: {
   rows: PnlRow[]; canEdit: boolean
   onWrite: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  onVoid: (saved: PnlRow) => void
 }) {
-  const total = sumP(rows)
+  const total = sumP(rows.filter(r => !r.voided_at))
   return (
-    // 아주 좁은 창에서만 밀린다 — 평소에는 스크롤이 생기지 않는다
     <div style={s.tableWrap}>
-      <table style={s.table}>
-        <colgroup>{COLS.map(c => <col key={c.head} style={{ width: c.w }} />)}</colgroup>
+      <table style={{ ...s.table, minWidth: TABLE_MIN }}>
+        <colgroup>{COLS.map(c => <col key={c.head} style={{ width: typeof c.w === 'number' ? `${c.w}px` : c.w }} />)}</colgroup>
         <thead>
-          <tr>
-            {COLS.map(c => (
-              <th key={c.head} style={s.th}>
-                {t(c.head)}{c.sub && <span style={s.thSub}>{t(c.sub)}</span>}
-              </th>
-            ))}
-          </tr>
+          <tr>{COLS.map(c => <th key={c.head} style={c.num ? s.thNum : s.th}>{t(c.head)}</th>)}</tr>
         </thead>
         <tbody>
-          {rows.map(r => <TableRow key={r.quote_id} row={r} canEdit={canEdit} onWrite={onWrite} />)}
+          {rows.map(r => <TableRow key={r.quote_id} row={r} canEdit={canEdit} onWrite={onWrite} onVoid={onVoid} />)}
         </tbody>
         <tfoot>
           <tr>
             <td style={s.tfLabel} colSpan={2}>{t('합계')}</td>
-            <td style={s.tfNum}>
-              {won(total.supply_amount)}
-              <span style={s.tfSub}>{won(total.vat)}</span>
-              <span style={s.tfSubStrong}>{won(total.gross)}</span>
-            </td>
+            <td style={s.tfNum}>{won(total.supply_amount)}</td>
+            <td style={s.tfNum}>{won(total.vat)}</td>
+            <td style={s.tfNum}>{won(total.gross)}</td>
             <td style={s.tfNum}>{won(total.deposit)}</td>
             <td style={s.tfNum}>{won(total.capital)}</td>
             <td style={total.pay_diff < 0 ? s.tfNumWarn : s.tfNum}>{won(total.pay_diff)}</td>
+            <td style={s.tfNum} colSpan={2} />
             <td style={s.tfNum}>{won(total.cost)}</td>
             <td style={total.profit < 0 ? s.tfNumWarn : s.tfNum}>{won(total.profit)}</td>
-            <td style={s.tfNum} />
+            <td style={s.tfNum} colSpan={2} />
           </tr>
         </tfoot>
       </table>
@@ -497,61 +503,162 @@ function RowTable({ rows, canEdit, onWrite }: {
   )
 }
 
-function TableRow({ row, canEdit, onWrite }: {
+function TableRow({ row, canEdit, onWrite, onVoid }: {
   row: PnlRow; canEdit: boolean
   onWrite: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  onVoid: (saved: PnlRow) => void
 }) {
   const d = deriveP(row)
   const { put, mark, failed } = useRowWriter(row, onWrite)
-  const ro = !canEdit
+  const [ask, setAsk] = useState(false)
+  const dead = !!row.voided_at
+  const ro = !canEdit || dead
+  return (
+    <>
+      {/* 삭제된 줄은 **회색**이고, 그 위에 반투명 레이어가 덮여 사유가 적힌다(아래 VoidLayer) */}
+      <tr style={dead ? s.trDead : undefined}>
+        <td style={s.td}>
+          <div style={s.nameRow}>
+            <span style={s.name}>{row.customer ?? '—'}</span>
+            <span style={s.no}>{row.quote_no ?? `#${row.quote_id}`}{mark && <b style={failed ? s.markFail : s.mark}> {mark}</b>}</span>
+          </div>
+        </td>
+        <td style={s.td}>
+          <DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} />
+        </td>
+        <td style={s.tdCalcStrong}>{won(row.supply_amount)}</td>
+        <td style={s.tdCalc}>{won(d.vat)}</td>
+        <td style={s.tdCalcStrong}>{won(d.gross)}</td>
+        <td style={s.tdCalc}>{won(row.deposit)}</td>
+        <td style={s.td}>
+          <MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} dense onSave={v => put({ capital: v })} />
+        </td>
+        <td style={d.pay_diff < 0 ? s.tdCalcWarn : s.tdCalc}>{won(d.pay_diff)}</td>
+        <td style={s.td}>
+          <DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} dense onSave={v => put({ deposit_paid_on: v })} />
+        </td>
+        <td style={s.td}>
+          <DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} dense onSave={v => put({ capital_paid_on: v })} />
+        </td>
+        <td style={s.td}>
+          <MoneyCell value={row.cost} disabled={ro} label={t('원가')} dense onSave={v => put({ cost: v })} />
+        </td>
+        <td style={d.profit < 0 ? s.tdCalcWarn : s.tdCalcGood}>{won(d.profit)}</td>
+        <td style={s.td}><TextCell value={row.memo} disabled={ro} label={t('비고')} wide dense onSave={v => put({ memo: v })} /></td>
+        <td style={s.tdAct}>
+          {canEdit && !dead && (
+            <button type="button" style={s.delBtn} aria-label={t('삭제')} title={t('삭제')} onClick={() => setAsk(true)}>✕</button>
+          )}
+          {/*
+            회색 줄 **위에** 덮는다 — 줄을 지우지 않고 왜 뺐는지 그 자리에 적는다(지시).
+            줄(`<tr>`)을 기준 삼아 그 **한 줄을 통째로** 덮는다. 칸 안에 넣지만 칸에 갇히지 않는다 —
+            기준이 줄이라 왼쪽 끝부터 오른쪽 끝까지 닿는다.
+          */}
+          {dead && (
+            <div style={s.voidLayer}>
+              <span style={s.voidTag}>{t('삭제됨')}</span>
+              <span style={s.voidReason}>{row.void_reason ?? '—'}</span>
+              <span style={s.voidWho}>{row.voided_by ?? ''}</span>
+              {canEdit && (
+                <button type="button" style={s.undoBtn} onClick={() => { void unvoidPnl(row.quote_id).then(onVoid) }}>
+                  {t('되돌리기')}
+                </button>
+              )}
+            </div>
+          )}
+        </td>
+      </tr>
+      {ask && (
+        <VoidModal
+          row={row}
+          onClose={() => setAsk(false)}
+          onDone={saved => { setAsk(false); onVoid(saved) }}
+        />
+      )}
+    </>
+  )
+}
+
+/**
+ * 삭제 확인 — **사유 없이는 못 지운다.** 몇 달 뒤에 왜 뺐는지 물으면 답할 수 있어야 한다.
+ * 줄은 지워지지 않는다는 것을 창에서도 말해 준다(지운 줄 알고 놀라지 않게).
+ */
+function VoidCard({ row, onClose, onDone }: {
+  row: PnlRow; onClose: () => void; onDone: (saved: PnlRow) => void
+}) {
+  useEscapeClose(onClose)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const go = async () => {
+    if (!reason.trim() || busy) return
+    setBusy(true); setErr('')
+    try { onDone(await voidPnl(row.quote_id, reason.trim())) }
+    catch (e) { setErr(e instanceof Error ? e.message : t('저장하지 못했습니다')); setBusy(false) }
+  }
+  return (
+    <div style={s.overlay} onClick={ev => { if (ev.target === ev.currentTarget) onClose() }}>
+      <div style={s.modal} role="dialog" aria-modal="true" aria-label={t('삭제')}>
+        <div style={s.modalHead}>
+          <span style={s.cardTitle}>{tf('{0} 손익 삭제', row.customer ?? String(row.quote_id))}</span>
+          <button type="button" style={s.close} onClick={onClose} aria-label={t('닫기')}>✕</button>
+        </div>
+        <div style={s.voidBody}>
+          <div style={s.muted}>{t('줄은 지워지지 않습니다. 회색으로 남고 합계에서만 빠지며, 사유가 그 줄 위에 적힙니다.')}</div>
+          <label style={s.fieldLabel} htmlFor={`void-${row.quote_id}`}>{t('삭제 사유')}</label>
+          <input
+            id={`void-${row.quote_id}`} style={s.textInputWide} value={reason} maxLength={300} disabled={busy}
+            autoFocus onChange={e => setReason(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') void go() }}
+          />
+          {err && <span style={s.err}>{err}</span>}
+          <div style={s.entryFoot}>
+            <button type="button" style={BTN.smSecondary} onClick={onClose} disabled={busy}>{t('취소')}</button>
+            <button type="button" style={reason.trim() && !busy ? BTN.smDanger : BTN.disabled}
+              disabled={!reason.trim() || busy} onClick={go}>{t('삭제')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 표 안에서는 같은 창을 줄 하나에 담아 띄운다(표 구조를 깨지 않게) */
+function VoidModal(p: { row: PnlRow; onClose: () => void; onDone: (saved: PnlRow) => void }) {
   return (
     <tr>
-      <td style={s.td}>
-        <div style={s.nameRow}>
-          <span style={s.name}>{row.customer ?? '—'}</span>
-          <span style={s.no}>{row.quote_no ?? `#${row.quote_id}`}{mark && <b style={failed ? s.markFail : s.mark}> {mark}</b>}</span>
-        </div>
-        <TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} dense onSave={v => put({ biz_name: v })} />
-      </td>
-      <td style={s.td}>
-        <DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} />
-      </td>
-      <td style={s.td}>
-        <MoneyCell value={row.supply_amount} disabled={ro} label={t('공급가액')} dense onSave={v => put({ supply_amount: v })} />
-        {/* VAT 와 공급대가는 위 숫자에서 나온다 — 칸을 따로 쓰지 않고 바로 아래 붙인다 */}
-        <div style={s.subNum}>{won(d.vat)}</div>
-        <div style={s.subNumStrong}>{won(d.gross)}</div>
-      </td>
-      <td style={s.td}>
-        <MoneyCell value={row.deposit} disabled={ro} label={t('계약금')} dense onSave={v => put({ deposit: v })} />
-        <DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} dense onSave={v => put({ deposit_paid_on: v })} />
-      </td>
-      <td style={s.td}>
-        <MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} dense onSave={v => put({ capital: v })} />
-        <DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} dense onSave={v => put({ capital_paid_on: v })} />
-      </td>
-      <td style={d.pay_diff < 0 ? s.tdCalcWarn : s.tdCalc}>{won(d.pay_diff)}</td>
-      <td style={s.td}>
-        <MoneyCell value={row.cost} disabled={ro} label={t('원가')} dense onSave={v => put({ cost: v })} />
-      </td>
-      <td style={d.profit < 0 ? s.tdCalcWarn : s.tdCalcGood}>{won(d.profit)}</td>
-      <td style={s.td}><TextCell value={row.memo} disabled={ro} label={t('비고')} wide dense onSave={v => put({ memo: v })} /></td>
+      <td colSpan={COLS.length} style={s.tdModalHost}><VoidCard {...p} /></td>
     </tr>
   )
 }
 
 /* ── 휴대폰 카드 ──────────────────────────────────────────────────────── */
 
-function RowCard({ row, canEdit, onWrite }: {
+function RowCard({ row, canEdit, onWrite, onVoid }: {
   row: PnlRow; canEdit: boolean
   onWrite: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  onVoid: (saved: PnlRow) => void
 }) {
   const d = deriveP(row)
   const { put, mark, failed } = useRowWriter(row, onWrite)
   const [open, setOpen] = useState(false)
-  const ro = !canEdit
+  const [ask, setAsk] = useState(false)
+  const dead = !!row.voided_at
+  const ro = !canEdit || dead
   return (
-    <div style={s.rowCard}>
+    <div style={dead ? s.rowCardDead : s.rowCard}>
+      {/* 삭제된 줄 — 카드 맨 위에 사유를 얹는다(표의 반투명 레이어와 같은 뜻) */}
+      {dead && (
+        <div style={s.voidBar}>
+          <span style={s.voidTag}>{t('삭제됨')}</span>
+          <span style={s.voidReason}>{row.void_reason ?? '—'}</span>
+          {canEdit && (
+            <button type="button" style={s.undoBtn} onClick={() => { void unvoidPnl(row.quote_id).then(onVoid) }}>
+              {t('되돌리기')}
+            </button>
+          )}
+        </div>
+      )}
       <button type="button" style={s.rowCardHead} onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <span style={s.caret}>{open ? '▾' : '▸'}</span>
         <span style={s.name}>{row.customer ?? '—'}</span>
@@ -565,12 +672,12 @@ function RowCard({ row, canEdit, onWrite }: {
       </div>
       {open && (
         <div style={s.fields}>
-          <Field label={t('사업자명')}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} onSave={v => put({ biz_name: v })} /></Field>
           <Field label={t('세금계산서 발행일')}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} onSave={v => put({ invoice_on: v })} /></Field>
-          <Field label={t('공급가액')}><MoneyCell value={row.supply_amount} disabled={ro} label={t('공급가액')} onSave={v => put({ supply_amount: v })} /></Field>
+          {/* 계약서에서 오는 값 — 보여만 준다 */}
+          <Field label={t('공급가액')}><span style={s.calc}>{won(row.supply_amount)}</span></Field>
           <Field label={t('VAT')}><span style={s.calc}>{won(d.vat)}</span></Field>
-          <Field label={t('공급대가')}><span style={s.calc}>{won(d.gross)}</span></Field>
-          <Field label={t('계약금')}><MoneyCell value={row.deposit} disabled={ro} label={t('계약금')} onSave={v => put({ deposit: v })} /></Field>
+          <Field label={t('공급대가')}><span style={s.calcStrong}>{won(d.gross)}</span></Field>
+          <Field label={t('계약금')}><span style={s.calc}>{won(row.deposit)}</span></Field>
           <Field label={t('캐피탈')}><MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} onSave={v => put({ capital: v })} /></Field>
           <Field label={t('계약금 입금일')}><DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} onSave={v => put({ deposit_paid_on: v })} /></Field>
           <Field label={t('캐피탈 입금일')}><DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} onSave={v => put({ capital_paid_on: v })} /></Field>
@@ -581,8 +688,14 @@ function RowCard({ row, canEdit, onWrite }: {
             <span style={d.profit < 0 ? s.calcWarn : s.calcStrong}>{won(d.profit)}</span>
           </Field>
           <Field label={t('비고')} wide><TextCell value={row.memo} disabled={ro} label={t('비고')} wide onSave={v => put({ memo: v })} /></Field>
+          {canEdit && !dead && (
+            <div style={s.cardFoot}>
+              <button type="button" style={BTN.smDanger} onClick={() => setAsk(true)}>{t('삭제')}</button>
+            </div>
+          )}
         </div>
       )}
+      {ask && <VoidCard row={row} onClose={() => setAsk(false)} onDone={saved => { setAsk(false); onVoid(saved) }} />}
     </div>
   )
 }
@@ -603,6 +716,14 @@ const cardBase: React.CSSProperties = {
   padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minWidth: 0,
 }
 const cellNum: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', textAlign: 'right', whiteSpace: 'nowrap' }
+/**
+ * 표에서 **글자로만 보여 주는 숫자** — 적는 칸(28px)과 같은 높이를 차지해야 줄이 맞는다.
+ * 안쪽 여백도 입력칸(7px)과 맞춘다 — 안 맞추면 숫자 오른쪽 끝이 칸마다 어긋난다.
+ */
+const tdText: React.CSSProperties = {
+  padding: '5px 7px', borderBottom: 'var(--hairline)',
+  fontSize: 'var(--fs-label)', height: 'var(--h-control-sm)', ...cellNum,
+}
 
 /**
  * **적는 칸은 한 벌이다.** 높이도 글자 크기도 앱 기준 토큰(`--h-control`·`--fs-input`)을 쓴다.
@@ -625,6 +746,9 @@ const CELL: React.CSSProperties = {
   ...CONTROL, height: 'var(--h-control-sm)', minHeight: 'var(--h-control-sm)',
   fontSize: 'var(--fs-label)', padding: '0 7px',
 }
+/** 못 적는 칸 — 테두리는 그대로 두고 흐리게. 적을 수 있는 칸처럼 보이면 눌러 보다가 헛수고한다 */
+const OFF: React.CSSProperties = { background: 'var(--soft, #F7F7F4)', color: 'var(--muted)', cursor: 'default' }
+
 /** 계산해서 보여만 주는 값 — 적는 칸과 **같은 자리**를 차지한다(테두리만 없다) */
 const readOnly = (base: React.CSSProperties): React.CSSProperties => ({
   ...base, border: '1px solid transparent', background: 'none',
@@ -676,22 +800,20 @@ const s: Record<string, React.CSSProperties> = {
   tableWrap: { overflowX: 'auto' },
   // 폭을 못 박는다 — 숫자 칸은 잘리지 않을 만큼, 남는 폭은 비고가 먹는다
   table: { borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed', minWidth: 900 },
-  th: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, textAlign: 'left', padding: '6px 5px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' },
-  thSub: { marginLeft: 5, color: 'var(--muted)', opacity: 0.75 },
-  subNum: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', ...cellNum, padding: '2px 7px 0' },
-  subNumStrong: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700, ...cellNum, padding: '0 7px' },
+  th: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, textAlign: 'left', padding: '6px 7px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' },
+  thNum: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, textAlign: 'right', padding: '6px 7px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' },
   tfSub: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400 },
   tfSubStrong: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700 },
-  td: { padding: '4px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', verticalAlign: 'middle' },
-  tdNum: { padding: '4px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', ...cellNum },
-  tdCalc: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--muted)', ...cellNum },
-  tdCalcWarn: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 700, ...cellNum },
-  tdCalcGood: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700, ...cellNum },
+  td: { padding: '5px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', verticalAlign: 'middle', height: 'var(--h-control-sm)' },
+  tdCalc: { ...tdText, color: 'var(--muted)' },
+  tdCalcStrong: { ...tdText, color: 'var(--dark)', fontWeight: 700 },
+  tdCalcWarn: { ...tdText, color: 'var(--req)', fontWeight: 700 },
+  tdCalcGood: { ...tdText, color: 'var(--dark)', fontWeight: 700 },
   tfLabel: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)' },
   tfNum: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)', ...cellNum },
   tfNumWarn: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--req)', fontSize: 'var(--fs-label)', ...cellNum },
 
-  nameRow: { display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, padding: '0 2px 2px' },
+  nameRow: { display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, padding: '0 2px' },
   name: { color: 'var(--dark)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 },
   no: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 400 },
   mark: { color: 'var(--lime)' },
@@ -718,6 +840,10 @@ const s: Record<string, React.CSSProperties> = {
 
   cards: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   rowCard: { border: 'var(--hairline)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 6 },
+  // 삭제된 카드 — 표의 회색 줄과 같은 뜻이다
+  rowCardDead: { border: '1px solid var(--req)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--soft, #FAFAF7)', color: 'var(--muted)' },
+  voidBar: { display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 6, borderBottom: 'var(--hairline)' },
+  cardFoot: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', paddingTop: 4 },
   rowCardHead: { display: 'flex', alignItems: 'baseline', gap: 6, border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },
   rowCardSum: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   cardAmount: { marginLeft: 'auto', ...cellNum, fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)' },
@@ -736,6 +862,38 @@ const s: Record<string, React.CSSProperties> = {
   close: { border: 'none', background: 'none', fontSize: 16, color: 'var(--muted)', cursor: 'pointer', width: 36, height: 36 },
   costSum: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 8, borderTop: '1px solid var(--dark)', fontSize: 'var(--fs-label)', color: 'var(--dark)', flexWrap: 'wrap' },
   note: { gridColumn: '1 / -1', fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.6 },
+
+  // ── 삭제된 줄 ──
+  // 회색으로 남긴다 — 지운 것이 아니라 「뺀 것」이고, 무엇이 있었는지는 그대로 보여야 한다
+  // 줄을 기준으로 삼아야 레이어가 줄 전체를 덮는다
+  trDead: { color: 'var(--muted)', position: 'relative' },
+  tdAct: { padding: '5px 2px', borderBottom: 'var(--hairline)', textAlign: 'center' },
+  delBtn: {
+    border: 'none', background: 'none', color: 'var(--muted)', cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 13, width: 28, height: 'var(--h-control-sm)', borderRadius: 'var(--r-sm)',
+  },
+  voidLayer: {
+    position: 'absolute', inset: 0, zIndex: 1,
+    display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px',
+    // 반투명 — 아래 회색 줄이 비쳐 보이되 사유는 또렷하게 읽힌다
+    background: 'rgba(255,255,255,.88)',
+    borderTop: '1px solid var(--req)', borderBottom: '1px solid var(--req)',
+    fontSize: 'var(--fs-label)', color: 'var(--dark)', textAlign: 'left',
+  },
+  voidTag: {
+    flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff',
+    background: 'var(--req)', borderRadius: 4, padding: '1px 7px', whiteSpace: 'nowrap',
+  },
+  voidReason: { flex: '0 1 auto', minWidth: 0, maxWidth: 460, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  voidWho: { flexShrink: 1, minWidth: 0, fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' },
+  undoBtn: {
+    flexShrink: 0, border: 'var(--hairline)', background: '#fff', borderRadius: 'var(--r-sm)',
+    padding: '0 9px', height: 'var(--h-control-sm)', cursor: 'pointer',
+    fontFamily: 'inherit', fontSize: 'var(--fs-caption)', color: 'var(--dark)', whiteSpace: 'nowrap',
+  },
+  voidCount: { fontSize: 'var(--fs-caption)', color: 'var(--req)', whiteSpace: 'nowrap' },
+  tdModalHost: { padding: 0, border: 'none', height: 0 },
+  voidBody: { padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 8 },
 
   muted: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   empty: { fontSize: 'var(--fs-label)', color: 'var(--muted)', padding: '10px 0' },

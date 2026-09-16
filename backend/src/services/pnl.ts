@@ -19,7 +19,6 @@ export interface PnlRow {
   quote_id: number;
   quote_no: string | null;
   customer: string | null;
-  biz_name: string | null;
   sales_user_id: string | null;
   maker_org: string | null;
   invoice_on: string | null;
@@ -32,6 +31,10 @@ export interface PnlRow {
   cost_source: string;
   memo: string | null;
   updated_by: string | null;
+  /** 삭제된 줄 — 표에 회색으로 남고 합계에서 빠진다 */
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: string | null;
 }
 
 /** 아직 세금계산서 발행일을 안 적은 건 — 화면 맨 위 「입력 필요」 */
@@ -39,11 +42,11 @@ export interface PnlPending {
   quote_id: number;
   quote_no: string | null;
   customer: string | null;
-  contracted_on: string | null;
-  /** 계약서에서 가져온 값들 — 「입력 필요」 칸에 미리 채워 준다 */
+  /** 특장사가 **수락한** 날 — 이때부터 「입력 필요」에 선다 */
+  accepted_on: string | null;
+  /** 계약서에서 가져온 값들 — 「입력 필요」 칸에 그대로 보여 준다(고칠 수 없다) */
   supply_default: number | null;
   deposit_default: number;
-  biz_default: string | null;
 }
 
 const n = (v: bigint | number | null | undefined): number => Number(v ?? 0);
@@ -51,10 +54,11 @@ const day = (d: Date | null | undefined): string | null => (d ? d.toISOString().
 
 /** DB 행 + 견적을 화면 모양으로 */
 type RowWithQuote = {
-  quote_id: number; invoice_on: Date | null; biz_name: string | null;
+  quote_id: number; invoice_on: Date | null;
   supply_amount: bigint; deposit: bigint; capital: bigint;
   deposit_paid_on: Date | null; capital_paid_on: Date | null;
   cost: bigint; cost_source: string; memo: string | null; updated_by: string | null;
+  voided_at: Date | null; voided_by: string | null; void_reason: string | null;
   quote: {
     quote_no: string | null; sales_user_id: string | null;
     customer: { name: string } | null;
@@ -67,7 +71,6 @@ function toRow(r: RowWithQuote): PnlRow {
     quote_id: r.quote_id,
     quote_no: r.quote.quote_no,
     customer: r.quote.customer?.name ?? null,
-    biz_name: r.biz_name,
     sales_user_id: r.quote.sales_user_id,
     maker_org: r.quote.order?.maker_org?.name ?? null,
     invoice_on: day(r.invoice_on),
@@ -80,6 +83,9 @@ function toRow(r: RowWithQuote): PnlRow {
     cost_source: r.cost_source,
     memo: r.memo,
     updated_by: r.updated_by,
+    voided_at: r.voided_at ? r.voided_at.toISOString() : null,
+    voided_by: r.voided_by,
+    void_reason: r.void_reason,
   };
 }
 
@@ -107,15 +113,15 @@ export async function pnlOfMonth(ym: string): Promise<PnlRow[]> {
  * `body_payment` 는 VAT 포함이라 1.1 로 나눠 공급가액을 낸다. 계약금은 특장 계약금 그대로다.
  * 계산에 실패하면(옛 견적·단가 누락) **null 을 돌려준다** — 0 으로 채우면 「0원짜리 판매」가 된다.
  */
-export async function contractDefaults(quoteId: number): Promise<{ supply: number | null; deposit: number; biz_name: string | null }> {
-  if (!prisma) return { supply: null, deposit: 0, biz_name: null };
+export async function contractDefaults(quoteId: number): Promise<{ supply: number | null; deposit: number }> {
+  if (!prisma) return { supply: null, deposit: 0 };
   /*
    * ⚠️ **여기서 던지면 손익 화면 전체가 안 뜬다.** 「입력 필요」는 수십 줄을 한 번에 세는데,
    *    그 중 한 건이 옛 견적·단가 누락으로 못 세는 일이 실제로 있다. 한 줄을 못 세면 그 줄만
    *    비워 두고 손으로 적게 한다 — 나머지 줄까지 같이 잃지 않는다.
    */
   const q = await prisma.quote.findUnique({ where: { id: quoteId }, include: { customer: true } }).catch(() => null);
-  if (!q) return { supply: null, deposit: 0, biz_name: null };
+  if (!q) return { supply: null, deposit: 0 };
   const inp = (q.inputs ?? {}) as Record<string, unknown>;
   const customer: CustomerInput = {
     name: q.customer?.name,
@@ -127,8 +133,6 @@ export async function contractDefaults(quoteId: number): Promise<{ supply: numbe
     has_biz_plate: inp['has_biz_plate'] as boolean | undefined,
     tax_exempt_type: inp['tax_exempt_type'] as string | undefined,
   };
-  /** 계약서에 적힌 상호 — 없으면 고객명으로 시작한다(경영관리가 고친다) */
-  const bizName = (inp['contract_party'] as string | undefined)?.trim() || q.customer?.name || null;
   try {
     // 보조금·세율은 **견적을 만든 해** 기준이다 — 올해 표로 다시 세면 작년 계약 금액이 바뀐다
     const calcYear = q.created_at.getFullYear();
@@ -138,10 +142,10 @@ export async function contractDefaults(quoteId: number): Promise<{ supply: numbe
     const total = calcQuote(params);
     // 특장 결제금액(VAT 포함) → 공급가액(VAT 별도). 그냥 나누면 VAT 버림 때문에 1원이 샌다
     const supply = total.body_payment > 0 ? supplyFromGross(total.body_payment) : null;
-    return { supply, deposit: Math.max(0, Math.round(total.body_deposit || 0)), biz_name: bizName };
+    return { supply, deposit: Math.max(0, Math.round(total.body_deposit || 0)) };
   } catch {
-    // 옛 견적·단가 누락으로 다시 셀 수 없는 건이 있다. 그럴 땐 손으로 적게 둔다
-    return { supply: null, deposit: 0, biz_name: bizName };
+    // 옛 견적·단가 누락으로 다시 셀 수 없는 건이 있다 — 0 으로 두고 줄에는 「—」로 보인다
+    return { supply: null, deposit: 0 };
   }
 }
 
@@ -149,24 +153,30 @@ export async function contractDefaults(quoteId: number): Promise<{ supply: numbe
 const DEFAULTS_LIMIT = 60;
 
 /**
- * 아직 발행일을 안 적은 건 — **계약 완료 이상**이면서 손익 줄이 없거나 발행일이 빈 것.
- * 오래된 것부터 위에 둔다(먼저 처리할 순서).
+ * 아직 발행일을 안 적은 건 — **특장사가 수락한 뒤부터** 여기 선다(2026-09-16 지시).
+ *
+ * 계약만 끝난 건은 아직 만들지도 않은 차라 세금계산서를 끊을 일이 없다.
+ * 특장사가 수락하면 그때부터 실제로 만들기 시작하므로, 그 시점을 기준으로 삼는다.
+ *
+ * **오래된 것이 맨 위**다 — 먼저 처리할 순서이고, 밀린 건이 아래로 묻히면 안 된다.
  */
 export async function pnlPending(): Promise<PnlPending[]> {
   if (!prisma) return [];
   const quotes = await prisma.quote.findMany({
     where: {
       ...VISIBLE,
-      status: { in: ['contracted', 'assigned', 'ordered', 'completed'] },
+      // 수락한 주문만 — 취소(배정 취소·주문 삭제)된 건은 수락 기록이 지워지거나 canceled 로 남는다
+      order: { is: { accepted_at: { not: null }, canceled_at: null } },
       OR: [{ pnl: { is: null } }, { pnl: { invoice_on: null } }],
     },
     select: {
       id: true, quote_no: true, created_at: true,
       customer: { select: { name: true } },
-      contracts: { orderBy: { created_at: 'desc' }, take: 1, select: { completed_at: true } },
-      pnl: { select: { biz_name: true, supply_amount: true, deposit: true } },
+      order: { select: { accepted_at: true } },
+      pnl: { select: { supply_amount: true, deposit: true } },
     },
-    orderBy: { created_at: 'asc' },
+    // 수락이 오래된 것부터 — 화면에서 다시 정렬하지 않게 여기서 못 박는다
+    orderBy: { order: { accepted_at: 'asc' } },
   });
 
   const out: PnlPending[] = [];
@@ -174,31 +184,33 @@ export async function pnlPending(): Promise<PnlPending[]> {
     const kept = q.pnl;
     let supply: number | null = kept ? n(kept.supply_amount) : null;
     let deposit = kept ? n(kept.deposit) : 0;
-    let biz: string | null = kept?.biz_name ?? null;
     // 이미 적어 둔 줄이 있으면 그 값을 쓴다 — 다시 세지 않는다(굳힌 값이 정본이다)
     if (!kept && out.length < DEFAULTS_LIMIT) {
       const d = await contractDefaults(q.id);
-      supply = d.supply; deposit = d.deposit; biz = d.biz_name;
+      supply = d.supply; deposit = d.deposit;
     }
     out.push({
       quote_id: q.id,
       quote_no: q.quote_no,
       customer: q.customer?.name ?? null,
-      contracted_on: day(q.contracts[0]?.completed_at ?? null) ?? day(q.created_at),
+      accepted_on: day(q.order?.accepted_at ?? null) ?? day(q.created_at),
       supply_default: supply,
       deposit_default: deposit,
-      biz_default: biz ?? q.customer?.name ?? null,
     });
   }
   return out;
 }
 
 /** 화면이 보낸 값 — 안 보낸 칸은 그대로 둔다(부분 저장) */
+/**
+ * 화면이 적을 수 있는 칸 — 안 보낸 칸은 그대로 둔다(부분 저장).
+ *
+ * ⚠️ **공급가액·계약금은 여기 없다.** 계약서에서 가져와 줄을 만들 때 굳히고, 그 뒤로는 고치지 않는다
+ *    (2026-09-16 지시 — 고쳐야 하는 예외가 생기면 그때 다시 본다). 화면에서 빼는 것만으로는
+ *    막은 것이 아니라 **서버가 받지 않는다.**
+ */
 export interface PnlPatch {
   invoice_on?: string | null;
-  biz_name?: string | null;
-  supply_amount?: number;
-  deposit?: number;
   capital?: number;
   deposit_paid_on?: string | null;
   capital_paid_on?: string | null;
@@ -232,9 +244,6 @@ export async function savePnl(quoteId: number, patch: PnlPatch, by: string): Pro
   const data: Record<string, unknown> = { updated_by: by };
   const put = (key: string, v: unknown) => { if (v !== undefined) data[key] = v; };
   put('invoice_on', dateOf(patch.invoice_on));
-  put('biz_name', text(patch.biz_name, 120));
-  put('supply_amount', money(patch.supply_amount));
-  put('deposit', money(patch.deposit));
   put('capital', money(patch.capital));
   put('deposit_paid_on', dateOf(patch.deposit_paid_on));
   put('capital_paid_on', dateOf(patch.capital_paid_on));
@@ -242,16 +251,43 @@ export async function savePnl(quoteId: number, patch: PnlPatch, by: string): Pro
   put('memo', text(patch.memo, 500));
 
   if (!exists) {
+    // 계약서 금액은 **줄을 만들 때 한 번** 굳힌다 — 그 뒤로는 어떤 요청도 이 둘을 못 바꾼다
     const d = await contractDefaults(quoteId);
-    if (data['supply_amount'] === undefined && d.supply !== null) data['supply_amount'] = BigInt(d.supply);
-    if (data['deposit'] === undefined) data['deposit'] = BigInt(d.deposit);
-    if (data['biz_name'] === undefined && d.biz_name) data['biz_name'] = d.biz_name;
+    data['supply_amount'] = BigInt(d.supply ?? 0);
+    data['deposit'] = BigInt(d.deposit);
     await prisma.orderPnl.create({ data: { quote_id: quoteId, ...data } as never });
   } else {
     await prisma.orderPnl.update({ where: { quote_id: quoteId }, data: data as never });
   }
 
-  const saved = await prisma.orderPnl.findUnique({
+  return readPnl(quoteId);
+}
+
+/**
+ * **삭제** — 줄을 지우지 않는다. 사유를 적어 회색으로 남기고 합계에서만 뺀다(2026-09-16 지시).
+ * 사유 없이는 삭제할 수 없다 — 몇 달 뒤에 왜 뺐는지 물으면 답할 수 있어야 한다.
+ */
+export async function voidPnl(quoteId: number, reason: string, by: string): Promise<PnlRow | null> {
+  if (!prisma) return null;
+  await prisma.orderPnl.update({
+    where: { quote_id: quoteId },
+    data: { voided_at: new Date(), voided_by: by, void_reason: reason.slice(0, 300), updated_by: by },
+  });
+  return readPnl(quoteId);
+}
+
+/** 되돌리기 — 잘못 지운 것을 살린다(사유 기록은 지운다) */
+export async function unvoidPnl(quoteId: number, by: string): Promise<PnlRow | null> {
+  if (!prisma) return null;
+  await prisma.orderPnl.update({
+    where: { quote_id: quoteId },
+    data: { voided_at: null, voided_by: null, void_reason: null, updated_by: by },
+  });
+  return readPnl(quoteId);
+}
+
+async function readPnl(quoteId: number): Promise<PnlRow | null> {
+  const saved = await prisma!.orderPnl.findUnique({
     where: { quote_id: quoteId },
     include: { quote: { select: QUOTE_PICK } },
   });

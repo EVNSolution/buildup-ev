@@ -473,16 +473,12 @@ model OrderPnl {
   quote_id Int @unique
 
   /// 세금계산서 발행일 — **이 날짜가 몇 월 표에 들어갈지를 정한다.** 비어 있으면 「입력 필요」에 남는다
-  invoice_on DateTime? @db.Date
-  /// 사업자명 — 고객명과 다를 수 있다(개인 이름으로 계약하고 상호로 발행)
-  biz_name   String?   @db.VarChar(120)
-
-  /// 공급가액(VAT 별도). 처음엔 계약서상 특장가격에서 채우고, 그 뒤로는 적힌 값이 정본이다
-  supply_amount BigInt @default(0)
-  /// 계약금 — 시스템에 등록된 특장 계약금으로 채우되 고칠 수 있다
-  deposit       BigInt @default(0)
+  invoice_on    DateTime? @db.Date
+  /// 공급가액(VAT 별도)·계약금 — **계약서에서 가져와 굳힌다.** 화면에서 고치지 않는다(2026-09-16 지시)
+  supply_amount BigInt    @default(0)
+  deposit       BigInt    @default(0)
   /// 캐피탈 — 경영관리가 직접 적는다
-  capital       BigInt @default(0)
+  capital       BigInt    @default(0)
 
   deposit_paid_on DateTime? @db.Date
   capital_paid_on DateTime? @db.Date
@@ -493,10 +489,15 @@ model OrderPnl {
   cost_source String @default("manual") @db.VarChar(20)
 
   /// 비고 — 엑셀의 「비고 (사업자등록증 확인 필요)」 칸
-  memo       String?  @db.VarChar(500)
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now()) @updatedAt
-  updated_by String?  @db.VarChar(120)
+  memo String? @db.VarChar(500)
+
+  /// 삭제 — **줄을 지우지 않는다.** 표에 회색으로 남기고 사유를 위에 적는다(2026-09-16 지시). 합계에서는 빠진다
+  voided_at   DateTime?
+  voided_by   String?   @db.VarChar(120)
+  void_reason String?   @db.VarChar(300)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @default(now()) @updatedAt
+  updated_by  String?   @db.VarChar(120)
 
   quote Quote @relation(fields: [quote_id], references: [id])
 

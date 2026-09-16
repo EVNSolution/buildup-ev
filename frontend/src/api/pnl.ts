@@ -6,7 +6,6 @@ export interface PnlRow {
   quote_id: number
   quote_no: string | null
   customer: string | null
-  biz_name: string | null
   sales_user_id: string | null
   maker_org: string | null
   invoice_on: string | null
@@ -21,6 +20,10 @@ export interface PnlRow {
   cost_source: string
   memo: string | null
   updated_by: string | null
+  /** 삭제된 줄 — 표에 회색으로 남고 합계에서 빠진다 */
+  voided_at: string | null
+  voided_by: string | null
+  void_reason: string | null
 }
 
 /** 아직 세금계산서 발행일을 안 적은 건 — 화면 맨 위 「입력 필요」 */
@@ -28,10 +31,10 @@ export interface PnlPending {
   quote_id: number
   quote_no: string | null
   customer: string | null
-  contracted_on: string | null
+  /** 특장사가 **수락한** 날 — 이때부터 「입력 필요」에 선다 */
+  accepted_on: string | null
   supply_default: number | null
   deposit_default: number
-  biz_default: string | null
 }
 
 export interface PnlView {
@@ -42,10 +45,12 @@ export interface PnlView {
   months: string[]
 }
 
-/** 적을 수 있는 칸 — 안 보낸 칸은 그대로 둔다(부분 저장) */
+/**
+ * 적을 수 있는 칸 — 안 보낸 칸은 그대로 둔다(부분 저장).
+ * ⚠️ **공급가액·계약금은 없다** — 계약서에서 가져와 굳힌 값이라 고치지 않는다(서버도 받지 않는다).
+ */
 export type PnlPatch = Partial<Pick<PnlRow,
-  | 'invoice_on' | 'biz_name' | 'supply_amount' | 'deposit' | 'capital'
-  | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
+  'invoice_on' | 'capital' | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
 >>
 
 async function jsonOf<T>(res: Response): Promise<T> {
@@ -59,6 +64,19 @@ async function jsonOf<T>(res: Response): Promise<T> {
 export function fetchPnl(month?: string): Promise<PnlView> {
   const qs = month ? `?month=${encodeURIComponent(month)}` : ''
   return fetch(`/api/v1/pnl${qs}`, { credentials: 'include' }).then(jsonOf<PnlView>)
+}
+
+/** 삭제 — 줄은 남고 회색이 된다. 사유는 반드시 적는다(서버가 강제) */
+export function voidPnl(quoteId: number, reason: string): Promise<PnlRow> {
+  return fetch(`/api/v1/pnl/${quoteId}/void`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+  }).then(jsonOf<PnlRow>)
+}
+
+/** 되돌리기 */
+export function unvoidPnl(quoteId: number): Promise<PnlRow> {
+  return fetch(`/api/v1/pnl/${quoteId}/unvoid`, { method: 'POST', credentials: 'include' }).then(jsonOf<PnlRow>)
 }
 
 export function savePnl(quoteId: number, patch: PnlPatch): Promise<PnlRow> {

@@ -10,11 +10,9 @@ CREATE TABLE IF NOT EXISTS "order_pnl" (
   "quote_id"          INTEGER NOT NULL UNIQUE,
   -- 세금계산서 발행일 — **이 날짜가 몇 월 표에 들어갈지를 정한다.** 비어 있으면 「입력 필요」에 남는다
   "invoice_on"        DATE,
-  -- 사업자명 — 고객명과 다를 수 있다(개인 이름으로 계약하고 상호로 발행). 처음엔 고객명으로 채운다
-  "biz_name"          VARCHAR(120),
-  -- 공급가액(VAT 별도) — 계약서상 특장가격에서 처음 값을 채우고, 그 뒤로는 적힌 값이 정본이다
+  -- 공급가액(VAT 별도)·계약금 — **계약서에서 그대로 가져와 굳힌다.** 화면에서 고치지 않는다(2026-09-16 지시).
+  -- 굳혀 두는 이유: 단가표를 나중에 고쳐도 이미 세금계산서가 나간 줄의 금액은 그대로여야 한다
   "supply_amount"     BIGINT  NOT NULL DEFAULT 0,
-  -- 계약금 — 시스템에 등록된 특장 계약금으로 채우되 고칠 수 있다
   "deposit"           BIGINT  NOT NULL DEFAULT 0,
   -- 캐피탈 — 경영관리가 직접 적는다
   "capital"           BIGINT  NOT NULL DEFAULT 0,
@@ -28,6 +26,11 @@ CREATE TABLE IF NOT EXISTS "order_pnl" (
   "cost_source"       VARCHAR(20) NOT NULL DEFAULT 'manual',
   -- 비고 — 엑셀의 「비고 (사업자등록증 확인 필요)」 칸
   "memo"              VARCHAR(500),
+  -- 삭제 — **줄을 지우지 않는다.** 표에 회색으로 남기고 사유를 위에 적는다(2026-09-16 지시).
+  -- 합계에서는 빠진다. 되돌릴 수 있다(되돌리면 세 칸을 비운다)
+  "voided_at"         TIMESTAMP(3),
+  "voided_by"         VARCHAR(120),
+  "void_reason"       VARCHAR(300),
   "created_at"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_by"        VARCHAR(120),

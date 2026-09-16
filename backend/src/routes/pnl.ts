@@ -10,7 +10,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { isYearMonth } from '@buildup-ev/shared/finance/pnl';
-import { pnlOfMonth, pnlPending, pnlMonths, savePnl, type PnlPatch } from '../services/pnl.js';
+import { pnlOfMonth, pnlPending, pnlMonths, savePnl, voidPnl, unvoidPnl, type PnlPatch } from '../services/pnl.js';
 
 export const pnlRouter = Router();
 
@@ -54,5 +54,51 @@ pnlRouter.put('/:quoteId', ...manage, async (req: Request, res: Response): Promi
       res.status(404).json({ error: { code: 'NOT_FOUND', message: '견적을 찾을 수 없습니다' } }); return;
     }
     fail(res, 'PUT /:quoteId', e);
+  }
+});
+
+/** 줄 번호를 읽는다 — 주소창 값을 믿지 않는다 */
+function quoteIdOf(req: Request, res: Response): number | null {
+  const id = Number(req.params['quoteId']);
+  if (Number.isInteger(id)) return id;
+  res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 견적 id' } });
+  return null;
+}
+
+// ── POST /pnl/:quoteId/void — 삭제(줄은 남는다, 사유 필수) ────────────────
+pnlRouter.post('/:quoteId/void', ...manage, async (req: Request, res: Response): Promise<void> => {
+  const quoteId = quoteIdOf(req, res);
+  if (quoteId === null) return;
+  const reason = String((req.body as { reason?: unknown })?.reason ?? '').trim();
+  // 사유 없이는 못 지운다 — 몇 달 뒤에 왜 뺐는지 물으면 답할 수 있어야 한다
+  if (!reason) {
+    res.status(400).json({ error: { code: 'REASON_REQUIRED', message: '삭제 사유를 적어 주세요.' } });
+    return;
+  }
+  try {
+    const row = await voidPnl(quoteId, reason, req.auth?.email ?? 'unknown');
+    if (!row) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '손익 줄을 찾을 수 없습니다' } }); return; }
+    res.json({ data: row });
+  } catch (e) {
+    if (e && typeof e === 'object' && (e as { code?: string }).code === 'P2025') {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '손익 줄을 찾을 수 없습니다' } }); return;
+    }
+    fail(res, 'POST /:quoteId/void', e);
+  }
+});
+
+// ── POST /pnl/:quoteId/unvoid — 되돌리기 ──────────────────────────────────
+pnlRouter.post('/:quoteId/unvoid', ...manage, async (req: Request, res: Response): Promise<void> => {
+  const quoteId = quoteIdOf(req, res);
+  if (quoteId === null) return;
+  try {
+    const row = await unvoidPnl(quoteId, req.auth?.email ?? 'unknown');
+    if (!row) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '손익 줄을 찾을 수 없습니다' } }); return; }
+    res.json({ data: row });
+  } catch (e) {
+    if (e && typeof e === 'object' && (e as { code?: string }).code === 'P2025') {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: '손익 줄을 찾을 수 없습니다' } }); return;
+    }
+    fail(res, 'POST /:quoteId/unvoid', e);
   }
 });
