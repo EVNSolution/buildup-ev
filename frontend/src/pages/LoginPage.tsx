@@ -33,6 +33,19 @@ export function LoginPage() {
     }
   }, [session, loading, navigate])
 
+  /*
+   * **로컬에서는 그냥 들어간다**(2026-09-16 지시 — 개발할 때 비밀번호를 치지 않게).
+   *
+   * ⚠️ 이 코드는 **개발 서버에서만 산다.** `import.meta.env.DEV` 는 빌드할 때 false 로 굳어
+   *    운영 번들에서는 이 블록이 통째로 사라진다. 서버 쪽도 운영에는 그 경로가 없다(routes/dev-auth.ts).
+   */
+  useEffect(() => {
+    if (!import.meta.env.DEV || loading || session) return
+    if (window.location.hostname !== 'localhost') return
+    const to = `${window.location.origin}/admin`
+    window.location.replace(`http://localhost:3001/api/v1/dev/login?email=master@local&to=${encodeURIComponent(to)}`)
+  }, [session, loading])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim() || !password) { setError(t('이메일과 비밀번호를 입력해 주세요.')); return }

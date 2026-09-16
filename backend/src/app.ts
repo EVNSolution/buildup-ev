@@ -13,6 +13,7 @@ import { addonRouter } from './routes/addon.js';
 import { docsRouter } from './routes/docs.js';
 import { pushRouter } from './routes/push.js';
 import { authRouter } from './routes/auth.js';
+import { devAuthRouter, devAutoLoginEnabled } from './routes/dev-auth.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
 import { weightConstantsRouter } from './routes/weight-constants.js';
@@ -87,6 +88,16 @@ export function createApp() {
   app.use('/api/external', externalRouter);
 
   app.use('/api/v1/auth', authRouter);
+
+  /*
+
+   * 로컬 전용 자동 로그인 — **운영이 아닐 때만 라우트를 만든다**(routes/dev-auth.ts).
+
+   * 운영은 NODE_ENV=production 으로 뜨므로 이 경로가 존재하지 않는다.
+
+   */
+
+  if (devAutoLoginEnabled()) app.use('/api/v1/dev', devAuthRouter);
   app.use('/api/v1/users', usersRouter);
   app.use('/api/v1/access-control', accessControlRouter);
   app.use('/api/v1/weight-constants', weightConstantsRouter);

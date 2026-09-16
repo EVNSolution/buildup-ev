@@ -22,7 +22,11 @@ const STATUS_KO: Record<string, string> = {
   assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
 }
 
-export function CustomerFolders({ mine }: {
+export function CustomerFolders({ mine, initialQuery = '', initialOpenKey = null }: {
+  /** 대시보드 「고객 검색」 카드에서 넘어올 때 — 그 이름으로 바로 좁혀서 연다(2026-09-16) */
+  initialQuery?: string
+  /** 그 고객을 **펼친 채로** 연다 — 검색에서 이미 사람을 고르고 들어왔으면 한 번 더 누르게 하지 않는다 */
+  initialOpenKey?: number | null
   /**
    * 영업 화면에서 참으로 준다 — 겸직(영업+관리자) 계정이라도 남의 고객은 안 본다.
    */
@@ -30,9 +34,9 @@ export function CustomerFolders({ mine }: {
 } = {}) {
   const [rows, setRows] = useState<ApiFolderRow[] | null>(null)
   const [err, setErr] = useState('')
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(initialQuery)
   /** 펼쳐 둔 고객 — 하나만 연다. 여럿 열면 화면이 길어져 훑는 뜻이 사라진다 */
-  const [openKey, setOpenKey] = useState<number | null>(null)
+  const [openKey, setOpenKey] = useState<number | null>(initialOpenKey)
 
   useEffect(() => {
     fetchFolders(mine)
