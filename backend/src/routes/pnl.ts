@@ -10,7 +10,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { isYearMonth } from '@buildup-ev/shared/finance/pnl';
-import { pnlOfMonth, pnlPending, pnlMonths, savePnl, voidPnl, unvoidPnl, type PnlPatch } from '../services/pnl.js';
+import { pnlOfMonth, pnlPending, pnlMonths, pnlSummary, savePnl, voidPnl, unvoidPnl, type PnlPatch } from '../services/pnl.js';
 
 export const pnlRouter = Router();
 
@@ -36,6 +36,15 @@ pnlRouter.get('/', ...view, async (req: Request, res: Response): Promise<void> =
     const [rows, pending, months] = await Promise.all([pnlOfMonth(month), pnlPending(), pnlMonths()]);
     res.json({ data: { month, rows, pending, months } });
   } catch (e) { fail(res, 'GET /', e); }
+});
+
+// ── GET /pnl/summary — 대시보드 카드용 요약(이번 달 + 전체) ────────────────
+// ⚠️ `/:quoteId` 보다 **먼저** 둔다. 뒤에 두면 'summary' 가 견적 id 로 읽힌다
+pnlRouter.get('/summary', ...view, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const q = req.query['month'];
+    res.json({ data: await pnlSummary(isYearMonth(q) ? q : thisMonth()) });
+  } catch (e) { fail(res, 'GET /summary', e); }
 });
 
 // ── PUT /pnl/:quoteId — 줄 하나를 적는다(없으면 만든다) ──────────────────────

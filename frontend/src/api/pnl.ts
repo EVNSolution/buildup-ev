@@ -63,6 +63,32 @@ async function jsonOf<T>(res: Response): Promise<T> {
   return (await res.json() as { data: T }).data
 }
 
+/** 합계 한 벌 — 손익 탭의 합계와 같은 셈이다(서버가 같은 함수로 낸다) */
+export interface PnlTotals {
+  count: number
+  supply_amount: number
+  vat: number
+  gross: number
+  deposit: number
+  capital: number
+  pay_diff: number
+  cost: number
+  profit: number
+  margin: number | null
+}
+
+/** 대시보드 카드용 — 이번 달과 전체를 **한 번에** 받는다(토글이 기다리지 않게) */
+export interface PnlSummary {
+  month: string
+  pending: number
+  month_total: PnlTotals
+  all_total: PnlTotals
+}
+
+export function fetchPnlSummary(): Promise<PnlSummary> {
+  return fetch('/api/v1/pnl/summary', { credentials: 'include' }).then(jsonOf<PnlSummary>)
+}
+
 export function fetchPnl(month?: string): Promise<PnlView> {
   const qs = month ? `?month=${encodeURIComponent(month)}` : ''
   return fetch(`/api/v1/pnl${qs}`, { credentials: 'include' }).then(jsonOf<PnlView>)

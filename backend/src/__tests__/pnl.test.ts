@@ -208,6 +208,36 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
     expect((await request(app).post(`/api/v1/pnl/${id}/void`).set('Cookie', looker).send({ reason: 'x' })).status).toBe(403);
   }, 30_000);
 
+  it('🔴 요약 — 이번 달과 전체를 한 번에 주고, 삭제한 줄은 빼고 센다', async () => {
+    const ym = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
+    const before = await request(app).get('/api/v1/pnl/summary').set('Cookie', keeper);
+    expect(before.status, JSON.stringify(before.body)).toBe(200);
+    expect(before.body.data.month).toBe(ym);
+    const m0 = before.body.data.month_total.count as number;
+    const a0 = before.body.data.all_total.count as number;
+
+    // ① 이번 달에 한 건 — 둘 다 하나씩 는다
+    const now = await acceptedQuote();
+    await request(app).put(`/api/v1/pnl/${now}`).set('Cookie', keeper).send({ invoice_on: `${ym}-15` });
+    // ② 아주 지난 달에 한 건 — **전체만** 는다
+    const old = await acceptedQuote();
+    await request(app).put(`/api/v1/pnl/${old}`).set('Cookie', keeper).send({ invoice_on: '2020-03-04' });
+
+    const after = await request(app).get('/api/v1/pnl/summary').set('Cookie', keeper);
+    expect(after.body.data.month_total.count, '이번 달에 지난 달 건이 섞였다').toBe(m0 + 1);
+    expect(after.body.data.all_total.count, '전체가 지난 달 건을 놓쳤다').toBe(a0 + 2);
+
+    // ③ 삭제하면 둘 다 빠진다 — 줄은 표에 남지만 숫자는 아니다
+    await request(app).post(`/api/v1/pnl/${now}/void`).set('Cookie', keeper).send({ reason: '시험' });
+    const dead = await request(app).get('/api/v1/pnl/summary').set('Cookie', keeper);
+    expect(dead.body.data.month_total.count).toBe(m0);
+    expect(dead.body.data.all_total.count).toBe(a0 + 1);
+  }, 60_000);
+
+  it('🔴 요약도 보기 권한이 있어야 본다', async () => {
+    expect((await request(app).get('/api/v1/pnl/summary').set('Cookie', outside)).status).toBe(403);
+  }, 30_000);
+
   it('🔴 없는 견적에는 줄을 만들지 않는다', async () => {
     const r = await request(app).put('/api/v1/pnl/99999999').set('Cookie', keeper).send({ invoice_on: '2026-09-13' });
     expect(r.status).toBe(404);

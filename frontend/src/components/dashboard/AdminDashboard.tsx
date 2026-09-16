@@ -4,8 +4,7 @@ import { fetchOrders } from '../../api/orders'
 import { fetchQuotes } from '../../api/quotes'
 import { fetchSalesStats, type SalesStat } from '../../api/stats'
 import { fetchFolders, type ApiFolderRow } from '../../api/customerFolders'
-import { fetchPnl, type PnlView } from '../../api/pnl'
-import { sumP } from '@shared/finance/pnl'
+import { fetchPnlSummary, type PnlSummary, type PnlTotals } from '../../api/pnl'
 import type { ApiOrder, ApiQuote } from '@shared/types/index'
 import { buildDashboard } from '../../lib/orderDashboard'
 import { DASH_STEPS } from '../../lib/salesFunnel'
@@ -339,26 +338,28 @@ function ScopeToggle({ scope, onChange }: { scope: Scope; onChange: (v: Scope) =
 }
 
 /**
- * **이번 달 손익** — 경영관리가 매일 먼저 보는 자리(2026-09-16 지시).
+ * **손익** — 경영관리가 매일 먼저 보는 자리(2026-09-16 지시). 영업 성과처럼 **이번 달/전체**를 오간다.
  *
  * 앞에 「입력 필요」를 둔다. 손익표는 보는 표이기 전에 **적는 표**라, 적지 않은 건이 몇인지가
  * 먼저 눈에 들어와야 한다 — 발행일을 안 적으면 그 달 숫자 자체가 거짓이 된다.
- * 결론인 수익·수익률은 브랜드 라임으로 키운다(손익 탭의 요약과 같은 말을 한다).
+ * 입력 필요는 달과 상관없다(아직 어느 달에도 안 들어간 건이다) — 토글을 눌러도 그대로다.
  *
- * 삭제한 줄은 빼고 센다 — 손익 탭의 합계와 한 글자도 달라서는 안 된다(같은 함수를 쓴다).
+ * 이번 달과 전체를 **한 번에 받아** 두고 화면에서만 바꾼다 — 누를 때마다 기다리지 않게.
+ * 삭제한 줄은 빼고 센다. 셈은 손익 탭과 같은 함수라 두 화면 숫자가 갈릴 수 없다.
  */
 function PnlCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
-  const [view, setView] = useState<PnlView | null>(null)
+  const [scope, setScope] = useState<Scope>('month')
+  const [sum, setSum] = useState<PnlSummary | null>(null)
   useEffect(() => {
     let alive = true
-    fetchPnl().then(v => { if (alive) setView(v) }).catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
+    fetchPnlSummary().then(v => { if (alive) setSum(v) }).catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
     return () => { alive = false }
   }, [])
 
-  const total = useMemo(() => sumP((view?.rows ?? []).filter(r => !r.voided_at)), [view])
-  const loss = total.profit < 0
-  const tiles: Tile[] = view ? [
-    { key: 'todo', label: '입력 필요', n: view.pending.length, unit: '건', warn: true },
+  const total: PnlTotals | null = sum ? (scope === 'month' ? sum.month_total : sum.all_total) : null
+  const loss = !!total && total.profit < 0
+  const tiles: Tile[] = sum && total ? [
+    { key: 'todo', label: '입력 필요', n: sum.pending, unit: '건', warn: true },
     { key: 'count', label: '발행', n: total.count, unit: '건', sep: 'divider' },
     { key: 'gross', label: '공급대가', n: 0, unit: '', text: won(total.gross) },
     { key: 'cost', label: '원가', n: 0, unit: '', text: won(total.cost) },
@@ -367,8 +368,8 @@ function PnlCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
   ] : []
 
   return (
-    <Card title={t('이번 달 손익')} full onGo={onGo}>
-      {!view ? <div style={s.muted}>{t('불러오는 중…')}</div>
+    <Card title={t('손익')} full onGo={onGo} extra={<ScopeToggle scope={scope} onChange={setScope} />}>
+      {!total ? <div style={s.muted}>{t('불러오는 중…')}</div>
         : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} small />}
     </Card>
   )

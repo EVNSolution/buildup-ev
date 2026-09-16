@@ -10,7 +10,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { calcQuote } from '@buildup-ev/shared/pricing';
-import { monthBounds, supplyFromGross } from '@buildup-ev/shared/finance/pnl';
+import { monthBounds, supplyFromGross, sumP } from '@buildup-ev/shared/finance/pnl';
 import { buildQuoteParams, quoteExtraFromInputs, type CustomerInput } from './quote-calc.js';
 import { VISIBLE } from '../lib/visibility.js';
 
@@ -297,6 +297,45 @@ async function readPnl(quoteId: number): Promise<PnlRow | null> {
     include: { quote: { select: QUOTE_PICK } },
   });
   return saved ? toRow(saved as unknown as RowWithQuote) : null;
+}
+
+/**
+ * **요약만** — 대시보드 카드가 쓴다.
+ *
+ * 이번 달과 전체를 **한 번에** 준다. 토글을 누를 때마다 다시 부르면 기다림이 생기는데,
+ * 요약은 줄을 싣지 않아 가볍다(줄 수백 개를 내려보내고 화면에서 더하는 쪽이 오히려 무겁다).
+ *
+ * ⚠️ 삭제한 줄은 빼고 센다. 셈은 손익 탭과 **같은 함수**(`sumP`)다 — 두 화면 숫자가 갈리면 안 된다.
+ */
+export interface PnlSummary {
+  month: string;
+  /** 발행일을 아직 안 적은 건 수 — 카드에서 「지금 할 일」이다 */
+  pending: number;
+  month_total: ReturnType<typeof sumP>;
+  all_total: ReturnType<typeof sumP>;
+}
+
+export async function pnlSummary(ym: string): Promise<PnlSummary> {
+  const empty = sumP([]);
+  if (!prisma) return { month: ym, pending: 0, month_total: empty, all_total: empty };
+  const { from, to } = monthBounds(ym);
+  const pick = { supply_amount: true, deposit: true, capital: true, cost: true, invoice_on: true } as const;
+  const [rows, pending] = await Promise.all([
+    // 삭제한 줄과 발행일이 없는 줄은 어느 달의 숫자도 아니다
+    prisma.orderPnl.findMany({ where: { voided_at: null, invoice_on: { not: null } }, select: pick }),
+    pnlPending(),
+  ]);
+  const num = (r: typeof rows[number]) => ({
+    supply_amount: n(r.supply_amount), deposit: n(r.deposit), capital: n(r.capital), cost: n(r.cost),
+  });
+  const inMonth = (r: typeof rows[number]) =>
+    !!r.invoice_on && r.invoice_on >= new Date(from) && r.invoice_on < new Date(to);
+  return {
+    month: ym,
+    pending: pending.length,
+    month_total: sumP(rows.filter(inMonth).map(num)),
+    all_total: sumP(rows.map(num)),
+  };
 }
 
 /** 줄이 있는 달들 — 화면의 달 고르개가 「있는 달」만 보여 준다 */
