@@ -43,6 +43,7 @@ export const TAB_MODULE = {
   공휴일: 'basedata.holiday',
   계정관리: 'account.manage',
   기능모듈: 'account.manage',
+  손익: 'pnl.view',
 } as const;
 
 /** 관리자 계정이면 프리셋과 무관하게 갖는 것 — 견적 목록·서류 조회처럼 관리 업무의 바탕 */
@@ -74,8 +75,8 @@ export const PRESETS: PresetDef[] = [
   {
     code: 'exec',
     label: '경영관리',
-    desc: '보기만 한다 — 견적·성과·주문 진행·부가작업·파일. 배정·단계·기준데이터는 손대지 않는다',
-    modules: [...BASE, 'stats.all', 'addon.view'],
+    desc: '보기만 한다 — 견적·성과·주문 진행·부가작업·파일. 다만 **손익은 직접 적는다**. 배정·단계·기준데이터는 손대지 않는다',
+    modules: [...BASE, 'stats.all', 'addon.view', 'pnl.view', 'pnl.manage'],
   },
   {
     code: 'master',
@@ -85,7 +86,7 @@ export const PRESETS: PresetDef[] = [
       ...BASE, 'customer.view', 'stats.all', 'quote.create', 'quote.delete', 'doc.send.email', 'doc.send.sign',
       'order.confirm', 'order.control', 'order.remove', 'addon.manage', 'checklist.manage',
       'basedata.weights', 'basedata.dims', 'basedata.optiondb', 'basedata.makerprice', 'basedata.holiday',
-      'basedata.manage', 'account.manage', 'notify.assign', 'addon.view',
+      'basedata.manage', 'account.manage', 'notify.assign', 'addon.view', 'pnl.view', 'pnl.manage',
     ],
   },
 ];

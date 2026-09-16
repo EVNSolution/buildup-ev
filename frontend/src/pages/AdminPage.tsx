@@ -29,6 +29,7 @@ import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderUnassignModal } from '../components/OrderUnassignModal'
 import { AdminDashboard, dashboardsFor } from '../components/dashboard/AdminDashboard'
+import { PnlTab } from '../components/PnlTab'
 import { AssignRejectModal } from '../components/AssignRejectModal'
 import { useOrderDeepLink, useViewDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
@@ -111,8 +112,10 @@ const MODULE_DESC: Record<string, string> = {
   'order.remove': '주문 치우기 — 목록에서 감춘다(행은 남는다)',
   'notify.push': '앱 알림 받기 (알림함·휴대폰 팝업)',
   'notify.assign': '구 「제작 배정 알림 메일」 — 이제 역할 프리셋이 정한다(쓰지 않음)',
+  'pnl.view': '손익 조회 — 판매건별 매출·원가·수익 (보기 전용)',
+  'pnl.manage': '손익 입력 — 세금계산서 발행일·입금·원가를 적는다',
 }
-type TabKey = 'home' | 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
+type TabKey = 'home' | 'quotes' | 'customers' | 'perf' | 'pnl' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
 
 function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
@@ -2151,6 +2154,8 @@ export function AdminPage() {
   // 눌러서 「권한이 없습니다」를 보게 두면 왜 있는 버튼인지 알 수 없다.
   const perm = {
     stats: usePermission('stats.own'),
+    /* 손익 — 돈에 관한 표라 **보는 것부터** 권한을 건다(관리 권한은 보기를 겸한다) */
+    pnl: usePermission('pnl.view'),
     orders: usePermission('order.view'),
     accounts: usePermission('account.manage'),
     checklist: usePermission('checklist.manage'),
@@ -2171,6 +2176,7 @@ export function AdminPage() {
     { key: 'quotes',   label: t('견적 목록'), show: true },
     { key: 'customers', label: t('고객'),    show: perm.customers },
     { key: 'perf',     label: t('영업 성과'), show: perm.stats },
+    { key: 'pnl',      label: t('손익'),     show: perm.pnl },
     { key: 'kanban',   label: t('주문 진행'), show: perm.orders },
     { key: 'checklist', label: t('체크리스트'), show: perm.checklist },
     { key: 'files',    label: t('파일'),      show: perm.orders },
@@ -2212,6 +2218,7 @@ export function AdminPage() {
         {activeTab === 'quotes' && <QuotesWithFolders />}
         {activeTab === 'customers' && <CustomersTab />}
         {activeTab === 'perf' && <PerfTab />}
+        {activeTab === 'pnl' && <PnlTab />}
         {activeTab === 'kanban' && <KanbanTab deepLink={deepLink} initialView={kanbanView} openAssignAt={openAssignAt} />}
         {activeTab === 'checklist' && <ChecklistTab />}
         {activeTab === 'holidays' && <HolidayTab />}

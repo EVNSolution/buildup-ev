@@ -84,6 +84,7 @@ export function mergePermissions(
    * 영업관리·경영관리는 `addon.view` 만 가진다(보기 전용).
    */
   if (codes.includes('addon.manage') && !codes.includes('addon.view')) codes.push('addon.view');
+  if (codes.includes('pnl.manage') && !codes.includes('pnl.view')) codes.push('pnl.view');
   if (codes.includes('basedata.manage')) {
     for (const c of ['basedata.weights', 'basedata.dims', 'basedata.optiondb', 'basedata.makerprice', 'basedata.holiday']) {
       if (!codes.includes(c)) codes.push(c);

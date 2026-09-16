@@ -102,3 +102,7 @@ preset,master,quote.delete,Y,프리셋 기본값 — 기능모듈 화면에서 �
 preset,master,quote.edit,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,stats.all,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
 preset,master,stats.own,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
+preset,exec,pnl.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
+preset,exec,pnl.manage,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
+preset,master,pnl.view,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
+preset,master,pnl.manage,Y,프리셋 기본값 — 기능모듈 화면에서 고친다
