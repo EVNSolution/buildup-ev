@@ -40,7 +40,7 @@ export function OrderRemoveModal({ orderId, onClose, onDone }: {
           경계가 아예 달라진다. **문장을 통째로** 사전에 넣고 강조는 포기했다.
           잃는 것은 굵은 글씨 둘, 얻는 것은 말이 되는 영어다.
         */}
-        <div style={s.desc}>{tf('목록에서 빠집니다. 견적은 {0}로 돌아가 다시 배정할 수 있고, 주문 기록과 그동안의 서류는 지워지지 않습니다.', t('계약완료'))}</div>
+        <div style={s.desc}>{tf('목록에서 빠집니다. 견적은 {0}로 돌아가 다시 배정할 수 있고, 주문 기록과 그동안의 서류는 지워지지 않습니다.', t('계약 완료'))}</div>
         <label style={s.label}>{t('삭제 사유')}<span style={s.req}> {t('· 필수')}</span></label>
         <textarea
           style={s.input} rows={2} value={reason} maxLength={500}

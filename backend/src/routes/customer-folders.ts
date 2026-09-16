@@ -13,7 +13,7 @@ import { noStore } from '../lib/doc-headers.js';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { prisma } from '../lib/prisma.js';
-import { rbac, ownQuotesOnly, scopedToMine } from '../middleware/rbac.js';
+import { rbac, ownQuotesOnly, scopedToMine, hasPermission } from '../middleware/rbac.js';
 import { VISIBLE } from '../lib/visibility.js';
 import {
   groupCustomers, collectDocs, resolveDocId, optionChips, groupDocsByQuote, folderQuoteKind,
@@ -32,6 +32,23 @@ function guard(fn: (req: Request, res: Response) => Promise<void>) {
       }
     }
   };
+}
+
+/**
+ * **남의 고객까지 보려면 `customer.view` 가 있어야 한다**(2026-09-16).
+ *
+ * 영업은 자기 고객만 보므로 이 권한이 필요 없다 — 범위를 자기 것으로 좁히는 것이 곧 허가다.
+ * 관리자는 다르다. 예전에는 역할(ADMIN)만 보고 열어 줘서, **고객 탭이 감춰진 자리**
+ * (PM·생산관리·경영관리)도 주소만 알면 남의 고객 서류함을 열 수 있었다 —
+ * 화면에서 버튼을 감추는 것은 막은 것이 아니다.
+ */
+async function maySeeOthers(req: Request, res: Response): Promise<boolean> {
+  const auth = req.auth!;
+  const mine = ownQuotesOnly(auth) || scopedToMine(auth, (req.query as { scope?: unknown }).scope);
+  if (mine) return true;
+  if (await hasPermission(req, 'customer.view')) return true;
+  res.status(403).json({ error: { code: 'FORBIDDEN', message: '고객 서류함을 볼 권한이 없습니다.' } });
+  return false;
 }
 
 /**
@@ -102,6 +119,7 @@ async function lastActivity(req: Request, g: CustomerGroup): Promise<Date> {
 
 // ── GET /customer-folders — 폴더 목록(최근 변경 순) ─────────────────────────
 customerFoldersRouter.get('/', rbac('ADMIN', 'SALES'), guard(async (req, res) => {
+  if (!await maySeeOthers(req, res)) return;
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결이 필요합니다' } }); return; }
 
   const { groups, quoteCount } = await visibleGroups(req);
@@ -123,6 +141,7 @@ customerFoldersRouter.get('/', rbac('ADMIN', 'SALES'), guard(async (req, res) =>
 
 // ── GET /customer-folders/:key — 폴더 안 ───────────────────────────────────
 customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res) => {
+  if (!await maySeeOthers(req, res)) return;
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결이 필요합니다' } }); return; }
   const key = Number(req.params['key']);
   if (!Number.isInteger(key)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 고객 번호입니다' } }); return; }
@@ -200,6 +219,7 @@ customerFoldersRouter.get('/:key', rbac('ADMIN', 'SALES'), guard(async (req, res
 
 // ── GET /customer-folders/:key/file/:docId — 열기·내려받기 ─────────────────
 customerFoldersRouter.get('/:key/file/:docId', rbac('ADMIN', 'SALES'), guard(async (req, res) => {
+  if (!await maySeeOthers(req, res)) return;
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결이 필요합니다' } }); return; }
   const key = Number(req.params['key']);
   if (!Number.isInteger(key)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '잘못된 고객 번호입니다' } }); return; }

@@ -47,7 +47,7 @@ const TILES: { key: TileKey; label: string; icon: IconName }[] = [
   { key: 'assign', label: '배정 대기', icon: 'hourglass' },
   { key: 'pending', label: '수락 대기', icon: 'inbox' },
   { key: 'active', label: '특장 진행', icon: 'progress' },
-  { key: 'addon', label: '부가작업', icon: 'tool' },
+  { key: 'addon', label: '부가 작업', icon: 'tool' },
   { key: 'done', label: '인도 완료', icon: 'check' },
   { key: 'late', label: '납기일 경과', icon: 'alert' },
 ]

@@ -10,10 +10,10 @@ import { t } from '../i18n'
 
 export const QUOTE_STATUS_FLOW = [
   { key: 'draft',      label: '임시저장', desc: '작성 중인 견적' },
-  { key: 'confirmed',  label: '견적완료', desc: '견적서 생성 완료' },
-  { key: 'contracted', label: '계약완료', desc: '전자서명 완료' },
-  { key: 'assigned',   label: '배정완료', desc: '관리자가 특장사 배정' },
-  { key: 'ordered',    label: '주문진행', desc: '특장사 수락 · 제작 진행' },
+  { key: 'confirmed',  label: '견적 완료', desc: '견적서 생성 완료' },
+  { key: 'contracted', label: '계약 완료', desc: '전자서명 완료' },
+  { key: 'assigned',   label: '배정 완료', desc: '관리자가 특장사 배정' },
+  { key: 'ordered',    label: '주문 진행', desc: '특장사 수락 · 제작 진행' },
   { key: 'completed',  label: '완료',     desc: '특장사 전 공정 완료' },
 ] as const
 

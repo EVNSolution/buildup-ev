@@ -29,7 +29,7 @@ export function PaperContractModal({ label, loading, error, onSubmit, onClose }:
       <div style={s.box} onClick={e => e.stopPropagation()}>
         <div style={s.title}>{label} — 서명본 등록</div>
         <div style={s.desc}>
-          {tf('종이로 체결한 계약서를 올립니다. 등록하면 전자서명 없이 {0}가 되어 제작 배정을 할 수 있습니다. 견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.', t('계약완료'))}
+          {tf('종이로 체결한 계약서를 올립니다. 등록하면 전자서명 없이 {0}가 되어 제작 배정을 할 수 있습니다. 견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.', t('계약 완료'))}
         </div>
         <label style={s.label}>{t('계약서 스캔본')}<span style={s.req}> {t('· 필수')}</span></label>
         <input
