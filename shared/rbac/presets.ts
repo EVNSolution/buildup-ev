@@ -67,8 +67,9 @@ export const PRESETS: PresetDef[] = [
   {
     code: 'prod_mgr',
     label: '생산관리',
-    desc: '제작 진행을 굴린다 — 단계·체크리스트·부가작업, 특장사 단가는 보고 고친다',
-    modules: [...BASE, 'stats.all', 'order.control', 'addon.manage', 'checklist.manage', 'basedata.makerprice'],
+    desc: '제작 진행을 굴린다 — 제작 배정·단계·체크리스트·부가작업, 특장사 단가는 보고 고친다',
+    /* 제작 배정 알림을 받는 자리다 — 받기만 하고 누르지 못하면 알림이 헛돈다(2026-09-16 지적) */
+    modules: [...BASE, 'stats.all', 'order.confirm', 'order.control', 'addon.manage', 'checklist.manage', 'basedata.makerprice'],
   },
   {
     code: 'exec',
