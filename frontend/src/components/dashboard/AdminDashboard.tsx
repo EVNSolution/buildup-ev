@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { t, tf } from '../../i18n'
 import { fetchOrders } from '../../api/orders'
 import { fetchQuotes } from '../../api/quotes'
@@ -33,8 +33,6 @@ export function AdminDashboard({ onGo }: {
   const isMobile = useIsMobile()
   const [orders, setOrders] = useState<ApiOrder[] | null>(null)
   const [contracted, setContracted] = useState<ApiQuote[] | null>(null)
-  /** 이번 달 **전체 합계** — 서버가 낸 것을 쓴다. 계정별 줄을 더하면 고객 수가 어긋난다 */
-  const [total, setTotal] = useState<SalesStat | null>(null)
   const [folders, setFolders] = useState<ApiFolderRow[] | null>(null)
   const [err, setErr] = useState('')
 
@@ -43,10 +41,9 @@ export function AdminDashboard({ onGo }: {
     Promise.all([
       fetchOrders({ board: 'admin' }),
       fetchQuotes({ status: 'contracted' }),
-      fetchSalesStats({ from: monthStart() }).then(r => r.total).catch(() => null),
       fetchFolders().catch(() => [] as ApiFolderRow[]),
     ])
-      .then(([o, q, st, f]) => { if (alive) { setOrders(o); setContracted(q); setTotal(st); setFolders(f) } })
+      .then(([o, q, f]) => { if (alive) { setOrders(o); setContracted(q); setFolders(f) } })
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : t('대시보드를 불러오지 못했습니다')) })
     return () => { alive = false }
   }, [])
@@ -55,7 +52,7 @@ export function AdminDashboard({ onGo }: {
     <div style={s.root}>
       {err && <div style={s.err}>{err}</div>}
       <div style={{ ...s.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
-        <PerfCard total={total} isMobile={isMobile} onGo={() => onGo('perf')} />
+        <PerfCard isMobile={isMobile} onGo={() => onGo('perf')} />
         <ProgressCard orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />
         <AssignRequestCard contracted={contracted} />
         <CustomerSearchCard folders={folders} />
@@ -74,11 +71,17 @@ function monthStart(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 
-/** 카드 한 장 — 제목 줄과 본문. 누를 수 있는 카드는 제목 오른쪽에 「열기」 */
-function Card({ title, note, full, onGo, children }: {
+/**
+ * 카드 한 장 — 제목 줄과 본문. 누를 수 있는 카드는 제목 오른쪽에 「열기」.
+ *
+ * ⚠️ **설명 문구를 달지 않는다**(2026-09-16 지시). 카드마다 한 줄씩 붙이면 제목 줄이
+ *    문장으로 뒤덮여, 정작 봐야 할 숫자가 뒤로 밀린다. 설명이 필요할 만큼 헷갈리는 칸이면
+ *    이름을 고칠 일이지 옆에 주석을 다는 일이 아니다.
+ */
+function Card({ title, extra, full, onGo, children }: {
   title: string
-  /** 제목 아래 한 줄 설명 — 숫자를 어떻게 읽어야 하는지만 적는다 */
-  note?: string
+  /** 제목 오른쪽에 붙는 조작 — 지금은 성과 카드의 기간 토글뿐이다 */
+  extra?: React.ReactNode
   /** 한 줄을 통째로 쓰는 카드 */
   full?: boolean
   onGo?: () => void
@@ -88,7 +91,8 @@ function Card({ title, note, full, onGo, children }: {
     <section style={full ? s.cardFull : s.card}>
       <div style={s.cardHead}>
         <span style={s.cardTitle}>{title}</span>
-        {note && <span style={s.cardNote}>{note}</span>}
+        {extra}
+        <span style={s.headGap} />
         {onGo && <button type="button" style={s.go} onClick={onGo}>{t('열기')} ›</button>}
       </div>
       {children}
@@ -96,38 +100,82 @@ function Card({ title, note, full, onGo, children }: {
   )
 }
 
+/** 기간 — 이번 달과 전체를 오가며 본다 */
+type Scope = 'month' | 'all'
+
 const won = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`
 
 /**
- * 이번 달 성과 — **상담고객 › 계약완료 › 주문진행 › 인도완료**(2026-09-16 지시).
+ * 영업 성과 — **상담고객 › 계약완료 › 주문진행 › 인도완료**(2026-09-16 지시).
  *
  * 계약 앞에 상담고객을 두는 이유는, 계약만 보면 **얼마나 많은 사람을 만났는지**가 사라지기 때문이다.
  * 상담고객은 **명**이고 나머지는 **건**이다 — 한 고객에게 견적을 다섯 번 내도 만난 사람은 하나다.
+ *
+ * 기간은 **이번 달 / 전체**를 오간다. 이번 달만 보면 「우리가 지금까지 판 것」이 안 보이고,
+ * 전체만 보면 이번 달이 되고 있는지 알 수 없다 — 둘 다 필요하고, 한 번 부른 것은 들고 있다가 다시 쓴다.
+ *
+ * ⚠️ 이 카드가 **자기 것을 직접 부른다.** 기간을 바꾸면 다시 불러야 하는데, 부모가 들고 있으면
+ *    부모가 기간을 알아야 한다 — 카드는 독립된 조각으로 둔다(파일 머리말 참조).
  */
-function PerfCard({ total, isMobile, onGo }: { total: SalesStat | null; isMobile: boolean; onGo: () => void }) {
+function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
+  const [scope, setScope] = useState<Scope>('month')
+  const [shown, setShown] = useState<SalesStat | null>(null)
+  /** 이미 부른 기간은 다시 부르지 않는다 — 토글을 오갈 때마다 기다리게 하지 않는다 */
+  const cache = useRef(new Map<Scope, SalesStat>())
+
+  useEffect(() => {
+    const hit = cache.current.get(scope)
+    if (hit) { setShown(hit); return }
+    let alive = true
+    setShown(null)
+    fetchSalesStats(scope === 'month' ? { from: monthStart() } : {})
+      .then(r => { cache.current.set(scope, r.total); if (alive) setShown(r.total) })
+      .catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
+    return () => { alive = false }
+  }, [scope])
+
   const sub = (key: string, st: SalesStat): string => {
     if (key === 'consult') return tf('견적 {0}건', st.reached.draft)
     if (key === 'contracted') return won(st.amount.contracted)
     if (key === 'completed') return won(st.amount.completed)
-    return ' '
+    return '\u00a0'
   }
   return (
-    <Card title={t('이번 달 영업 성과')} note={t('이번 달에 그 단계에 도달한 것만 셉니다')} full onGo={onGo}>
-      {!total ? <div style={s.muted}>{t('불러오는 중…')}</div> : (
+    <Card
+      title={t('영업 성과')} full onGo={onGo}
+      extra={<ScopeToggle scope={scope} onChange={setScope} />}
+    >
+      {!shown ? <div style={s.muted}>{t('불러오는 중…')}</div> : (
         <div style={isMobile ? s.perfGridMobile : s.perfRow}>
           {DASH_STEPS.map((step, i) => (
             <Fragment key={step.key}>
               {i > 0 && !isMobile && <div style={s.perfArrow}>›</div>}
               <div style={s.perfCell}>
                 <div style={s.numLabel}>{t(step.label)}</div>
-                <div style={s.perfVal}>{step.get(total)}<span style={s.unit}>{t(step.unit)}</span></div>
-                <div style={s.numSub}>{sub(step.key, total)}</div>
+                <div style={s.perfVal}>{step.get(shown)}<span style={s.unit}>{t(step.unit)}</span></div>
+                <div style={s.numSub}>{sub(step.key, shown)}</div>
               </div>
             </Fragment>
           ))}
         </div>
       )}
     </Card>
+  )
+}
+
+/** 기간 토글 — 두 칸짜리 스위치. 지금 보고 있는 쪽이 눌린 채로 남는다 */
+function ScopeToggle({ scope, onChange }: { scope: Scope; onChange: (v: Scope) => void }) {
+  const opts: [Scope, string][] = [['month', '이번 달'], ['all', '전체']]
+  return (
+    <span style={s.toggle} role="group" aria-label={t('기간')}>
+      {opts.map(([key, label]) => (
+        <button
+          key={key} type="button" aria-pressed={scope === key}
+          style={scope === key ? s.toggleOn : s.toggleOff}
+          onClick={() => onChange(key)}
+        >{t(label)}</button>
+      ))}
+    </span>
   )
 }
 
@@ -176,7 +224,7 @@ function AssignRequestCard({ contracted }: { contracted: ApiQuote[] | null }) {
   const days = (iso?: string | null) =>
     iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000)) : 0
   return (
-    <Card title={t('배정 요청 대기')} note={t('담당 영업이 눌러야 배정할 수 있습니다')}>
+    <Card title={t('배정 요청 대기')}>
       <div style={s.headline}>
         <span style={waiting.length > 0 ? s.numValWarn : s.numVal}>{waiting.length}<span style={s.unit}>{t('건')}</span></span>
       </div>
@@ -217,7 +265,7 @@ function CustomerSearchCard({ folders }: { folders: ApiFolderRow[] | null }) {
   }, [folders, q])
 
   return (
-    <Card title={t('고객 검색')} note={folders ? tf('{0}명', hits.length) : undefined}>
+    <Card title={t('고객 검색')} extra={folders ? <span style={s.headCount}>{tf('{0}명', hits.length)}</span> : null}>
       <div style={s.headline}>
         <input
           style={s.search} value={q} maxLength={40} type="search"
@@ -317,7 +365,7 @@ function CalendarCard({ orders, isMobile }: { orders: ApiOrder[] | null; isMobil
   const move = (n: number) => setMonth(m => new Date(m.getFullYear(), m.getMonth() + n, 1))
 
   return (
-    <Card title={t('일정')} note={t('날짜를 누르면 그날 고객이 나옵니다')} full>
+    <Card title={t('일정')} full>
       <div style={s.calHead}>
         <button type="button" style={s.calNav} onClick={() => move(-1)} aria-label={t('지난달')}>‹</button>
         <span style={s.calMonth}>{tf('{0}년 {1}월', month.getFullYear(), month.getMonth() + 1)}</span>
@@ -416,7 +464,11 @@ const s: Record<string, React.CSSProperties> = {
   cardFull: { ...cardBase, gridColumn: '1 / -1' },
   cardHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   cardTitle: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], color: 'var(--dark)' },
-  cardNote: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', marginRight: 'auto' },
+  headGap: { marginRight: 'auto' },
+  headCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
+  toggle: { display: 'inline-flex', border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff' },
+  toggleOn: { border: 'none', background: 'var(--dark)', color: '#fff', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
+  toggleOff: { border: 'none', background: 'none', color: 'var(--muted)', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
   go: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
 
   // 성과 — 한 줄을 가득 채우고 칸 사이에 꺾쇠를 둔다
