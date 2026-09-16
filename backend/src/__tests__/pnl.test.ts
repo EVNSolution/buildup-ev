@@ -208,6 +208,31 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
     expect((await request(app).post(`/api/v1/pnl/${id}/void`).set('Cookie', looker).send({ reason: 'x' })).status).toBe(403);
   }, 30_000);
 
+  it('🔴 임시저장 — 발행일 없이 적어 두면 「입력 필요」에 남고, 다시 열면 그대로 열린다', async () => {
+    const id = await acceptedQuote();
+    // 발행일 없이 저장한다(임시저장)
+    const draft = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper)
+      .send({ biz_name: '임시상사', capital: 7_777_000, memo: '확인 중', cost: 1_000_000 });
+    expect(draft.status, JSON.stringify(draft.body)).toBe(200);
+    expect(draft.body.data.invoice_on, '발행일 없이 저장했는데 날짜가 생겼다').toBeNull();
+
+    const v = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
+    const p = v.body.data.pending.find((x: { quote_id: number }) => x.quote_id === id);
+    expect(p, '임시저장한 건이 입력 필요에서 사라졌다').toBeTruthy();
+    // ⚠️ 적어 둔 값이 실려 와야 다시 열었을 때 그대로 열린다
+    expect(p.draft).toMatchObject({ biz_name: '임시상사', capital: 7_777_000, memo: '확인 중', cost: 1_000_000 });
+
+    // 발행일을 적으면 그제야 그 달 표로 내려간다
+    await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-18' });
+    const sep = await request(app).get('/api/v1/pnl?month=2026-09').set('Cookie', keeper);
+    const row = sep.body.data.rows.find((r: { quote_id: number }) => r.quote_id === id);
+    expect(row, '등록했는데 표에 없다').toBeTruthy();
+    // 임시저장해 둔 값이 그대로 따라 내려간다
+    expect(row.biz_name).toBe('임시상사');
+    expect(row.capital).toBe(7_777_000);
+    expect(sep.body.data.pending.some((x: { quote_id: number }) => x.quote_id === id)).toBe(false);
+  }, 60_000);
+
   it('🔴 요약 — 이번 달과 전체를 한 번에 주고, 삭제한 줄은 빼고 센다', async () => {
     const ym = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
     const before = await request(app).get('/api/v1/pnl/summary').set('Cookie', keeper);

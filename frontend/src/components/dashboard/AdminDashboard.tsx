@@ -572,7 +572,11 @@ function LateCard({ orders, contracted, onGo }: {
                 <li key={o.id} style={s.listRow}>
                   <span style={s.listName}>{o.quote.customer?.name ?? '—'}</span>
                   <span style={s.listOwner}>{o.maker_org?.name ?? '—'}</span>
-                  <span style={days < 0 ? s.listLate : s.listSub}>
+                  {/*
+                    지난 건은 빨강, **아직 안 지난 건은 초록**(브랜드) — 둘 다 빨가면 어느 것이 이미
+                    늦은 건지 한눈에 안 갈린다(2026-09-16 지시). 「오늘」은 아직 지나지 않았으니 초록이다.
+                  */}
+                  <span style={days < 0 ? s.listLate : s.listSoon}>
                     {days < 0 ? tf('{0}일 경과', -days) : days === 0 ? t('오늘') : tf('{0}일 남음', days)}
                   </span>
                 </li>
@@ -868,6 +872,7 @@ const s: Record<string, React.CSSProperties> = {
   listOwner: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', maxWidth: '40%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   listSub: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
   listLate: { color: 'var(--req)', fontSize: 'var(--fs-caption)', fontWeight: 700, whiteSpace: 'nowrap' },
+  listSoon: { color: 'var(--lime-ink)', fontSize: 'var(--fs-caption)', fontWeight: 700, whiteSpace: 'nowrap' },
   tagWarn: { color: 'var(--req)', fontSize: 'var(--fs-caption)', border: '1px solid var(--req)', borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap' },
   // 마이페이지 고르개도 같은 규칙 — 칸을 똑같이 나눈다
   boardBar: { display: 'inline-flex', width: 264, border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff', alignSelf: 'flex-start' },

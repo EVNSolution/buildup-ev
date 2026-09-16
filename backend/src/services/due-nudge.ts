@@ -6,7 +6,7 @@
  * 특장사에게는 아무도 알려 주지 않았다. 지금까지 알림은 **채팅·배정 때만** 갔다.
  *
  * ## 언제
- * - 납기 **3일 전** 한 번
+ * - 납기 **7일 전** 한 번(`DUE_SOON_DAYS`)
  * - 납기 **당일** 한 번
  * - 납기가 **지난 동안 날마다** 한 번 — 지난 건은 재촉이 목적이라 하루치로 끝내지 않는다
  *
@@ -36,7 +36,7 @@ export function nudgeKindFor(days: number, state: string): NudgeKind | null {
   if (state === 'overdue') return 'overdue';
   if (state === 'soon') {
     if (days === 0) return 'today';
-    if (days === DUE_SOON_DAYS) return 'soon';   // 3일 전 하루만 — 매일 보내면 재촉이 무뎌진다
+    if (days === DUE_SOON_DAYS) return 'soon';   // 임박 첫날 하루만 — 매일 보내면 재촉이 무뎌진다
   }
   return null;
 }

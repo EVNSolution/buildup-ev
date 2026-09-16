@@ -49,6 +49,18 @@ export interface PnlPending {
   /** 계약서에서 가져온 값들 — 「입력 필요」 칸에 그대로 보여 준다(고칠 수 없다) */
   supply_default: number | null;
   deposit_default: number;
+  /**
+   * **임시저장해 둔 값** — 아직 등록하지 않았지만 적어 둔 것이 있으면 여기 실린다.
+   * 없으면 null. 다시 열었을 때 적어 둔 대로 열려야 임시저장이 뜻을 갖는다.
+   */
+  draft: {
+    biz_name: string | null;
+    capital: number;
+    deposit_paid_on: string | null;
+    capital_paid_on: string | null;
+    cost: number;
+    memo: string | null;
+  } | null;
 }
 
 const n = (v: bigint | number | null | undefined): number => Number(v ?? 0);
@@ -176,7 +188,7 @@ export async function pnlPending(): Promise<PnlPending[]> {
       id: true, quote_no: true, created_at: true,
       customer: { select: { name: true } },
       order: { select: { accepted_at: true } },
-      pnl: { select: { supply_amount: true, deposit: true } },
+      pnl: { select: { supply_amount: true, deposit: true, biz_name: true, capital: true, deposit_paid_on: true, capital_paid_on: true, cost: true, memo: true } },
     },
     // 수락이 오래된 것부터 — 화면에서 다시 정렬하지 않게 여기서 못 박는다
     orderBy: { order: { accepted_at: 'asc' } },
@@ -199,6 +211,14 @@ export async function pnlPending(): Promise<PnlPending[]> {
       accepted_on: day(q.order?.accepted_at ?? null) ?? day(q.created_at),
       supply_default: supply,
       deposit_default: deposit,
+      draft: kept ? {
+        biz_name: kept.biz_name,
+        capital: n(kept.capital),
+        deposit_paid_on: day(kept.deposit_paid_on),
+        capital_paid_on: day(kept.capital_paid_on),
+        cost: n(kept.cost),
+        memo: kept.memo,
+      } : null,
     });
   }
   return out;
