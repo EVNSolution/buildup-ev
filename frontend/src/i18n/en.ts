@@ -16,11 +16,14 @@ export const EN: Record<string, string> = {
   '명': '',
   '건': '',
   '예정': 'Planned',
+  '입력': 'Enter',
+  '접기': 'Collapse',
+  '여기서 다 적고 저장하면 아래 그 달 표로 내려갑니다': 'Fill it in here and save — the row drops into that month below',
+  '세금계산서 발행일을 적어야 아래로 내려갑니다': 'An invoice date is needed before the row can drop below',
   '손익': 'P&L',
   '손익을 불러오지 못했습니다': 'Could not load the P&L',
   '입력 필요': 'Needs input',
   '세금계산서 발행일': 'Invoice date',
-  '세금계산서 발행일을 적으면 그 달 표로 들어갑니다': 'Entering the invoice date files the row into that month',
   '발행일을 적어야 할 건이 없습니다.': 'Nothing is waiting for an invoice date.',
   '이 달에 세금계산서가 발행된 건이 없습니다.': 'No invoices were issued this month.',
   '기록이 있는 달': 'Months with records',
@@ -1265,6 +1268,7 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '계약 {0}': 'Signed {0}',
   '원가 · {0}': 'Cost · {0}',
   '{0}일 경과': '{0}d over',
   '{0}일 남음': '{0}d left',

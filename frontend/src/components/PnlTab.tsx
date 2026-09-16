@@ -57,6 +57,18 @@ export function PnlTab() {
     return saved
   }, [month, load])
 
+  /**
+   * 「입력 필요」에서 한 건을 **다 적어** 내려보낸다 — 적은 발행일의 달로 화면을 옮겨
+   * 방금 내려간 줄이 눈에 보이게 한다(지시: 저장하면 밑으로 내려보내는 방식).
+   */
+  const file = useCallback(async (quoteId: number, patch: PnlPatch) => {
+    const saved = await savePnl(quoteId, patch)
+    const ym = saved.invoice_on ? monthOf(saved.invoice_on) : month
+    setMonth(ym ?? null)
+    load(ym ?? undefined)
+    return saved
+  }, [month, load])
+
   const rows = view?.rows ?? []
   const total = useMemo(() => sumP(rows), [rows])
 
@@ -72,7 +84,7 @@ export function PnlTab() {
       <SummaryBar total={total} isMobile={isMobile} />
 
       {/* ② 입력 필요 — 맨 위에 따로 둔다. 여기서 발행일을 적으면 그 달 표로 들어간다 */}
-      <PendingBox pending={view?.pending ?? []} canEdit={canEdit} isMobile={isMobile} onWrite={write} />
+      <PendingBox pending={view?.pending ?? []} canEdit={canEdit} isMobile={isMobile} onFile={file} />
 
       {/* ③ 그 달의 표 */}
       <section style={s.card}>
@@ -160,25 +172,36 @@ function SummaryBar({ total, isMobile }: { total: ReturnType<typeof sumP>; isMob
 
 /* ── 입력 필요 ─────────────────────────────────────────────────────────── */
 
-function PendingBox({ pending, canEdit, isMobile, onWrite }: {
+function PendingBox({ pending, canEdit, isMobile, onFile }: {
   pending: PnlPending[]; canEdit: boolean; isMobile: boolean
-  onWrite: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  onFile: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
   const [open, setOpen] = useState(true)
+  /** 한 번에 한 건만 편다 — 스무 건이 동시에 펴지면 그 아래 표가 화면 밖으로 밀린다 */
+  const [editing, setEditing] = useState<number | null>(null)
   return (
     <section style={pending.length > 0 ? s.cardAlert : s.card}>
       <button type="button" style={s.cardHeadBtn} onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <span style={s.caret}>{open ? '▾' : '▸'}</span>
         <span style={s.cardTitle}>{t('입력 필요')}</span>
         <span style={pending.length > 0 ? s.cardCountWarn : s.cardCount}>{tf('{0}건', pending.length)}</span>
-        <span style={s.muted}>{t('세금계산서 발행일을 적으면 그 달 표로 들어갑니다')}</span>
+        <span style={s.muted}>{t('여기서 다 적고 저장하면 아래 그 달 표로 내려갑니다')}</span>
       </button>
       {open && (pending.length === 0 ? (
         <div style={s.empty}>{t('발행일을 적어야 할 건이 없습니다.')}</div>
       ) : (
-        <div style={s.pendList}>
-          {pending.map(p => (
-            <PendingRow key={p.quote_id} item={p} canEdit={canEdit} isMobile={isMobile} onWrite={onWrite} />
+        /*
+         * 적는 중에는 **그 건만** 남긴다. 밀린 건이 백 줄이면 목록이 화면을 다 먹어
+         * 적다가 어디를 보고 있는지 잃는다. 닫힌 목록은 높이를 묶고 구른다.
+         */
+        <div style={editing === null ? s.pendList : s.pendListOne}>
+          {(editing === null ? pending : pending.filter(p => p.quote_id === editing)).map(p => (
+            <PendingRow
+              key={p.quote_id} item={p} canEdit={canEdit} isMobile={isMobile}
+              open={editing === p.quote_id}
+              onToggle={() => setEditing(v => (v === p.quote_id ? null : p.quote_id))}
+              onFile={onFile}
+            />
           ))}
         </div>
       ))}
@@ -186,39 +209,182 @@ function PendingBox({ pending, canEdit, isMobile, onWrite }: {
   )
 }
 
-function PendingRow({ item, canEdit, isMobile, onWrite }: {
+/** 새 줄에 적을 것 전부 — 표의 칸과 하나씩 짝이 맞는다 */
+interface Draft {
+  biz_name: string
+  invoice_on: string
+  supply_amount: number
+  deposit: number
+  capital: number
+  deposit_paid_on: string
+  capital_paid_on: string
+  cost_outsourcing: number
+  cost_supply: number
+  cost_internal: number
+  cost_etc: number
+  cost_memo: string
+  memo: string
+}
+
+/**
+ * 「입력 필요」 한 줄 — 펴면 **그 건의 모든 칸**이 나온다(2026-09-16 지시).
+ *
+ * 아래 월별 표는 **보는 자리**다. 주문이 쌓이면 새로 들어온 줄을 표에서 하나씩 찾아
+ * 열고 적는 일이 힘들어진다 — 새 건은 여기서 다 적고 저장해 내려보낸다.
+ *
+ * 발행일이 없으면 내려갈 달이 정해지지 않으므로 그때만 저장을 막는다. 나머지는 나중에 채워도 된다.
+ */
+function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
   item: PnlPending; canEdit: boolean; isMobile: boolean
-  onWrite: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  open: boolean; onToggle: () => void
+  onFile: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
-  const [date, setDate] = useState('')
+  const [d, setD] = useState<Draft>(() => ({
+    biz_name: item.biz_default ?? item.customer ?? '',
+    invoice_on: '',
+    supply_amount: item.supply_default ?? 0,
+    deposit: item.deposit_default,
+    capital: 0,
+    deposit_paid_on: '', capital_paid_on: '',
+    cost_outsourcing: 0, cost_supply: 0, cost_internal: 0, cost_etc: 0,
+    cost_memo: '', memo: '',
+  }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD(x => ({ ...x, [k]: v }))
+  const calc = deriveP(d)
+
   const save = async () => {
-    if (!date || busy) return
+    if (!d.invoice_on || busy) return
     setBusy(true); setErr('')
-    try { await onWrite(item.quote_id, { invoice_on: date }) }
-    catch (e) { setErr(e instanceof Error ? e.message : t('저장하지 못했습니다')) }
-    finally { setBusy(false) }
+    try {
+      await onFile(item.quote_id, {
+        biz_name: d.biz_name.trim() || null,
+        invoice_on: d.invoice_on,
+        supply_amount: d.supply_amount,
+        deposit: d.deposit,
+        capital: d.capital,
+        deposit_paid_on: d.deposit_paid_on || null,
+        capital_paid_on: d.capital_paid_on || null,
+        cost_outsourcing: d.cost_outsourcing,
+        cost_supply: d.cost_supply,
+        cost_internal: d.cost_internal,
+        cost_etc: d.cost_etc,
+        cost_memo: d.cost_memo.trim() || null,
+        memo: d.memo.trim() || null,
+      })
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('저장하지 못했습니다'))
+      setBusy(false)
+    }
   }
+
   return (
-    <div style={isMobile ? s.pendRowMobile : s.pendRow}>
-      <span style={s.pendNo}>{item.quote_no ?? `#${item.quote_id}`}</span>
-      <span style={s.pendName}>{item.customer ?? '—'}</span>
-      <span style={s.pendSub}>{item.contracted_on ?? '—'}</span>
-      <span style={s.pendAmount}>{item.supply_default === null ? '—' : won(item.supply_default)}</span>
-      <DateField
-        value={date} onChange={setDate} disabled={!canEdit || busy}
-        ariaLabel={t('세금계산서 발행일')} style={s.dateInput}
-      />
-      <button type="button" style={date && canEdit && !busy ? BTN.smPrimary : BTN.disabled} disabled={!date || !canEdit || busy} onClick={save}>
-        {t('저장')}
+    <div style={open ? s.pendItemOpen : s.pendItem}>
+      <button type="button" style={s.pendHead} onClick={onToggle} aria-expanded={open}>
+        <span style={s.caret}>{open ? '▾' : '▸'}</span>
+        <span style={s.pendNo}>{item.quote_no ?? `#${item.quote_id}`}</span>
+        <span style={s.pendName}>{item.customer ?? '—'}</span>
+        <span style={s.pendSub}>{tf('계약 {0}', item.contracted_on ?? '—')}</span>
+        <span style={s.pendAmount}>{item.supply_default === null ? '—' : won(item.supply_default)}</span>
+        {!open && <span style={s.pendCta}>{t('입력')}</span>}
       </button>
-      {err && <span style={s.err}>{err}</span>}
+
+      {open && (
+        <>
+          <div style={{ ...s.entryGrid, gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, minmax(0, 1fr))` }}>
+            <Field label={t('세금계산서 발행일')}>
+              <DateField value={d.invoice_on} onChange={v => set('invoice_on', v)} disabled={!canEdit || busy}
+                ariaLabel={t('세금계산서 발행일')} style={s.dateInput} clearable />
+            </Field>
+            <Field label={t('사업자명')}>
+              <input style={s.textInput} value={d.biz_name} maxLength={120} disabled={!canEdit || busy}
+                aria-label={t('사업자명')} onChange={e => set('biz_name', e.target.value)} />
+            </Field>
+            <Field label={t('공급가액')}>
+              <MoneyField value={d.supply_amount} disabled={!canEdit || busy} label={t('공급가액')} onChange={v => set('supply_amount', v)} />
+            </Field>
+            <Field label={t('VAT')}><span style={s.calc}>{won(calc.vat)}</span></Field>
+
+            <Field label={t('공급대가')}><span style={s.calcStrong}>{won(calc.gross)}</span></Field>
+            <Field label={t('계약금')}>
+              <MoneyField value={d.deposit} disabled={!canEdit || busy} label={t('계약금')} onChange={v => set('deposit', v)} />
+            </Field>
+            <Field label={t('캐피탈')}>
+              <MoneyField value={d.capital} disabled={!canEdit || busy} label={t('캐피탈')} onChange={v => set('capital', v)} />
+            </Field>
+            <Field label={t('입금 차액')}>
+              <span style={calc.pay_diff < 0 ? s.calcWarn : s.calc}>{won(calc.pay_diff)}</span>
+            </Field>
+
+            <Field label={t('계약금 입금일')}>
+              <DateField value={d.deposit_paid_on} onChange={v => set('deposit_paid_on', v)} disabled={!canEdit || busy}
+                ariaLabel={t('계약금 입금일')} style={s.dateInput} clearable />
+            </Field>
+            <Field label={t('캐피탈 입금일')}>
+              <DateField value={d.capital_paid_on} onChange={v => set('capital_paid_on', v)} disabled={!canEdit || busy}
+                ariaLabel={t('캐피탈 입금일')} style={s.dateInput} clearable />
+            </Field>
+            <Field label={t('외주비')}>
+              <MoneyField value={d.cost_outsourcing} disabled={!canEdit || busy} label={t('외주비')} onChange={v => set('cost_outsourcing', v)} />
+            </Field>
+            <Field label={t('사급비')}>
+              <MoneyField value={d.cost_supply} disabled={!canEdit || busy} label={t('사급비')} onChange={v => set('cost_supply', v)} />
+            </Field>
+
+            <Field label={t('내부비용')}>
+              <MoneyField value={d.cost_internal} disabled={!canEdit || busy} label={t('내부비용')} onChange={v => set('cost_internal', v)} />
+            </Field>
+            <Field label={t('기타')}>
+              <MoneyField value={d.cost_etc} disabled={!canEdit || busy} label={t('기타')} onChange={v => set('cost_etc', v)} />
+            </Field>
+            <Field label={t('총원가')}><span style={s.calc}>{won(calc.cost_total)}</span></Field>
+            <Field label={t('수익')}>
+              <span style={calc.profit < 0 ? s.calcWarn : s.calcStrong}>{won(calc.profit)} · {pct(calc.margin)}</span>
+            </Field>
+
+            <Field label={t('원가 메모')} wide>
+              <input style={s.textInputWide} value={d.cost_memo} maxLength={500} disabled={!canEdit || busy}
+                aria-label={t('원가 메모')} onChange={e => set('cost_memo', e.target.value)} />
+            </Field>
+            <Field label={t('비고')} wide>
+              <input style={s.textInputWide} value={d.memo} maxLength={500} disabled={!canEdit || busy}
+                aria-label={t('비고')} onChange={e => set('memo', e.target.value)} />
+            </Field>
+          </div>
+          <div style={s.entryFoot}>
+            {err && <span style={s.err}>{err}</span>}
+            {/* 발행일이 없으면 내려갈 달이 없다 — 그때만 막는다 */}
+            {!d.invoice_on && <span style={s.muted}>{t('세금계산서 발행일을 적어야 아래로 내려갑니다')}</span>}
+            <button type="button" style={BTN.smSecondary} onClick={onToggle} disabled={busy}>{t('접기')}</button>
+            <button
+              type="button" style={d.invoice_on && canEdit && !busy ? BTN.smPrimary : BTN.disabled}
+              disabled={!d.invoice_on || !canEdit || busy} onClick={save}
+            >{busy ? t('저장 중…') : t('저장')}</button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 /* ── 적는 칸 ──────────────────────────────────────────────────────────── */
+
+/**
+ * 금액 칸(입력 중) — 치는 대로 값이 올라간다. 「입력 필요」의 셈(VAT·공급대가·수익)이
+ * 타자에 맞춰 따라와야 다 적고 나서 맞는지 확인할 수 있다.
+ */
+function MoneyField({ value, disabled, label, onChange }: {
+  value: number; disabled?: boolean; label: string; onChange: (v: number) => void
+}) {
+  return (
+    <input
+      style={s.moneyInput} value={value ? value.toLocaleString('ko-KR') : ''} disabled={disabled}
+      inputMode="numeric" aria-label={label}
+      onChange={e => onChange(Number(e.target.value.replace(/[^0-9]/g, '') || 0))}
+    />
+  )
+}
 
 /** 금액 칸 — 세 자리마다 쉼표로 보여 주고 숫자로 돌려준다. 칸을 벗어날 때 저장한다 */
 function MoneyCell({ value, disabled, label, onSave }: {
@@ -496,9 +662,16 @@ const s: Record<string, React.CSSProperties> = {
   sumValWarn: { fontSize: 18, fontWeight: 700, color: 'var(--req)', ...cellNum, textAlign: 'left' },
   sumValGood: { fontSize: 18, fontWeight: 700, color: 'var(--dark)', ...cellNum, textAlign: 'left' },
 
-  pendList: { display: 'flex', flexDirection: 'column', maxHeight: 260, overflowY: 'auto' },
-  pendRow: { display: 'grid', gridTemplateColumns: '92px 1fr 90px 130px 150px 64px', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: 'var(--hairline)', fontSize: 'var(--fs-label)' },
-  pendRowMobile: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '8px 0', borderTop: 'var(--hairline)', fontSize: 'var(--fs-label)' },
+  // 밀린 건이 백 줄이어도 아래 표가 화면 밖으로 밀리지 않게 높이를 묶는다
+  pendList: { display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 320, overflowY: 'auto' },
+  // 적는 중에는 그 건만 — 묶을 높이가 없다(폼이 잘리면 안 된다)
+  pendListOne: { display: 'flex', flexDirection: 'column', gap: 2 },
+  pendItem: { borderTop: 'var(--hairline)' },
+  pendItemOpen: { borderTop: 'var(--hairline)', background: 'var(--soft, #FAFAF7)', borderRadius: 'var(--r-sm)', padding: '2px 6px 8px' },
+  pendHead: { display: 'flex', alignItems: 'baseline', gap: 8, width: '100%', border: 'none', background: 'none', padding: '7px 0', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--fs-label)', textAlign: 'left', flexWrap: 'wrap' },
+  pendCta: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', border: 'var(--hairline)', borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap' },
+  entryGrid: { display: 'grid', gap: 8, padding: '6px 0 8px' },
+  entryFoot: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', paddingTop: 6, borderTop: 'var(--hairline)' },
   pendNo: { fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   pendName: { color: 'var(--body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   pendSub: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
@@ -542,6 +715,8 @@ const s: Record<string, React.CSSProperties> = {
   fieldWide: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, gridColumn: '1 / -1' },
   fieldLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   calc: { fontSize: 'var(--fs-label)', color: 'var(--body)', ...cellNum, textAlign: 'left', padding: '5px 0' },
+  calcStrong: { fontSize: 'var(--fs-label)', color: 'var(--dark)', fontWeight: 700, ...cellNum, textAlign: 'left', padding: '5px 0' },
+  calcWarn: { fontSize: 'var(--fs-label)', color: 'var(--req)', fontWeight: 700, ...cellNum, textAlign: 'left', padding: '5px 0' },
 
   overlay: { position: 'fixed', inset: 0, background: 'var(--scrim)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--sp-4)' },
   modal: { background: '#fff', borderRadius: 12, width: 'min(520px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(22,24,15,.22)' },

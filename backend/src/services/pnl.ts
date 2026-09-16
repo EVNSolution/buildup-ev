@@ -44,9 +44,10 @@ export interface PnlPending {
   quote_no: string | null;
   customer: string | null;
   contracted_on: string | null;
-  /** 계약서에서 가져온 공급가액(VAT 별도) — 저장 전 미리보기 */
+  /** 계약서에서 가져온 값들 — 「입력 필요」 칸에 미리 채워 준다 */
   supply_default: number | null;
   deposit_default: number;
+  biz_default: string | null;
 }
 
 const n = (v: bigint | number | null | undefined): number => Number(v ?? 0);
@@ -182,10 +183,11 @@ export async function pnlPending(): Promise<PnlPending[]> {
     const kept = q.pnl;
     let supply: number | null = kept ? n(kept.supply_amount) : null;
     let deposit = kept ? n(kept.deposit) : 0;
+    let biz: string | null = kept?.biz_name ?? null;
     // 이미 적어 둔 줄이 있으면 그 값을 쓴다 — 다시 세지 않는다(굳힌 값이 정본이다)
     if (!kept && out.length < DEFAULTS_LIMIT) {
       const d = await contractDefaults(q.id);
-      supply = d.supply; deposit = d.deposit;
+      supply = d.supply; deposit = d.deposit; biz = d.biz_name;
     }
     out.push({
       quote_id: q.id,
@@ -194,6 +196,7 @@ export async function pnlPending(): Promise<PnlPending[]> {
       contracted_on: day(q.contracts[0]?.completed_at ?? null) ?? day(q.created_at),
       supply_default: supply,
       deposit_default: deposit,
+      biz_default: biz ?? q.customer?.name ?? null,
     });
   }
   return out;

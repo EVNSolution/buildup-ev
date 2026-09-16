@@ -34,6 +34,7 @@ export interface PnlPending {
   contracted_on: string | null
   supply_default: number | null
   deposit_default: number
+  biz_default: string | null
 }
 
 export interface PnlView {
