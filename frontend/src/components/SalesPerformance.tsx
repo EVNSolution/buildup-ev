@@ -3,9 +3,10 @@ import { DateField } from './ui/DateField'
 import { t , tf} from '../i18n'
 import { useScreenRefresh } from '../contexts/RefreshContext'
 import {
-  fetchSalesStats, fetchAttention, FUNNEL,
-  type SalesStat, type AttentionItem, type FunnelStage,
+  fetchSalesStats, fetchAttention,
+  type SalesStat, type AttentionItem,
 } from '../api/stats'
+import { FUNNEL_STEPS } from '../lib/salesFunnel'
 import { BTN } from '../styles/buttons'
 import { useIsMobile } from '../hooks/useIsMobile'
 
@@ -18,11 +19,6 @@ import { useIsMobile } from '../hooks/useIsMobile'
  * 위에서부터 「지금 붙어야 할 건 → 깔때기 → 금액·속도」 순인 이유:
  * 성과 숫자를 보러 왔더라도 **오늘 할 일**이 먼저 눈에 들어와야 쓸모가 있다.
  */
-const STAGE_KO: Record<FunnelStage, string> = {
-  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
-  assigned: '배정완료', ordered: '주문진행', completed: '완료',
-}
-
 const KIND_KO: Record<AttentionItem['kind'], { label: string; why: string; tone: 'warn' | 'info' }> = {
   sign_pending:  { label: '서명 미완료', why: '서명 요청 후 미완료 상태입니다', tone: 'warn' },
   not_requested: { label: '서명 요청 필요', why: '견적서 생성 후 서명 요청 이력이 없습니다', tone: 'warn' },
@@ -46,6 +42,8 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
   const [to, setTo] = useState('')
   const [user, setUser] = useState('')
   const [stats, setStats] = useState<SalesStat[] | null>(null)
+  /** 전체 합계 — **서버가 낸다.** 계정별 줄을 더하면 고객 수가 어긋난다(한 고객을 둘이 맡으면 2명이 된다) */
+  const [total, setTotal] = useState<SalesStat | null>(null)
   const [attention, setAttention] = useState<AttentionItem[] | null>(null)
   const [err, setErr] = useState('')
   /**
@@ -61,26 +59,12 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
       fetchSalesStats({ from: from || undefined, to: to || undefined, salesUser: user || undefined }),
       fetchAttention(user || undefined),
     ])
-      .then(([s, a]) => { setStats(s); setAttention(a) })
+      .then(([s, a]) => { setStats(s.rows); setTotal(s.total); setAttention(a) })
       .catch(e => setErr(e instanceof Error ? e.message : t('조회 실패')))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   useScreenRefresh(load)
-
-  // 여러 계정을 합친 값 — 관리자가 전체를 볼 때 맨 위에 둔다
-  const total = stats?.reduce((acc, s) => {
-    FUNNEL.forEach(k => { acc.reached[k] += s.reached[k] })
-    acc.amount.confirmed += s.amount.confirmed
-    acc.amount.contracted += s.amount.contracted
-    acc.amount.completed += s.amount.completed
-    acc.activity.quotes += s.activity.quotes
-    return acc
-  }, {
-    reached: { draft: 0, confirmed: 0, contracted: 0, assigned: 0, ordered: 0, completed: 0 } as Record<FunnelStage, number>,
-    amount: { confirmed: 0, contracted: 0, completed: 0 },
-    activity: { quotes: 0 },
-  })
 
   return (
     <div>
@@ -177,7 +161,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           {total && stats.length > 1 && (
             <section style={s.section}>
               <div style={s.h}>{t('전체 집계')}</div>
-              <Funnel reached={total.reached} />
+              <Funnel st={total} />
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
                   <Metric label={t('견적완료')} value={won(total.amount.confirmed)} />
@@ -193,7 +177,7 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
           {stats.map(st => (
             <section key={st.sales_user_id} style={s.section}>
               <div style={s.h}>{st.sales_user_id} <span style={s.count}>{tf('견적 {0}건', st.activity.quotes)}</span></div>
-              <Funnel reached={st.reached} />
+              <Funnel st={st} />
 
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
@@ -236,15 +220,21 @@ function signRate(st: SalesStat): string {
   return sent ? `${Math.round((done / sent) * 100)}%` : '—'
 }
 
-/** 깔때기 — 단계별 도달 수와 **앞 단계 대비** 전환율 */
-function Funnel({ reached }: { reached: Record<FunnelStage, number> }) {
+/**
+ * 깔때기 — 단계별 수와 **앞 단계 대비** 전환율.
+ *
+ * ⚠️ 단위가 섞여 있다(상담고객·견적완료는 **명**, 나머지는 **건**). 숫자 옆에 단위를
+ *    반드시 적는다 — 없으면 「고객 3」과 「계약 3」이 같은 것으로 읽힌다.
+ */
+function Funnel({ st }: { st: SalesStat }) {
   return (
     <div style={s.funnel}>
-      {FUNNEL.map((stage, i) => {
-        const prev = i > 0 ? reached[FUNNEL[i - 1]!] : 0
-        const r = i > 0 ? rate(reached[stage], prev) : null
+      {FUNNEL_STEPS.map((step, i) => {
+        const n = step.get(st)
+        const prev = i > 0 ? FUNNEL_STEPS[i - 1]!.get(st) : 0
+        const r = i > 0 ? rate(n, prev) : null
         return (
-          <div key={stage} style={s.stepWrap}>
+          <div key={step.key} style={s.stepWrap}>
             {i > 0 && (
               <div style={s.arrow}>
                 <div style={s.arrowMark}>›</div>
@@ -253,8 +243,8 @@ function Funnel({ reached }: { reached: Record<FunnelStage, number> }) {
               </div>
             )}
             <div style={s.step}>
-              <div style={s.stepName}>{t(STAGE_KO[stage])}</div>
-              <div style={s.stepNum}>{reached[stage]}</div>
+              <div style={s.stepName}>{t(step.label)}</div>
+              <div style={s.stepNum}>{n}<span style={s.stepUnit}>{t(step.unit)}</span></div>
             </div>
           </div>
         )
@@ -379,6 +369,8 @@ const s: Record<string, React.CSSProperties> = {
     lineHeight: 1.25, overflowWrap: 'anywhere' as const,  // 더 좁아지면 접히더라도 옆 칸을 침범하지 않는다
   },
   stepNum: { fontSize: 'clamp(13px, 3.1cqi, 20px)', fontWeight: 700, color: 'var(--dark)', marginTop: 2 },
+  // 단위는 숫자보다 작게 — 있어야 읽히고, 커지면 숫자를 가린다
+  stepUnit: { fontSize: '0.62em', fontWeight: 400, color: 'var(--muted)', marginLeft: 1 },
   arrow: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     padding: '0 2px', flexShrink: 0,

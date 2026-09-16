@@ -10,6 +10,16 @@
  *    원·없음·서울특별시·일반인처럼 코드가 값으로 비교하는 말도 여기 **번역은 있다**(화면용).
  */
 export const EN: Record<string, string> = {
+  // 영업 깔때기 — 단위(명·건)는 영어에서 낱말로 안 쓴다. 라벨이 이미 무엇을 세는지 말한다
+  // (사전의 '{0}명': '{0}' 와 같은 규칙)
+  '상담고객': 'Consulted',
+  '명': '',
+  '건': '',
+  '예정': 'Planned',
+  '이번 달에 그 단계에 도달한 것만 셉니다': 'Counts only what reached that stage this month',
+  '담당 영업이 눌러야 배정할 수 있습니다': 'The sales rep must request it before you can assign',
+  '고객명 · 연락처 · 생년월일/사업자번호': 'Name · phone · date of birth/business no.',
+  '날짜를 누르면 그날 고객이 나옵니다': 'Tap a date to see that day’s customers',
   '특장사 단가': 'Upfitter rates',
   '분류': 'Assigned to',
   'EV& 직접': 'EV& in-house',
@@ -1227,6 +1237,8 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '{0} 일정': 'Schedule for {0}',
+  '{0} 일정 {1}건': '{0} — {1} items',
   '{0}년 {1}월': '{1}/{0}',
   '고객 검색 · {0}': 'Customer search · {0}',
   '역할 프리셋 · {0}': 'Role preset · {0}',

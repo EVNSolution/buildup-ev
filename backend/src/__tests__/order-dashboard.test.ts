@@ -206,8 +206,13 @@ describe.runIf(!!process.env['DATABASE_URL'] || true)('주문 목록 응답에 �
     expect((await request(app).patch(`/api/v1/quotes/${q.id}/assign`).set('Cookie', admin).send({ maker_org_id: 'ORG_BRAIN' })).status).toBe(200);
     const o = await prisma!.order.findFirstOrThrow({ where: { quote_id: q.id } });
     expect((await request(app).patch(`/api/v1/orders/${o.id}/accept`).set('Cookie', maker).send({ delivery_due: await businessDue() })).status).toBe(200);
-    const res = await request(app).get('/api/v1/orders').set('Cookie', admin);
-    const row = (res.body.data as ApiOrder[]).find(x => x.id === o.id)!;
+    // 전체 목록 조회라 다른 시험 파일이 같은 순간 자기 데이터를 지우면 드물게 500 이 난다 — 한 번 더 묻는다(운영에는 행 삭제가 없다)
+    let rows: ApiOrder[] | null = null;
+    for (let i = 0; i < 3 && !rows; i++) {
+      const res = await request(app).get('/api/v1/orders').set('Cookie', admin);
+      if (res.status === 200) rows = res.body.data as ApiOrder[];
+    }
+    const row = rows!.find(x => x.id === o.id)!;
     expect(row.steps?.lanes?.vehicle?.code).toBe('car_arrived');
     expect(row.steps?.lanes?.body?.code).toBe('build_started');
     expect(row.steps?.lanes?.tuning).toBeNull();

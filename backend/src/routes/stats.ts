@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import type { Request } from 'express';
 import { rbac, requirePermission, hasPermission } from '../middleware/rbac.js';
-import { salesStats, attentionList } from '../services/sales-stats.js';
+import { salesStatsFull, attentionList } from '../services/sales-stats.js';
 
 export const statsRouter = Router();
 
@@ -26,21 +26,33 @@ async function targetUser(req: Request): Promise<string | undefined> {
   return q || undefined;
 }
 
-function dateOf(v: unknown): Date | undefined {
+/**
+ * 날짜 한 칸 — **한국 시각 기준**으로 읽는다.
+ *
+ * `new Date('2026-09-01')` 은 UTC 자정이라 한국에서는 **그날 오전 9시**다. 그대로 쓰면
+ * 시작일 새벽에 만든 견적이 빠지고, 종료일은 그날 오전 9시에서 잘려 하루가 통째로 날아갔다.
+ * 그래서 날짜만 온 값은 시작=그날 00:00(KST), 끝=그날 23:59:59.999(KST) 로 편다.
+ */
+const KST = '+09:00';
+function dateOf(v: unknown, edge: 'start' | 'end'): Date | undefined {
   if (typeof v !== 'string' || !v.trim()) return undefined;
-  const d = new Date(v);
+  const s = v.trim();
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const d = new Date(dateOnly ? `${s}T${edge === 'start' ? '00:00:00.000' : '23:59:59.999'}${KST}` : s);
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
 // ── GET /stats/sales — 계정별 깔때기·금액·활동량·속도 ──────────────────────
 statsRouter.get('/sales', rbac('ADMIN', 'SALES'), requirePermission('stats.own'), async (req: Request, res): Promise<void> => {
   try {
-    const data = await salesStats({
-      from: dateOf(req.query['from']),
-      to: dateOf(req.query['to']),
+    // 합계는 **서버가 낸다.** 화면에서 계정별 줄을 더하면 고객 수가 어긋난다
+    // (한 고객을 두 영업이 나눠 맡으면 각자 1명이라 합이 2명이 된다).
+    const { rows, total } = await salesStatsFull({
+      from: dateOf(req.query['from'], 'start'),
+      to: dateOf(req.query['to'], 'end'),
       salesUser: await targetUser(req),
     });
-    res.json({ data });
+    res.json({ data: rows, total });
   } catch (e) {
     console.error('[GET /stats/sales]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '성과 집계 중 오류가 발생했습니다.' } });
