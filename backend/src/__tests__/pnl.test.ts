@@ -41,17 +41,15 @@ async function contractedQuote(price = 1_000_000): Promise<number> {
 
 beforeAll(async () => {
   if (!prisma) return;
-  const mods = await prisma.featureModule.findMany({ select: { code: true } });
+  // 이 시험이 두드리는 곳은 /pnl 뿐이라 **그 둘만** 켠다(다른 모듈까지 쓰면 DB 를 오래 붙잡는다)
+  const mods = [{ code: 'pnl.view' }, { code: 'pnl.manage' }];
   for (const email of USERS) {
     await prisma.user.upsert({
       where: { email }, update: { active: true, status: 'active' },
       create: { email, name: '손익시험', role: 'ADMIN', extra_roles: [], org_code: 'ORG_HQ', active: true, status: 'active', password_hash: 'x' },
     });
     for (const m of mods) {
-      const enabled =
-        m.code === 'pnl.manage' ? email === KEEPER
-          : m.code === 'pnl.view' ? email !== OUTSIDE
-            : true;
+      const enabled = m.code === 'pnl.manage' ? email === KEEPER : email !== OUTSIDE;
       await prisma.accessControl.upsert({
         where: { subject_type_subject_ref_module_code: { subject_type: 'user', subject_ref: email, module_code: m.code } },
         update: { enabled }, create: { subject_type: 'user', subject_ref: email, module_code: m.code, enabled },

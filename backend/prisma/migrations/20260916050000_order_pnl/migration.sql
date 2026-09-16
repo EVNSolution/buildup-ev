@@ -21,14 +21,11 @@ CREATE TABLE IF NOT EXISTS "order_pnl" (
   -- 입금일 — 계약금과 캐피탈을 따로 적는다
   "deposit_paid_on"   DATE,
   "capital_paid_on"   DATE,
-  -- 원가 — **별도 시스템에서 불러올 자리다**(구성 중). 그때까지는 손으로 적는다.
-  -- 어디서 온 값인지 남겨 두어야, 나중에 자동으로 채울 때 손으로 적은 값을 함부로 덮지 않는다
-  "cost_outsourcing"  BIGINT  NOT NULL DEFAULT 0,
-  "cost_supply"       BIGINT  NOT NULL DEFAULT 0,
-  "cost_internal"     BIGINT  NOT NULL DEFAULT 0,
-  "cost_etc"          BIGINT  NOT NULL DEFAULT 0,
+  -- 원가 — **한 칸이다.** 별도 시스템이 원가를 하나로 내려 줄 자리고(구성 중),
+  -- 그때까지는 손으로 적는다. 어디서 온 값인지 남겨 두어야 나중에 자동으로 채울 때
+  -- 손으로 적은 값을 함부로 덮지 않는다
+  "cost"              BIGINT  NOT NULL DEFAULT 0,
   "cost_source"       VARCHAR(20) NOT NULL DEFAULT 'manual',
-  "cost_memo"         VARCHAR(500),
   -- 비고 — 엑셀의 「비고 (사업자등록증 확인 필요)」 칸
   "memo"              VARCHAR(500),
   "created_at"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

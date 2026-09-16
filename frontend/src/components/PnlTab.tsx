@@ -4,7 +4,6 @@ import { fetchPnl, savePnl, type PnlRow, type PnlPending, type PnlPatch } from '
 import { deriveP, sumP, monthOf } from '@shared/finance/pnl'
 import { usePermission } from './PermGate'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { useEscapeClose } from '../lib/escClose'
 import { BTN } from '../styles/buttons'
 import { DateField } from './ui/DateField'
 
@@ -153,7 +152,7 @@ function SummaryBar({ total, isMobile }: { total: ReturnType<typeof sumP>; isMob
     { label: '캐피탈', value: won(total.capital) },
     // 아직 안 들어온 돈 — 음수가 정상이다
     { label: '입금 차액', value: won(total.pay_diff), tone: total.pay_diff < 0 ? 'warn' : undefined },
-    { label: '원가', value: won(total.cost_total) },
+    { label: '원가', value: won(total.cost) },
     { label: '수익', value: `${won(total.profit)} · ${pct(total.margin)}`, tone: total.profit < 0 ? 'warn' : 'good' },
   ]
   return (
@@ -218,11 +217,7 @@ interface Draft {
   capital: number
   deposit_paid_on: string
   capital_paid_on: string
-  cost_outsourcing: number
-  cost_supply: number
-  cost_internal: number
-  cost_etc: number
-  cost_memo: string
+  cost: number
   memo: string
 }
 
@@ -246,8 +241,7 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
     deposit: item.deposit_default,
     capital: 0,
     deposit_paid_on: '', capital_paid_on: '',
-    cost_outsourcing: 0, cost_supply: 0, cost_internal: 0, cost_etc: 0,
-    cost_memo: '', memo: '',
+    cost: 0, memo: '',
   }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -266,11 +260,7 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
         capital: d.capital,
         deposit_paid_on: d.deposit_paid_on || null,
         capital_paid_on: d.capital_paid_on || null,
-        cost_outsourcing: d.cost_outsourcing,
-        cost_supply: d.cost_supply,
-        cost_internal: d.cost_internal,
-        cost_etc: d.cost_etc,
-        cost_memo: d.cost_memo.trim() || null,
+        cost: d.cost,
         memo: d.memo.trim() || null,
       })
     } catch (e) {
@@ -325,28 +315,14 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
               <DateField value={d.capital_paid_on} onChange={v => set('capital_paid_on', v)} disabled={!canEdit || busy}
                 ariaLabel={t('캐피탈 입금일')} style={s.dateInput} clearable />
             </Field>
-            <Field label={t('외주비')}>
-              <MoneyField value={d.cost_outsourcing} disabled={!canEdit || busy} label={t('외주비')} onChange={v => set('cost_outsourcing', v)} />
+            {/* 원가는 **한 칸**이다 — 별도 시스템이 하나로 내려 줄 자리고, 그때까지는 손으로 적는다 */}
+            <Field label={t('원가')}>
+              <MoneyField value={d.cost} disabled={!canEdit || busy} label={t('원가')} onChange={v => set('cost', v)} />
             </Field>
-            <Field label={t('사급비')}>
-              <MoneyField value={d.cost_supply} disabled={!canEdit || busy} label={t('사급비')} onChange={v => set('cost_supply', v)} />
-            </Field>
-
-            <Field label={t('내부비용')}>
-              <MoneyField value={d.cost_internal} disabled={!canEdit || busy} label={t('내부비용')} onChange={v => set('cost_internal', v)} />
-            </Field>
-            <Field label={t('기타')}>
-              <MoneyField value={d.cost_etc} disabled={!canEdit || busy} label={t('기타')} onChange={v => set('cost_etc', v)} />
-            </Field>
-            <Field label={t('총원가')}><span style={s.calc}>{won(calc.cost_total)}</span></Field>
-            <Field label={t('수익')} wide>
+            <Field label={t('수익')}>
               <span style={calc.profit < 0 ? s.calcWarn : s.calcStrong}>{won(calc.profit)} · {pct(calc.margin)}</span>
             </Field>
 
-            <Field label={t('원가 메모')} wide>
-              <input style={s.textInputWide} value={d.cost_memo} maxLength={500} disabled={!canEdit || busy}
-                aria-label={t('원가 메모')} onChange={e => set('cost_memo', e.target.value)} />
-            </Field>
             <Field label={t('비고')} wide>
               <input style={s.textInputWide} value={d.memo} maxLength={500} disabled={!canEdit || busy}
                 aria-label={t('비고')} onChange={e => set('memo', e.target.value)} />
@@ -453,19 +429,48 @@ function useRowWriter(row: PnlRow, onWrite: (quoteId: number, patch: PnlPatch) =
 
 /* ── PC·태블릿 표 ─────────────────────────────────────────────────────── */
 
+/**
+ * PC·태블릿 표 — **한 화면에 다 들어가게** 짠다(2026-09-16 지시).
+ *
+ * 처음엔 칸을 열셋으로 늘어놓고 옆으로 밀게 했다. PC 에서 가로 스크롤은 잘 안 되고,
+ * 밀지 않으면 글자가 잘린 채로 읽힌다 — 표를 보는 뜻이 사라진다. 그래서 칸을 **열로 줄였다**.
+ *
+ *   · 고객명과 사업자명을 한 칸에 위아래로 (사업자명은 이름이 길다 — 폭을 줘야 안 잘린다)
+ *   · 공급가액 아래에 VAT 를 작게 (같은 수에서 나오는 값이라 붙여 두는 편이 읽기 쉽다)
+ *   · 계약금·캐피탈 아래에 각각의 입금일 (따로 두던 「입금일」 칸이 없어졌다)
+ *
+ * 폭은 `table-layout: fixed` 로 못 박는다 — 숫자 칸은 잘리지 않을 만큼 주고, 남는 폭은 비고가 먹는다.
+ */
+const COLS: { w: string; head: string; sub?: string }[] = [
+  { w: '13%', head: '고객명', sub: '사업자명' },
+  { w: '108px', head: '발행일' },
+  // 공급가액에서 나오는 값(VAT·공급대가)은 **그 아래**에 붙인다 — 칸을 둘 더 쓰면 화면을 넘는다
+  { w: '116px', head: '공급가액', sub: 'VAT · 합계' },
+  { w: '110px', head: '계약금', sub: '입금일' },
+  { w: '110px', head: '캐피탈', sub: '입금일' },
+  { w: '104px', head: '입금 차액' },
+  { w: '96px', head: '원가' },
+  { w: '104px', head: '수익' },
+  { w: 'auto', head: '비고' },
+]
+
 function RowTable({ rows, canEdit, onWrite }: {
   rows: PnlRow[]; canEdit: boolean
   onWrite: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
   const total = sumP(rows)
   return (
-    // 칸이 열셋이라 태블릿에서는 옆으로 민다 — 줄여서 읽을 수 없는 숫자를 만들지 않는다
+    // 아주 좁은 창에서만 밀린다 — 평소에는 스크롤이 생기지 않는다
     <div style={s.tableWrap}>
       <table style={s.table}>
+        <colgroup>{COLS.map(c => <col key={c.head} style={{ width: c.w }} />)}</colgroup>
         <thead>
           <tr>
-            {['고객명', '사업자명', '발행일', '공급가액', 'VAT', '공급대가', '계약금', '캐피탈', '입금 차액', '입금일', '원가', '수익', '비고']
-              .map(h => <th key={h} style={s.th}>{t(h)}</th>)}
+            {COLS.map(c => (
+              <th key={c.head} style={s.th}>
+                {t(c.head)}{c.sub && <span style={s.thSub}>{t(c.sub)}</span>}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -473,15 +478,16 @@ function RowTable({ rows, canEdit, onWrite }: {
         </tbody>
         <tfoot>
           <tr>
-            <td style={s.tfLabel} colSpan={3}>{t('합계')}</td>
-            <td style={s.tfNum}>{won(total.supply_amount)}</td>
-            <td style={s.tfNum}>{won(total.vat)}</td>
-            <td style={s.tfNum}>{won(total.gross)}</td>
+            <td style={s.tfLabel} colSpan={2}>{t('합계')}</td>
+            <td style={s.tfNum}>
+              {won(total.supply_amount)}
+              <span style={s.tfSub}>{won(total.vat)}</span>
+              <span style={s.tfSubStrong}>{won(total.gross)}</span>
+            </td>
             <td style={s.tfNum}>{won(total.deposit)}</td>
             <td style={s.tfNum}>{won(total.capital)}</td>
             <td style={total.pay_diff < 0 ? s.tfNumWarn : s.tfNum}>{won(total.pay_diff)}</td>
-            <td style={s.tfNum} />
-            <td style={s.tfNum}>{won(total.cost_total)}</td>
+            <td style={s.tfNum}>{won(total.cost)}</td>
             <td style={total.profit < 0 ? s.tfNumWarn : s.tfNum}>{won(total.profit)}</td>
             <td style={s.tfNum} />
           </tr>
@@ -497,31 +503,36 @@ function TableRow({ row, canEdit, onWrite }: {
 }) {
   const d = deriveP(row)
   const { put, mark, failed } = useRowWriter(row, onWrite)
-  const [costOpen, setCostOpen] = useState(false)
   const ro = !canEdit
   return (
     <tr>
       <td style={s.td}>
-        <span style={s.name}>{row.customer ?? '—'}</span>
-        <span style={s.no}>{row.quote_no ?? `#${row.quote_id}`}{mark && <b style={failed ? s.markFail : s.mark}> {mark}</b>}</span>
+        <div style={s.nameRow}>
+          <span style={s.name}>{row.customer ?? '—'}</span>
+          <span style={s.no}>{row.quote_no ?? `#${row.quote_id}`}{mark && <b style={failed ? s.markFail : s.mark}> {mark}</b>}</span>
+        </div>
+        <TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} dense onSave={v => put({ biz_name: v })} />
       </td>
-      <td style={s.td}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} dense onSave={v => put({ biz_name: v })} /></td>
-      <td style={s.td}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} /></td>
-      <td style={s.tdNum}><MoneyCell value={row.supply_amount} disabled={ro} label={t('공급가액')} dense onSave={v => put({ supply_amount: v })} /></td>
-      <td style={s.tdCalc}>{won(d.vat)}</td>
-      <td style={s.tdCalc}>{won(d.gross)}</td>
-      <td style={s.tdNum}><MoneyCell value={row.deposit} disabled={ro} label={t('계약금')} dense onSave={v => put({ deposit: v })} /></td>
-      <td style={s.tdNum}><MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} dense onSave={v => put({ capital: v })} /></td>
+      <td style={s.td}>
+        <DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} />
+      </td>
+      <td style={s.td}>
+        <MoneyCell value={row.supply_amount} disabled={ro} label={t('공급가액')} dense onSave={v => put({ supply_amount: v })} />
+        {/* VAT 와 공급대가는 위 숫자에서 나온다 — 칸을 따로 쓰지 않고 바로 아래 붙인다 */}
+        <div style={s.subNum}>{won(d.vat)}</div>
+        <div style={s.subNumStrong}>{won(d.gross)}</div>
+      </td>
+      <td style={s.td}>
+        <MoneyCell value={row.deposit} disabled={ro} label={t('계약금')} dense onSave={v => put({ deposit: v })} />
+        <DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} dense onSave={v => put({ deposit_paid_on: v })} />
+      </td>
+      <td style={s.td}>
+        <MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} dense onSave={v => put({ capital: v })} />
+        <DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} dense onSave={v => put({ capital_paid_on: v })} />
+      </td>
       <td style={d.pay_diff < 0 ? s.tdCalcWarn : s.tdCalc}>{won(d.pay_diff)}</td>
       <td style={s.td}>
-        <div style={s.payRow}><span style={s.payTag}>{t('계약금')}</span>
-          <DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} dense onSave={v => put({ deposit_paid_on: v })} /></div>
-        <div style={s.payRow}><span style={s.payTag}>{t('캐피탈')}</span>
-          <DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} dense onSave={v => put({ capital_paid_on: v })} /></div>
-      </td>
-      <td style={s.tdNum}>
-        <button type="button" style={s.costCell} onClick={() => setCostOpen(true)}>{won(d.cost_total)} ✎</button>
-        {costOpen && <CostModal row={row} canEdit={canEdit} onClose={() => setCostOpen(false)} onSave={put} />}
+        <MoneyCell value={row.cost} disabled={ro} label={t('원가')} dense onSave={v => put({ cost: v })} />
       </td>
       <td style={d.profit < 0 ? s.tdCalcWarn : s.tdCalcGood}>{won(d.profit)}</td>
       <td style={s.td}><TextCell value={row.memo} disabled={ro} label={t('비고')} wide dense onSave={v => put({ memo: v })} /></td>
@@ -538,7 +549,6 @@ function RowCard({ row, canEdit, onWrite }: {
   const d = deriveP(row)
   const { put, mark, failed } = useRowWriter(row, onWrite)
   const [open, setOpen] = useState(false)
-  const [costOpen, setCostOpen] = useState(false)
   const ro = !canEdit
   return (
     <div style={s.rowCard}>
@@ -565,12 +575,14 @@ function RowCard({ row, canEdit, onWrite }: {
           <Field label={t('계약금 입금일')}><DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} onSave={v => put({ deposit_paid_on: v })} /></Field>
           <Field label={t('캐피탈 입금일')}><DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} onSave={v => put({ capital_paid_on: v })} /></Field>
           <Field label={t('원가')}>
-            <button type="button" style={s.costBtn} onClick={() => setCostOpen(true)}>{won(d.cost_total)} ✎</button>
+            <MoneyCell value={row.cost} disabled={ro} label={t('원가')} onSave={v => put({ cost: v })} />
+          </Field>
+          <Field label={t('수익')}>
+            <span style={d.profit < 0 ? s.calcWarn : s.calcStrong}>{won(d.profit)}</span>
           </Field>
           <Field label={t('비고')} wide><TextCell value={row.memo} disabled={ro} label={t('비고')} wide onSave={v => put({ memo: v })} /></Field>
         </div>
       )}
-      {costOpen && <CostModal row={row} canEdit={canEdit} onClose={() => setCostOpen(false)} onSave={put} />}
     </div>
   )
 }
@@ -580,50 +592,6 @@ function Field({ label, wide, children }: { label: string; wide?: boolean; child
     <div style={wide ? s.fieldWide : s.field}>
       <span style={s.fieldLabel}>{label}</span>
       {children}
-    </div>
-  )
-}
-
-/* ── 원가 ─────────────────────────────────────────────────────────────── */
-
-/**
- * 원가 — **별도 시스템에서 불러올 자리**(아직 만드는 중). 그때까지는 손으로 적는다.
- * 넷으로 나눠 두는 이유는, 나중에 자동으로 채울 때 어느 칸에 무엇이 들어갈지 미리 정해 두기 위함이다.
- */
-function CostModal({ row, canEdit, onClose, onSave }: {
-  row: PnlRow; canEdit: boolean; onClose: () => void; onSave: (patch: PnlPatch) => void
-}) {
-  useEscapeClose(onClose)
-  const d = deriveP(row)
-  const parts: { key: keyof PnlPatch; label: string; value: number }[] = [
-    { key: 'cost_outsourcing', label: '외주비', value: row.cost_outsourcing },
-    { key: 'cost_supply', label: '사급비', value: row.cost_supply },
-    { key: 'cost_internal', label: '내부비용', value: row.cost_internal },
-    { key: 'cost_etc', label: '기타', value: row.cost_etc },
-  ]
-  return (
-    <div style={s.overlay} onClick={ev => { if (ev.target === ev.currentTarget) onClose() }}>
-      <div style={s.modal} role="dialog" aria-modal="true" aria-label={t('원가')}>
-        <div style={s.modalHead}>
-          <span style={s.cardTitle}>{tf('원가 · {0}', row.customer ?? String(row.quote_id))}</span>
-          <button type="button" style={s.close} onClick={onClose} aria-label={t('닫기')}>✕</button>
-        </div>
-        <div style={s.modalBody}>
-          {parts.map(p => (
-            <Field key={String(p.key)} label={t(p.label)}>
-              <MoneyCell value={p.value} disabled={!canEdit} label={t(p.label)} onSave={v => onSave({ [p.key]: v } as PnlPatch)} />
-            </Field>
-          ))}
-          <Field label={t('원가 메모')} wide>
-            <TextCell value={row.cost_memo} disabled={!canEdit} label={t('원가 메모')} wide onSave={v => onSave({ cost_memo: v })} />
-          </Field>
-          <div style={s.costSum}>
-            <span>{t('총원가')} <b>{won(d.cost_total)}</b></span>
-            <span>{t('수익')} <b style={d.profit < 0 ? s.markFail : undefined}>{won(d.profit)}</b> · {pct(d.margin)}</span>
-          </div>
-          <div style={s.note}>{t('원가는 별도 시스템과 이어질 자리입니다. 지금은 직접 적습니다.')}</div>
-        </div>
-      </div>
     </div>
   )
 }
@@ -706,8 +674,14 @@ const s: Record<string, React.CSSProperties> = {
   pendAmount: { ...cellNum, color: 'var(--body)', fontSize: 'var(--fs-caption)' },
 
   tableWrap: { overflowX: 'auto' },
-  table: { borderCollapse: 'collapse', width: '100%', minWidth: 1180 },
-  th: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, textAlign: 'left', padding: '6px 6px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' },
+  // 폭을 못 박는다 — 숫자 칸은 잘리지 않을 만큼, 남는 폭은 비고가 먹는다
+  table: { borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed', minWidth: 900 },
+  th: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400, textAlign: 'left', padding: '6px 5px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' },
+  thSub: { marginLeft: 5, color: 'var(--muted)', opacity: 0.75 },
+  subNum: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', ...cellNum, padding: '2px 7px 0' },
+  subNumStrong: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700, ...cellNum, padding: '0 7px' },
+  tfSub: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontWeight: 400 },
+  tfSubStrong: { display: 'block', fontSize: 'var(--fs-caption)', color: 'var(--dark)', fontWeight: 700 },
   td: { padding: '4px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', verticalAlign: 'middle' },
   tdNum: { padding: '4px 5px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', ...cellNum },
   tdCalc: { padding: '4px 12px', borderBottom: 'var(--hairline)', fontSize: 'var(--fs-label)', color: 'var(--muted)', ...cellNum },
@@ -717,8 +691,9 @@ const s: Record<string, React.CSSProperties> = {
   tfNum: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--dark)', fontSize: 'var(--fs-label)', ...cellNum },
   tfNumWarn: { padding: '8px 6px', borderTop: '1px solid var(--dark)', fontWeight: 700, color: 'var(--req)', fontSize: 'var(--fs-label)', ...cellNum },
 
-  name: { display: 'block', color: 'var(--dark)', fontWeight: 700, whiteSpace: 'nowrap' },
-  no: { display: 'block', color: 'var(--muted)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
+  nameRow: { display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, padding: '0 2px 2px' },
+  name: { color: 'var(--dark)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 },
+  no: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 400 },
   mark: { color: 'var(--lime)' },
   markFail: { color: 'var(--req)' },
 
@@ -735,7 +710,7 @@ const s: Record<string, React.CSSProperties> = {
   // ── 표(PC·태블릿) — 칸이 열셋이라 한 단계 촘촘하게 ──
   moneyCell: { ...CELL, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
   textCell: CELL,
-  textCellWide: { ...CELL, minWidth: 140 },
+  textCellWide: CELL,
   dateCell: { ...CELL, minWidth: 0, justifyContent: 'space-between' },
   costCell: { ...CELL, cursor: 'pointer', color: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   payRow: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 },

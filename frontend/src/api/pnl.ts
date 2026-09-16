@@ -15,13 +15,10 @@ export interface PnlRow {
   capital: number
   deposit_paid_on: string | null
   capital_paid_on: string | null
-  cost_outsourcing: number
-  cost_supply: number
-  cost_internal: number
-  cost_etc: number
+  /** 원가 — **한 칸이다.** 별도 시스템이 하나로 내려 줄 자리(구성 중) */
+  cost: number
   /** 'manual' = 손으로 적었다 / 'system' = 원가 시스템이 채웠다 */
   cost_source: string
-  cost_memo: string | null
   memo: string | null
   updated_by: string | null
 }
@@ -48,8 +45,7 @@ export interface PnlView {
 /** 적을 수 있는 칸 — 안 보낸 칸은 그대로 둔다(부분 저장) */
 export type PnlPatch = Partial<Pick<PnlRow,
   | 'invoice_on' | 'biz_name' | 'supply_amount' | 'deposit' | 'capital'
-  | 'deposit_paid_on' | 'capital_paid_on'
-  | 'cost_outsourcing' | 'cost_supply' | 'cost_internal' | 'cost_etc' | 'cost_memo' | 'memo'
+  | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
 >>
 
 async function jsonOf<T>(res: Response): Promise<T> {

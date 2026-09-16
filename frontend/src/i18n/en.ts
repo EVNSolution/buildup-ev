@@ -38,13 +38,7 @@ export const EN: Record<string, string> = {
   '계약금 입금일': 'Deposit paid on',
   '캐피탈 입금일': 'Financing paid on',
   '원가': 'Cost',
-  '총원가': 'Total cost',
-  '원가 메모': 'Cost note',
   '수익': 'Profit',
-  '외주비': 'Outsourcing',
-  '사급비': 'Supplied parts',
-  '내부비용': 'Internal',
-  '원가는 별도 시스템과 이어질 자리입니다. 지금은 직접 적습니다.': 'Costs will be fed from a separate system. For now they are entered by hand.',
   '손익 조회 — 판매건별 매출·원가·수익 (보기 전용)': 'View P&L — revenue, cost and profit per sale (read-only)',
   '손익 입력 — 세금계산서 발행일·입금·원가를 적는다': 'Enter P&L — invoice date, payments and costs',
   '배정할 건이 없습니다.': 'Nothing to assign.',
@@ -1269,7 +1263,6 @@ export const EN: Record<string, string> = {
  */
 export const EN_FMT: Record<string, string> = {
   '계약 {0}': 'Signed {0}',
-  '원가 · {0}': 'Cost · {0}',
   '{0}일 경과': '{0}d over',
   '{0}일 남음': '{0}d left',
   '{0} 일정': 'Schedule for {0}',

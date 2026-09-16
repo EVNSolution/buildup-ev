@@ -28,12 +28,8 @@ export interface PnlRow {
   capital: number;
   deposit_paid_on: string | null;
   capital_paid_on: string | null;
-  cost_outsourcing: number;
-  cost_supply: number;
-  cost_internal: number;
-  cost_etc: number;
+  cost: number;
   cost_source: string;
-  cost_memo: string | null;
   memo: string | null;
   updated_by: string | null;
 }
@@ -58,8 +54,7 @@ type RowWithQuote = {
   quote_id: number; invoice_on: Date | null; biz_name: string | null;
   supply_amount: bigint; deposit: bigint; capital: bigint;
   deposit_paid_on: Date | null; capital_paid_on: Date | null;
-  cost_outsourcing: bigint; cost_supply: bigint; cost_internal: bigint; cost_etc: bigint;
-  cost_source: string; cost_memo: string | null; memo: string | null; updated_by: string | null;
+  cost: bigint; cost_source: string; memo: string | null; updated_by: string | null;
   quote: {
     quote_no: string | null; sales_user_id: string | null;
     customer: { name: string } | null;
@@ -81,12 +76,8 @@ function toRow(r: RowWithQuote): PnlRow {
     capital: n(r.capital),
     deposit_paid_on: day(r.deposit_paid_on),
     capital_paid_on: day(r.capital_paid_on),
-    cost_outsourcing: n(r.cost_outsourcing),
-    cost_supply: n(r.cost_supply),
-    cost_internal: n(r.cost_internal),
-    cost_etc: n(r.cost_etc),
+    cost: n(r.cost),
     cost_source: r.cost_source,
-    cost_memo: r.cost_memo,
     memo: r.memo,
     updated_by: r.updated_by,
   };
@@ -211,11 +202,7 @@ export interface PnlPatch {
   capital?: number;
   deposit_paid_on?: string | null;
   capital_paid_on?: string | null;
-  cost_outsourcing?: number;
-  cost_supply?: number;
-  cost_internal?: number;
-  cost_etc?: number;
-  cost_memo?: string | null;
+  cost?: number;
   memo?: string | null;
 }
 
@@ -251,11 +238,7 @@ export async function savePnl(quoteId: number, patch: PnlPatch, by: string): Pro
   put('capital', money(patch.capital));
   put('deposit_paid_on', dateOf(patch.deposit_paid_on));
   put('capital_paid_on', dateOf(patch.capital_paid_on));
-  put('cost_outsourcing', money(patch.cost_outsourcing));
-  put('cost_supply', money(patch.cost_supply));
-  put('cost_internal', money(patch.cost_internal));
-  put('cost_etc', money(patch.cost_etc));
-  put('cost_memo', text(patch.cost_memo, 500));
+  put('cost', money(patch.cost));
   put('memo', text(patch.memo, 500));
 
   if (!exists) {

@@ -57,24 +57,12 @@ export function supplyFromGross(gross: number): number {
   return best;
 }
 
-/** 원가 네 가지 — 외주·사급·내부·기타 */
-export interface CostParts {
-  cost_outsourcing: number;
-  cost_supply: number;
-  cost_internal: number;
-  cost_etc: number;
-}
-
-export function costTotalOf(c: Partial<CostParts>): number {
-  return (c.cost_outsourcing || 0) + (c.cost_supply || 0) + (c.cost_internal || 0) + (c.cost_etc || 0);
-}
-
 /**
- * 수익 = 공급가액 − 총원가.
+ * 수익 = 공급가액 − 원가.
  * **VAT 를 뺀 공급가액 기준**이다 — VAT 는 우리 돈이 아니라 받아서 내는 돈이다.
  */
-export function profitOf(supply: number, costTotal: number): number {
-  return (supply || 0) - (costTotal || 0);
+export function profitOf(supply: number, cost: number): number {
+  return (supply || 0) - (cost || 0);
 }
 
 /** 수익률 — 공급가액이 0이면 비율이 없다(0% 로 쓰면 「손해」로 읽힌다) */
@@ -87,30 +75,35 @@ export interface PnlDerived {
   vat: number;
   gross: number;
   pay_diff: number;
-  cost_total: number;
   profit: number;
   margin: number | null;
 }
 
-export function deriveP(row: { supply_amount: number; deposit: number; capital: number } & Partial<CostParts>): PnlDerived {
-  const cost_total = costTotalOf(row);
-  const profit = profitOf(row.supply_amount, cost_total);
+/** 한 줄이 읽어야 할 값 — 원가는 **한 칸**이고 나머지는 여기서 낸다 */
+export interface PnlBase {
+  supply_amount: number;
+  deposit: number;
+  capital: number;
+  cost?: number;
+}
+
+export function deriveP(row: PnlBase): PnlDerived {
+  const profit = profitOf(row.supply_amount, row.cost ?? 0);
   return {
     vat: vatOf(row.supply_amount),
     gross: grossOf(row.supply_amount),
     pay_diff: payDiffOf(row.supply_amount, row.deposit, row.capital),
-    cost_total,
     profit,
     margin: marginOf(row.supply_amount, profit),
   };
 }
 
 /** 여러 줄의 합 — 엑셀 20행(합계)과 같다. 합계도 줄과 **같은 함수**로 낸다 */
-export function sumP(rows: ({ supply_amount: number; deposit: number; capital: number } & Partial<CostParts>)[]) {
+export function sumP(rows: PnlBase[]) {
   const z = {
     count: rows.length,
     supply_amount: 0, vat: 0, gross: 0, deposit: 0, capital: 0, pay_diff: 0,
-    cost_total: 0, profit: 0,
+    cost: 0, profit: 0,
   };
   for (const r of rows) {
     const d = deriveP(r);
@@ -120,7 +113,7 @@ export function sumP(rows: ({ supply_amount: number; deposit: number; capital: n
     z.deposit += r.deposit || 0;
     z.capital += r.capital || 0;
     z.pay_diff += d.pay_diff;
-    z.cost_total += d.cost_total;
+    z.cost += r.cost || 0;
     z.profit += d.profit;
   }
   return { ...z, margin: marginOf(z.supply_amount, z.profit) };

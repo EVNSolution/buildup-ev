@@ -30,11 +30,7 @@ describe('손익 셈 — 엑셀 재현', () => {
   });
 
   it('🔴 수익은 **VAT 를 뺀 공급가액** 기준이다 — VAT 는 받아서 내는 돈이다', () => {
-    const d = deriveP({
-      supply_amount: 10_000_000, deposit: 0, capital: 0,
-      cost_outsourcing: 6_000_000, cost_supply: 1_000_000, cost_internal: 500_000, cost_etc: 0,
-    });
-    expect(d.cost_total).toBe(7_500_000);
+    const d = deriveP({ supply_amount: 10_000_000, deposit: 0, capital: 0, cost: 7_500_000 });
     expect(d.profit).toBe(2_500_000);
     expect(d.margin).toBeCloseTo(0.25, 10);
   });
