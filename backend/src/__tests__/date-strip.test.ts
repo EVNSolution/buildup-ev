@@ -33,8 +33,10 @@ describe('화면 규칙', () => {
   });
 
   it('🔴 고객 인도 칸은 부가작업 권한이 있을 때만 — 특장사 화면(makerView)은 권한 계산에서 빠진다', () => {
-    expect(detail).toMatch(/target=\{canAddon\}/);
-    expect(detail).toMatch(/const canAddon = usePermission\('addon\.manage'\) && isAdmin && !makerView/);
+    expect(detail).toMatch(/target=\{canAddonEdit\}/);
+    // 2026-09-16 — 보는 것(addon.view)과 누르는 것(addon.manage)을 나눴다. 목표일 칸은 **누르는 권한**이 있을 때만
+    expect(detail).toMatch(/const canAddon = usePermission\('addon\.view'\) && isAdmin && !makerView/);
+    expect(detail).toMatch(/const canAddonEdit = usePermission\('addon\.manage'\) && isAdmin && !makerView/);
     expect(strip).toMatch(/\.\.\.\(target \? \[/);
   });
 

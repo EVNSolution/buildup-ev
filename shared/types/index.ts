@@ -209,7 +209,8 @@ export interface FeatureModule {
 }
 
 /** F4. 권한 토글 (역할 기본값 + 계정 override) */
-export type SubjectType = 'role' | 'user';
+/** 권한을 붙이는 대상 — 역할 기본값 · 역할 프리셋(관리자 안의 자리) · 계정별 예외 */
+export type SubjectType = 'role' | 'user' | 'preset';
 
 export interface AccessControl {
   id?: number;

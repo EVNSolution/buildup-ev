@@ -8,7 +8,8 @@
  *   GET   /orders/:id/addon/steps/:code/checklist — 그 단계 체크리스트(서식이 없으면 null)
  *   PATCH /orders/:id/addon/steps/:code/checklist — 판정·제출(관리자가 적는다)
  *
- * ⚠️ **관리자 + 기능모듈 `addon.manage`** 만. 특장사에게는 이 경로도, 이 데이터도 없다 —
+ * ⚠️ **관리자만** — 조회는 `addon.view`(관리 권한이 있으면 겸한다), 바꾸는 것은 `addon.manage`.
+ *    특장사에게는 이 경로도, 이 데이터도 없다 —
  *    특장사 화면·API 는 order_step 만 읽고, 부가작업은 order_addon_step·order_addon 에 따로 있다.
  * ⚠️ 규칙(선행·되돌리기)은 shared/process/addon.ts 한 곳 — 화면과 서버가 같은 함수를 쓴다.
  */
@@ -27,6 +28,9 @@ import { notify } from '../services/push.js';
 
 export const addonRouter = Router();
 
+/** 보는 문 — 영업관리·경영관리도 들어온다(2026-09-16 지시) */
+const viewGuard = [rbac('ADMIN'), requirePermission('addon.view')];
+/** 바꾸는 문 — 단계 완료·되돌리기·고객 인도 목표일·체크리스트 판정 */
 const guard = [rbac('ADMIN'), requirePermission('addon.manage')];
 
 function orderIdOf(req: Request): number | null {
@@ -81,7 +85,7 @@ async function respond(res: Response, id: number): Promise<void> {
 }
 
 // ── GET /orders/:id/addon ─────────────────────────────────────────────────
-addonRouter.get('/:id/addon', ...guard, async (req: Request, res: Response): Promise<void> => {
+addonRouter.get('/:id/addon', ...viewGuard, async (req: Request, res: Response): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = orderIdOf(req);
   if (id === null) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 order id' } }); return; }
@@ -227,7 +231,7 @@ addonRouter.patch('/:id/addon/steps/:code/undo', ...guard, async (req: Request, 
 });
 
 // ── 부가작업 체크리스트 — 관리자 + addon.manage 만(특장사 경로로는 부가작업 코드가 열리지 않는다) ─────────
-addonRouter.get('/:id/addon/steps/:code/checklist', ...guard, async (req: Request, res: Response): Promise<void> => {
+addonRouter.get('/:id/addon/steps/:code/checklist', ...viewGuard, async (req: Request, res: Response): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = orderIdOf(req);
   const code = String(req.params['code'] ?? '');

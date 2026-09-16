@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf } from '../lib/openPdf'
-import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
+import type { SubjectType, FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { rolesOf } from '@shared/types/index'
 import { PRESETS, PRESET_BY_CODE } from '@shared/rbac/presets'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
@@ -96,9 +96,20 @@ const MODULE_DESC: Record<string, string> = {
   'doc.send.sign': '전자서명 발송',
   'account.manage': '계정 발급 및 권한 관리',
   'basedata.manage': '옵션DB·무게상수 관리',
-  'addon.manage': '부가작업 조회·진행 · 고객 인도 목표일 (특장사 출고 뒤 우리 쪽 작업)',
+  'addon.manage': '부가작업 진행 · 고객 인도 목표일 (특장사 출고 뒤 우리 쪽 작업)',
+  'addon.view': '부가작업 조회 (보기 전용 — 진행은 「부가작업 진행」)',
   'stats.own': '내 실적 조회',
   'stats.all': '전체 실적 조회',
+  'customer.view': '고객 목록·서류함 조회',
+  'checklist.manage': '체크리스트 서식 만들기·고치기 (단계별 확인 항목)',
+  'basedata.weights': '무게상수 관리 (하중 계산에 쓰는 상수)',
+  'basedata.dims': '치수 프리셋 관리 (사양별 튜닝 후 치수)',
+  'basedata.optiondb': '옵션DB 관리 (고객 견적 단가·보조금·세율)',
+  'basedata.makerprice': '특장사 단가 관리 (우리가 특장사에 지급하는 값)',
+  'basedata.holiday': '공휴일 관리 (납기 영업일 계산 기준)',
+  'order.remove': '주문 치우기 — 목록에서 감춘다(행은 남는다)',
+  'notify.push': '앱 알림 받기 (알림함·휴대폰 팝업)',
+  'notify.assign': '구 「제작 배정 알림 메일」 — 이제 역할 프리셋이 정한다(쓰지 않음)',
 }
 type TabKey = 'quotes' | 'customers' | 'perf' | 'kanban' | 'files' | 'toggles' | 'accounts' | 'weights' | 'dims' | 'optiondb' | 'makerprice' | 'checklist' | 'holidays'
 
@@ -106,7 +117,7 @@ function fmtPrice(n: number) { return n ? `₩${n.toLocaleString()}` : '—' }
 function fmtDate(s: string) { return s ? s.slice(0, 10) : '—' }
 
 
-function isEnabled(ac: AccessControl[], type: 'role' | 'user', ref: string, code: string): boolean {
+function isEnabled(ac: AccessControl[], type: SubjectType, ref: string, code: string): boolean {
   const entry = ac.find(a => a.subject_type === type && a.subject_ref === ref && a.module_code === code)
   return entry?.enabled ?? false
 }
@@ -2071,6 +2082,8 @@ export function AdminPage() {
   const [ac, setAc] = useState<AccessControl[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('quotes')
   const [saving, setSaving] = useState<string | null>(null)
+  /** 프리셋 구성 저장 실패 — 기능모듈 탭 위에 한 줄로 */
+  const [presetErr, setPresetErr] = useState('')
 
   function loadModules() {
     return Promise.all([fetchFeatureModules(), fetchAccessControl()]).then(([mods, ctrl]) => {
@@ -2079,6 +2092,23 @@ export function AdminPage() {
     })
   }
   useEffect(() => { void loadModules() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** 역할 프리셋 구성 — 자리마다 무엇을 켤지(2026-09-16). 계정에 그 자리를 지정하면 이 값이 기본 권한이 된다 */
+  async function handlePresetToggle(preset: string, code: string, current: boolean) {
+    const key = `preset:${preset}:${code}`
+    setSaving(key)
+    const entry: Omit<AccessControl, 'id'> = { subject_type: 'preset', subject_ref: preset, module_code: code, enabled: !current }
+    try {
+      await upsertAccessControl(entry)
+      setAc(prev => {
+        const idx = prev.findIndex(a => a.subject_type === 'preset' && a.subject_ref === preset && a.module_code === code)
+        if (idx >= 0) return prev.map((a, i) => (i === idx ? entry : a))
+        return [...prev, entry]
+      })
+    } catch (e) {
+      setPresetErr(e instanceof Error ? e.message : t('프리셋 구성을 바꾸지 못했습니다'))
+    } finally { setSaving(null) }
+  }
 
   async function handleRoleToggle(role: Role, code: string, current: boolean) {
     const key = `${role}:${code}`
@@ -2180,6 +2210,54 @@ export function AdminPage() {
         {activeTab === 'toggles' && (
           <div style={styles.content}>
             <RefreshOn load={loadModules} />
+
+            {/*
+              **역할 프리셋 구성**(2026-09-16 지시) — 관리자 안의 자리마다 무엇을 켤지 여기서 정한다.
+              계정에 자리를 지정하면 이 구성이 그 계정의 기본 권한이 되고, 계정별 토글이 그 위에 예외를 둔다.
+              마스터 자리는 전부 켜진 채 고정 — 시스템 주인이 스스로를 잠그지 않게.
+            */}
+            {presetErr && <div style={styles.presetErr}>{presetErr}</div>}
+            {PRESETS.filter(p => p.code !== 'master').map(preset => (
+              <div key={preset.code} style={styles.surfaceGroup}>
+                <div style={styles.surfaceLabel}>{tf('역할 프리셋 · {0}', t(preset.label))}</div>
+                <div style={styles.presetDesc}>{t(preset.desc)}</div>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.thModule}>{t('모듈')}</th>
+                      <th style={styles.thRole}>{t('이 자리 기본값')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getModulesForRole(modules, 'ADMIN').map(mod => {
+                      const enabled = isEnabled(ac, 'preset', preset.code, mod.code)
+                      const key = `preset:${preset.code}:${mod.code}`
+                      return (
+                        <tr key={mod.code}>
+                          <td style={styles.tdModule}>
+                            <div style={styles.modName}>{t(mod.name)}</div>
+                            {MODULE_DESC[mod.code] && MODULE_DESC[mod.code] !== mod.name && (
+                              <div style={styles.modDesc}>{t(MODULE_DESC[mod.code]!)}</div>
+                            )}
+                            <div style={styles.modCode}>{mod.code}</div>
+                          </td>
+                          <td style={styles.tdToggle}>
+                            <button
+                              style={enabled ? styles.toggleOn : styles.toggleOff}
+                              onClick={() => handlePresetToggle(preset.code, mod.code, enabled)}
+                              disabled={saving === key}
+                            >
+                              {enabled ? 'ON' : 'OFF'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
             {ROLES.map(role => {
               const roleMods = getModulesForRole(modules, role)
               return (
@@ -2199,12 +2277,11 @@ export function AdminPage() {
                         return (
                           <tr key={mod.code}>
                             <td style={styles.tdModule}>
-                              {MODULE_DESC[mod.code] ? (
-                                <Tooltip text={MODULE_DESC[mod.code]!} placement="below">
-                                  <div style={styles.modName}>{t(mod.name)}</div>
-                                </Tooltip>
-                              ) : (
-                                <div style={styles.modName}>{t(mod.name)}</div>
+                              <div style={styles.modName}>{t(mod.name)}</div>
+                              {/* 설명은 **글로 보여 준다**(2026-09-16) — 툴팁은 휴대폰에서 뜨지 않아 무엇을 켜는지 알 수 없었다.
+                                  이름과 같은 말이면 두 번 적지 않는다 */}
+                              {MODULE_DESC[mod.code] && MODULE_DESC[mod.code] !== mod.name && (
+                                <div style={styles.modDesc}>{t(MODULE_DESC[mod.code]!)}</div>
                               )}
                               <div style={styles.modCode}>{mod.code}</div>
                             </td>
@@ -2277,6 +2354,11 @@ const styles: Record<string, React.CSSProperties> = {
   content: {},
   surfaceGroup: { marginBottom: 28 },
   surfaceLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 8 },
+  /** 자리 설명 — 무엇을 하는 자리인지 한 줄 */
+  presetDesc: { fontSize: 'var(--fs-caption)', color: 'var(--body)', lineHeight: 1.6, marginBottom: 8 },
+  presetErr: { fontSize: 'var(--fs-label)', color: 'var(--warn)', marginBottom: 8 },
+  /** 모듈 설명 — 켜는 사람이 무엇을 켜는지 바로 읽는다 */
+  modDesc: { fontSize: 'var(--fs-caption)', color: 'var(--body)', lineHeight: 1.5, marginTop: 2 },
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 13 },
   thModule: { textAlign: 'left' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12 },
   thRole: { textAlign: 'center' as const, padding: '8px 12px', borderBottom: '2px solid var(--line)', color: 'var(--muted)', fontWeight: 600, fontSize: 12, width: 80 },

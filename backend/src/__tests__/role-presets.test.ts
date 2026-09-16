@@ -101,6 +101,15 @@ describe('프리셋 규칙 — 계산(DB 없이)', () => {
     expect(P('prod_mgr')).toContain('order.confirm');
     expect(NOTIFY_TOPIC_BY_CODE['assign.maker']!.presets, '배정 알림은 받는데 배정을 못 한다').toContain('prod_mgr');
     expect(P('prod_mgr')).not.toContain('basedata.optiondb');
+    // 부가작업 — 네 자리 모두 본다. 누르는 것은 PM·생산관리(2026-09-16 지시)
+    for (const c of ['sales_mgr', 'pm', 'prod_mgr', 'exec', 'master']) {
+      const mods = P(c);
+      expect(mods.includes('addon.view') || mods.includes('addon.manage'), `${c} 가 부가작업을 못 본다`).toBe(true);
+    }
+    expect(P('sales_mgr')).not.toContain('addon.manage');
+    expect(P('exec')).not.toContain('addon.manage');
+    expect(P('pm')).toContain('addon.manage');
+    expect(P('prod_mgr')).toContain('addon.manage');
     // 경영관리 — 보는 자리(배정·단계·기준데이터 없음)
     expect(P('exec')).not.toContain('order.confirm');
     expect(P('exec')).not.toContain('order.control');
@@ -195,6 +204,52 @@ describe.runIf(live)('프리셋 — 실제 API', () => {
     expect((await request(app).get('/api/v1/holidays/admin?year=2026').set('Cookie', admin)).status).toBe(200);
     expect((await request(app).get('/api/v1/quotes/maker-prices/ORG_BRAIN').set('Cookie', admin)).status).toBe(200);
     await prisma!.accessControl.deleteMany({ where: { subject_ref: ADMIN, module_code: 'basedata.manage' } });
+  }, 30_000);
+
+  it('🔴 보기 전용 자리(영업관리)는 부가작업을 보되 바꾸지 못한다', async () => {
+    expect((await setPreset('sales_mgr')).status).toBe(200);
+    const order = await prisma!.order.findFirst({ where: { canceled_at: null }, select: { id: true }, orderBy: { id: 'desc' } });
+    if (!order) return;
+    expect((await request(app).get(`/api/v1/orders/${order.id}/addon`).set('Cookie', admin)).status, '보지 못한다').toBe(200);
+    const write = await request(app).patch(`/api/v1/orders/${order.id}/addon/target`).set('Cookie', admin).send({ date: null });
+    expect(write.status, '보기 전용인데 고쳐졌다').toBe(403);
+  }, 30_000);
+
+  it('🔴 DB 에 자리 구성이 있으면 그것이 정답 — 없으면 코드 기본값', () => {
+    const acs = [
+      { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'order.view', enabled: true },
+      { subject_type: 'preset', subject_ref: 'exec', module_code: 'basedata.optiondb', enabled: true },
+    ];
+    const got = mergePermissions('ADMIN', 'a@x.com', acs, { preset: 'exec' });
+    expect(got, '화면에서 켠 값이 무시됐다').toContain('basedata.optiondb');
+    expect(got, 'DB 행이 있으면 그 목록이 전부다').not.toContain('order.view');
+  });
+
+  it('🔴 관리 권한은 보기를 겸한다 — 따로 켜 주지 않아도 된다', () => {
+    const acs = [{ subject_type: 'role', subject_ref: 'ADMIN', module_code: 'addon.manage', enabled: true }];
+    expect(mergePermissions('ADMIN', 'a@x.com', acs, {})).toContain('addon.view');
+  });
+
+  it('🔴 프리셋 구성은 기능모듈 화면에서 고친다 — DB 행이 코드 기본값을 이긴다', async () => {
+    expect((await setPreset('exec')).status).toBe(200);
+    // 경영관리에 옵션DB 를 켠다(자리 구성 자체를 고치는 것 — 계정별 예외가 아니다)
+    const on = await request(app).post('/api/v1/access-control').set('Cookie', master)
+      .send({ subject_type: 'preset', subject_ref: 'exec', module_code: 'basedata.optiondb', enabled: true });
+    expect(on.status, JSON.stringify(on.body)).toBe(200);
+    expect((await request(app).put('/api/v1/option-db/option_price').set('Cookie', admin).send({ rows: [] })).status).not.toBe(403);
+    // 되돌린다
+    await request(app).post('/api/v1/access-control').set('Cookie', master)
+      .send({ subject_type: 'preset', subject_ref: 'exec', module_code: 'basedata.optiondb', enabled: false });
+    expect((await request(app).put('/api/v1/option-db/option_price').set('Cookie', admin).send({ rows: [] })).status).toBe(403);
+  }, 30_000);
+
+  it('🔴 마스터 자리 구성과 알 수 없는 자리는 고칠 수 없다', async () => {
+    const m = await request(app).post('/api/v1/access-control').set('Cookie', master)
+      .send({ subject_type: 'preset', subject_ref: 'master', module_code: 'account.manage', enabled: false });
+    expect(m.status, '마스터 자리가 고쳐졌다').toBe(403);
+    const bad = await request(app).post('/api/v1/access-control').set('Cookie', master)
+      .send({ subject_type: 'preset', subject_ref: '없는자리', module_code: 'order.view', enabled: true });
+    expect(bad.status).toBe(400);
   }, 30_000);
 
   it('🔴 알 수 없는 자리는 받지 않는다', async () => {

@@ -124,7 +124,7 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
      */
     const roles = rolesOf({ role: dbUser.role as Role, extra_roles: dbUser.extra_roles as Role[], is_master: dbUser.is_master });
     const acs = await prisma.accessControl.findMany({
-      where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
+      where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }, { subject_type: 'preset' }] },
     });
     // 역할 프리셋(관리자 안의 자리)이 역할 기본값을 덮는다 — 화면 탭도 이 값으로 갈린다(2026-09-16)
     permissions = mergePermissions(roles, email, acs, { is_master: dbUser.is_master, preset: dbUser.admin_preset });
@@ -175,7 +175,7 @@ authRouter.get('/me/permissions', rbac('SALES', 'ADMIN', 'MAKER'), async (req: R
   } else {
     const [acs, me] = await Promise.all([
       prisma.accessControl.findMany({
-        where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
+        where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }, { subject_type: 'preset' }] },
       }),
       prisma.user.findUnique({ where: { email }, select: { admin_preset: true } }),
     ]);

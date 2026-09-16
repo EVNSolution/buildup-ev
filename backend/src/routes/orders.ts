@@ -87,10 +87,10 @@ ordersRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), requirePermission('order.
    */
   const showPrice = canSeeQuotePrices(auth);
   /*
-   * **부가작업**(공장 출고 뒤 우리 쪽 작업)은 관리자 + `addon.manage` 에게만 싣는다.
+   * **부가작업**(공장 출고 뒤 우리 쪽 작업)은 관리자 + `addon.view`(관리 권한이 있으면 겸한다)에게만 싣는다.
    * 특장사(자기 조직 범위)에게는 조회 자체를 하지 않는다 — 응답에서 지우는 방식은 빠뜨리면 샌다.
    */
-  const showAddon = !ownOrgOnly(auth) && isAdmin(auth) && await hasPermission(req, 'addon.manage');
+  const showAddon = !ownOrgOnly(auth) && isAdmin(auth) && await hasPermission(req, 'addon.view');
 
   try {
     const orders = await prisma.order.findMany({

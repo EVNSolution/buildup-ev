@@ -52,7 +52,17 @@ export function mergePermissions(
    * 프리셋이 없는 계정(null)은 예전 그대로 역할 기본값을 쓴다(지정하기 전에는 권한이 바뀌지 않는다).
    * 계정별 토글은 이 뒤에 와서 마지막 말을 한다 — 「프리셋을 쓰되 이 계정만 예외」가 된다.
    */
-  const preset = subject?.preset ? PRESET_BY_CODE[subject.preset] : undefined;
+  /*
+   * 프리셋 구성은 **DB(access_control subject_type='preset')가 정답**이다(2026-09-16 — 기능모듈 화면에서 직접 고친다).
+   * 그 프리셋 행이 하나도 없으면 코드 기본값(shared/rbac/presets)을 쓴다 — 새 프리셋을 더해도 시드 전에 비어 있지 않게.
+   */
+  const presetCode = subject?.preset ?? null;
+  const presetRows = presetCode ? acs.filter(a => a.subject_type === 'preset' && a.subject_ref === presetCode) : [];
+  const preset = presetCode
+    ? (presetRows.length
+      ? { modules: presetRows.filter(r => r.enabled).map(r => r.module_code) }
+      : PRESET_BY_CODE[presetCode])
+    : undefined;
   if (preset) {
     const on = new Set(preset.modules);
     // 프리셋은 **관리자 역할이 준 것만** 여닫는다 — 영업·특장사 역할이 준 것은 그대로 둔다(겸직 계정)
@@ -69,6 +79,11 @@ export function mergePermissions(
    * 기준데이터를 프리셋에 맞게 다섯으로 쪼갰는데(무게상수·치수·옵션DB·특장사 단가·공휴일),
    * 이미 우산만 켜 둔 계정이 그날로 다섯 화면을 전부 잃으면 안 된다 — 우산이 켜져 있으면 다섯도 켜진 것으로 본다.
    */
+  /*
+   * **부가작업을 굴리는 사람은 당연히 본다**(2026-09-16) — 보기 권한을 따로 켜 주지 않아도 되게 한 곳에서 편다.
+   * 영업관리·경영관리는 `addon.view` 만 가진다(보기 전용).
+   */
+  if (codes.includes('addon.manage') && !codes.includes('addon.view')) codes.push('addon.view');
   if (codes.includes('basedata.manage')) {
     for (const c of ['basedata.weights', 'basedata.dims', 'basedata.optiondb', 'basedata.makerprice', 'basedata.holiday']) {
       if (!codes.includes(c)) codes.push(c);

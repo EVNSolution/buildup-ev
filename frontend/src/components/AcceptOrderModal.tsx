@@ -63,7 +63,7 @@ export function AcceptOrderModal({ orderId, makerOrgName, orderedAt, busy, error
    */
   const { session } = useAuth()
   const isAdmin = rolesOf(session!.user).includes('ADMIN')
-  const canAddon = usePermission('addon.manage')
+  const canAddon = usePermission('addon.manage')   // 고객 인도 목표일을 찍는 칸 — 관리 권한
   const canControl = usePermission('order.control')
   const base = useMemo(() => {
     const d = new Date(orderedAt)

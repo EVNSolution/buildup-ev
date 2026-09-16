@@ -42,7 +42,8 @@ beforeAll(async () => {
   for (const [email, role, org] of [[ADMIN, 'ADMIN', 'ORG_HQ'], [NOPERM, 'ADMIN', 'ORG_HQ'], [MAKER, 'MAKER', 'ORG_BRAIN']] as const) {
     await prisma.user.upsert({ where: { email }, update: { active: true, status: 'active' }, create: { email, name: '부가작업시험', role, extra_roles: [], org_code: org, active: true, status: 'active', password_hash: 'x' } });
     for (const m of mods) {
-      const enabled = !(email === NOPERM && m.code === 'addon.manage');
+      // 부가작업을 못 쓰는 계정 — 2026-09-16 부터 보기(addon.view)와 굴리기(addon.manage)가 나뉘어 둘 다 끈다
+      const enabled = !(email === NOPERM && (m.code === 'addon.manage' || m.code === 'addon.view'));
       await prisma.accessControl.upsert({
         where: { subject_type_subject_ref_module_code: { subject_type: 'user', subject_ref: email, module_code: m.code } },
         update: { enabled }, create: { subject_type: 'user', subject_ref: email, module_code: m.code, enabled },
@@ -234,8 +235,9 @@ describe.runIf(live)('부가작업', () => {
     expect(await prisma!.orderAddonStep.count({ where: { order_id: id, code: 'addon_car_arrived' } })).toBe(1);
   }, 30_000);
 
-  it('🔴 권한 — addon.manage 없는 관리자는 못 쓰고, 목록에도 부가작업이 실리지 않는다', async () => {
+  it('🔴 권한 — 부가작업 권한이 없는 관리자는 못 쓰고, 목록에도 부가작업이 실리지 않는다', async () => {
     const { id } = await acceptedOrder();
+    // 2026-09-16 — 보는 것(addon.view)과 굴리는 것(addon.manage)을 나눴다. 둘 다 없는 계정은 아무것도 못 본다
     expect((await request(app).get(`/api/v1/orders/${id}/addon`).set('Cookie', noperm)).status).toBe(403);
     expect((await target(id, '2031-01-01', noperm)).status).toBe(403);
     const list = await request(app).get('/api/v1/orders').set('Cookie', noperm);

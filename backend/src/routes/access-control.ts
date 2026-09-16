@@ -4,6 +4,7 @@ import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { LOCK_MODULE, mergePermissions } from '../lib/permissions.js';
 import { rolesOf, type Role } from '@buildup-ev/shared/types';
+import { isPresetCode } from '@buildup-ev/shared/rbac/presets';
 
 export const accessControlRouter = Router();
 
@@ -25,6 +26,17 @@ accessControlRouter.post('/', rbac('ADMIN'), requirePermission('account.manage')
   if (!subject_type || !subject_ref || !module_code || enabled === undefined) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'subject_type, subject_ref, module_code, enabled 필수' } });
     return;
+  }
+  if (!['role', 'user', 'preset'].includes(subject_type)) {
+    res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 대상입니다' } }); return;
+  }
+  /*
+   * **역할 프리셋 구성**(2026-09-16) — 기능모듈 화면에서 자리마다 켜고 끈다.
+   * 마스터 자리는 손대지 않는다: 전부 켜져 있어야 시스템 주인이 스스로를 잠그지 않는다.
+   */
+  if (subject_type === 'preset') {
+    if (!isPresetCode(subject_ref)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 역할 프리셋입니다' } }); return; }
+    if (subject_ref === 'master') { res.status(403).json({ error: { code: 'FORBIDDEN', message: '마스터 자리의 구성은 바꿀 수 없습니다.' } }); return; }
   }
 
   // 마스터 유저의 모듈은 항상 전체 ON — 변경 금지
