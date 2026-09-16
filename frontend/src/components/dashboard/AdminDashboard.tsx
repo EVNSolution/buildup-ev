@@ -105,6 +105,72 @@ type Scope = 'month' | 'all'
 
 const won = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`
 
+
+/** 칸 하나 — 이름 · 큰 숫자 · (있으면) 아래 한 줄 */
+interface Tile {
+  key: string
+  label: string
+  n: number
+  /** 명 · 건 */
+  unit: string
+  /** 숫자 아래 한 줄(금액·건수). 자리를 비워도 줄 높이는 지킨다 */
+  sub?: string
+  warn?: boolean
+  /**
+   * 앞 칸과 이 칸 사이에 무엇을 둘지.
+   *   arrow   = 이어지는 단계(상담 → 계약 → 주문 → 인도)
+   *   divider = 성격이 다른 칸(납기일 경과는 「다음 단계」가 아니라 경보다)
+   */
+  sep?: 'arrow' | 'divider'
+}
+
+/**
+ * 칸을 한 줄로 늘어놓는다 — **꺾쇠는 칸과 칸 사이 정가운데, 숫자 줄 높이에 맞춘다.**
+ *
+ * 예전에는 flex 로 늘어놓고 꺾쇠를 `alignSelf: center` 로 뒀다. 그러면 꺾쇠가
+ * 「이름 + 숫자 + 아래 줄」 전체의 한가운데에 서서, 정작 맞춰야 할 **숫자 줄과 어긋났다**(제보).
+ * 그래서 격자로 바꾸고 줄(이름/숫자/아래)과 칸을 좌표로 못 박는다 — 꺾쇠는 숫자 줄에만 놓인다.
+ */
+function TileRow({ tiles, isMobile, mobileCols, big }: {
+  tiles: Tile[]; isMobile: boolean; mobileCols: number; big?: boolean
+}) {
+  // ⚠️ 칸 변수를 t 로 두지 말 것 — 번역 함수 t() 를 가려 그 블록만 한국어가 남는다
+  const numStyle = (x: Tile) => (x.warn && x.n > 0 ? s.numValWarn : big ? s.perfVal : s.numVal)
+
+  if (isMobile) {
+    return (
+      <div style={{ ...s.tilesMobile, gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))` }}>
+        {tiles.map(x => (
+          <div key={x.key} style={s.tileCell}>
+            <div style={s.numLabel}>{t(x.label)}</div>
+            <div style={numStyle(x)}>{x.n}<span style={s.unit}>{t(x.unit)}</span></div>
+            {x.sub !== undefined && <div style={s.numSub}>{x.sub}</div>}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  // '1fr auto 1fr auto …' — 홀수 칸이 내용, 짝수 칸이 칸 사이
+  const cols = tiles.map(() => '1fr').join(' auto ')
+  return (
+    <div style={{ ...s.tilesRow, gridTemplateColumns: cols }}>
+      {tiles.map((x, i) => (
+        <Fragment key={x.key}>
+          {i > 0 && x.sep === 'arrow' && <div style={{ ...s.sepArrow, gridColumn: i * 2 }}>›</div>}
+          {i > 0 && x.sep === 'divider' && <div style={{ ...s.sepLine, gridColumn: i * 2 }} />}
+          {/* 가운데 정렬이라야 꺾쇠가 **두 숫자의 정확히 한가운데**에 선다 — 왼쪽으로 붙이면
+              칸마다 글자 너비가 달라 꺾쇠가 뒷 숫자에 딸려 붙은 것처럼 보인다(제보) */}
+          <div style={{ ...s.numLabel, ...s.mid, gridColumn: i * 2 + 1, gridRow: 1 }}>{t(x.label)}</div>
+          <div style={{ ...numStyle(x), ...s.mid, gridColumn: i * 2 + 1, gridRow: 2 }}>
+            {x.n}<span style={s.unit}>{t(x.unit)}</span>
+          </div>
+          <div style={{ ...s.numSub, ...s.mid, gridColumn: i * 2 + 1, gridRow: 3 }}>{x.sub ?? ''}</div>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
 /**
  * 영업 성과 — **상담고객 › 계약완료 › 주문진행 › 인도완료**(2026-09-16 지시).
  *
@@ -138,27 +204,20 @@ function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
     if (key === 'consult') return tf('견적 {0}건', st.reached.draft)
     if (key === 'contracted') return won(st.amount.contracted)
     if (key === 'completed') return won(st.amount.completed)
-    return '\u00a0'
+    return ''
   }
+  const tiles: Tile[] = shown ? DASH_STEPS.map((step, i) => ({
+    key: step.key, label: step.label, unit: step.unit,
+    n: step.get(shown), sub: sub(step.key, shown),
+    ...(i > 0 ? { sep: 'arrow' as const } : {}),
+  })) : []
   return (
     <Card
       title={t('영업 성과')} full onGo={onGo}
       extra={<ScopeToggle scope={scope} onChange={setScope} />}
     >
-      {!shown ? <div style={s.muted}>{t('불러오는 중…')}</div> : (
-        <div style={isMobile ? s.perfGridMobile : s.perfRow}>
-          {DASH_STEPS.map((step, i) => (
-            <Fragment key={step.key}>
-              {i > 0 && !isMobile && <div style={s.perfArrow}>›</div>}
-              <div style={s.perfCell}>
-                <div style={s.numLabel}>{t(step.label)}</div>
-                <div style={s.perfVal}>{step.get(shown)}<span style={s.unit}>{t(step.unit)}</span></div>
-                <div style={s.numSub}>{sub(step.key, shown)}</div>
-              </div>
-            </Fragment>
-          ))}
-        </div>
-      )}
+      {!shown ? <div style={s.muted}>{t('불러오는 중…')}</div>
+        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} big />}
     </Card>
   )
 }
@@ -187,27 +246,23 @@ function ProgressCard({ orders, contracted, isMobile, onGo }: {
     () => (orders && contracted ? buildDashboard(orders, contracted, new Date(), true) : null),
     [orders, contracted],
   )
-  const cells: { label: string; n: number; warn?: boolean }[] = dash ? [
-    { label: '배정 대기', n: dash.assign.length },
-    { label: '수락 대기', n: dash.pending.length },
-    { label: '특장 진행', n: dash.active.length },
-    { label: '부가작업', n: dash.addon.length },
-    { label: '인도 완료', n: dash.done.length },
-    { label: '납기일 경과', n: dash.late.length, warn: true },
-  ] : []
+  /*
+   * 앞 다섯은 **이어지는 단계**라 꺾쇠로 잇는다.
+   * 「납기일 경과」는 다음 단계가 아니라 **어디에 있든 늦은 건**이라, 꺾쇠 대신 세로선으로 끊는다 —
+   * 꺾쇠로 이으면 인도 완료 다음에 납기일 경과가 오는 것처럼 읽힌다.
+   */
+  const tiles: Tile[] = dash ? ([
+    { key: 'assign', label: '배정 대기', n: dash.assign.length },
+    { key: 'pending', label: '수락 대기', n: dash.pending.length, sep: 'arrow' },
+    { key: 'active', label: '특장 진행', n: dash.active.length, sep: 'arrow' },
+    { key: 'addon', label: '부가작업', n: dash.addon.length, sep: 'arrow' },
+    { key: 'done', label: '인도 완료', n: dash.done.length, sep: 'arrow' },
+    { key: 'late', label: '납기일 경과', n: dash.late.length, warn: true, sep: 'divider' },
+  ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' })) : []
   return (
     <Card title={t('주문 진행 현황')} full onGo={onGo}>
-      {!dash ? <div style={s.muted}>{t('불러오는 중…')}</div> : (
-        // 남는 폭을 여섯 칸이 똑같이 나눈다 — 오른쪽이 비면 「덜 그려졌나」로 읽힌다
-        <div style={{ ...s.progressGrid, gridTemplateColumns: isMobile ? 'repeat(3, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))' }}>
-          {cells.map(c => (
-            <div key={c.label} style={s.progressCell}>
-              <div style={s.numLabel}>{t(c.label)}</div>
-              <div style={c.warn && c.n > 0 ? s.numValWarn : s.numVal}>{c.n}<span style={s.unit}>{t('건')}</span></div>
-            </div>
-          ))}
-        </div>
-      )}
+      {!dash ? <div style={s.muted}>{t('불러오는 중…')}</div>
+        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={3} />}
     </Card>
   )
 }
@@ -452,9 +507,12 @@ const cardBase: React.CSSProperties = {
   background: '#fff', border: 'var(--hairline)', borderRadius: 'var(--r-md)',
   padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minWidth: 0,
 }
-/** 목록이 드는 칸 — **높이를 못 박는다.** 0건이든 100건이든 카드 크기가 같아야 아래가 안 들썩인다 */
+/**
+ * 목록이 드는 칸 — **높이를 못 박는다.** 0건이든 100건이든 카드 크기가 같아야 아래가 안 들썩인다.
+ * 높이는 네 줄 남짓(2026-09-16 지시로 절반으로 줄였다) — 훑는 자리지 여기서 일하는 자리가 아니다.
+ */
 const paneBase: React.CSSProperties = {
-  height: 208, overflowY: 'auto', borderTop: 'var(--hairline)', paddingTop: 4, minWidth: 0,
+  height: 104, overflowY: 'auto', borderTop: 'var(--hairline)', paddingTop: 4, minWidth: 0,
 }
 
 const s: Record<string, React.CSSProperties> = {
@@ -471,15 +529,14 @@ const s: Record<string, React.CSSProperties> = {
   toggleOff: { border: 'none', background: 'none', color: 'var(--muted)', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
   go: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
 
-  // 성과 — 한 줄을 가득 채우고 칸 사이에 꺾쇠를 둔다
-  perfRow: { display: 'flex', alignItems: 'stretch', gap: 'var(--sp-2)' },
-  perfGridMobile: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--sp-3)' },
-  perfCell: { flex: 1, minWidth: 0 },
-  perfArrow: { alignSelf: 'center', color: 'var(--muted)', fontSize: 20, lineHeight: 1 },
+  // 한 줄을 가득 채운다. 줄(이름/숫자/아래)을 격자로 못 박아야 꺾쇠가 **숫자 줄**에 선다
+  tilesRow: { display: 'grid', gridTemplateRows: 'auto auto auto', columnGap: 'var(--sp-3)', alignItems: 'center' },
+  tilesMobile: { display: 'grid', gap: 'var(--sp-3)' },
+  tileCell: { minWidth: 0 },
+  mid: { textAlign: 'center' },
+  sepArrow: { gridRow: 2, alignSelf: 'center', justifySelf: 'center', color: 'var(--muted)', fontSize: 20, lineHeight: 1 },
+  sepLine: { gridRow: '1 / 4', justifySelf: 'center', width: 1, background: 'var(--line)', alignSelf: 'stretch' },
   perfVal: { fontSize: 30, fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
-
-  progressGrid: { display: 'grid', gap: 'var(--sp-2)' },
-  progressCell: { minWidth: 0 },
 
   numLabel: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   numVal: { fontSize: 26, fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },

@@ -160,7 +160,8 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
         <>
           {total && stats.length > 1 && (
             <section style={s.section}>
-              <div style={s.h}>{t('전체 집계')}</div>
+              {/* 만든 견적 수는 깔때기에서 뺐다(단위가 달라 이탈률로 읽혔다) — 이름 옆에 적는다 */}
+              <div style={s.h}>{t('전체 집계')} <span style={s.count}>{tf('견적 {0}건', total.activity.quotes)}</span></div>
               <Funnel st={total} />
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
