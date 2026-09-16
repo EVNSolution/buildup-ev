@@ -23,12 +23,12 @@ export interface FunnelStep {
 }
 
 export const FUNNEL_STEPS: FunnelStep[] = [
-  { key: 'consult', label: '상담고객', unit: '명', get: s => s.customers.draft },
-  { key: 'confirmed', label: '견적완료', unit: '명', get: s => s.customers.confirmed },
-  { key: 'contracted', label: '계약완료', unit: '건', get: s => s.reached.contracted },
-  { key: 'assigned', label: '배정완료', unit: '건', get: s => s.reached.assigned },
-  { key: 'ordered', label: '주문진행', unit: '건', get: s => s.reached.ordered },
-  { key: 'completed', label: '인도완료', unit: '건', get: s => s.reached.completed },
+  { key: 'consult', label: '상담 고객', unit: '명', get: s => s.customers.draft },
+  { key: 'confirmed', label: '견적 완료', unit: '명', get: s => s.customers.confirmed },
+  { key: 'contracted', label: '계약 완료', unit: '건', get: s => s.reached.contracted },
+  { key: 'assigned', label: '배정 완료', unit: '건', get: s => s.reached.assigned },
+  { key: 'ordered', label: '주문 진행', unit: '건', get: s => s.reached.ordered },
+  { key: 'completed', label: '인도 완료', unit: '건', get: s => s.reached.completed },
 ]
 
 /** 대시보드 「영업 성과」 카드가 쓰는 네 칸 — 상담고객 › 계약완료 › 주문진행 › 인도완료 */

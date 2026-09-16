@@ -595,7 +595,7 @@ export function OrderDetail({ orderId, onBack, backLabel = t('배정 주문'), m
         {/* 부가작업 — 공장 출고 뒤 우리 쪽 작업(관리자 + addon.manage) */}
         {canAddon && (
           <button style={tab === 'addon' ? det.tabActive : det.tabBtn} onClick={() => setTab('addon')}>
-            {t('부가작업')}
+            {t('부가 작업')}
           </button>
         )}
         <button style={tab === 'spec' ? det.tabActive : det.tabBtn} onClick={() => setTab('spec')}>

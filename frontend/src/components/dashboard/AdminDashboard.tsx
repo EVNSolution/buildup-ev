@@ -8,55 +8,132 @@ import type { ApiOrder, ApiQuote } from '@shared/types/index'
 import { buildDashboard } from '../../lib/orderDashboard'
 import { DASH_STEPS } from '../../lib/salesFunnel'
 import { shownDate } from '@shared/process/actual'
+import { dueInfo } from '@shared/process/due'
 import { CustomerFolders } from '../CustomerFolders'
 import { useEscapeClose } from '../../lib/escClose'
 import { useIsMobile } from '../../hooks/useIsMobile'
+import { usePermission } from '../PermGate'
+import { useAuth } from '../../contexts/AuthContext'
 
 /**
- * **관리자 첫 화면** — 자리(역할 프리셋)에 맞는 카드를 모아 둔 곳(2026-09-16 지시).
+ * **관리자 첫 화면(마이페이지)** — 자리(역할 프리셋)마다 다른 카드 묶음(2026-09-16 지시).
  *
  * 위젯처럼 자유롭게 옮기는 판은 아직 만들지 않는다. **무엇이 보이는가**가 먼저이고,
  * 어디에 두는가는 한 달 써 보고 정한다. 그래서 카드는 각자 자기 데이터를 불러오는 **독립된 조각**으로 둔다 —
  * 나중에 격자·배치 저장만 얹으면 그대로 위젯이 된다.
  *
- * 배치 규칙(2026-09-16 지시 — 「비어 보이지 않게」):
- *   · 성과·진행 현황·일정은 **한 줄을 통째로** 쓴다. 숫자 칸은 남는 폭을 나눠 가진다
- *   · 목록이 드는 카드(배정 요청·고객 검색)는 **칸 높이를 못 박고 목록만 구른다** —
- *     0건이든 100건이든 카드 크기가 변하면 그 아래가 들썩인다
+ * ── 누가 어느 마이페이지를 보는가(2026-09-16 지시) ──────────────────────────
+ *   · **마스터** — 전부 본다. 위에서 골라 가며 본다(자리마다 무엇이 보이는지 확인해야 하니까)
+ *   · **그 외** — 프리셋이 **지정된 경우에만**, 그 자리의 마이페이지 하나
+ *   · 프리셋 미지정이면 마이페이지 자체가 없다 — 탭도 안 뜬다(AdminPage 가 `dashboardsFor` 로 가린다)
  *
- * 지금은 **영업관리** 한 벌이다(PM·생산관리·경영관리는 다음).
+ * 카드마다 권한을 한 번 더 본다. 프리셋 구성은 기능모듈 화면에서 고칠 수 있어,
+ * 「자리에 딸린 카드」와 **실제로 가진 권한**이 갈릴 수 있기 때문이다.
+ *
+ * 배치 규칙(「비어 보이지 않게」):
+ *   · 성과·진행 현황·일정은 **한 줄을 통째로** 쓴다. 숫자 칸은 남는 폭을 나눠 가진다
+ *   · 목록이 드는 카드는 **칸 높이를 못 박고 목록만 구른다** — 0건이든 100건이든 카드 크기가 같아야 아래가 안 들썩인다
  */
+type CardKey = 'perf' | 'progress' | 'assignRequest' | 'assignQueue' | 'late' | 'customer' | 'calendar'
+
+export interface DashboardDef {
+  /** 역할 프리셋 코드(shared/rbac/presets) */
+  code: string
+  label: string
+  cards: CardKey[]
+}
+
+/**
+ * 자리별 카드 묶음.
+ *
+ * ⚠️ PM 은 아직 없다 — 자리는 있지만 마이페이지를 안 만들었다. 빈 판을 띄우느니 탭을 안 보이는 편이 낫다.
+ */
+export const DASHBOARDS: DashboardDef[] = [
+  // 영업을 굴린다 — 성과와 고객, 그리고 영업이 요청을 안 눌러 멈춘 건
+  { code: 'sales_mgr', label: '영업관리', cards: ['perf', 'progress', 'assignRequest', 'customer', 'calendar'] },
+  // 제작을 굴린다 — 지금 배정할 건과 납기가 급한 건. 성과·고객은 이 자리의 일이 아니다
+  { code: 'prod_mgr', label: '생산관리', cards: ['progress', 'assignQueue', 'late', 'calendar'] },
+  // 보기만 한다 — 숫자와 일정. 손대는 카드(배정·고객 서류)는 넣지 않는다
+  { code: 'exec', label: '경영관리', cards: ['perf', 'progress', 'calendar'] },
+]
+
+/** 이 계정이 볼 수 있는 마이페이지들 — 마스터는 전부, 나머지는 지정된 프리셋 하나(없으면 빈 목록) */
+export function dashboardsFor(user: { is_master?: boolean; admin_preset?: string | null } | undefined): DashboardDef[] {
+  if (!user) return []
+  if (user.is_master) return DASHBOARDS
+  return DASHBOARDS.filter(d => d.code === user.admin_preset)
+}
+
 export function AdminDashboard({ onGo }: {
   /** 카드를 눌렀을 때 옮겨 갈 탭 — 대시보드는 요약만 보여 주고 일은 원래 화면에서 한다 */
   onGo: (tab: 'perf' | 'kanban') => void
 }) {
   const isMobile = useIsMobile()
+  const { session } = useAuth()
+  const boards = dashboardsFor(session?.user)
+  const [pick, setPick] = useState(0)
+  const board = boards[Math.min(pick, Math.max(0, boards.length - 1))]
+
   const [orders, setOrders] = useState<ApiOrder[] | null>(null)
   const [contracted, setContracted] = useState<ApiQuote[] | null>(null)
   const [folders, setFolders] = useState<ApiFolderRow[] | null>(null)
   const [err, setErr] = useState('')
 
+  // 카드마다 권한을 한 번 더 본다 — 훅은 조건 없이 늘 부른다(호출 순서가 바뀌면 안 된다)
+  const canPerf = usePermission('stats.own')
+  const canOrders = usePermission('order.view')
+  const canAssign = usePermission('order.confirm')
+  const canCustomer = usePermission('customer.view')
+  const shows = (key: CardKey): boolean => {
+    if (!board?.cards.includes(key)) return false
+    if (key === 'perf') return canPerf
+    if (key === 'customer') return canCustomer
+    if (key === 'assignRequest' || key === 'assignQueue') return canAssign
+    return canOrders
+  }
+
+  // 쓰지 않을 데이터는 부르지 않는다 — 경영관리에게 고객 서류함을 부르면 권한 밖을 두드리는 꼴이다
+  const needOrders = (['progress', 'calendar', 'assignQueue', 'late'] as CardKey[]).some(shows)
+  const needContracted = needOrders || shows('assignRequest')
+  const needFolders = shows('customer')
+
   useEffect(() => {
     let alive = true
     Promise.all([
-      fetchOrders({ board: 'admin' }),
-      fetchQuotes({ status: 'contracted' }),
-      fetchFolders().catch(() => [] as ApiFolderRow[]),
+      needOrders ? fetchOrders({ board: 'admin' }) : Promise.resolve([] as ApiOrder[]),
+      needContracted ? fetchQuotes({ status: 'contracted' }) : Promise.resolve([] as ApiQuote[]),
+      needFolders ? fetchFolders().catch(() => [] as ApiFolderRow[]) : Promise.resolve([] as ApiFolderRow[]),
     ])
       .then(([o, q, f]) => { if (alive) { setOrders(o); setContracted(q); setFolders(f) } })
       .catch(e => { if (alive) setErr(e instanceof Error ? e.message : t('대시보드를 불러오지 못했습니다')) })
     return () => { alive = false }
-  }, [])
+  }, [needOrders, needContracted, needFolders])
+
+  if (!board) return null
 
   return (
     <div style={s.root}>
+      {/* 마스터만 여럿을 갖는다 — 하나뿐이면 고를 것이 없으니 줄을 안 그린다 */}
+      {boards.length > 1 && (
+        <div style={s.boardBar} role="group" aria-label={t('마이페이지')}>
+          {boards.map((b, i) => (
+            <button
+              key={b.code} type="button" aria-pressed={i === pick}
+              style={i === pick ? s.toggleOn : s.toggleOff}
+              onClick={() => setPick(i)}
+            >{t(b.label)}</button>
+          ))}
+        </div>
+      )}
       {err && <div style={s.err}>{err}</div>}
       <div style={{ ...s.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
-        <PerfCard isMobile={isMobile} onGo={() => onGo('perf')} />
-        <ProgressCard orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />
-        <AssignRequestCard contracted={contracted} />
-        <CustomerSearchCard folders={folders} />
-        <CalendarCard orders={orders} isMobile={isMobile} />
+        {shows('perf') && <PerfCard isMobile={isMobile} onGo={() => onGo('perf')} />}
+        {shows('progress') && <ProgressCard orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />}
+        {shows('assignQueue') && <AssignQueueCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
+        {shows('assignRequest') && <AssignRequestCard contracted={contracted} />}
+        {shows('late') && <LateCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
+        {shows('customer') && <CustomerSearchCard folders={folders} />}
+        {shows('calendar') && <CalendarCard orders={orders} isMobile={isMobile} />}
       </div>
     </div>
   )
@@ -255,7 +332,7 @@ function ProgressCard({ orders, contracted, isMobile, onGo }: {
     { key: 'assign', label: '배정 대기', n: dash.assign.length },
     { key: 'pending', label: '수락 대기', n: dash.pending.length, sep: 'arrow' },
     { key: 'active', label: '특장 진행', n: dash.active.length, sep: 'arrow' },
-    { key: 'addon', label: '부가작업', n: dash.addon.length, sep: 'arrow' },
+    { key: 'addon', label: '부가 작업', n: dash.addon.length, sep: 'arrow' },
     { key: 'done', label: '인도 완료', n: dash.done.length, sep: 'arrow' },
     { key: 'late', label: '납기일 경과', n: dash.late.length, warn: true, sep: 'divider' },
   ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' })) : []
@@ -294,6 +371,108 @@ function AssignRequestCard({ contracted }: { contracted: ApiQuote[] | null }) {
                   <span style={s.listName}>{q.customer?.name ?? '—'}</span>
                   <span style={s.listOwner}>{q.sales_user_id ?? '—'}</span>
                   <span style={s.listSub}>{tf('{0}일째', days(q.created_at))}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+      </div>
+    </Card>
+  )
+}
+
+/**
+ * **배정 대기** — 영업이 요청했고 특장사를 아직 정하지 않은 건. 생산관리가 지금 손댈 자리다.
+ *
+ * 배정 요청 대기(영업이 아직 안 누른 건)와 헷갈리면 안 된다. 그쪽은 **기다리는** 자리이고
+ * 이쪽은 **누르는** 자리다 — 그래서 여기에는 「열기」가 있다.
+ */
+function AssignQueueCard({ orders, contracted, onGo }: {
+  orders: ApiOrder[] | null; contracted: ApiQuote[] | null; onGo: () => void
+}) {
+  const dash = useMemo(
+    () => (orders && contracted ? buildDashboard(orders, contracted, new Date(), true) : null),
+    [orders, contracted],
+  )
+  const days = (iso?: string | null) =>
+    iso ? Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000)) : 0
+  const rows = [...(dash?.assign ?? [])].sort(
+    (a, b) => days(b.quote.assign_requested_at) - days(a.quote.assign_requested_at),
+  )
+  return (
+    <Card title={t('배정 대기')} onGo={onGo}>
+      <div style={s.headline}>
+        <span style={rows.length > 0 ? s.numValWarn : s.numVal}>{rows.length}<span style={s.unit}>{t('건')}</span></span>
+      </div>
+      <div style={s.pane}>
+        {!dash ? <div style={s.muted}>{t('불러오는 중…')}</div>
+          : rows.length === 0 ? <div style={s.muted}>{t('배정할 건이 없습니다.')}</div> : (
+            <ul style={s.list}>
+              {rows.map(r => (
+                <li key={r.quote.id} style={s.listRow}>
+                  <span style={s.listNo}>{r.quote.quote_no ?? `#${r.quote.id}`}</span>
+                  <span style={s.listName}>{r.quote.customer?.name ?? '—'}</span>
+                  {/* 거부돼 돌아온 건은 「다시 배정」이라 먼저 눈에 들어와야 한다 */}
+                  {r.rejected && <span style={s.tagWarn}>{t('거부됨')}</span>}
+                  <span style={s.listSub}>{tf('{0}일째', days(r.quote.assign_requested_at))}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+      </div>
+    </Card>
+  )
+}
+
+/**
+ * **납기 경과·임박** — 늦었거나 곧 늦을 건. 생산관리가 매일 먼저 보는 자리다.
+ * 늦은 것을 위에, 임박한 것을 아래에 둔다(먼저 손대야 할 순서).
+ */
+function LateCard({ orders, contracted, onGo }: {
+  orders: ApiOrder[] | null; contracted: ApiQuote[] | null; onGo: () => void
+}) {
+  const now = new Date()
+  const dash = useMemo(
+    () => (orders && contracted ? buildDashboard(orders, contracted, now, true) : null),
+    [orders, contracted],   // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  const rows = useMemo(() => {
+    if (!dash) return []
+    const seen = new Set<number>()
+    const out: { o: ApiOrder; days: number }[] = []
+    // ① 이미 늦은 것 — 현황판의 「납기일 경과」와 같은 셈을 쓴다(두 화면이 갈리면 안 된다)
+    for (const o of dash.late) {
+      if (seen.has(o.id)) continue
+      seen.add(o.id)
+      out.push({ o, days: dueInfo(o.delivery_due, now).days })
+    }
+    // ② 곧 늦을 것 — 진행 중이면서 납기가 코앞
+    for (const o of dash.active) {
+      if (seen.has(o.id)) continue
+      const d = dueInfo(o.delivery_due, now)
+      if (d.state !== 'soon') continue
+      seen.add(o.id)
+      out.push({ o, days: d.days })
+    }
+    return out.sort((a, b) => a.days - b.days)
+  }, [dash])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const lateCount = rows.filter(r => r.days < 0).length
+  return (
+    <Card title={t('납기 경과 · 임박')} onGo={onGo}>
+      <div style={s.headline}>
+        <span style={lateCount > 0 ? s.numValWarn : s.numVal}>{rows.length}<span style={s.unit}>{t('건')}</span></span>
+      </div>
+      <div style={s.pane}>
+        {!dash ? <div style={s.muted}>{t('불러오는 중…')}</div>
+          : rows.length === 0 ? <div style={s.muted}>{t('납기가 급한 건이 없습니다.')}</div> : (
+            <ul style={s.list}>
+              {rows.map(({ o, days }) => (
+                <li key={o.id} style={s.listRow}>
+                  <span style={s.listName}>{o.quote.customer?.name ?? '—'}</span>
+                  <span style={s.listOwner}>{o.maker_org?.name ?? '—'}</span>
+                  <span style={days < 0 ? s.listLate : s.listSub}>
+                    {days < 0 ? tf('{0}일 경과', -days) : days === 0 ? t('오늘') : tf('{0}일 남음', days)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -553,6 +732,9 @@ const s: Record<string, React.CSSProperties> = {
   listName: { flex: 1, minWidth: 0, color: 'var(--body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' },
   listOwner: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', maxWidth: '40%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   listSub: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
+  listLate: { color: 'var(--req)', fontSize: 'var(--fs-caption)', fontWeight: 700, whiteSpace: 'nowrap' },
+  tagWarn: { color: 'var(--req)', fontSize: 'var(--fs-caption)', border: '1px solid var(--req)', borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap' },
+  boardBar: { display: 'inline-flex', border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff', alignSelf: 'flex-start' },
   hitRow: {
     display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 2px', width: '100%',
     border: 'none', borderBottom: 'var(--hairline)', background: 'none', cursor: 'pointer',

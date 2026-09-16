@@ -18,8 +18,8 @@ import { DocLink } from './DocLink'
  *    어디를 보고 있었는지 잃는다.
  */
 const STATUS_KO: Record<string, string> = {
-  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
-  assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
+  draft: '임시저장', confirmed: '견적 완료', contracted: '계약 완료',
+  assigned: '배정 완료', ordered: '주문 진행', completed: '완료', expired: '만료',
 }
 
 export function CustomerFolders({ mine, initialQuery = '', initialOpenKey = null }: {

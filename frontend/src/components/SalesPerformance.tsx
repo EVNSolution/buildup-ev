@@ -165,9 +165,9 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
               <Funnel st={total} />
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
-                  <Metric label={t('견적완료')} value={won(total.amount.confirmed)} />
-                  <Metric label={t('계약완료')} value={won(total.amount.contracted)} />
-                  <Metric label={t('인도완료')} value={won(total.amount.completed)} strong />
+                  <Metric label={t('견적 완료')} value={won(total.amount.confirmed)} />
+                  <Metric label={t('계약 완료')} value={won(total.amount.contracted)} />
+                  <Metric label={t('인도 완료')} value={won(total.amount.completed)} strong />
                 </MetricGroup>
               </div>
             </section>
@@ -182,9 +182,9 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
 
               <div style={s.groups}>
                 <MetricGroup title={t('금액')}>
-                  <Metric label={t('견적완료')} value={won(st.amount.confirmed)} />
-                  <Metric label={t('계약완료')} value={won(st.amount.contracted)} />
-                  <Metric label={t('인도완료')} value={won(st.amount.completed)} strong />
+                  <Metric label={t('견적 완료')} value={won(st.amount.confirmed)} />
+                  <Metric label={t('계약 완료')} value={won(st.amount.contracted)} />
+                  <Metric label={t('인도 완료')} value={won(st.amount.completed)} strong />
                 </MetricGroup>
 
                 <MetricGroup title={t('활동')}>
@@ -202,9 +202,9 @@ export function SalesPerformance({ showUserFilter, userOptions = [] }: Props) {
                 </MetricGroup>
 
                 <MetricGroup title={t('소요')}>
-                  <Lead label={t('견적완료')} v={st.lead.to_confirmed} />
-                  <Lead label={t('계약완료')} v={st.lead.to_contracted} />
-                  <Lead label={t('인도완료')} v={st.lead.to_completed} />
+                  <Lead label={t('견적 완료')} v={st.lead.to_confirmed} />
+                  <Lead label={t('계약 완료')} v={st.lead.to_contracted} />
+                  <Lead label={t('인도 완료')} v={st.lead.to_completed} />
                 </MetricGroup>
               </div>
             </section>

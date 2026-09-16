@@ -28,7 +28,7 @@ import { AcceptOrderModal } from '../components/AcceptOrderModal'
 import { Header } from '../components/Header'
 import { OrderDetail } from '../components/OrderDetail'
 import { OrderUnassignModal } from '../components/OrderUnassignModal'
-import { AdminDashboard } from '../components/dashboard/AdminDashboard'
+import { AdminDashboard, dashboardsFor } from '../components/dashboard/AdminDashboard'
 import { AssignRejectModal } from '../components/AssignRejectModal'
 import { useOrderDeepLink, useViewDeepLink, type OrderDeepLink } from '../lib/deepLink'
 import { useBackClose } from '../lib/backClose'
@@ -74,8 +74,8 @@ function getModulesForRoles(modules: FeatureModule[], roles: Role[]): FeatureMod
   return [...seen.values()].sort((a, b) => a.sort_order - b.sort_order)
 }
 const QUOTE_STATUS_LABELS: Record<string, string> = {
-  draft: '임시저장', confirmed: '견적완료', contracted: '계약완료',
-  assigned: '배정완료', ordered: '주문진행', completed: '완료', expired: '만료',
+  draft: '임시저장', confirmed: '견적 완료', contracted: '계약 완료',
+  assigned: '배정 완료', ordered: '주문 진행', completed: '완료', expired: '만료',
 }
 
 
@@ -1502,10 +1502,10 @@ function QuotesTab({ onlyAssign = false, onlyAssignControl, hiddenView = false }
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ ...qt.select, ...(isMobile ? { flex: 1 } : {}) }}>
           <option value="">{t('전체 상태')}</option>
           <option value="draft">{t('임시저장')}</option>
-          <option value="confirmed">{t('견적완료')}</option>
-          <option value="contracted">{t('계약완료')}</option>
-          <option value="assigned">{t('배정완료')}</option>
-          <option value="ordered">{t('주문진행')}</option>
+          <option value="confirmed">{t('견적 완료')}</option>
+          <option value="contracted">{t('계약 완료')}</option>
+          <option value="assigned">{t('배정 완료')}</option>
+          <option value="ordered">{t('주문 진행')}</option>
           <option value="completed">{t('완료')}</option>
           <option value="expired">{t('만료')}</option>
         </select>
@@ -1967,7 +1967,7 @@ function KanbanTab({ deepLink, initialView, openAssignAt = 0 }: {
     listTitle = `${t(ADDON_TRACK_LABEL[sel.track])} · ${t(chip?.label ?? '')}`
     addonList = true
   } else if (sel?.kind === 'tile') {
-    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '특장 진행', addon: '부가작업', done: '인도 완료', late: '납기일 경과' } as const
+    const TITLE = { assign: '배정 대기', pending: '수락 대기', active: '특장 진행', addon: '부가 작업', done: '인도 완료', late: '납기일 경과' } as const
     listTitle = t(TITLE[sel.key])
     if (sel.key === 'pending') listOrders = [...dash.pending].sort(oldest)
     else if (sel.key === 'active') listOrders = [...dash.active].sort(byDue)
@@ -2143,6 +2143,10 @@ export function AdminPage() {
   const [openAssignAt, setOpenAssignAt] = useState(0)
   useViewDeepLink('view', 'assign', () => { setActiveTab('kanban'); setOpenAssignAt(n => n + 1) })
 
+  /* 마이페이지는 **자리(프리셋)가 지정된 계정**에만 있다 — 마스터는 전부 본다 */
+  const { session: me } = useAuth()
+  const hasHome = dashboardsFor(me?.user).length > 0
+
   // 탭마다 필요한 권한 — 없으면 **버튼째** 감춘다.
   // 눌러서 「권한이 없습니다」를 보게 두면 왜 있는 버튼인지 알 수 없다.
   const perm = {
@@ -2159,8 +2163,11 @@ export function AdminPage() {
     holidays: usePermission('basedata.holiday'),
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
-    /* 첫 자리는 **내 화면** — 자리에 맞는 카드를 모아 둔 곳(2026-09-16). 영업 화면은 컨피규레이터가 첫 자리다 */
-    { key: 'home',     label: t('마이페이지'), show: perm.orders },
+    /*
+     * 첫 자리는 **내 화면** — 자리(역할 프리셋)에 맞는 카드를 모아 둔 곳(2026-09-16). 영업 화면은 컨피규레이터가 첫 자리다.
+     * **프리셋이 지정된 계정에만** 보인다(마스터는 전부). 미지정 계정에 빈 판을 띄우느니 탭을 안 보이는 편이 낫다.
+     */
+    { key: 'home',     label: t('마이페이지'), show: perm.orders && hasHome },
     { key: 'quotes',   label: t('견적 목록'), show: true },
     { key: 'customers', label: t('고객'),    show: perm.customers },
     { key: 'perf',     label: t('영업 성과'), show: perm.stats },
