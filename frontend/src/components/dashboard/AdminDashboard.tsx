@@ -131,14 +131,19 @@ export function AdminDashboard({ onGo }: {
       )}
       {err && <div style={s.err}>{err}</div>}
       <div style={{ ...s.grid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
-        {shows('perf') && <PerfCard isMobile={isMobile} onGo={() => onGo('perf')} />}
-        {shows('pnl') && <PnlCard isMobile={isMobile} onGo={() => onGo('pnl')} />}
-        {shows('progress') && <ProgressCard orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />}
-        {shows('assignQueue') && <AssignQueueCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
-        {shows('assignRequest') && <AssignRequestCard contracted={contracted} />}
-        {shows('late') && <LateCard orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
-        {shows('customer') && <CustomerSearchCard folders={folders} />}
-        {shows('calendar') && <CalendarCard orders={orders} isMobile={isMobile} />}
+        {/*
+          ⚠️ **열쇠를 못 박는다.** 판(영업관리·생산관리·경영관리)마다 카드 묶음이 달라, 열쇠가 없으면
+             React 가 자리로 짝을 맞춘다 — 같은 카드인데 자리가 달라졌다는 이유로 **다시 만들어져**
+             빈 채로 떴다가 채워진다. 판을 바꿀 때 화면이 일그러지던 원인이다(제보).
+        */}
+        {shows('perf') && <PerfCard key="perf" isMobile={isMobile} onGo={() => onGo('perf')} />}
+        {shows('pnl') && <PnlCard key="pnl" isMobile={isMobile} onGo={() => onGo('pnl')} />}
+        {shows('progress') && <ProgressCard key="progress" orders={orders} contracted={contracted} isMobile={isMobile} onGo={() => onGo('kanban')} />}
+        {shows('assignQueue') && <AssignQueueCard key="assignQueue" orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
+        {shows('assignRequest') && <AssignRequestCard key="assignRequest" contracted={contracted} />}
+        {shows('late') && <LateCard key="late" orders={orders} contracted={contracted} onGo={() => onGo('kanban')} />}
+        {shows('customer') && <CustomerSearchCard key="customer" folders={folders} />}
+        {shows('calendar') && <CalendarCard key="calendar" orders={orders} isMobile={isMobile} />}
       </div>
     </div>
   )
@@ -152,6 +157,24 @@ function monthStart(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
+
+/**
+ * 값이 오기 전의 **자리표** — 이름은 그대로 두고 숫자만 「—」로 둔다.
+ *
+ * 높이를 숫자로 짐작해 맞추면(minHeight) 화면 폭마다 어긋난다 — 휴대폰에서는 칸이 접혀 키가 달라진다.
+ * **같은 뼈대를 그리는 것**만이 어느 폭에서든 정확히 같은 자리를 차지한다.
+ * 그래야 값이 들어올 때 카드가 커지지 않고, 아래 카드들이 밀려 올라갔다 내려오지 않는다(제보).
+ */
+const skeleton = (tiles: Tile[]): Tile[] =>
+  tiles.map(x => ({ ...x, n: 0, unit: '', text: '—', warn: false, profit: false, sub: x.sub === undefined ? undefined : '\u00a0' }))
+
+/** 빈 값 — 자리표를 그릴 때만 쓴다(숫자는 어차피 「—」로 덮인다) */
+const BLANK_SALES = {
+  sales_user_id: '', reached: {}, customers: {}, amount: { confirmed: 0, contracted: 0, completed: 0 },
+  activity: { quotes: 0, emailed: 0, sign_requested: 0, edits: 0 },
+} as unknown as SalesStat
+const BLANK_TOTALS = { count: 0, supply_amount: 0, vat: 0, gross: 0, deposit: 0, capital: 0, pay_diff: 0, cost: 0, profit: 0, margin: null } as PnlTotals
+const BLANK_DASH = { assign: [], pending: [], active: [], addon: [], done: [], late: [] } as unknown as ReturnType<typeof buildDashboard>
 
 /**
  * 카드 한 장 — 제목 줄과 본문. 누를 수 있는 카드는 제목 오른쪽에 「열기」.
@@ -289,6 +312,7 @@ function TileRow({ tiles, isMobile, mobileCols, big, small }: {
 function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
   const [scope, setScope] = useState<Scope>('month')
   const [shown, setShown] = useState<SalesStat | null>(null)
+  const [busy, setBusy] = useState(false)
   /** 이미 부른 기간은 다시 부르지 않는다 — 토글을 오갈 때마다 기다리게 하지 않는다 */
   const cache = useRef(new Map<Scope, SalesStat>())
 
@@ -296,10 +320,17 @@ function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
     const hit = cache.current.get(scope)
     if (hit) { setShown(hit); return }
     let alive = true
-    setShown(null)
+    /*
+     * ⚠️ **앞의 숫자를 지우지 않는다**(제보: 토글을 누르면 화면이 순간 일그러진다).
+     *    지우면 카드 속이 「불러오는 중」 한 줄로 줄었다가 도로 커지는데, 그 한 번의 들썩임에
+     *    아래 카드들이 통째로 밀려 올라갔다 내려온다. 새 숫자가 올 때까지 옛 숫자를 그대로 두면
+     *    **높이가 변하지 않아** 아무것도 움직이지 않는다.
+     */
+    setBusy(true)
     fetchSalesStats(scope === 'month' ? { from: monthStart() } : {})
       .then(r => { cache.current.set(scope, r.total); if (alive) setShown(r.total) })
       .catch(() => { /* 카드 하나가 안 떠도 나머지는 보여야 한다 */ })
+      .finally(() => { if (alive) setBusy(false) })
     return () => { alive = false }
   }, [scope])
 
@@ -309,20 +340,24 @@ function PerfCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
     if (key === 'completed') return won(st.amount.completed)
     return ''
   }
-  const tiles: Tile[] = shown ? DASH_STEPS.map((step, i) => ({
+  const make = (st: SalesStat): Tile[] => DASH_STEPS.map((step, i) => ({
     key: step.key, label: step.label, unit: step.unit,
-    n: step.get(shown), sub: sub(step.key, shown),
+    n: step.get(st), sub: sub(step.key, st),
     // 깔때기의 끝 — **인도 완료가 결론**이다. 손익의 수익과 같은 색으로 둔다(2026-09-16 지시)
     ...(step.key === 'completed' ? { profit: true } : {}),
     ...(i > 0 ? { sep: 'arrow' as const } : {}),
-  })) : []
+  }))
+  // 값이 오기 전에도 같은 뼈대를 그린다 — 카드 키가 안 변하니 아래가 들썩이지 않는다
+  const tiles = shown ? make(shown) : skeleton(make(BLANK_SALES))
   return (
     <Card
       title={t('영업 성과')} full onGo={onGo}
       extra={<ScopeToggle scope={scope} onChange={setScope} />}
     >
-      {!shown ? <div style={s.muted}>{t('불러오는 중…')}</div>
-        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} big />}
+      {/* 바꾸는 중에도 자리를 지킨다 — aria-busy 로만 알리고 눈에 보이는 것은 그대로 둔다 */}
+      <div aria-busy={busy}>
+        <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} big />
+      </div>
     </Card>
   )
 }
@@ -364,19 +399,19 @@ function PnlCard({ isMobile, onGo }: { isMobile: boolean; onGo: () => void }) {
 
   const total: PnlTotals | null = sum ? (scope === 'month' ? sum.month_total : sum.all_total) : null
   const loss = !!total && total.profit < 0
-  const tiles: Tile[] = sum && total ? [
-    { key: 'todo', label: '입력 필요', n: sum.pending, unit: '건', warn: true },
-    { key: 'count', label: '발행', n: total.count, unit: '건', sep: 'divider' },
-    { key: 'gross', label: '공급대가', n: 0, unit: '', text: won(total.gross) },
-    { key: 'cost', label: '원가', n: 0, unit: '', text: won(total.cost) },
-    { key: 'profit', label: '수익', n: 0, unit: '', text: won(total.profit), profit: !loss, warn: loss, sep: 'arrow' },
-    { key: 'margin', label: '수익률', n: 0, unit: '', text: total.margin === null ? '—' : `${(total.margin * 100).toFixed(1)}%`, profit: !loss, warn: loss },
-  ] : []
+  const make = (v: PnlTotals): Tile[] => [
+    { key: 'todo', label: '입력 필요', n: sum?.pending ?? 0, unit: '건', warn: true },
+    { key: 'count', label: '발행', n: v.count, unit: '건', sep: 'divider' },
+    { key: 'gross', label: '공급대가', n: 0, unit: '', text: won(v.gross) },
+    { key: 'cost', label: '원가', n: 0, unit: '', text: won(v.cost) },
+    { key: 'profit', label: '수익', n: 0, unit: '', text: won(v.profit), profit: !loss, warn: loss, sep: 'arrow' },
+    { key: 'margin', label: '수익률', n: 0, unit: '', text: v.margin === null ? '—' : `${(v.margin * 100).toFixed(1)}%`, profit: !loss, warn: loss },
+  ]
+  const tiles = total ? make(total) : skeleton(make(BLANK_TOTALS))
 
   return (
     <Card title={t('손익')} full onGo={onGo} extra={<ScopeToggle scope={scope} onChange={setScope} />}>
-      {!total ? <div style={s.muted}>{t('불러오는 중…')}</div>
-        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} small />}
+      <TileRow tiles={tiles} isMobile={isMobile} mobileCols={2} small />
     </Card>
   )
 }
@@ -394,19 +429,19 @@ function ProgressCard({ orders, contracted, isMobile, onGo }: {
    * 「납기일 경과」는 다음 단계가 아니라 **어디에 있든 늦은 건**이라, 꺾쇠 대신 세로선으로 끊는다 —
    * 꺾쇠로 이으면 인도 완료 다음에 납기일 경과가 오는 것처럼 읽힌다.
    */
-  const tiles: Tile[] = dash ? ([
-    { key: 'assign', label: '배정 대기', n: dash.assign.length },
-    { key: 'pending', label: '수락 대기', n: dash.pending.length, sep: 'arrow' },
-    { key: 'active', label: '특장 진행', n: dash.active.length, sep: 'arrow' },
-    { key: 'addon', label: '부가 작업', n: dash.addon.length, sep: 'arrow' },
+  const make = (d: NonNullable<typeof dash>): Tile[] => ([
+    { key: 'assign', label: '배정 대기', n: d.assign.length },
+    { key: 'pending', label: '수락 대기', n: d.pending.length, sep: 'arrow' },
+    { key: 'active', label: '특장 진행', n: d.active.length, sep: 'arrow' },
+    { key: 'addon', label: '부가 작업', n: d.addon.length, sep: 'arrow' },
     // 여기서도 끝이 결론이다 — 영업 성과·손익과 같은 색
-    { key: 'done', label: '인도 완료', n: dash.done.length, sep: 'arrow', profit: true },
-    { key: 'late', label: '납기일 경과', n: dash.late.length, warn: true, sep: 'divider' },
-  ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' })) : []
+    { key: 'done', label: '인도 완료', n: d.done.length, sep: 'arrow', profit: true },
+    { key: 'late', label: '납기일 경과', n: d.late.length, warn: true, sep: 'divider' },
+  ] as Omit<Tile, 'unit'>[]).map(x => ({ ...x, unit: '건' }))
+  const tiles = dash ? make(dash) : skeleton(make(BLANK_DASH))
   return (
     <Card title={t('주문 진행 현황')} full onGo={onGo}>
-      {!dash ? <div style={s.muted}>{t('불러오는 중…')}</div>
-        : <TileRow tiles={tiles} isMobile={isMobile} mobileCols={3} />}
+      <TileRow tiles={tiles} isMobile={isMobile} mobileCols={3} />
     </Card>
   )
 }
