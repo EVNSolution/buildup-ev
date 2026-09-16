@@ -785,8 +785,10 @@ function AccountsTab() {
              * **프리셋이 있으면 프리셋이 역할 기본값을 덮는다**(2026-09-16) — 화면도 서버와 같은 순서로 본다.
              */
             const code = presetOf(user)
+            // 프리셋은 **관리자 몫만** 여닫는다 — 겸직 계정의 영업·특장 권한은 그대로다(2026-09-16 제보)
+            const otherRoleOn = myRoles.some(r => r !== 'ADMIN' && isEnabled(ac, 'role', r, mod.code))
             const roleEnabled = code
-              ? (PRESET_BY_CODE[code]?.modules.includes(mod.code) ?? false)
+              ? ((PRESET_BY_CODE[code]?.modules.includes(mod.code) ?? false) || otherRoleOn)
               : myRoles.some(r => isEnabled(ac, 'role', r, mod.code))
             const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
             const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled

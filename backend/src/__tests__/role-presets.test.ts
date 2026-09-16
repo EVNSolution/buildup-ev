@@ -35,6 +35,36 @@ describe('프리셋 규칙 — 계산(DB 없이)', () => {
     expect(got).toContain('customer.view');
   });
 
+  /*
+   * 2026-09-16 제보 — 영업+관리자 겸직 계정에 프리셋을 지정했더니 **영업 기능이 다 꺼졌다.**
+   * 프리셋은 관리자 안의 자리를 정할 뿐, 영업·특장사 역할이 준 것은 건드리지 않는다.
+   */
+  it('🔴 겸직(영업+관리자) — 프리셋은 관리자 몫만 조정하고 영업 권한은 그대로 둔다', () => {
+    const acs = [
+      { subject_type: 'role', subject_ref: 'SALES', module_code: 'quote.create', enabled: true },
+      { subject_type: 'role', subject_ref: 'SALES', module_code: 'doc.send.sign', enabled: true },
+      { subject_type: 'role', subject_ref: 'SALES', module_code: 'stats.own', enabled: true },
+      { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'basedata.optiondb', enabled: true },
+      { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'account.manage', enabled: true },
+    ];
+    const got = mergePermissions(['SALES', 'ADMIN'], 'a@x.com', acs, { preset: 'exec' });
+    // 영업이 준 것 — 경영관리 프리셋에 없어도 살아 있다
+    for (const c of ['quote.create', 'doc.send.sign', 'stats.own']) expect(got, c).toContain(c);
+    // 관리자가 준 것 — 자리대로 꺼진다
+    expect(got).not.toContain('basedata.optiondb');
+    expect(got).not.toContain('account.manage');
+  });
+
+  it('🔴 특장사+관리자 겸직도 같다 — 특장 일은 자리와 무관하다', () => {
+    const acs = [
+      { subject_type: 'role', subject_ref: 'MAKER', module_code: 'order.control', enabled: true },
+      { subject_type: 'role', subject_ref: 'ADMIN', module_code: 'basedata.optiondb', enabled: true },
+    ];
+    const got = mergePermissions(['MAKER', 'ADMIN'], 'a@x.com', acs, { preset: 'sales_mgr' });
+    expect(got).toContain('order.control');
+    expect(got).not.toContain('basedata.optiondb');
+  });
+
   it('🔴 프리셋이 없으면 예전 그대로 — 지정 전에는 권한이 바뀌지 않는다', () => {
     const got = mergePermissions('ADMIN', 'a@x.com', roleDefaults, {});
     expect(got.sort()).toEqual(['account.manage', 'basedata.optiondb', 'order.view'].sort());
@@ -66,8 +96,10 @@ describe('프리셋 규칙 — 계산(DB 없이)', () => {
     }
     expect(P('pm')).not.toContain('basedata.holiday');
     expect(P('pm')).not.toContain('customer.view');
-    // 생산관리 — 체크리스트 + 특장사 단가만
+    // 생산관리 — 체크리스트 + 특장사 단가, 제작 배정까지(배정 알림을 받는 자리라 누를 수 있어야 한다)
     expect(P('prod_mgr')).toContain('basedata.makerprice');
+    expect(P('prod_mgr')).toContain('order.confirm');
+    expect(NOTIFY_TOPIC_BY_CODE['assign.maker']!.presets, '배정 알림은 받는데 배정을 못 한다').toContain('prod_mgr');
     expect(P('prod_mgr')).not.toContain('basedata.optiondb');
     // 경영관리 — 보는 자리(배정·단계·기준데이터 없음)
     expect(P('exec')).not.toContain('order.confirm');
