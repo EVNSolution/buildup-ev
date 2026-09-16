@@ -99,7 +99,8 @@ async function main() {
     active:     bool(r['active']),
   }));
   const acs = csv('access_control.csv').map(r => ({
-    subject_type: r['subject_type'] as 'role' | 'user',
+    // 'preset' = 역할 프리셋 구성(관리자 안의 자리) — 2026-09-16
+    subject_type: r['subject_type'] as 'role' | 'user' | 'preset',
     subject_ref:  r['subject_ref']!,
     module_code:  r['module_code']!,
     enabled:      bool(r['enabled']),
