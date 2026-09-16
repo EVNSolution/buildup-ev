@@ -16,9 +16,9 @@ describe('납기 상태', () => {
 
   it(`🔴 ${DUE_SOON_DAYS}일 전부터 알린다`, () => {
     expect(dueInfo('2026-09-05', NOW).label).toBe('납기 1일 전');
-    expect(dueInfo('2026-09-07', NOW)).toMatchObject({ state: 'soon', label: '납기 3일 전' });
-    // 나흘 남으면 아직 조용히 둔다 — 늘 빨가면 빨강이 뜻을 잃는다
-    expect(dueInfo('2026-09-08', NOW)).toMatchObject({ state: 'normal', label: '' });
+    expect(dueInfo('2026-09-11', NOW)).toMatchObject({ state: 'soon', label: '납기 7일 전' });
+    // 여드레 남으면 아직 조용히 둔다 — 늘 알리면 알림이 뜻을 잃는다
+    expect(dueInfo('2026-09-12', NOW)).toMatchObject({ state: 'normal', label: '' });
   });
 
   it('🔴 납기가 없으면 「없음」 — 화면이 깨지지 않는다', () => {
@@ -51,10 +51,10 @@ describe('정렬 — 급한 것이 위로', () => {
 });
 
 describe('강조 여부', () => {
-  it('🔴 지났거나 사흘 안이면 알린다', () => {
+  it(`🔴 지났거나 ${DUE_SOON_DAYS}일 안이면 알린다`, () => {
     expect(dueNeedsAttention(dueInfo('2026-09-01', NOW))).toBe(true);
-    expect(dueNeedsAttention(dueInfo('2026-09-07', NOW))).toBe(true);
-    expect(dueNeedsAttention(dueInfo('2026-09-08', NOW))).toBe(false);
+    expect(dueNeedsAttention(dueInfo('2026-09-11', NOW)), '이레 안은 알린다').toBe(true);
+    expect(dueNeedsAttention(dueInfo('2026-09-12', NOW)), '여드레 남으면 조용히 둔다').toBe(false);
     expect(dueNeedsAttention(dueInfo(null, NOW))).toBe(false);
   });
 });

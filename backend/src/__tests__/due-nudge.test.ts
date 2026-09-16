@@ -19,9 +19,11 @@ describe('언제 보내는가', () => {
     return nudgeKindFor(i.days, i.state);
   };
 
-  it('🔴 3일 전 하루만 — 매일 보내면 재촉이 무뎌진다', () => {
-    expect(kindOf('2026-09-07')).toBe('soon');    // 3일 전
-    expect(kindOf('2026-09-06')).toBeNull();      // 2일 전 — 안 보낸다
+  it('🔴 임박 첫날 하루만 — 매일 보내면 재촉이 무뎌진다', () => {
+    // 임박 기준은 `DUE_SOON_DAYS`(2026-09-16 지시로 3일 → 7일). 그 첫날에만 한 번 간다
+    expect(kindOf('2026-09-11')).toBe('soon');    // 7일 전
+    expect(kindOf('2026-09-10')).toBeNull();      // 6일 전 — 안 보낸다
+    expect(kindOf('2026-09-07')).toBeNull();      // 3일 전 — 안 보낸다
     expect(kindOf('2026-09-05')).toBeNull();      // 1일 전 — 안 보낸다
   });
 

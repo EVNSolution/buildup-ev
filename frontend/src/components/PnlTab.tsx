@@ -74,6 +74,28 @@ export function PnlTab() {
     setView(v => v && ({ ...v, rows: v.rows.map(r => (r.quote_id === saved.quote_id ? saved : r)) }))
   }, [])
 
+  /**
+   * **임시저장** — 적은 것을 붙잡아 두되 줄은 「입력 필요」에 그대로 남는다.
+   * 화면도 옮기지 않는다(발행일이 없으면 들어갈 달이 없고, 있어도 아직 등록한 것이 아니다).
+   */
+  const draft = useCallback(async (quoteId: number, patch: PnlPatch) => {
+    const saved = await savePnl(quoteId, patch)
+    setView(v => v && ({
+      ...v,
+      // 적어 둔 값이 목록에도 비치게 한다 — 다시 펴면 그 값으로 열린다
+      pending: v.pending.map(p => (p.quote_id === quoteId
+        ? {
+          ...p, supply_default: saved.supply_amount, deposit_default: saved.deposit,
+          draft: {
+            biz_name: saved.biz_name, capital: saved.capital, cost: saved.cost, memo: saved.memo,
+            deposit_paid_on: saved.deposit_paid_on, capital_paid_on: saved.capital_paid_on,
+          },
+        }
+        : p)),
+    }))
+    return saved
+  }, [])
+
   const rows = view?.rows ?? []
   // **삭제된 줄은 합계에서 뺀다.** 표에는 회색으로 남지만 그 달 숫자는 아니다
   const alive = useMemo(() => rows.filter(r => !r.voided_at), [rows])
@@ -92,7 +114,7 @@ export function PnlTab() {
       <SummaryBar total={total} />
 
       {/* ② 입력 필요 — 맨 위에 따로 둔다. 여기서 발행일을 적으면 그 달 표로 들어간다 */}
-      <PendingBox pending={view?.pending ?? []} canEdit={canEdit} isMobile={isMobile} onFile={file} />
+      <PendingBox pending={view?.pending ?? []} canEdit={canEdit} isMobile={isMobile} onFile={file} onDraft={draft} />
 
       {/* ③ 그 달의 표 */}
       <section style={s.card}>
@@ -197,9 +219,10 @@ function SummaryBar({ total }: { total: ReturnType<typeof sumP> }) {
 
 /* ── 입력 필요 ─────────────────────────────────────────────────────────── */
 
-function PendingBox({ pending, canEdit, isMobile, onFile }: {
+function PendingBox({ pending, canEdit, isMobile, onFile, onDraft }: {
   pending: PnlPending[]; canEdit: boolean; isMobile: boolean
   onFile: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  onDraft: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
   const [open, setOpen] = useState(true)
   /** 한 번에 한 건만 편다 — 스무 건이 동시에 펴지면 그 아래 표가 화면 밖으로 밀린다 */
@@ -217,7 +240,6 @@ function PendingBox({ pending, canEdit, isMobile, onFile }: {
         <span style={s.caret}>{open ? '▾' : '▸'}</span>
         <span style={s.cardTitle}>{t('입력 필요')}</span>
         <span style={pending.length > 0 ? s.cardCountWarn : s.cardCount}>{tf('{0}건', pending.length)}</span>
-        <span style={s.muted}>{t('여기서 다 적고 저장하면 아래 그 달 표로 내려갑니다')}</span>
       </button>
       {open && (pending.length === 0 ? (
         <div style={s.empty}>{t('발행일을 적어야 할 건이 없습니다.')}</div>
@@ -234,6 +256,7 @@ function PendingBox({ pending, canEdit, isMobile, onFile }: {
               onToggle={() => setEditing(v => (v === p.quote_id ? null : p.quote_id))}
               // 저장이 끝나면 목록으로 돌아온다 — 다음 건을 바로 고를 수 있어야 한다
               onFile={async (id, patch) => { const r = await onFile(id, patch); setEditing(null); return r }}
+              onDraft={onDraft}
             />
           ))}
         </div>
@@ -262,39 +285,56 @@ interface Draft {
  *
  * 발행일이 없으면 내려갈 달이 정해지지 않으므로 그때만 저장을 막는다. 나머지는 나중에 채워도 된다.
  */
-function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
+function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile, onDraft }: {
   item: PnlPending; canEdit: boolean; isMobile: boolean
   open: boolean; onToggle: () => void
   onFile: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
+  onDraft: (quoteId: number, patch: PnlPatch) => Promise<PnlRow>
 }) {
+  // 임시저장해 둔 것이 있으면 **그대로 열린다** — 적어 두고 다시 못 보면 임시저장이 뜻이 없다
   const [d, setD] = useState<Draft>(() => ({
-    invoice_on: '', biz_name: '', capital: 0,
-    deposit_paid_on: '', capital_paid_on: '',
-    cost: 0, memo: '',
+    invoice_on: '',
+    biz_name: item.draft?.biz_name ?? '',
+    capital: item.draft?.capital ?? 0,
+    deposit_paid_on: item.draft?.deposit_paid_on ?? '',
+    capital_paid_on: item.draft?.capital_paid_on ?? '',
+    cost: item.draft?.cost ?? 0,
+    memo: item.draft?.memo ?? '',
   }))
   /** 계약서에서 오는 값 — 보여만 준다 */
   const fixed = { supply_amount: item.supply_default ?? 0, deposit: item.deposit_default }
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'draft' | 'file' | null>(null)
   const [err, setErr] = useState('')
-  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD(x => ({ ...x, [k]: v }))
+  const [saved, setSaved] = useState(false)
+  const set = <K extends keyof Draft>(k: K, v: Draft[K]) => { setSaved(false); setD(x => ({ ...x, [k]: v })) }
   const calc = deriveP({ ...fixed, capital: d.capital, cost: d.cost })
 
-  const save = async () => {
-    if (!d.invoice_on || busy) return
-    setBusy(true); setErr('')
+  /**
+   * **임시저장**과 **등록**은 적는 내용이 같고 발행일만 다르다.
+   *   · 임시저장 — 발행일이 없어도 된다. 적은 것을 붙잡아 두고 **여기 그대로 남는다**
+   *   · 등록     — 발행일이 있어야 한다. 아래 그 달 표로 내려간다
+   */
+  const write = async (mode: 'draft' | 'file') => {
+    if (busy) return
+    if (mode === 'file' && !d.invoice_on) return
+    setBusy(mode); setErr('')
     try {
-      await onFile(item.quote_id, {
-        invoice_on: d.invoice_on,
+      const patch = {
+        invoice_on: d.invoice_on || null,
         biz_name: d.biz_name.trim() || null,
         capital: d.capital,
         deposit_paid_on: d.deposit_paid_on || null,
         capital_paid_on: d.capital_paid_on || null,
         cost: d.cost,
         memo: d.memo.trim() || null,
-      })
+      }
+      if (mode === 'file') { await onFile(item.quote_id, patch); return }
+      // 임시저장 — 줄은 「입력 필요」에 남는다. 화면을 옮기지 않는다
+      await onDraft(item.quote_id, patch)
+      setSaved(true); setBusy(null)
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('저장하지 못했습니다'))
-      setBusy(false)
+      setBusy(null)
     }
   }
 
@@ -314,14 +354,14 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
         <>
           <div style={{ ...s.entryGrid, gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, minmax(0, 1fr))` }}>
             <Field label={t('세금계산서 발행일')}>
-              <DateField value={d.invoice_on} onChange={v => set('invoice_on', v)} disabled={!canEdit || busy}
+              <DateField value={d.invoice_on} onChange={v => set('invoice_on', v)} disabled={!canEdit || !!busy}
                 ariaLabel={t('세금계산서 발행일')} style={s.dateInput} clearable />
             </Field>
             {/* 계약서에서 오는 값 — 보여만 준다(고쳐야 하는 예외가 생기면 그때 다시 본다) */}
             <Field label={t('고객명')}><span style={s.calcText}>{item.customer ?? '—'}</span></Field>
             {/* 사업자명은 따로 적는다 — 적는 건도 있고 안 적는 건도 있다 */}
             <Field label={t('사업자명')}>
-              <input style={s.textInput} value={d.biz_name} maxLength={120} disabled={!canEdit || busy}
+              <input style={s.textInput} value={d.biz_name} maxLength={120} disabled={!canEdit || !!busy}
                 aria-label={t('사업자명')} onChange={e => set('biz_name', e.target.value)} />
             </Field>
             <Field label={t('공급가액')}><span style={s.calc}>{won(fixed.supply_amount)}</span></Field>
@@ -330,42 +370,53 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile }: {
             <Field label={t('공급대가')}><span style={s.calcStrong}>{won(calc.gross)}</span></Field>
             <Field label={t('계약금')}><span style={s.calc}>{won(fixed.deposit)}</span></Field>
             <Field label={t('캐피탈')}>
-              <MoneyField value={d.capital} disabled={!canEdit || busy} label={t('캐피탈')} onChange={v => set('capital', v)} />
+              <MoneyField value={d.capital} disabled={!canEdit || !!busy} label={t('캐피탈')} onChange={v => set('capital', v)} />
             </Field>
             <Field label={t('입금 차액')}>
               <span style={calc.pay_diff < 0 ? s.calcWarn : s.calc}>{won(calc.pay_diff)}</span>
             </Field>
 
             <Field label={t('계약금 입금일')}>
-              <DateField value={d.deposit_paid_on} onChange={v => set('deposit_paid_on', v)} disabled={!canEdit || busy}
+              <DateField value={d.deposit_paid_on} onChange={v => set('deposit_paid_on', v)} disabled={!canEdit || !!busy}
                 ariaLabel={t('계약금 입금일')} style={s.dateInput} clearable />
             </Field>
             <Field label={t('캐피탈 입금일')}>
-              <DateField value={d.capital_paid_on} onChange={v => set('capital_paid_on', v)} disabled={!canEdit || busy}
+              <DateField value={d.capital_paid_on} onChange={v => set('capital_paid_on', v)} disabled={!canEdit || !!busy}
                 ariaLabel={t('캐피탈 입금일')} style={s.dateInput} clearable />
             </Field>
             {/* 원가는 **한 칸**이다 — 별도 시스템이 하나로 내려 줄 자리고, 그때까지는 손으로 적는다 */}
             <Field label={t('원가')}>
-              <MoneyField value={d.cost} disabled={!canEdit || busy} label={t('원가')} onChange={v => set('cost', v)} />
+              <MoneyField value={d.cost} disabled={!canEdit || !!busy} label={t('원가')} onChange={v => set('cost', v)} />
             </Field>
+            {/*
+              수익과 수익률을 한 칸에 「금액 · %」로 붙이면 **휴대폰에서 칸을 삐져나간다**(제보).
+              금액만으로도 자릿수가 길다 — 갈라서 각자 한 칸씩 준다.
+            */}
             <Field label={t('수익')}>
-              <span style={calc.profit < 0 ? s.calcWarn : s.calcStrong}>{won(calc.profit)} · {pct(calc.margin)}</span>
+              <span style={calc.profit < 0 ? s.calcWarn : s.calcStrong}>{won(calc.profit)}</span>
+            </Field>
+            <Field label={t('수익률')}>
+              <span style={calc.profit < 0 ? s.calcWarn : s.calcStrong}>{pct(calc.margin)}</span>
             </Field>
 
             <Field label={t('비고')} wide>
-              <input style={s.textInputWide} value={d.memo} maxLength={500} disabled={!canEdit || busy}
+              <input style={s.textInputWide} value={d.memo} maxLength={500} disabled={!canEdit || !!busy}
                 aria-label={t('비고')} onChange={e => set('memo', e.target.value)} />
             </Field>
           </div>
           <div style={s.entryFoot}>
             {err && <span style={s.err}>{err}</span>}
-            {/* 발행일이 없으면 내려갈 달이 없다 — 그때만 막는다 */}
-            {!d.invoice_on && <span style={s.muted}>{t('세금계산서 발행일을 적어야 아래로 내려갑니다')}</span>}
-            <button type="button" style={BTN.smSecondary} onClick={onToggle} disabled={busy}>{t('접기')}</button>
+            {saved && !err && <span style={s.savedNote}>{t('임시저장했습니다')}</span>}
+            {/* 발행일이 없으면 들어갈 달이 정해지지 않는다 — 등록만 막는다(임시저장은 된다) */}
+            {!d.invoice_on && <span style={s.muted}>{t('세금계산서 발행일을 입력해야 등록 가능합니다')}</span>}
+            <button
+              type="button" style={canEdit && !busy ? BTN.smSecondary : BTN.disabled}
+              disabled={!canEdit || !!busy} onClick={() => void write('draft')}
+            >{busy === 'draft' ? t('저장 중…') : t('임시저장')}</button>
             <button
               type="button" style={d.invoice_on && canEdit && !busy ? BTN.smPrimary : BTN.disabled}
-              disabled={!d.invoice_on || !canEdit || busy} onClick={save}
-            >{busy ? t('저장 중…') : t('저장')}</button>
+              disabled={!d.invoice_on || !canEdit || !!busy} onClick={() => void write('file')}
+            >{busy === 'file' ? t('등록 중…') : t('등록')}</button>
           </div>
         </>
       )}
@@ -705,10 +756,10 @@ function RowCard({ row, canEdit, onWrite, onVoid }: {
           <Field label={t('세금계산서 발행일')}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} onSave={v => put({ invoice_on: v })} /></Field>
           <Field label={t('사업자명')}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} onSave={v => put({ biz_name: v })} /></Field>
           {/* 계약서에서 오는 값 — 보여만 준다 */}
-          <Field label={t('공급가액')}><span style={s.calc}>{won(row.supply_amount)}</span></Field>
-          <Field label={t('VAT')}><span style={s.calc}>{won(d.vat)}</span></Field>
-          <Field label={t('공급대가')}><span style={s.calcStrong}>{won(d.gross)}</span></Field>
-          <Field label={t('계약금')}><span style={s.calc}>{won(row.deposit)}</span></Field>
+          <Field label={t('공급가액')}><span style={s.calcPlain}>{won(row.supply_amount)}</span></Field>
+          <Field label={t('VAT')}><span style={s.calcPlain}>{won(d.vat)}</span></Field>
+          <Field label={t('공급대가')}><span style={s.calcPlainStrong}>{won(d.gross)}</span></Field>
+          <Field label={t('계약금')}><span style={s.calcPlain}>{won(row.deposit)}</span></Field>
           <Field label={t('캐피탈')}><MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} onSave={v => put({ capital: v })} /></Field>
           <Field label={t('계약금 입금일')}><DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} onSave={v => put({ deposit_paid_on: v })} /></Field>
           <Field label={t('캐피탈 입금일')}><DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} onSave={v => put({ capital_paid_on: v })} /></Field>
@@ -716,7 +767,7 @@ function RowCard({ row, canEdit, onWrite, onVoid }: {
             <MoneyCell value={row.cost} disabled={ro} label={t('원가')} onSave={v => put({ cost: v })} />
           </Field>
           <Field label={t('수익')}>
-            <span style={d.profit < 0 ? s.calcWarn : s.calcStrong}>{won(d.profit)}</span>
+            <span style={d.profit < 0 ? s.calcPlainWarn : s.calcPlainStrong}>{won(d.profit)}</span>
           </Field>
           <Field label={t('비고')} wide><TextCell value={row.memo} disabled={ro} label={t('비고')} wide onSave={v => put({ memo: v })} /></Field>
           {canEdit && !dead && (
@@ -780,11 +831,35 @@ const CELL: React.CSSProperties = {
 /** 못 적는 칸 — 테두리는 그대로 두고 흐리게. 적을 수 있는 칸처럼 보이면 눌러 보다가 헛수고한다 */
 const OFF: React.CSSProperties = { background: 'var(--soft, #F7F7F4)', color: 'var(--muted)', cursor: 'default' }
 
-/** 계산해서 보여만 주는 값 — 적는 칸과 **같은 자리**를 차지한다(테두리만 없다) */
+/**
+ * 계산해서 보여만 주는 값 — 적는 칸과 **같은 자리**를 차지한다.
+ *
+ * ⚠️ **표에서는 테두리가 없다.** 열 몇 칸이 전부 네모가 되면 표가 격자로 뒤덮인다.
+ *    「입력 필요」 폼에서는 반대다 — 아래 `readOnlyBoxed` 를 쓴다.
+ */
 const readOnly = (base: React.CSSProperties): React.CSSProperties => ({
   ...base, border: '1px solid transparent', background: 'none',
-  display: 'flex', alignItems: 'center', justifyContent: 'flex-end', ...cellNum,
+  /*
+   * ⚠️ flex 로 오른쪽에 붙이지 않는다. `justify-content: flex-end` 는 값이 칸보다 길면
+   *    **왼쪽으로 새어 나가** 카드 밖까지 나간다(휴대폰에서 실제로 그랬다).
+   *    글줄로 두고 오른쪽 정렬하면, 넘칠 때도 칸 안에 머문다.
+   */
+  display: 'block', textAlign: 'right', lineHeight: base.height as string,
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  fontVariantNumeric: 'tabular-nums',
 })
+
+/**
+ * 「입력 필요」 폼의 **자동 기입 칸** — 테두리를 두르되 **속은 채우지 않는다**(2026-09-16 지시).
+ *
+ * 테두리가 없으면 적는 칸들 사이에서 글자만 떠 있어 정돈되지 않아 보였다(제보).
+ * 속을 채우지 않는 이유는, 채우면 「비활성」처럼 보여 **값이 없는 칸**과 헷갈리기 때문이다.
+ * 테두리만으로 「칸은 칸인데 손대는 칸은 아니다」가 읽힌다.
+ */
+const readOnlyBoxed = (base: React.CSSProperties): React.CSSProperties => ({
+  ...readOnly(base), border: 'var(--hairline)',
+})
+
 
 const s: Record<string, React.CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
@@ -822,13 +897,18 @@ const s: Record<string, React.CSSProperties> = {
   pendItem: { borderTop: 'var(--hairline)' },
   pendItemOpen: { borderTop: 'var(--hairline)', background: 'var(--soft, #FAFAF7)', borderRadius: 'var(--r-sm)', padding: '2px 6px 8px' },
   pendHead: { display: 'flex', alignItems: 'baseline', gap: 8, width: '100%', border: 'none', background: 'none', padding: '7px 0', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--fs-label)', textAlign: 'left', flexWrap: 'wrap' },
-  pendCta: { fontSize: 'var(--fs-caption)', color: 'var(--dark)', border: 'var(--hairline)', borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap' },
+  /*
+   * **버튼은 줄마다 같은 자리에 선다.** 앞 글자 길이에 따라 좌우로 흔들리면 줄을 훑을 때
+   * 눈이 계속 옮겨 다닌다(제보). 오른쪽 끝에 붙여 세로로 한 줄이 되게 한다.
+   * ⚠️ 앞으로 목록 줄에 붙는 단추도 이렇게 한다 — 자리를 내용이 정하게 두지 않는다.
+   */
+  pendCta: { marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--fs-caption)', color: 'var(--dark)', border: 'var(--hairline)', borderRadius: 999, padding: '1px 10px', whiteSpace: 'nowrap' },
   entryGrid: { display: 'grid', gap: 8, padding: '6px 0 8px' },
   entryFoot: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap', paddingTop: 6, borderTop: 'var(--hairline)' },
   pendNo: { fontWeight: 700, color: 'var(--dark)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   pendName: { color: 'var(--body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   pendSub: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
-  pendAmount: { ...cellNum, color: 'var(--body)', fontSize: 'var(--fs-caption)' },
+  pendAmount: { ...cellNum, color: 'var(--body)', fontSize: 'var(--fs-caption)', minWidth: 118 },
 
   tableWrap: { overflowX: 'auto' },
   // 폭을 못 박는다 — 숫자 칸은 잘리지 않을 만큼, 남는 폭은 비고가 먹는다
@@ -859,11 +939,15 @@ const s: Record<string, React.CSSProperties> = {
   textInputWide: CONTROL,
   dateInput: { ...CONTROL, minWidth: 0, justifyContent: 'space-between' },
   costBtn: { ...CONTROL, cursor: 'pointer', color: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
-  calc: { ...readOnly(CONTROL), color: 'var(--body)' },
+  calc: { ...readOnlyBoxed(CONTROL), color: 'var(--body)' },
   /** 글자로 보여 주는 값(고객명 등) — 숫자가 아니라 왼쪽에 붙인다 */
-  calcText: { ...readOnly(CONTROL), color: 'var(--dark)', fontWeight: 700, justifyContent: 'flex-start', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', lineHeight: 'var(--h-control)' },
-  calcStrong: { ...readOnly(CONTROL), color: 'var(--dark)', fontWeight: 700 },
-  calcWarn: { ...readOnly(CONTROL), color: 'var(--req)', fontWeight: 700 },
+  // 휴대폰 카드(= 월별 표의 휴대폰 모습)는 테두리를 두르지 않는다 — 폼만 두른다(지시)
+  calcPlain: { ...readOnly(CONTROL), color: 'var(--body)' },
+  calcPlainStrong: { ...readOnly(CONTROL), color: 'var(--dark)', fontWeight: 700 },
+  calcPlainWarn: { ...readOnly(CONTROL), color: 'var(--req)', fontWeight: 700 },
+  calcText: { ...readOnlyBoxed(CONTROL), color: 'var(--dark)', fontWeight: 700, textAlign: 'left' },
+  calcStrong: { ...readOnlyBoxed(CONTROL), color: 'var(--dark)', fontWeight: 700 },
+  calcWarn: { ...readOnlyBoxed(CONTROL), color: 'var(--req)', fontWeight: 700 },
 
   // ── 표(PC·태블릿) — 칸이 열셋이라 한 단계 촘촘하게 ──
   moneyCell: { ...CELL, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
@@ -934,4 +1018,5 @@ const s: Record<string, React.CSSProperties> = {
   muted: { fontSize: 'var(--fs-caption)', color: 'var(--muted)' },
   empty: { fontSize: 'var(--fs-label)', color: 'var(--muted)', padding: '10px 0' },
   err: { fontSize: 'var(--fs-label)', color: 'var(--warn)' },
+  savedNote: { fontSize: 'var(--fs-caption)', color: 'var(--lime-ink)', fontWeight: 700 },
 }

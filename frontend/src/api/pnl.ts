@@ -37,6 +37,15 @@ export interface PnlPending {
   accepted_on: string | null
   supply_default: number | null
   deposit_default: number
+  /** 임시저장해 둔 값 — 다시 열면 적어 둔 대로 열린다. 없으면 null */
+  draft: {
+    biz_name: string | null
+    capital: number
+    deposit_paid_on: string | null
+    capital_paid_on: string | null
+    cost: number
+    memo: string | null
+  } | null
 }
 
 export interface PnlView {
