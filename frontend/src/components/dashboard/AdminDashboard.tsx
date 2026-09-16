@@ -162,7 +162,13 @@ function monthStart(): string {
  */
 function Card({ title, extra, full, onGo, children }: {
   title: string
-  /** 제목 오른쪽에 붙는 조작 — 지금은 성과 카드의 기간 토글뿐이다 */
+  /**
+   * 카드의 조작·곁수치(기간 토글·건수) — **오른쪽 끝, 「열기」 바로 왼쪽**에 붙는다.
+   *
+   * ⚠️ 제목 옆에 두면 **카드마다 자리가 달라진다** — 「영업 성과」와 「손익」은 제목 길이가 달라
+   *    토글이 좌우로 어긋나 보였다(제보). 오른쪽에 붙이면 제목이 몇 글자든 늘 같은 자리다.
+   *    앞으로 붙는 카드도 이 자리를 쓴다.
+   */
   extra?: React.ReactNode
   /** 한 줄을 통째로 쓰는 카드 */
   full?: boolean
@@ -173,8 +179,8 @@ function Card({ title, extra, full, onGo, children }: {
     <section style={full ? s.cardFull : s.card}>
       <div style={s.cardHead}>
         <span style={s.cardTitle}>{title}</span>
-        {extra}
         <span style={s.headGap} />
+        {extra}
         {onGo && <button type="button" style={s.go} onClick={onGo}>{t('열기')} ›</button>}
       </div>
       {children}
@@ -755,6 +761,13 @@ const calCell: React.CSSProperties = {
   background: '#fff', fontFamily: 'inherit', alignItems: 'stretch',
 }
 
+/** 토글 한 칸 — `flex: 1 1 0` 이라야 글자 수와 상관없이 **정확히 반**이다(basis 를 0 으로 둔다) */
+const toggleSeg: React.CSSProperties = {
+  flex: '1 1 0', minWidth: 0, border: 'none', cursor: 'pointer',
+  fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '4px 0',
+  textAlign: 'center', whiteSpace: 'nowrap',
+}
+
 const cardBase: React.CSSProperties = {
   background: '#fff', border: 'var(--hairline)', borderRadius: 'var(--r-md)',
   padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minWidth: 0,
@@ -772,13 +785,19 @@ const s: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gap: 'var(--sp-3)', alignItems: 'start' },
   card: cardBase,
   cardFull: { ...cardBase, gridColumn: '1 / -1' },
-  cardHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)', flexWrap: 'wrap' },
+  cardHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexWrap: 'wrap' },
   cardTitle: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as React.CSSProperties['fontWeight'], color: 'var(--dark)' },
-  headGap: { marginRight: 'auto' },
+  // 제목과 오른쪽 묶음(토글·곁수치·열기) 사이를 벌린다 — 오른쪽은 늘 같은 자리에 선다
+  headGap: { flex: 1, minWidth: 0 },
   headCount: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' },
-  toggle: { display: 'inline-flex', border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff' },
-  toggleOn: { border: 'none', background: 'var(--dark)', color: '#fff', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
-  toggleOff: { border: 'none', background: 'none', color: 'var(--muted)', fontFamily: 'inherit', fontSize: 'var(--fs-caption)', padding: '3px 11px', cursor: 'pointer' },
+  /**
+   * 기간 토글 — **칸을 정확히 반으로 가른다.**
+   * 글자 수에 맞춰 넓이를 잡으면(「이번 달」 3자 · 「전체」 2자) 가르는 선이 가운데가 아니게 되고,
+   * 카드마다 토글 모양이 달라 보인다(제보). 넓이를 못 박고 두 칸이 똑같이 나눠 갖는다.
+   */
+  toggle: { display: 'inline-flex', width: 132, flexShrink: 0, border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff' },
+  toggleOn: { ...toggleSeg, background: 'var(--dark)', color: '#fff' },
+  toggleOff: { ...toggleSeg, background: 'none', color: 'var(--muted)' },
   go: { border: 'none', background: 'none', color: 'var(--muted)', fontSize: 'var(--fs-caption)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 },
 
   // 한 줄을 가득 채운다. 줄(이름/숫자/아래)을 격자로 못 박아야 꺾쇠가 **숫자 줄**에 선다
@@ -815,7 +834,8 @@ const s: Record<string, React.CSSProperties> = {
   listSub: { color: 'var(--muted)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
   listLate: { color: 'var(--req)', fontSize: 'var(--fs-caption)', fontWeight: 700, whiteSpace: 'nowrap' },
   tagWarn: { color: 'var(--req)', fontSize: 'var(--fs-caption)', border: '1px solid var(--req)', borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap' },
-  boardBar: { display: 'inline-flex', border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff', alignSelf: 'flex-start' },
+  // 마이페이지 고르개도 같은 규칙 — 칸을 똑같이 나눈다
+  boardBar: { display: 'inline-flex', width: 264, border: 'var(--hairline)', borderRadius: 999, overflow: 'hidden', background: '#fff', alignSelf: 'flex-start' },
   hitRow: {
     display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 2px', width: '100%',
     border: 'none', borderBottom: 'var(--hairline)', background: 'none', cursor: 'pointer',
