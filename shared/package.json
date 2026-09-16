@@ -17,7 +17,8 @@
     "./docs/appendix": "./docs/appendix.ts",
     "./docs/po-lines": "./docs/po-lines.ts",
     "./process/addon": "./process/addon.ts",
-    "./process/actual": "./process/actual.ts"
+    "./process/actual": "./process/actual.ts",
+    "./rbac/presets": "./rbac/presets.ts"
   },
   "scripts": {
     "test": "vitest run",

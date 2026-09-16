@@ -182,6 +182,18 @@ export function orgScope(req: Request, res: Response, next: NextFunction): void 
   next();
 }
 
+/**
+ * 이 계정의 **역할 프리셋**(관리자 안의 자리) — 권한 계산에 쓴다.
+ *
+ * ⚠️ 토큰에 담지 않는다. 담으면 관리자가 프리셋을 바꿔도 그 사람이 다시 로그인할 때까지(최대 30일)
+ *    옛 권한으로 다닌다. 권한을 볼 때마다 DB 에서 읽는다 — 권한 조회는 어차피 DB 를 탄다.
+ */
+async function loadPreset(auth: AuthContext): Promise<string | null> {
+  if (!prisma) return null;
+  const u = await prisma.user.findUnique({ where: { email: auth.email }, select: { admin_preset: true } });
+  return u?.admin_preset ?? null;
+}
+
 /** 권한 보유 여부만 확인한다. 조회 장애는 권한 없음으로 처리한다. */
 export async function hasPermission(
   req: Request,
@@ -192,8 +204,8 @@ export async function hasPermission(
   if (masterBypassEnabled(req.auth)) return true;
   if (testPermissionBypassEnabled()) return true;
   try {
-    const acs = await lookup(req.auth);
-    return mergePermissions(req.auth.roles, req.auth.email, acs, req.auth).includes(code);
+    const [acs, preset] = await Promise.all([lookup(req.auth), loadPreset(req.auth)]);
+    return mergePermissions(req.auth.roles, req.auth.email, acs, { ...req.auth, preset }).includes(code);
   } catch {
     return false;
   }
@@ -209,8 +221,8 @@ export function requirePermission(code: string, lookup: PermissionLookup = loadA
     if (masterBypassEnabled(req.auth) || testPermissionBypassEnabled()) { next(); return; }
 
     try {
-      const acs = await lookup(req.auth);
-      const permissions = mergePermissions(req.auth.roles, req.auth.email, acs, req.auth);
+      const [acs, preset] = await Promise.all([lookup(req.auth), loadPreset(req.auth)]);
+      const permissions = mergePermissions(req.auth.roles, req.auth.email, acs, { ...req.auth, preset });
       if (!permissions.includes(code)) {
         res.status(403).json({ error: { code: 'PERMISSION_DENIED', message: `'${code}' 권한이 없습니다.` } });
         return;

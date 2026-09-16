@@ -68,6 +68,8 @@ model User {
   sessions_valid_after DateTime?
   // DEV: master surface switcher — true인 계정만 surface 전환 토글 표시 (테스트용)
   is_master      Boolean    @default(false)
+  /// 역할 프리셋 — 관리자 안의 자리(영업관리·PM·생산관리·경영관리·마스터). 비어 있으면 역할 기본값 그대로(shared/rbac/presets)
+  admin_preset   String?    @db.VarChar(20)
 
   org          Org        @relation(fields: [org_code], references: [code])
   inviter      User?      @relation("Invites", fields: [invited_by], references: [email])

@@ -9,7 +9,8 @@ import { sortSpecOptions } from '@buildup-ev/shared/types';
 import { checkDeliveryDue, checkDueDay, fromDateInput, toDateInput, toDbDate, fromDbDate, DELIVERY_DUE_BUSINESS_DAYS } from '@buildup-ev/shared/schedule';
 import { loadHolidays } from '../services/holidays.js';
 import { orderDetailDims } from '../services/dimension-preset.js';
-import { notify, appRecipients } from '../services/push.js';
+import { notify } from '../services/push.js';
+import { topicRecipients } from '../services/notify-targets.js';
 import { stepsFor, BODY_ONLY_SKIPPED, isOverdue, PO_THREAD, laneSpots, TRACKS } from '@buildup-ev/shared/process';
 import { ADDON_LAST, ADDON_TRACKS, addonSpots } from '@buildup-ev/shared/process/addon';
 import { actualStepDates } from '@buildup-ev/shared/process/actual';
@@ -549,7 +550,7 @@ ordersRouter.patch('/:id/unassign', rbac('ADMIN'), requirePermission('order.conf
   try {
     const order = await prisma.order.findUnique({
       where: { id },
-      select: { id: true, maker_org_id: true, assigned_at: true, accepted_at: true, canceled_at: true, quote: { select: { id: true, status: true } } },
+      select: { id: true, maker_org_id: true, assigned_at: true, accepted_at: true, canceled_at: true, quote: { select: { id: true, status: true, sales_user_id: true } } },
     });
     if (!order) { res.status(404).json({ error: { code: 'NOT_FOUND', message: '주문을 찾을 수 없습니다' } }); return; }
     if (!order.maker_org_id || order.canceled_at || order.accepted_at || order.quote.status !== 'assigned') {
@@ -573,8 +574,10 @@ ordersRouter.patch('/:id/unassign', rbac('ADMIN'), requirePermission('order.conf
     await keepAssignRequested(order.quote.id, '배정 취소 — 재배정');
     await setQuoteStatus(order.quote.id, 'contracted', who);
 
-    const makers = await prisma.user.findMany({ where: { org_code: order.maker_org_id, active: true, status: 'active' }, select: { email: true } });
-    const to = await appRecipients(makers.map(m => m.email));
+    // 거둔 특장사 + 담당 영업 + 자리로 정한 관리자(영업관리·PM·마스터)
+    const to = await topicRecipients('assign.cancel', {
+      makerOrg: order.maker_org_id, salesOwner: order.quote.sales_user_id, actor: who,
+    });
     if (to.length > 0) {
       notify(to, {
         title: `주문 #${id} 배정 취소`,
@@ -754,11 +757,8 @@ ordersRouter.patch('/:id/car-arrival', rbac('ADMIN'), requirePermission('order.c
      * 알릴 이유가 없고, 이 날짜에 맞춰 사람을 빼는 쪽은 현장이다.
      */
     if (order.maker_org_id) {
-      const makers = await prisma.user.findMany({
-        where: { org_code: order.maker_org_id, active: true, status: 'active' },
-        select: { email: true },
-      });
-      const to = await appRecipients(makers.map(m => m.email));
+      // 특장사 조직 + 자리로 정한 관리자(영업관리·PM·생산관리·경영관리·마스터)
+      const to = await topicRecipients('order.car_arrival', { makerOrg: order.maker_org_id, actor: req.auth?.email });
       if (to.length > 0) {
         notify(to, {
           title: `주문 #${id} 차량 도착 예정일`,
@@ -865,11 +865,8 @@ ordersRouter.patch('/:id/delivery-due', rbac('ADMIN'), requirePermission('order.
 
     // 알림은 배정된 특장사에게만 — 이 날짜에 맞춰 일하는 쪽이다
     if (order.maker_org_id) {
-      const makers = await prisma.user.findMany({
-        where: { org_code: order.maker_org_id, active: true, status: 'active' },
-        select: { email: true },
-      });
-      const to = await appRecipients(makers.map(m => m.email));
+      // 특장사 조직 + 자리로 정한 관리자
+      const to = await topicRecipients('order.due_change', { makerOrg: order.maker_org_id, actor: req.auth?.email });
       if (to.length > 0) {
         notify(to, {
           title: `주문 #${id} 납기일 변경`,

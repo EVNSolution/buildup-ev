@@ -17,7 +17,8 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { dueInfo, DUE_SOON_DAYS } from '@buildup-ev/shared/process/due';
-import { notify, appRecipients } from './push.js';
+import { notify } from './push.js';
+import { topicRecipients } from './notify-targets.js';
 
 /** 알림 종류 — 발송 기록의 열쇠이기도 하다 */
 export type NudgeKind = 'soon' | 'today' | 'overdue';
@@ -95,12 +96,8 @@ export async function runDueNudge(now: Date = new Date()): Promise<{ sent: numbe
       continue;
     }
 
-    // 배정된 특장사 조직의 계정 중 「앱 알림」을 켠 사람에게
-    const makers = await prisma.user.findMany({
-      where: { org_code: o.maker_org_id!, active: true, status: 'active' },
-      select: { email: true },
-    });
-    const to = await appRecipients(makers.map(m => m.email));
+    // 배정된 특장사 조직 + 자리로 정한 관리자(PM·생산관리·마스터)
+    const to = await topicRecipients('order.due_nudge', { makerOrg: o.maker_org_id });
     if (to.length === 0) { skipped++; continue; }
 
     const { title, body } = nudgeText(kind, info.days, o.id);

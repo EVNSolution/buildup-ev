@@ -126,7 +126,8 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
     const acs = await prisma.accessControl.findMany({
       where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
     });
-    permissions = mergePermissions(roles, email, acs, { is_master: dbUser.is_master });
+    // 역할 프리셋(관리자 안의 자리)이 역할 기본값을 덮는다 — 화면 탭도 이 값으로 갈린다(2026-09-16)
+    permissions = mergePermissions(roles, email, acs, { is_master: dbUser.is_master, preset: dbUser.admin_preset });
   }
   res.json({
     data: {
@@ -146,6 +147,7 @@ authRouter.get('/me', rbac('SALES', 'ADMIN', 'MAKER'), async (req: Request, res:
          * 여기에 masterBypass(운영에서 false)를 넣었더니 마스터에게 관리자 화면만 보였다.
          */
         is_master: dbUser.is_master,
+        admin_preset: dbUser.admin_preset ?? null,
       },
       org: {
         code: dbUser.org.code,
@@ -171,10 +173,14 @@ authRouter.get('/me/permissions', rbac('SALES', 'ADMIN', 'MAKER'), async (req: R
     const allMods = await prisma.featureModule.findMany({ where: { active: true } });
     perms = allMods.map(m => m.code);
   } else {
-    const acs = await prisma.accessControl.findMany({
-      where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
-    });
-    perms = mergePermissions(roles, email, acs, req.auth!);
+    const [acs, me] = await Promise.all([
+      prisma.accessControl.findMany({
+        where: { OR: [{ subject_type: 'role', subject_ref: { in: roles } }, { subject_type: 'user', subject_ref: email }] },
+      }),
+      prisma.user.findUnique({ where: { email }, select: { admin_preset: true } }),
+    ]);
+    // 역할 프리셋이 역할 기본값을 덮는다(2026-09-16) — /me 와 같은 계산이어야 화면과 서버가 어긋나지 않는다
+    perms = mergePermissions(roles, email, acs, { ...req.auth!, preset: me?.admin_preset });
   }
   res.json({ data: { permissions: perms } });
 });

@@ -9,7 +9,8 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { notifyAssignNeeded } from './notify.js';
-import { notify, appRecipients } from './push.js';
+import { notify } from './push.js';
+import { topicRecipients } from './notify-targets.js';
 import type { QuoteStatus } from '@prisma/client';
 
 /** 상태 전이는 변경이력에 section='status' 로 쌓인다(옵션·고객정보와 같은 표). */
@@ -61,7 +62,8 @@ export async function setQuoteStatus(
     if (q?.assign_requested_at) void notifyAssignNeeded('maker', quoteId);
     else if (q?.sales_user_id) {
       const salesTo = q.sales_user_id;
-      void appRecipients([salesTo]).then(to => notify(to, {
+      // 담당 영업 + 자리로 정한 관리자(영업관리·PM·마스터)
+      void topicRecipients('assign.request', { salesOwner: salesTo }).then(to => notify(to, {
         title: `배정 요청 필요 — ${q.quote_no ?? `#${quoteId}`}`,
         body: [q.customer?.name, '계약서 서명이 완료되었습니다. 서명본을 확인하고 「배정 요청」을 눌러 주세요.'].filter(Boolean).join(' · '),
         url: '/sales?tab=list',

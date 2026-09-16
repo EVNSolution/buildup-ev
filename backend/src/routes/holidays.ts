@@ -52,7 +52,7 @@ holidaysRouter.get('/', rbac('ADMIN', 'SALES', 'MAKER'), async (req: Request, re
  * 조회용 `GET /` 는 켜진 것만 주고, 여기는 끈 것도 준다. 껐다는 사실 자체가
  * 「이 날은 안 쉰다고 정했다」는 기록이라 화면에서 보여야 한다.
  */
-holidaysRouter.get('/admin', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+holidaysRouter.get('/admin', rbac('ADMIN'), requirePermission('basedata.holiday'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const year = Number(req.query['year']);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -81,7 +81,7 @@ holidaysRouter.get('/admin', rbac('ADMIN'), requirePermission('basedata.manage')
  * 무료 소스는 한국 공휴일을 틀리게 주는 일이 있어(2026년 제헌절) 화면이 보여 주고
  * 사람이 골라 저장한다. 서비스키(`HOLIDAY_API_KEY`)가 있으면 행정안전부 특일정보를 쓴다.
  */
-holidaysRouter.get('/import', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+holidaysRouter.get('/import', rbac('ADMIN'), requirePermission('basedata.holiday'), async (req: Request, res): Promise<void> => {
   const year = Number(req.query['year']);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: '연도를 YYYY 로 보내야 합니다' } }); return;
@@ -100,7 +100,7 @@ holidaysRouter.get('/import', rbac('ADMIN'), requirePermission('basedata.manage'
  * ⚠️ 화면에서 뺀 날은 **끄는 것**으로 저장한다. 지우면 「이 날은 안 쉰다고 정했다」는
  *    판단이 사라져, 다음에 누가 다시 넣는다.
  */
-holidaysRouter.put('/', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+holidaysRouter.put('/', rbac('ADMIN'), requirePermission('basedata.holiday'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const body = req.body as { year?: unknown; days?: unknown };
   const year = Number(body.year);

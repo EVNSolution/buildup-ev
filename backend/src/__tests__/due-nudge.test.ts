@@ -82,10 +82,11 @@ describe('두 번 가지 않는다', () => {
 });
 
 describe('누구에게', () => {
-  it('🔴 배정된 특장사 조직의 활성 계정에게 — 기능모듈로 거르지 않는다(2026-09-14: 기능모듈은 메일 여부만)', () => {
+  it('🔴 배정된 특장사 조직 + 자리로 정한 관리자에게(2026-09-16 프리셋) — 기능모듈로 거르지 않는다', () => {
     const svc = read('backend/src/services/due-nudge.ts');
-    expect(svc).toMatch(/org_code: o\.maker_org_id!/);
-    expect(svc).toMatch(/appRecipients\(/);
+    expect(svc).toMatch(/topicRecipients\('order\.due_nudge', \{ makerOrg: o\.maker_org_id \}\)/);
+    // 받는 사람 판정은 한 곳에서만 — 여기서 따로 긁지 않는다
+    expect(svc).not.toMatch(/prisma\.user\.findMany/);
   });
 
   it('🔴 끝났거나 치운 주문에는 안 보낸다', () => {

@@ -21,7 +21,8 @@
  */
 import '../config.js';
 import { prisma } from '../lib/prisma.js';
-import { adminRecipients, notifyAssignNeeded, type AssignKind } from '../services/notify.js';
+import { notifyAssignNeeded, type AssignKind } from '../services/notify.js';
+import { topicRecipients } from '../services/notify-targets.js';
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -63,7 +64,7 @@ async function main(): Promise<void> {
 
   if (quotes.length === 0) { console.log('대상이 없습니다.'); return; }
 
-  const to = await adminRecipients();
+  const to = await topicRecipients('assign.maker');
   console.log(`받는 사람 ${to.length}명: ${to.join(', ') || '(없음)'}`);
   console.log(`대상 ${quotes.length}건:`);
   for (const q of quotes) {

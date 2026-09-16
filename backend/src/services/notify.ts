@@ -11,7 +11,8 @@
 import { createTransport } from 'nodemailer';
 import { mergePermissions } from '../lib/permissions.js';
 import { prisma } from '../lib/prisma.js';
-import { notify as pushNotify, activeAdmins } from './push.js';
+import { notify as pushNotify } from './push.js';
+import { topicRecipients } from './notify-targets.js';
 
 const BASE_URL = process.env['PUBLIC_BASE_URL'] || 'https://buildup-ev.cleversystem.ai';
 
@@ -33,75 +34,11 @@ function transport() {
  * `NOTIFY_ADMIN_TO` 가 있으면 그것만 쓴다(제조운영 그룹 메일 하나로 받고 싶을 때).
  * 나중에 기능모듈 `order.po.issue` 가 생기면 그 권한을 가진 계정으로 좁힌다.
  */
-/** 제작 배정 알림을 받겠다고 켜 둔 계정 — 기능모듈 `notify.assign` 로 고른다. */
-export const ASSIGN_NOTIFY_MODULE = 'notify.assign';
-
 /**
- * 알림을 **받을 사람**을 고른다.
- *
- * 예전에는 **활성 관리자 전원**에게 보냈다. 관리자 권한만 있으면 배정 업무와 무관한
- * 사람에게도 계속 갔고, 끌 방법이 없었다.
- *
- * 이제 다른 기능과 똑같이 **계정별 토글**로 고른다(관리자 화면 › 계정 관리).
- * 판정은 화면·API 와 같은 `mergePermissions` 를 쓴다 — 역할 기본값을 계정별 설정이 덮는다.
- *
- * ⚠️ **기본은 아무도 안 받는 것이다.** 아무도 켜 두지 않으면 메일이 나가지 않는다.
- *    조용히 사라지면 서명이 끝난 건이 방치되므로, 그때는 로그로 분명히 남긴다.
+ * ⚠️ 옛 「제작 배정 알림 메일」 기능모듈(`notify.assign`)로 받는 사람을 고르던 코드는 걷어냈다(2026-09-16).
+ *    그 모듈은 **역할을 보지 않아** 특장사·영업 계정에 켜 두면 고객 이름·실구매가가 담긴 메일이 갔다.
+ *    이제 받는 사람은 역할 프리셋이 정한다 — `services/notify-targets.ts` · `shared/rbac/presets.ts`.
  */
-/**
- * 이 계정이 배정 알림을 받는가 — **판정은 여기 한 곳.**
- *
- * DB 를 타지 않는 순수 함수로 떼어 두어, 「누가 받는가」를 실제로 시험할 수 있게 한다.
- * 규칙이 조건문 안에 묻혀 있으면 눈으로 읽어 맞다고 믿는 수밖에 없다.
- */
-export function isAssignRecipient(
-  user: { email: string; role: string; extra_roles: string[]; is_master?: boolean },
-  acs: { subject_type: string; subject_ref: string; module_code: string; enabled: boolean }[],
-): boolean {
-  /*
-   * ⚠️ **관리자(또는 마스터)가 아니면 받지 않는다**(2026-09-16 점검).
-   *    배정 알림 메일에는 고객 이름·실구매가·담당 영업이 담긴다. 예전에는 기능모듈만 보고 역할은 보지 않아,
-   *    특장사·영업 계정에 「제작 배정 알림 메일」이 켜져 있으면 그 메일을 그대로 받았다.
-   *    기능모듈은 **관리자 중에서 누가 받을지**를 정하는 값이지, 역할을 넘겨주는 값이 아니다.
-   */
-  const isAdminRole = user.is_master === true || user.role === 'ADMIN' || user.extra_roles.includes('ADMIN');
-  if (!isAdminRole) return false;
-  /*
-   * **마스터는 토글과 무관하게 늘 받는다.**
-   *
-   * 실제로 스캔본을 올렸는데 아무에게도 메일이 가지 않은 일이 있었다. 원인은 둘이었고
-   * (경로 누락 + 아무도 토글을 켜 두지 않음), 두 번째는 **아무 신호 없이** 조용히
-   * 사라진다 — 서버 로그를 열어 보기 전에는 알 방법이 없다.
-   * 최소 한 사람은 반드시 받게 두어, 「아무에게도 안 갔다」가 다시는 없게 한다.
-   */
-  if (user.is_master) return true;
-  return mergePermissions(
-    [user.role, ...user.extra_roles] as Parameters<typeof mergePermissions>[0],
-    user.email, acs,
-  ).includes(ASSIGN_NOTIFY_MODULE);
-}
-
-export async function adminRecipients(): Promise<string[]> {
-  // 비상 우회 — 설정이 꼬였을 때 서버 env 로 강제 지정한다
-  const override = process.env['NOTIFY_ADMIN_TO'];
-  if (override) return override.split(',').map(s => s.trim()).filter(Boolean);
-  if (!prisma) return [];
-
-  const [users, acs] = await Promise.all([
-    prisma.user.findMany({
-      where: { active: true, status: 'active' },
-      select: { email: true, role: true, extra_roles: true, is_master: true },
-    }),
-    prisma.accessControl.findMany({
-      where: { module_code: ASSIGN_NOTIFY_MODULE },
-      select: { subject_type: true, subject_ref: true, module_code: true, enabled: true },
-    }),
-  ]);
-
-  return users
-    .filter(u => isAssignRecipient(u, acs))
-    .map(u => u.email);
-}
 
 const won = (n: number | null | undefined) => (n == null ? '—' : '₩' + Math.round(n).toLocaleString('ko-KR'));
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -173,7 +110,8 @@ export async function notifyAssignNeeded(kind: AssignKind, quoteId: number): Pro
      * 아무도 없어도 앱 알림은 나간다. 메일은 SMTP 왕복이 있어 몇 초 걸리고, 설정이 빠지면 안 나간다.
      * 태그를 견적별로 두어 같은 건이 여러 번 쌓이지 않게 한다.
      */
-    void activeAdmins().then(appTo => {
+    // 받는 사람은 **자리(프리셋)** 가 정한다 — 제작 배정은 영업관리·PM·생산관리·마스터(2026-09-16)
+    void topicRecipients(kind === 'maker' ? 'assign.maker' : 'assign.sales').then(appTo => {
       pushNotify(appTo, {
         title: `${t.what} 필요 — ${no}`,
         body: [who, t.why].filter(Boolean).join(' · '),
@@ -182,13 +120,18 @@ export async function notifyAssignNeeded(kind: AssignKind, quoteId: number): Pro
       });
     }).catch(e => console.warn('[notify] 배정 앱 알림 실패', e));
 
-    const to = await adminRecipients();
+    /*
+     * 메일도 **같은 자리(프리셋)** 로 보낸다(2026-09-16).
+     * 예전에는 기능모듈 하나로 골랐고 그 모듈은 역할을 보지 않아, 특장사·영업 계정에 켜 두면
+     * 고객 이름·실구매가가 담긴 메일이 그대로 갔다. 비상 우회(NOTIFY_ADMIN_TO)는 남긴다.
+     */
+    const override = process.env['NOTIFY_ADMIN_TO'];
+    const to = override
+      ? override.split(',').map(x => x.trim()).filter(Boolean)
+      : await topicRecipients(kind === 'maker' ? 'assign.maker' : 'assign.sales');
     if (to.length === 0) {
       // 조용히 사라지면 배정을 기다리는 건이 방치된다 — 왜 안 갔는지 로그에 남긴다
-      console.warn(
-        `[notify] ${t.what} 알림 메일을 받도록 켜 둔 계정이 없다 — 견적 ${quoteId} 메일 건너뜀(앱 알림은 발송). ` +
-        `관리자 › 계정 관리에서 「제작 배정 알림 메일」(${ASSIGN_NOTIFY_MODULE})을 켜야 나간다.`,
-      );
+      console.warn(`[notify] ${t.what} 알림을 받을 자리가 없다 — 견적 ${quoteId} 메일 건너뜀(앱 알림은 발송)`);
       return;
     }
 

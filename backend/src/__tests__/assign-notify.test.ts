@@ -22,30 +22,25 @@ describe('제작 배정 알림 수신자', () => {
      * 되살아나기 쉬운 코드다 — 역할로 긁는 한 줄이면 되니까.
      * 그러면 다시 전원에게 나간다.
      */
-    const fn = NOTIFY.slice(NOTIFY.indexOf('async function adminRecipients'), NOTIFY.indexOf('const won ='));
-    expect(fn).not.toMatch(/role:\s*'ADMIN'/);
-    expect(fn).not.toMatch(/extra_roles:\s*\{\s*has:\s*'ADMIN'/);
+    // 프리셋 목록으로만 고른다. 자리를 아직 안 정한 옛 관리자 계정은 예외로 받는다(그 한 줄만 허용)
+    const targets = read('backend/src/services/notify-targets.ts');
+    expect(targets).toContain('admin_preset: { in: def.presets }');
+    expect(targets.match(/role: 'ADMIN'/g)?.length, '역할로 긁는 자리가 늘었다').toBe(1);
+    expect(targets).toContain('admin_preset: null');
   });
 
-  it('화면·API 와 같은 권한 계산을 쓴다', () => {
-    // 여기만 따로 판정하면 화면의 토글과 실제 발송이 어긋난다.
-    // 판정은 isAssignRecipient 로 떼어 냈고(시험 가능하게), 수신자 조회는 그것만 쓴다.
-    const decide = NOTIFY.slice(NOTIFY.indexOf('export function isAssignRecipient'),
-                                NOTIFY.indexOf('export async function adminRecipients'));
-    expect(decide).toContain('mergePermissions');
-    expect(decide).toContain('ASSIGN_NOTIFY_MODULE');
-
-    const fetchAll = NOTIFY.slice(NOTIFY.indexOf('export async function adminRecipients'),
-                                  NOTIFY.indexOf('const won ='));
-    expect(fetchAll).toContain('isAssignRecipient');
-    // 조회 쪽에서 판정을 다시 쓰면 두 규칙이 갈라진다
-    expect(fetchAll).not.toContain('mergePermissions');
+  it('🔴 받는 사람은 한 곳(자리·프리셋)에서만 고른다 — 라우트마다 따로 긁지 않는다', () => {
+    // 2026-09-16 — 기능모듈 판정을 걷어내고 `topicRecipients` 하나로 모았다
+    expect(NOTIFY).toContain("topicRecipients(kind === 'maker' ? 'assign.maker' : 'assign.sales')");
+    const targets = read('backend/src/services/notify-targets.ts');
+    expect(targets).toContain('NOTIFY_TOPIC_BY_CODE');
+    // 목록에 없는 알림은 보내지 않는다 — 받는 사람이 정해지지 않았다는 뜻이다
+    expect(targets).toMatch(/if \(!def\)[\s\S]*return \[\]/);
   });
 
-  it('아무도 안 켰으면 조용히 넘어가지 않고 이유를 남긴다', () => {
+  it('아무에게도 못 갔으면 조용히 넘어가지 않고 이유를 남긴다', () => {
     // 서명이 끝난 건이 방치되는 상황이라, 로그에 왜 안 갔는지가 있어야 한다
-    expect(NOTIFY).toMatch(/받도록 켜 둔 계정이 없다/);
-    expect(NOTIFY).toContain('계정 관리');
+    expect(NOTIFY).toMatch(/알림을 받을 자리가 없다/);
   });
 
   it('기능모듈이 참조 데이터로 등록된다 — 화면에 토글이 생기려면 있어야 한다', () => {

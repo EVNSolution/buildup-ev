@@ -27,3 +27,4 @@ role,MAKER,order.view,Y,
 role,MAKER,order.control,Y,
 role,MAKER,doc.view,Y,
 role,MAKER,notify.push,Y,
+role,ADMIN,customer.view,Y,프리셋 도입 전과 같게 — 관리자 기본
