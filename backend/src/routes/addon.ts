@@ -22,6 +22,8 @@ import {
 } from '@buildup-ev/shared/process/addon';
 import { fromDateInput, toDateInput, toDbDate, fromDbDate } from '@buildup-ev/shared/schedule';
 import { checklistGate, checklistPayload, judgeChecklist } from '../services/checklist.js';
+import { topicRecipients } from '../services/notify-targets.js';
+import { notify } from '../services/push.js';
 
 export const addonRouter = Router();
 
@@ -171,6 +173,20 @@ addonRouter.patch('/:id/addon/steps/:code', ...guard, async (req: Request, res: 
         create: { order_id: id, customer_delivered_on: toDbDate(day) },
       });
       await setQuoteStatus(o.quote_id, 'completed', who);
+      /*
+       * **고객 인도 완료** 알림(2026-09-16) — 거래가 끝난 순간이다. 담당 영업과
+       * 영업관리·PM·생산관리·경영관리·마스터가 본다(shared/rbac/presets).
+       */
+      const q = await prisma.quote.findUnique({ where: { id: o.quote_id }, select: { quote_no: true, sales_user_id: true, customer: { select: { name: true } } } });
+      const to = await topicRecipients('order.handover', { salesOwner: q?.sales_user_id, actor: who });
+      if (to.length > 0) {
+        notify(to, {
+          title: `고객 인도 완료 — ${q?.quote_no ?? `주문 #${id}`}`,
+          body: [q?.customer?.name, `인도일 ${toDateInput(day)}`].filter(Boolean).join(' · '),
+          url: `/?order=${id}`,
+          tag: `handover-${id}`,
+        });
+      }
     }
     await respond(res, id);
   } catch (e) {

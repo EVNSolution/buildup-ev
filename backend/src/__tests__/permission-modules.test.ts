@@ -20,7 +20,13 @@ const MODULES = [
   'quote.create', 'quote.confirm', 'quote.edit',
   'doc.send.email', 'doc.send.sign',
   'order.confirm', 'order.view', 'order.control', 'doc.view',
-  'stats.own', 'stats.all', 'basedata.manage', 'account.manage',
+  'stats.own', 'stats.all', 'account.manage',
+  /*
+   * 'basedata.manage' 는 뺐다 — 2026-09-16 역할 프리셋에서 기준데이터를 다섯으로 쪼갰다
+   * (무게상수·치수·옵션DB·특장사 단가·공휴일). 옛 코드는 **우산**으로만 남아,
+   * 그것만 켜 둔 계정이 다섯을 잃지 않게 `lib/permissions` 가 펴 준다. 라우트에서는 쓰지 않는다.
+   */
+  'customer.view', 'basedata.weights', 'basedata.dims', 'basedata.optiondb', 'basedata.makerprice', 'basedata.holiday',
   // 부가작업(공장 출고 뒤 우리 쪽 작업) — 2026-09-14
   'addon.manage',
 ];
@@ -34,7 +40,9 @@ describe('권한 모듈', () => {
   it('되돌릴 수 없는 동작에는 권한 검사가 붙어 있다', () => {
     // 발송은 취소가 안 되거나 과금된다 — rbac 만으로 두면 안 된다
     expect(src).toContain("requirePermission('doc.send.sign')");
-    expect(src).toContain("requirePermission('basedata.manage')");
+    expect(src).toContain("requirePermission('basedata.holiday')");
+    // 기준데이터 저장은 표마다 다른 자리가 맡는다(무게상수·치수는 그 자리 권한으로)
+    expect(src).toContain("moduleOfTable");
   });
 
   /**

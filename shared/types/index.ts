@@ -149,6 +149,12 @@ export interface User {
    * 계정을 두 개 만들면 견적·주문이 다른 사람 것으로 쌓이므로 **한 계정에 역할을 더한다**.
    */
   extra_roles?: Role[];
+  /**
+   * **역할 프리셋** — 관리자 안의 자리(영업관리·PM·생산관리·경영관리·마스터, shared/rbac/presets).
+   * 비어 있으면 「미지정」 — 예전처럼 역할 기본값을 쓴다. 지정하면 그 자리가 기본 권한을 정하고,
+   * 계정별 기능모듈 토글이 그 위에 예외를 둔다.
+   */
+  admin_preset?: string | null;
   name: string;
   phone?: string;
   status: UserStatus;

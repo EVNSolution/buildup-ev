@@ -3,6 +3,7 @@ import { QuoteKindTag } from '../components/QuoteKindTag'
 import { openPdf } from '../lib/openPdf'
 import type { FeatureModule, AccessControl, Role, ApiQuote, ApiOrder, Org, User } from '@shared/types/index'
 import { rolesOf } from '@shared/types/index'
+import { PRESETS, PRESET_BY_CODE } from '@shared/rbac/presets'
 import { fetchFeatureModules, fetchAccessControl, upsertAccessControl, fetchUsers, fetchOrgs, createUser, updateUser, resetUserPassword, deleteUser } from '../api/auth'
 import type { CreateUserInput } from '../api/auth'
 import { fetchQuotes, assignQuote, assignSalesQuote, fetchOrderPreview, setQuoteHidden, fetchPoDraft, savePoDraft } from '../api/quotes'
@@ -667,6 +668,17 @@ function AccountsTab() {
    * 겸직 역할 켜고 끄기 — 주 역할은 건드리지 않는다(그건 계정의 소속을 바꾸는 일이라 따로 둔다).
    * 서버가 목록을 통째로 받아 주 역할을 빼고 저장하므로, 여기서도 통째로 보낸다.
    */
+  /** 역할 프리셋 지정 — 빈 값이면 미지정(역할 기본값) */
+  async function handlePreset(user: User, code: string) {
+    setRoleSaving(user.email); setErr('')
+    try {
+      const saved = await updateUser(user.email, { admin_preset: code || null })
+      setUsers(prev => prev.map(u => (u.email === user.email ? { ...u, admin_preset: saved.admin_preset ?? null } : u)))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('프리셋을 바꾸지 못했습니다'))
+    } finally { setRoleSaving(null) }
+  }
+
   async function handleToggleExtraRole(user: User, role: Role) {
     if (role === user.role) return
     const cur = user.extra_roles ?? []
@@ -706,6 +718,9 @@ function AccountsTab() {
   const adminCount = users.filter(u => u.role === 'ADMIN').length
   const isDeleteDisabled = (u: User) => u.email === myEmail || (u.role === 'ADMIN' && adminCount <= 1)
 
+  /** 이 계정의 역할 프리셋 — 마스터는 늘 마스터 자리다 */
+  const presetOf = (u: User) => (u.is_master ? 'master' : (u.admin_preset ?? null))
+
   function renderModuleExpand(user: User) {
     const myRoles = rolesOf(user)
     return (
@@ -714,6 +729,30 @@ function AccountsTab() {
           역할 — 한 계정이 여러 화면을 쓸 수 있다(관리자가 영업까지, 관리자가 특장까지).
           계정을 하나 더 만들면 견적·주문이 다른 사람 것으로 쌓이므로 역할을 더한다.
         */}
+        {/*
+          **역할 프리셋** — 관리자 안을 하는 일로 나눈 자리(2026-09-16). 고르면 그 자리의 기본 권한을 따르고,
+          아래 계정 모듈 토글이 그 위에 예외를 둔다. 「미지정」은 예전 그대로(역할 기본값) — 지정 전에는 권한이 바뀌지 않는다.
+        */}
+        {!user.is_master && myRoles.includes('ADMIN') && (
+          <>
+            <div style={acc.expandHeader}>{t('역할 프리셋 — 관리자 안의 자리')}</div>
+            <div style={acc.roleRow}>
+              <select
+                style={acc.presetSelect}
+                value={presetOf(user) ?? ''}
+                disabled={roleSaving === user.email}
+                onChange={e => void handlePreset(user, e.target.value)}
+                aria-label={t('역할 프리셋')}
+              >
+                <option value="">{t('미지정 (역할 기본값)')}</option>
+                {PRESETS.filter(p => p.code !== 'master').map(p => (
+                  <option key={p.code} value={p.code}>{t(p.label)}</option>
+                ))}
+              </select>
+              <span style={acc.presetDesc}>{presetOf(user) ? t(PRESET_BY_CODE[presetOf(user)!]!.desc) : t('지정하기 전에는 지금 권한 그대로입니다.')}</span>
+            </div>
+          </>
+        )}
         {!user.is_master && (
           <>
             <div style={acc.expandHeader}>{t('역할 — 주 역할 + 겸직 (여러 화면을 한 계정으로)')}</div>
@@ -737,12 +776,18 @@ function AccountsTab() {
           </>
         )}
         <div style={acc.expandHeader}>
-          {user.is_master ? t('마스터 — 전체 모듈') : `계정 모듈 override — ${myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
+          {user.is_master ? t('마스터 — 전체 모듈') : `계정 모듈 override — ${presetOf(user) ? `${PRESET_BY_CODE[presetOf(user)!]!.label} 프리셋` : myRoles.map(r => ROLE_KO[r]).join(' + ')} 기준`}
         </div>
         <div style={acc.moduleGrid}>
           {(user.is_master ? modules : getModulesForRoles(modules, myRoles)).map(mod => {
-            // 겸직이면 역할 중 하나라도 켜 두었으면 켜진 것 — 서버 판정(mergePermissions)과 같다
-            const roleEnabled = myRoles.some(r => isEnabled(ac, 'role', r, mod.code))
+            /*
+             * 겸직이면 역할 중 하나라도 켜 두었으면 켜진 것 — 서버 판정(mergePermissions)과 같다.
+             * **프리셋이 있으면 프리셋이 역할 기본값을 덮는다**(2026-09-16) — 화면도 서버와 같은 순서로 본다.
+             */
+            const code = presetOf(user)
+            const roleEnabled = code
+              ? (PRESET_BY_CODE[code]?.modules.includes(mod.code) ?? false)
+              : myRoles.some(r => isEnabled(ac, 'role', r, mod.code))
             const userOverride = ac.find(a => a.subject_type === 'user' && a.subject_ref === user.email && a.module_code === mod.code)
             const effective = userOverride !== undefined ? userOverride.enabled : roleEnabled
             const hasOverride = userOverride !== undefined
@@ -753,7 +798,7 @@ function AccountsTab() {
                 <div style={acc.modMeta}>
                   {hasOverride
                     ? <span style={acc.overrideTag}>override</span>
-                    : <span style={acc.roleTag}>{t('역할기본')}</span>
+                    : <span style={acc.roleTag}>{presetOf(user) ? t('프리셋') : t('역할기본')}</span>
                   }
                 </div>
                 <button
@@ -2070,24 +2115,30 @@ export function AdminPage() {
     stats: usePermission('stats.own'),
     orders: usePermission('order.view'),
     accounts: usePermission('account.manage'),
-    basedata: usePermission('basedata.manage'),
     checklist: usePermission('checklist.manage'),
+    /* 기준데이터는 자리마다 다르게 쓴다 — 예전엔 한 덩어리(basedata.manage)라 영업관리자에게도 옵션DB가 보였다 */
+    customers: usePermission('customer.view'),
+    weights: usePermission('basedata.weights'),
+    dims: usePermission('basedata.dims'),
+    optiondb: usePermission('basedata.optiondb'),
+    makerprice: usePermission('basedata.makerprice'),
+    holidays: usePermission('basedata.holiday'),
   }
   const TABS: { key: TabKey; label: string; show: boolean }[] = ([
     { key: 'quotes',   label: t('견적 목록'), show: true },
-    { key: 'customers', label: t('고객'),    show: true },
+    { key: 'customers', label: t('고객'),    show: perm.customers },
     { key: 'perf',     label: t('영업 성과'), show: perm.stats },
     { key: 'kanban',   label: t('주문 진행'), show: perm.orders },
     { key: 'checklist', label: t('체크리스트'), show: perm.checklist },
     { key: 'files',    label: t('파일'),      show: perm.orders },
     { key: 'toggles',  label: t('기능모듈'),  show: perm.accounts },
     { key: 'accounts', label: t('계정 관리'), show: perm.accounts },
-    { key: 'weights',  label: t('무게상수'),  show: perm.basedata },
-    { key: 'dims',     label: t('치수 프리셋'), show: perm.basedata },
-    { key: 'holidays', label: t('공휴일'),    show: perm.basedata },
-    { key: 'optiondb', label: t('옵션DB'),    show: perm.basedata },
+    { key: 'weights',  label: t('무게상수'),  show: perm.weights },
+    { key: 'dims',     label: t('치수 프리셋'), show: perm.dims },
+    { key: 'holidays', label: t('공휴일'),    show: perm.holidays },
+    { key: 'optiondb', label: t('옵션DB'),    show: perm.optiondb },
     // 특장사에 **지급하는** 단가 — 고객 견적가(옵션DB)와 다른 축이라 탭을 나눈다
-    { key: 'makerprice', label: t('특장사 단가'), show: perm.basedata },
+    { key: 'makerprice', label: t('특장사 단가'), show: perm.makerprice },
   ] as const).filter(t => t.show)
 
   // 보고 있던 탭이 감춰지면(권한이 도중에 꺼지면) 첫 탭으로 되돌린다.
@@ -2555,6 +2606,11 @@ const acc: Record<string, React.CSSProperties> = {
     fontSize: 'var(--fs-label)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
   },
   // 주 역할은 끌 수 없다 — 눌리지 않는다는 것을 커서로도 알린다
+  presetSelect: {
+    font: 'inherit', fontSize: 'var(--fs-label)', padding: '4px 8px',
+    border: 'var(--hairline)', borderRadius: 6, background: '#fff', minWidth: 180,
+  },
+  presetDesc: { fontSize: 'var(--fs-caption)', color: 'var(--muted)', lineHeight: 1.5 },
   roleChipPrimary: { cursor: 'default', background: 'var(--lime)', borderColor: 'var(--lime)' },
   masterBadge: { fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6, background: 'var(--dark)', color: 'var(--lime)', marginLeft: 4 },
   statusBadge: { fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 8 },

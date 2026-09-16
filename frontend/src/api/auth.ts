@@ -64,7 +64,7 @@ export async function createUser(data: CreateUserInput): Promise<{ user: User; t
 export async function updateUser(
   email: string,
   // extra_roles 는 **통째로 덮어쓴다**(추가·해제를 한 번에) — 서버가 주 역할을 빼고 저장한다
-  data: { role?: string; extra_roles?: Role[]; org_code?: string; status?: string },
+  data: { role?: string; extra_roles?: Role[]; org_code?: string; status?: string; admin_preset?: string | null },
 ): Promise<User> {
   return apiFetch(`/api/v1/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(data) })
 }

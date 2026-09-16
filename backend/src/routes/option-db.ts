@@ -6,7 +6,7 @@
  * (총견적서 정답지 = STEGO-K1_총견적서.xlsx '옵션DB' 시트 — 값은 여기서만 수정)
  */
 import { Router } from 'express';
-import type { Request } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import type { Prisma } from '@prisma/client';
@@ -45,6 +45,24 @@ const dimNum = (v: unknown): number | null => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? n : null;
 };
+
+/**
+ * 표마다 **누가 고치는가**(2026-09-16 역할 프리셋) — 무게상수·치수 프리셋은 옵션DB 화면과 같은 API 를 쓰지만
+ * 자리가 다르다. 적지 않은 표는 옵션DB 권한으로 본다.
+ */
+const TABLE_MODULE: Record<string, string> = {
+  weight_constant: 'basedata.weights',
+  dimension_preset: 'basedata.dims',
+};
+const moduleOfTable = (table: string) => TABLE_MODULE[table] ?? 'basedata.optiondb';
+
+/** 그 표를 고칠 권한이 있는가 — 표 이름을 보고 정한다(라우트 하나가 여러 표를 받는다) */
+function requireTablePermission() {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const code = moduleOfTable(String(req.params['table']));
+    return requirePermission(code)(req, res, next);
+  };
+}
 
 const TABLES: Record<string, TableDef> = {
   option_price: {
@@ -223,7 +241,7 @@ optionDbRouter.get('/:table/restore-points', rbac('ADMIN'), async (req: Request,
 });
 
 // ── POST /option-db/:table/rollback — 지정 시각 직전 상태로 복원 ─────────────
-optionDbRouter.post('/:table/rollback', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+optionDbRouter.post('/:table/rollback', rbac('ADMIN'), requireTablePermission(), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const table = String(req.params['table']);
   const def = TABLES[table];
@@ -293,7 +311,7 @@ optionDbRouter.get('/:table', rbac('ADMIN'), async (req: Request, res): Promise<
 });
 
 // ── PUT /option-db/:table — 행 upsert(단건·다건 일괄) + 감사이력 ─────────────
-optionDbRouter.put('/:table', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+optionDbRouter.put('/:table', rbac('ADMIN'), requireTablePermission(), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const table = String(req.params['table']);
   const def = TABLES[table];

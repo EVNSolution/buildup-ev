@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request } from 'express';
 import { rbac, requirePermission } from '../middleware/rbac.js';
+import { isPresetCode } from '@buildup-ev/shared/rbac/presets';
 import { prisma } from '../lib/prisma.js';
 import { hashPassword, generateTempPassword } from '../lib/password.js';
 import type { Role } from '@buildup-ev/shared/types';
@@ -20,7 +21,7 @@ function normalizeExtraRoles(input: string[] | undefined, primary: string): Role
   return [...new Set(input)].filter(r => r !== primary) as Role[];
 }
 
-function safeUser(u: { email: string; org_code: string; role: string; extra_roles?: string[]; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; is_master: boolean; created_at: Date; org?: { code: string; name: string; type: string } }) {
+function safeUser(u: { email: string; org_code: string; role: string; extra_roles?: string[]; name: string; phone: string | null; status: string; must_change_pw: boolean; invited_by: string | null; active: boolean; is_master: boolean; admin_preset?: string | null; created_at: Date; org?: { code: string; name: string; type: string } }) {
   return {
     email: u.email,
     org_code: u.org_code,
@@ -33,6 +34,7 @@ function safeUser(u: { email: string; org_code: string; role: string; extra_role
     invited_by: u.invited_by ?? undefined,
     active: u.active,
     is_master: u.is_master, // DEV: master surface switcher
+    admin_preset: u.admin_preset ?? null,
     created_at: u.created_at,
     org: u.org,
   };
@@ -110,8 +112,8 @@ usersRouter.post('/', rbac('ADMIN'), requirePermission('account.manage'), async 
 usersRouter.patch('/:email', rbac('ADMIN'), requirePermission('account.manage'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE' } }); return; }
   const { email } = req.params as { email: string };
-  const { role, org_code, status, extra_roles } = req.body as
-    { role?: string; org_code?: string; status?: string; extra_roles?: string[] };
+  const { role, org_code, status, extra_roles, admin_preset } = req.body as
+    { role?: string; org_code?: string; status?: string; extra_roles?: string[]; admin_preset?: string | null };
 
   const data: Record<string, unknown> = {};
   if (role)     { if (!['SALES','ADMIN','MAKER'].includes(role)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 역할' } }); return; } data['role'] = role; }
@@ -128,6 +130,15 @@ usersRouter.patch('/:email', rbac('ADMIN'), requirePermission('account.manage'),
     // 주 역할만 바꿀 때 — 새 주 역할이 겸직에 남아 있으면 같은 역할이 두 자리에 생긴다
     const cur = await prisma.user.findUnique({ where: { email } });
     if (cur) data['extra_roles'] = (cur.extra_roles as Role[]).filter(r => r !== role);
+  }
+  /*
+   * **역할 프리셋** — 관리자 안의 자리(영업관리·PM·생산관리·경영관리·마스터).
+   * 빈 값(null·'')이면 「미지정」 — 예전처럼 역할 기본값을 쓴다(지정하기 전에는 권한이 바뀌지 않는다).
+   */
+  if (admin_preset !== undefined) {
+    if (admin_preset === null || admin_preset === '') data['admin_preset'] = null;
+    else if (isPresetCode(admin_preset)) data['admin_preset'] = admin_preset;
+    else { res.status(400).json({ error: { code: 'BAD_INPUT', message: '알 수 없는 역할 프리셋입니다' } }); return; }
   }
   if (org_code) data['org_code'] = org_code;
   if (status)   { if (!['active','invited','suspended'].includes(status)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 상태' } }); return; } data['status'] = status; }

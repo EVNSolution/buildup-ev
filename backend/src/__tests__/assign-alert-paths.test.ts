@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { isAssignRecipient } from '../services/notify.js';
+import { NOTIFY_TOPIC_BY_CODE } from '@buildup-ev/shared/rbac/presets';
 
 /**
  * **배정을 기다리는 건이 생기면 반드시 알린다.**
@@ -19,53 +19,30 @@ import { isAssignRecipient } from '../services/notify.js';
  */
 const ROOT = path.resolve(__dirname, '../../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
-const MODULE = 'notify.assign';
-
-const user = (over: Partial<Parameters<typeof isAssignRecipient>[0]> = {}) =>
-  ({ email: 'a@x.com', role: 'ADMIN', extra_roles: [] as string[], ...over });
-const ac = (subject_type: string, subject_ref: string, enabled: boolean) =>
-  ({ subject_type, subject_ref, module_code: MODULE, enabled });
-
-describe('누가 배정 알림을 받는가', () => {
-  it('토글을 켠 계정이 받는다', () => {
-    expect(isAssignRecipient(user(), [ac('user', 'a@x.com', true)])).toBe(true);
-  });
-
-  it('켜지 않은 계정은 받지 않는다 — 관리자여도', () => {
-    expect(isAssignRecipient(user(), [])).toBe(false);
-  });
-
-  it('🔴 마스터는 아무 설정이 없어도 받는다', () => {
-    /*
-     * 이게 없으면 「아무도 안 켜 둠 → 아무에게도 안 감 → 아무도 모름」이 다시 성립한다.
-     * 실제로 그렇게 방치된 건이 있었다.
-     */
-    expect(isAssignRecipient(user({ is_master: true }), [])).toBe(true);
-  });
-
-  it('🔴 마스터는 토글을 꺼도 받는다', () => {
-    // 실수로 껐다고 최후의 수신자가 사라지면 안 된다
-    expect(isAssignRecipient(user({ is_master: true }), [ac('user', 'a@x.com', false)])).toBe(true);
-  });
-
-  it('마스터가 아닌 계정은 역할로 켜면 받는다', () => {
-    expect(isAssignRecipient(user(), [ac('role', 'ADMIN', true)])).toBe(true);
-    expect(isAssignRecipient(user({ email: 'b@x.com' }), [ac('role', 'ADMIN', true)])).toBe(true);
-  });
-
+describe('누가 배정 알림을 받는가 — 자리(프리셋)가 정한다', () => {
   /*
-   * 2026-09-16 점검 — 배정 알림 메일에는 고객 이름·실구매가·담당 영업이 담긴다.
-   * 기능모듈은 **관리자 중 누가 받을지**를 정할 뿐, 역할을 넘겨주지 않는다.
+   * 2026-09-16 — 예전에는 기능모듈 하나(notify.assign)로 골랐고, 그 모듈은 **역할을 보지 않아**
+   * 특장사·영업 계정에 켜 두면 고객 이름·실구매가가 담긴 메일을 받았다. 이제 자리로 정한다.
    */
-  it('🔴 관리자가 아닌 계정은 토글을 켜도 받지 않는다 — 특장사·영업', () => {
-    for (const role of ['MAKER', 'SALES']) {
-      expect(isAssignRecipient(user({ role }), [ac('user', 'a@x.com', true)]), role).toBe(false);
-      expect(isAssignRecipient(user({ role }), [ac('role', role, true)]), role).toBe(false);
+  it('🔴 제작 배정 필요 — 영업관리·PM·생산관리·마스터', () => {
+    expect(NOTIFY_TOPIC_BY_CODE['assign.maker']!.presets).toEqual(['sales_mgr', 'pm', 'prod_mgr', 'master']);
+    expect(NOTIFY_TOPIC_BY_CODE['assign.maker']!.extra).toEqual([]);
+  });
+
+  it('🔴 영업 배정 필요 — 영업관리·마스터', () => {
+    expect(NOTIFY_TOPIC_BY_CODE['assign.sales']!.presets).toEqual(['sales_mgr', 'master']);
+  });
+
+  it('🔴 경영관리는 배정 알림을 받지 않는다 — 보는 자리이지 배정하는 자리가 아니다', () => {
+    for (const code of ['assign.maker', 'assign.sales', 'assign.request', 'assign.reject', 'assign.cancel']) {
+      expect(NOTIFY_TOPIC_BY_CODE[code]!.presets, code).not.toContain('exec');
     }
   });
 
-  it('🔴 겸직(특장사+관리자)은 받는다 — 역할 하나라도 관리자면 관리자다', () => {
-    expect(isAssignRecipient(user({ role: 'MAKER', extra_roles: ['ADMIN'] }), [ac('user', 'a@x.com', true)])).toBe(true);
+  it('🔴 특장사·영업 계정은 자리가 없으면 관리자 알림을 받지 않는다 — 프리셋 목록에 역할이 없다', () => {
+    const all = Object.values(NOTIFY_TOPIC_BY_CODE).flatMap(t => t.presets);
+    expect(all).not.toContain('SALES');
+    expect(all).not.toContain('MAKER');
   });
 });
 
@@ -109,15 +86,17 @@ describe('알림을 내는 자리', () => {
 describe('알림 내용', () => {
   const NOTIFY = read('backend/src/services/notify.ts');
 
-  it('메일과 앱 알림을 함께 보낸다', () => {
+  it('메일과 앱 알림을 함께 보내고, 받는 사람은 자리(프리셋)가 정한다', () => {
     expect(NOTIFY).toContain('pushNotify');
-    expect(NOTIFY).toContain('activeAdmins');
+    expect(NOTIFY).toContain("topicRecipients(kind === 'maker' ? 'assign.maker' : 'assign.sales')");
+    // 옛 기능모듈 수신자 판정은 걷어냈다 — 역할을 보지 않아 특장사에게도 갔다
+    expect(NOTIFY).not.toContain('adminRecipients(');
   });
 
-  it('🔴 메일 받을 사람이 아무도 없어도 앱 알림은 나간다 — 기능모듈은 메일만 정한다(2026-09-14)', () => {
+  it('🔴 메일 받을 사람이 아무도 없어도 앱 알림은 나간다', () => {
     const fn = NOTIFY.slice(NOTIFY.indexOf('export async function notifyAssignNeeded'));
     const push = fn.indexOf('pushNotify');
-    const mailGate = fn.indexOf('const to = await adminRecipients()');
+    const mailGate = fn.indexOf('if (to.length === 0)');
     expect(push, '앱 알림이 없다').toBeGreaterThan(0);
     expect(push, '메일 받는 사람 확인(없으면 return)이 앱 알림보다 앞에 있다').toBeLessThan(mailGate);
   });

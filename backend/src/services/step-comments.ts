@@ -9,8 +9,8 @@
  * (사용자 × 주문 × 단계)로 따로 저장한다.
  */
 import { prisma } from '../lib/prisma.js';
-import { notify, appRecipients } from './push.js';
-import { adminRecipients } from './notify.js';
+import { notify } from './push.js';
+import { topicRecipients } from './notify-targets.js';
 
 /** 한 번에 쓸 수 있는 길이 — DB 컬럼(VARCHAR 2000)과 같은 값이어야 한다 */
 export const COMMENT_MAX = 2000;
@@ -229,46 +229,22 @@ async function notifyOthers(
      */
     const org = order.maker_org_id ?? order.rejected_by_org;
 
-    const [makers, participants, admins] = await Promise.all([
-      org
-        ? prisma.user.findMany({
-            where: { org_code: org, active: true, status: 'active' },
-            select: { email: true },
-          })
-        : Promise.resolve([] as { email: string }[]),
-      prisma.orderStepComment.findMany({
-        /* 이 스레드에 글을 쓴 사람 — 단, **같은 특장사와의 대화** 안에서만. 앞 특장사 사람이 울리면 안 된다 */
-        where: { order_id: args.orderId, step_code: args.stepCode, ...ofOrg(org) },
-        select: { author: true },
-        distinct: ['author'],
-      }),
-      adminRecipients(),
-    ]);
+    const participants = await prisma.orderStepComment.findMany({
+      /* 이 스레드에 글을 쓴 사람 — 단, **같은 특장사와의 대화** 안에서만. 앞 특장사 사람이 울리면 안 된다 */
+      where: { order_id: args.orderId, step_code: args.stepCode, ...ofOrg(org) },
+      select: { author: true },
+      distinct: ['author'],
+    });
 
     /*
-     * 「관리자 쪽」 받는 사람은 **정말 관리자인 계정만** 남긴다.
-     *
-     * ⚠️ `adminRecipients` 는 「배정 알림」 기능모듈만 보고 역할은 보지 않는다. 특장사 계정에
-     *    그 모듈이 켜져 있으면 **다른 특장사와의 대화 알림**까지 받게 된다 — 대화를 특장사별로
-     *    가른 뜻이 알림에서 샌다(시험에서 실제로 새는 것을 봤다).
+     * 받는 사람 = 배정된(또는 거부한) 특장사 조직 + 이 대화에 쓴 사람 + **자리로 정한 관리자**
+     * (단계 대화는 PM·생산관리·마스터 — 2026-09-16). 쓴 사람 자신은 뺀다.
      */
-    const realAdmins = admins.length
-      ? (await prisma.user.findMany({
-          where: {
-            email: { in: admins },
-            OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }, { is_master: true }],
-          },
-          select: { email: true },
-        })).map(u => u.email)
-      : [];
-
-    const candidates = [...new Set([
-      ...makers.map((m) => m.email),
-      ...participants.map((p) => p.author),
-      ...realAdmins,
-    ])].filter((e) => e !== args.author);
-    // 활성 계정만 — 푸시는 그 기기가 알림을 허용했을 때만 뜬다(알림함에는 늘 쌓인다)
-    const to = await appRecipients(candidates);
+    const to = await topicRecipients('order.step_chat', {
+      makerOrg: org,
+      thread: participants.map(p => p.author),
+      actor: args.author,
+    });
     if (to.length === 0) return;
 
     const who = args.authorName ?? args.author;

@@ -9,7 +9,7 @@ import { Router } from 'express';
 import { visibilityWhere, viewOf } from '../lib/visibility.js';
 import { SENT_CONTRACT_FILTER, canHideAnything } from '../lib/hide-rules.js';
 import type { Request } from 'express';
-import { rbac } from '../middleware/rbac.js';
+import { rbac, requirePermission } from '../middleware/rbac.js';
 import { prisma } from '../lib/prisma.js';
 import { findCustomerByKey, hasMasterKey } from '../services/customer-master.js';
 import { digitsOnly, lookupWarpCustomer } from '../services/warp-crm.js';
@@ -62,7 +62,7 @@ customersRouter.get('/warp-lookup', rbac('SALES', 'ADMIN'), async (req: Request,
  * 고객 정리용 목록. 견적 수·WARP 연결 여부를 함께 준다 —
  * **무엇을 숨겨도 되는지** 판단하려면 이 둘이 필요하다.
  */
-customersRouter.get('/', rbac('ADMIN'), async (req: Request, res): Promise<void> => {
+customersRouter.get('/', rbac('ADMIN'), requirePermission('customer.view'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const { view } = req.query as Record<string, string | undefined>;
   try {

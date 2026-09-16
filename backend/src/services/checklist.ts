@@ -1,7 +1,8 @@
 import { prisma } from '../lib/prisma.js';
 import { STEP_BY_CODE, checklistPasses, checklistActorOf } from '@buildup-ev/shared/process';
 import { ADDON_BY_CODE } from '@buildup-ev/shared/process/addon';
-import { notify, appRecipients } from './push.js';
+import { notify } from './push.js';
+import { topicRecipients } from './notify-targets.js';
 
 /**
  * PDI 체크리스트 — **서식은 데이터, 규칙은 코드.**
@@ -250,11 +251,8 @@ export async function checklistGate(orderId: number, stepCode: string): Promise<
 export async function notifyChecklistSubmitted(orderId: number, stepCode: string, by: string): Promise<void> {
   if (!prisma) return;
   const label = STEP_BY_CODE[stepCode]?.label ?? ADDON_BY_CODE[stepCode]?.label ?? stepCode;
-  const admins = await prisma.user.findMany({
-    where: { active: true, status: 'active', OR: [{ role: 'ADMIN' }, { extra_roles: { has: 'ADMIN' } }] },
-    select: { email: true },
-  });
-  const to = (await appRecipients(admins.map(a => a.email))).filter(e => e !== by);
+  // 받는 사람은 자리로 — 체크리스트 제출은 PM·생산관리·마스터(2026-09-16). 적은 본인은 뺀다
+  const to = await topicRecipients('checklist.submitted', { actor: by });
   if (to.length === 0) return;
   notify(to, {
     title: `주문 #${orderId} 체크리스트 제출`,

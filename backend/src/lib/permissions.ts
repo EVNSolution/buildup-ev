@@ -1,4 +1,5 @@
 import type { Role } from '@buildup-ev/shared/types';
+import { PRESET_BY_CODE } from '@buildup-ev/shared/rbac/presets';
 
 interface AcRecord {
   subject_type: string;
@@ -27,7 +28,7 @@ export function mergePermissions(
   roles: Role | Role[],
   email: string,
   acs: AcRecord[],
-  subject?: { is_master?: boolean },
+  subject?: { is_master?: boolean; preset?: string | null },
 ): string[] {
   const list = Array.isArray(roles) ? roles : [roles];
   const map = new Map<string, boolean>();
@@ -36,10 +37,34 @@ export function mergePermissions(
     // 한 역할이라도 켜 두었으면 켜진 것 — 끈 역할이 뒤에 와도 되돌리지 않는다
     if (ac.enabled || !map.has(ac.module_code)) map.set(ac.module_code, ac.enabled);
   }
+  /*
+   * **역할 프리셋**(2026-09-16) — 관리자 안을 하는 일로 나눈 묶음. 역할 기본값을 **덮는다.**
+   *
+   * 프리셋에 없는 모듈은 **끈다** — 그래야 「영업관리자에게 옵션DB가 보인다」가 사라진다.
+   * 프리셋이 없는 계정(null)은 예전 그대로 역할 기본값을 쓴다(지정하기 전에는 권한이 바뀌지 않는다).
+   * 계정별 토글은 이 뒤에 와서 마지막 말을 한다 — 「프리셋을 쓰되 이 계정만 예외」가 된다.
+   */
+  const preset = subject?.preset ? PRESET_BY_CODE[subject.preset] : undefined;
+  if (preset) {
+    const on = new Set(preset.modules);
+    for (const code of map.keys()) map.set(code, on.has(code));
+    for (const code of on) map.set(code, true);
+  }
   for (const ac of acs) {
     if (ac.subject_type === 'user' && ac.subject_ref === email) map.set(ac.module_code, ac.enabled);
   }
   const codes = [...map.entries()].filter(([, v]) => v).map(([k]) => k);
+
+  /*
+   * **옛 「옵션DB·무게상수 관리」(basedata.manage)는 우산이다.**
+   * 기준데이터를 프리셋에 맞게 다섯으로 쪼갰는데(무게상수·치수·옵션DB·특장사 단가·공휴일),
+   * 이미 우산만 켜 둔 계정이 그날로 다섯 화면을 전부 잃으면 안 된다 — 우산이 켜져 있으면 다섯도 켜진 것으로 본다.
+   */
+  if (codes.includes('basedata.manage')) {
+    for (const c of ['basedata.weights', 'basedata.dims', 'basedata.optiondb', 'basedata.makerprice', 'basedata.holiday']) {
+      if (!codes.includes(c)) codes.push(c);
+    }
+  }
 
   /*
    * **마스터는 `account.manage` 를 잃지 않는다.**

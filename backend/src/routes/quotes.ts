@@ -24,7 +24,8 @@ import type { Prisma, QuoteStatus } from '@prisma/client';
 import { logQuoteChanges, listQuoteChanges } from '../services/quote-history.js';
 import { setQuoteStatus } from '../services/quote-status.js';
 import { notifyAssignNeeded } from '../services/notify.js';
-import { notify, appRecipients } from '../services/push.js';
+import { notify } from '../services/push.js';
+import { topicRecipients } from '../services/notify-targets.js';
 import { pushWarpDealEvent } from '../services/warp-crm.js';
 import { nextQuoteNo } from '../services/quote-no.js';
 import { archiveQuoteSnapshot } from '../services/quote-snapshot.js';
@@ -1186,7 +1187,8 @@ quotesRouter.patch('/:id/assign-reject', rbac('ADMIN'), requirePermission('order
     // 담당 영업에게 — 알림함·푸시(기다리지 않는다)
     if (quote.sales_user_id) {
       const salesTo = quote.sales_user_id;
-      void appRecipients([salesTo]).then(to => notify(to, {
+      // 담당 영업 + 자리로 정한 관리자(영업관리·PM·마스터). 거부한 본인은 뺀다
+      void topicRecipients('assign.reject', { salesOwner: salesTo, actor: who }).then(to => notify(to, {
         title: `배정 거부 — ${quote.quote_no ?? `#${id}`}`,
         body: [quote.customer?.name, `사유: ${reason}`].filter(Boolean).join(' · '),
         url: '/sales?tab=list',
@@ -1782,7 +1784,7 @@ quotesRouter.get('/:id', rbac('SALES', 'ADMIN'), async (req: Request, res): Prom
  *    「이 옵션은 누가 하기로 했더라」를 표에서 답할 수 없게 된다.
  *    고칠 수 있는 것은 **분류(work_by)·단가·품목명·단위·수량**뿐이다.
  */
-quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('basedata.makerprice'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const orgId = String(req.params['orgId'] ?? '');
   try {
@@ -1805,7 +1807,7 @@ quotesRouter.get('/maker-prices/:orgId', rbac('ADMIN'), requirePermission('based
   }
 });
 
-quotesRouter.patch('/maker-prices/:id', rbac('ADMIN'), requirePermission('basedata.manage'), async (req: Request, res): Promise<void> => {
+quotesRouter.patch('/maker-prices/:id', rbac('ADMIN'), requirePermission('basedata.makerprice'), async (req: Request, res): Promise<void> => {
   if (!prisma) { res.status(503).json({ error: { code: 'DB_UNAVAILABLE', message: 'DB 연결 필요' } }); return; }
   const id = Number(req.params['id']);
   if (isNaN(id)) { res.status(400).json({ error: { code: 'BAD_INPUT', message: '유효하지 않은 id' } }); return; }
