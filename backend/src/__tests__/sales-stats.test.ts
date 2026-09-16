@@ -154,17 +154,23 @@ describe.runIf(live)('영업 성과 집계', () => {
     const A = await user();
     const B = await user();
     const c = await customer('성과시험_공동고객');
-    const totalCustomers = async () => (await salesStatsFull({})).total.customers.confirmed;
+    /*
+     * 합계는 **DB 전체**를 센다 — 다른 시험 파일이 같은 순간 견적을 만들면 숫자가 흔들린다.
+     * 그래서 이 시험만 쓰는 **먼 날짜**로 창을 좁힌다(그 날 확정된 건은 여기서 만든 둘뿐이다).
+     */
+    const on = day('2031-03-07');
+    const win = { from: new Date('2031-03-07T00:00:00Z'), to: new Date('2031-03-07T23:59:59Z') };
+    const totalCustomers = async () => (await salesStatsFull(win)).total.customers.confirmed;
 
-    const before = await totalCustomers();
-    await quote({ user: A, customerId: c, status: 'confirmed', log: [['confirmed', day('2026-09-07')]] });
-    expect(await totalCustomers(), '새 고객 한 명이 늘어야 한다').toBe(before + 1);
+    expect(await totalCustomers(), '이 창에는 아직 아무것도 없어야 한다').toBe(0);
+    await quote({ user: A, customerId: c, status: 'confirmed', log: [['confirmed', on]] });
+    expect(await totalCustomers(), '새 고객 한 명이 늘어야 한다').toBe(1);
 
     // 같은 고객을 다른 영업도 맡았다 — 계정별로는 각자 1명이지만 **합계는 그대로 1명**이다
-    await quote({ user: B, customerId: c, status: 'confirmed', log: [['confirmed', day('2026-09-07')]] });
-    expect(await totalCustomers(), '합계를 더해서 만들면 한 사람이 두 명이 된다').toBe(before + 1);
+    await quote({ user: B, customerId: c, status: 'confirmed', log: [['confirmed', on]] });
+    expect(await totalCustomers(), '합계를 더해서 만들면 한 사람이 두 명이 된다').toBe(1);
 
-    const { rows } = await salesStatsFull({});
+    const { rows } = await salesStatsFull(win);
     const mine = rows.filter(r => r.sales_user_id === A || r.sales_user_id === B);
     expect(mine.map(r => r.customers.confirmed), '계정별로는 각자 한 명').toEqual([1, 1]);
   }, 30_000);

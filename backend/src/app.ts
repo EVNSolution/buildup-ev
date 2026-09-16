@@ -14,6 +14,7 @@ import { docsRouter } from './routes/docs.js';
 import { pushRouter } from './routes/push.js';
 import { authRouter } from './routes/auth.js';
 import { devAuthRouter, devAutoLoginEnabled } from './routes/dev-auth.js';
+import { pnlRouter } from './routes/pnl.js';
 import { usersRouter } from './routes/users.js';
 import { accessControlRouter } from './routes/access-control.js';
 import { weightConstantsRouter } from './routes/weight-constants.js';
@@ -105,7 +106,8 @@ export function createApp() {
   app.use('/api/v1/notifications', notificationsRouter);
   app.use('/api/v1/checklists', checklistsRouter);
   app.use('/api/v1/option-db', optionDbRouter); // 기준데이터 CRUD + 감사이력 (ADMIN 전용)
-  app.use('/api/v1/stats', statsRouter);        // 영업 성과 (SALES=본인만 / ADMIN=전체)
+  app.use('/api/v1/stats', statsRouter);
+  app.use('/api/v1/pnl', pnlRouter);          // 차량 판매건별 손익 (경영관리)
   app.use('/api/v1/feature-modules', featureModulesRouter);
   app.use('/api/v1/models', modelsRouter);
   app.use('/api/v1/quotes', quotesRouter);

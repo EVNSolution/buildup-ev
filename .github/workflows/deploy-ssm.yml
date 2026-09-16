@@ -83,6 +83,8 @@ jobs:
           npm run --workspace=backend test -- \
             src/__tests__/permissions.test.ts \
             src/__tests__/permission-modules.test.ts \
+            src/__tests__/dev-auto-login.test.ts \
+            src/__tests__/my-page-access.test.ts \
             src/__tests__/body-only-required.test.ts \
             src/__tests__/quote-template.test.ts \
             src/__tests__/doc-archive.test.ts \

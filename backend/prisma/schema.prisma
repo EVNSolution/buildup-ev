@@ -48,28 +48,28 @@ enum UserStatus {
 }
 
 model User {
-  email          String     @id @db.VarChar(120)
-  org_code       String     @db.VarChar(30)
+  email                String     @id @db.VarChar(120)
+  org_code             String     @db.VarChar(30)
   /// 주 역할 — 로그인 후 첫 화면·배지의 기준(하나뿐)
-  role           Role
+  role                 Role
   /// 겸직 — 주 역할 외에 더 가진 역할. 권한은 역할들의 합집합으로 본다.
-  extra_roles    Role[]     @default([])
-  name           String     @db.VarChar(60)
-  phone          String?    @db.VarChar(20)
-  status         UserStatus @default(invited)
-  must_change_pw Boolean    @default(true)
-  invited_by     String?    @db.VarChar(120)
-  active         Boolean    @default(true)
-  created_at     DateTime   @default(now())
-  password_hash  String?    @db.VarChar(80)
-  login_attempts Int        @default(0)
-  locked_until   DateTime?
+  extra_roles          Role[]     @default([])
+  name                 String     @db.VarChar(60)
+  phone                String?    @db.VarChar(20)
+  status               UserStatus @default(invited)
+  must_change_pw       Boolean    @default(true)
+  invited_by           String?    @db.VarChar(120)
+  active               Boolean    @default(true)
+  created_at           DateTime   @default(now())
+  password_hash        String?    @db.VarChar(80)
+  login_attempts       Int        @default(0)
+  locked_until         DateTime?
   /// 이 시각 이전에 발급된 로그인 토큰은 무효 — 비밀번호 변경·관리자 초기화 때 찍는다
   sessions_valid_after DateTime?
   // DEV: master surface switcher — true인 계정만 surface 전환 토글 표시 (테스트용)
-  is_master      Boolean    @default(false)
+  is_master            Boolean    @default(false)
   /// 역할 프리셋 — 관리자 안의 자리(영업관리·PM·생산관리·경영관리·마스터). 비어 있으면 역할 기본값 그대로(shared/rbac/presets)
-  admin_preset   String?    @db.VarChar(20)
+  admin_preset         String?    @db.VarChar(20)
 
   org          Org        @relation(fields: [org_code], references: [code])
   inviter      User?      @relation("Invites", fields: [invited_by], references: [email])
@@ -462,6 +462,52 @@ model Customer {
 ///   assigned   배정완료 — 관리자가 특장사 배정
 ///   ordered    주문진행 — 특장사가 수락
 ///   completed  완료     — 특장사가 모든 공정 완료
+/// **차량 판매건별 손익**(2026-09-16) — 경영관리가 월 단위로 적고 보는 표.
+/// 지금 쓰는 엑셀(차량판매_손익_양식)을 그대로 옮겼다. 달을 가르는 기준은 **세금계산서 발행일**이다.
+///
+/// ⚠️ VAT·공급대가·입금 차액은 **칸이 없다.** 엑셀과 같은 식으로 읽을 때 낸다 —
+///    적어 두면 공급가액을 고쳤을 때 둘이 어긋나고, 어느 쪽이 맞는지 알 수 없어진다.
+model OrderPnl {
+  id       Int @id @default(autoincrement())
+  /// 판매 한 건 = 견적 하나
+  quote_id Int @unique
+
+  /// 세금계산서 발행일 — **이 날짜가 몇 월 표에 들어갈지를 정한다.** 비어 있으면 「입력 필요」에 남는다
+  invoice_on DateTime? @db.Date
+
+  /// 사업자명 — 고객명과 따로 적는다. 적는 건도 있고 안 적는 건도 있어 비워 둘 수 있다
+  biz_name      String? @db.VarChar(120)
+  /// 공급가액(VAT 별도)·계약금 — **계약서에서 가져와 굳힌다.** 화면에서 고치지 않는다(2026-09-16 지시)
+  supply_amount BigInt  @default(0)
+  deposit       BigInt  @default(0)
+  /// 캐피탈 — 경영관리가 직접 적는다
+  capital       BigInt  @default(0)
+
+  deposit_paid_on DateTime? @db.Date
+  capital_paid_on DateTime? @db.Date
+
+  /// 원가 — **한 칸이다.** 별도 시스템이 원가를 하나로 내려 줄 자리(구성 중). 그때까지는 손으로 적는다
+  cost        BigInt @default(0)
+  /// 'manual' = 손으로 적었다 / 'system' = 원가 시스템이 채웠다. 자동으로 채울 때 손으로 적은 값을 덮지 않기 위해 남긴다
+  cost_source String @default("manual") @db.VarChar(20)
+
+  /// 비고 — 엑셀의 「비고 (사업자등록증 확인 필요)」 칸
+  memo String? @db.VarChar(500)
+
+  /// 삭제 — **줄을 지우지 않는다.** 표에 회색으로 남기고 사유를 위에 적는다(2026-09-16 지시). 합계에서는 빠진다
+  voided_at   DateTime?
+  voided_by   String?   @db.VarChar(120)
+  void_reason String?   @db.VarChar(300)
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @default(now()) @updatedAt
+  updated_by  String?   @db.VarChar(120)
+
+  quote Quote @relation(fields: [quote_id], references: [id])
+
+  @@index([invoice_on])
+  @@map("order_pnl")
+}
+
 enum QuoteStatus {
   draft
   confirmed
@@ -473,40 +519,40 @@ enum QuoteStatus {
 }
 
 model Quote {
-  id                Int         @id @default(autoincrement())
-  quote_no          String?     @unique @db.VarChar(10)
-  customer_id       Int?
-  model_code        String      @db.VarChar(30)
-  selections        Json        @default("{}")
-  inputs            Json        @default("{}") // 총견적서 입력시트 스냅샷(구분·소상공인·지역·면세·선수금비율·할부개월수·영업용번호판 등)
-  supply_price      Int?
-  final_price       Int?
-  status            QuoteStatus @default(draft)
+  id                   Int         @id @default(autoincrement())
+  quote_no             String?     @unique @db.VarChar(10)
+  customer_id          Int?
+  model_code           String      @db.VarChar(30)
+  selections           Json        @default("{}")
+  inputs               Json        @default("{}") // 총견적서 입력시트 스냅샷(구분·소상공인·지역·면세·선수금비율·할부개월수·영업용번호판 등)
+  supply_price         Int?
+  final_price          Int?
+  status               QuoteStatus @default(draft)
   /// sales = 영업 작성 상담 견적 / public = 고객이 공개 화면에서 직접 접수한 문의
-  source            String      @default("sales") @db.VarChar(10)
-  sales_user_id     String?     @db.VarChar(120)
-  org_id            String?     @db.VarChar(30)
+  source               String      @default("sales") @db.VarChar(10)
+  sales_user_id        String?     @db.VarChar(120)
+  org_id               String?     @db.VarChar(30)
   /// 담당 영업이 배정을 **수락한** 시각. NULL = 수락 대기(또는 배정 전). 재배정 시 NULL 로 돌린다.
-  sales_accepted_at DateTime?
+  sales_accepted_at    DateTime?
   /// 「배정 요청」 — 서명 완료 뒤 영업이 서명본을 확인하고 누른 시각. 이 값이 있어야 관리자가 제작 배정한다.
   /// 배정 거부·주문 삭제로 되돌아온 건은 이미 요청된 것으로 두어 바로 재배정한다.
-  assign_requested_at DateTime?
-  assign_requested_by String?   @db.VarChar(120)
+  assign_requested_at  DateTime?
+  assign_requested_by  String?     @db.VarChar(120)
   /// 「배정 거부」 — 관리자가 배정 요청을 사유와 함께 돌려보냈다. 영업이 다시 요청하면 비운다(이력은 quote_change_log)
   assign_rejected_at   DateTime?
-  assign_rejected_by   String?   @db.VarChar(120)
-  assign_reject_reason String?   @db.VarChar(500)
+  assign_rejected_by   String?     @db.VarChar(120)
+  assign_reject_reason String?     @db.VarChar(500)
   /// 숨김 — **지우지 않고 화면에서만 감춘다.** null 이면 보인다.
   /// ⚠️ 임시저장(draft)만 숨길 수 있다. 확정 이상은 퍼널 통계가 왜곡되고
   ///    진행 중인 거래가 화면에서 사라진다. 계약이 붙어 있으면 무조건 거부.
-  hidden_at         DateTime?
-  hidden_by         String?     @db.VarChar(120)
-  created_at        DateTime    @default(now())
+  hidden_at            DateTime?
+  hidden_by            String?     @db.VarChar(120)
+  created_at           DateTime    @default(now())
   /// 마지막으로 고친 시각 — **견적서에 찍히는 날짜**가 이 값이다.
   /// 옵션·고객정보·입력을 고치면 그 날짜로 다시 찍혀야 한다. 예전엔 created_at 을 찍어
   /// 몇 번을 고쳐도 처음 만든 날이 나갔다(제보).
   /// Prisma 가 update 마다 자동으로 채운다(@updatedAt).
-  updated_at        DateTime    @default(now()) @updatedAt
+  updated_at           DateTime    @default(now()) @updatedAt
 
   // 참고용 메일 발송(견적서·계약서 PDF 첨부) 이력 — 전자서명(purchase_contract)과는 별개 채널.
   // 관리자 견적 목록에서 '보냈는지/언제/누구에게' 를 확인하는 용도. 마지막 발송 기준.
@@ -529,6 +575,7 @@ model Quote {
   contracts   PurchaseContract[]
   email_logs  QuoteEmailLog[]
   po_draft    PoDraft?
+  pnl         OrderPnl?
 
   @@map("quote")
 }
@@ -638,15 +685,15 @@ model PoDraft {
 
 // 주문 상태 순서(앱 레벨 강제): 제작착수→구조변경→튜닝신청→안전검사→튜닝승인→인도완료
 model Order {
-  id                     Int              @id @default(autoincrement())
-  quote_id               Int              @unique
-  maker_org_id           String?          @db.VarChar(30)
-  assigned_at            DateTime?
+  id                      Int              @id @default(autoincrement())
+  quote_id                Int              @unique
+  maker_org_id            String?          @db.VarChar(30)
+  assigned_at             DateTime?
   /// 특장사가 수락하며 약속한 납기일. 발주일로부터 15영업일 이내(발주서 특이사항).
   /// 1단계에서 order_step[po_accepted].planned_at 으로 옮긴다.
   /// 이 발주의 납기 한도(영업일). **배정할 때 얼려 둔다** —
   /// 상수를 바꿔도 이미 나간 발주서의 「N일 이내」 문구가 소급해 바뀌지 않는다.
-  due_limit_days         Int?
+  due_limit_days          Int?
   /// **차량이 언제 도착하는지** — 관리자가 특장사에게 알려 주는 날짜.
   ///
   /// 특장사가 완료 처리하는 「차량 도착」 단계와 다르다. 이건 **예정**이고,
@@ -656,25 +703,25 @@ model Order {
   /// **마지막으로 거부한 특장사.** 거부하면 배정(`maker_org_id`)이 풀리는데, 그 특장사가
   /// 「거부됨」으로 이 건을 계속 보고 관리자와 이야기할 수 있어야 한다(날짜를 맞춰 다시
   /// 배정하려면 대화가 필요하다). 다른 특장사로 재배정되면 그 특장사에게서 사라진다.
-  rejected_by_org        String?          @db.VarChar(30)
-  car_arrival_planned_at DateTime?        @db.Date
-  car_arrival_set_by     String?          @db.VarChar(120)
-  car_arrival_set_at     DateTime?
-  delivery_due           DateTime?        @db.Date
+  rejected_by_org         String?          @db.VarChar(30)
+  car_arrival_planned_at  DateTime?        @db.Date
+  car_arrival_set_by      String?          @db.VarChar(120)
+  car_arrival_set_at      DateTime?
+  delivery_due            DateTime?        @db.Date
   /// 특장사가 **수락하며 처음 약속한** 납기일 — 관리자가 처음 바꿀 때 옮겨 적는다(안 바뀐 주문은 비어 있다)
-  delivery_due_original   DateTime?       @db.Date
+  delivery_due_original   DateTime?        @db.Date
   /// 관리자가 납기일을 마지막으로 바꾼 사람·시각
-  delivery_due_changed_by String?         @db.VarChar(120)
+  delivery_due_changed_by String?          @db.VarChar(120)
   delivery_due_changed_at DateTime?
   /// 발주 수락 시각 — 납기 한도의 기산점
-  accepted_at            DateTime?
-  created_at             DateTime         @default(now())
+  accepted_at             DateTime?
+  created_at              DateTime         @default(now())
   // 구조변경 서류 바인딩용 차량 정보 (특장사 입력)
-  vehicle_info           Json?
-  due_notices            OrderDueNotice[]
+  vehicle_info            Json?
+  due_notices             OrderDueNotice[]
   /// 부가작업(공장 출고 뒤 우리 쪽 작업) — 특장사에게는 싣지 않는다
-  addon_steps            OrderAddonStep[]
-  addon                  OrderAddon?
+  addon_steps             OrderAddonStep[]
+  addon                   OrderAddon?
 
   /// 특장사가 거부한 시각. 거부하면 배정이 풀려 다른 특장사에 다시 맡길 수 있다.
   rejected_at   DateTime?
