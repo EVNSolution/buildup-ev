@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { t, tf } from '../i18n'
 import { fetchPnl, savePnl, voidPnl, unvoidPnl, type PnlRow, type PnlPending, type PnlPatch } from '../api/pnl'
-import { deriveP, sumP, monthOf } from '@shared/finance/pnl'
+import { deriveP, sumP, monthOf, fromGross, vatOverrideFor } from '@shared/finance/pnl'
 import { usePermission } from './PermGate'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { useEscapeClose } from '../lib/escClose'
@@ -87,7 +87,8 @@ export function PnlTab() {
         ? {
           ...p, supply_default: saved.supply_amount, deposit_default: saved.deposit,
           draft: {
-            biz_name: saved.biz_name, capital: saved.capital, cost: saved.cost, memo: saved.memo,
+            biz_name: saved.biz_name, vat_override: saved.vat_override,
+            capital: saved.capital, cost: saved.cost, memo: saved.memo,
             deposit_paid_on: saved.deposit_paid_on, capital_paid_on: saved.capital_paid_on,
           },
         }
@@ -270,6 +271,10 @@ interface Draft {
   invoice_on: string
   /** 사업자명 — 적을 수도, 안 적을 수도 있다 */
   biz_name: string
+  /** 자동 기입(계약서) — 고칠 수 있다 */
+  supply_amount: number
+  deposit: number
+  vat_override: number | null
   capital: number
   deposit_paid_on: string
   capital_paid_on: string
@@ -295,19 +300,20 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile, onDraft }
   const [d, setD] = useState<Draft>(() => ({
     invoice_on: '',
     biz_name: item.draft?.biz_name ?? '',
+    supply_amount: item.supply_default ?? 0,
+    deposit: item.deposit_default,
+    vat_override: item.draft?.vat_override ?? null,
     capital: item.draft?.capital ?? 0,
     deposit_paid_on: item.draft?.deposit_paid_on ?? '',
     capital_paid_on: item.draft?.capital_paid_on ?? '',
     cost: item.draft?.cost ?? 0,
     memo: item.draft?.memo ?? '',
   }))
-  /** 계약서에서 오는 값 — 보여만 준다 */
-  const fixed = { supply_amount: item.supply_default ?? 0, deposit: item.deposit_default }
   const [busy, setBusy] = useState<'draft' | 'file' | null>(null)
   const [err, setErr] = useState('')
   const [saved, setSaved] = useState(false)
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => { setSaved(false); setD(x => ({ ...x, [k]: v })) }
-  const calc = deriveP({ ...fixed, capital: d.capital, cost: d.cost })
+  const calc = deriveP(d)
 
   /**
    * **임시저장**과 **등록**은 적는 내용이 같고 발행일만 다르다.
@@ -322,6 +328,9 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile, onDraft }
       const patch = {
         invoice_on: d.invoice_on || null,
         biz_name: d.biz_name.trim() || null,
+        supply_amount: d.supply_amount,
+        deposit: d.deposit,
+        vat_override: d.vat_override,
         capital: d.capital,
         deposit_paid_on: d.deposit_paid_on || null,
         capital_paid_on: d.capital_paid_on || null,
@@ -364,11 +373,28 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile, onDraft }
               <input style={s.textInput} value={d.biz_name} maxLength={120} disabled={!canEdit || !!busy}
                 aria-label={t('사업자명')} onChange={e => set('biz_name', e.target.value)} />
             </Field>
-            <Field label={t('공급가액')}><span style={s.calc}>{won(fixed.supply_amount)}</span></Field>
-            <Field label={t('VAT')}><span style={s.calc}>{won(calc.vat)}</span></Field>
+            {/*
+              자동 기입(계약서) 칸 — **고칠 수 있다**(2026-09-17). 직접 적는 칸과는 **배경으로만** 가른다
+              (자동 = 배경 없음, 직접 = 흰 바탕). 공급가액을 바꾸면 VAT 는 식으로 돌아가 따라오고,
+              공급대가를 바꾸면 공급가액을 되짚는다 — 적은 공급대가가 한 원도 다르지 않게.
+            */}
+            <Field label={t('공급가액')}>
+              <MoneyField auto value={d.supply_amount} disabled={!canEdit || !!busy} label={t('공급가액')}
+                onChange={v => setD(x => ({ ...x, supply_amount: v, vat_override: null }))} />
+            </Field>
+            <Field label={t('VAT')}>
+              <MoneyField auto value={calc.vat} disabled={!canEdit || !!busy} label={t('VAT')}
+                onChange={v => set('vat_override', vatOverrideFor(d.supply_amount, v))} />
+            </Field>
 
-            <Field label={t('공급대가')}><span style={s.calcStrong}>{won(calc.gross)}</span></Field>
-            <Field label={t('계약금')}><span style={s.calc}>{won(fixed.deposit)}</span></Field>
+            <Field label={t('공급대가')}>
+              <MoneyField auto strong value={calc.gross} disabled={!canEdit || !!busy} label={t('공급대가')}
+                onChange={v => setD(x => ({ ...x, ...fromGross(v) }))} />
+            </Field>
+            <Field label={t('계약금')}>
+              <MoneyField auto value={d.deposit} disabled={!canEdit || !!busy} label={t('계약금')}
+                onChange={v => set('deposit', v)} />
+            </Field>
             <Field label={t('캐피탈')}>
               <MoneyField value={d.capital} disabled={!canEdit || !!busy} label={t('캐피탈')} onChange={v => set('capital', v)} />
             </Field>
@@ -430,12 +456,16 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile, onDraft }
  * 금액 칸(입력 중) — 치는 대로 값이 올라간다. 「입력 필요」의 셈(VAT·공급대가·수익)이
  * 타자에 맞춰 따라와야 다 적고 나서 맞는지 확인할 수 있다.
  */
-function MoneyField({ value, disabled, label, onChange }: {
+function MoneyField({ value, disabled, label, onChange, auto, strong }: {
   value: number; disabled?: boolean; label: string; onChange: (v: number) => void
+  /** 자동 기입 칸 — 배경을 걷는다(직접 적는 칸은 흰 바탕) */
+  auto?: boolean
+  strong?: boolean
 }) {
   return (
     <input
-      style={s.moneyInput} value={value ? value.toLocaleString('ko-KR') : ''} disabled={disabled}
+      style={{ ...(auto ? s.moneyAuto : s.moneyInput), ...(strong ? s.strongNum : {}) }}
+      value={value ? value.toLocaleString('ko-KR') : ''} disabled={disabled}
       inputMode="numeric" aria-label={label}
       onChange={e => onChange(Number(e.target.value.replace(/[^0-9]/g, '') || 0))}
     />
@@ -443,14 +473,18 @@ function MoneyField({ value, disabled, label, onChange }: {
 }
 
 /** 금액 칸 — 세 자리마다 쉼표로 보여 주고 숫자로 돌려준다. 칸을 벗어날 때 저장한다 */
-function MoneyCell({ value, disabled, label, dense, onSave }: {
+function MoneyCell({ value, disabled, label, dense, onSave, auto, strong }: {
   value: number; disabled?: boolean; label: string; dense?: boolean; onSave: (v: number) => void
+  /** 자동 기입 칸 — 배경을 걷는다(직접 적는 칸은 흰 바탕) */
+  auto?: boolean
+  strong?: boolean
 }) {
   const [draft, setDraft] = useState<string | null>(null)
   const shown = draft ?? (value ? value.toLocaleString('ko-KR') : '')
+  const base = dense ? (auto ? s.moneyCellAuto : s.moneyCell) : (auto ? s.moneyAuto : s.moneyInput)
   return (
     <input
-      style={{ ...(dense ? s.moneyCell : s.moneyInput), ...(disabled ? OFF : {}) }}
+      style={{ ...base, ...(strong ? s.strongNum : {}), ...(disabled ? OFF : {}) }}
       value={shown} disabled={disabled} inputMode="numeric" aria-label={label}
       onChange={e => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
       onBlur={() => {
@@ -607,10 +641,23 @@ function TableRow({ row, canEdit, onWrite, onVoid }: {
         <td style={s.td}>
           <DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} dense onSave={v => put({ invoice_on: v })} />
         </td>
-        <td style={s.tdCalcStrong}>{won(row.supply_amount)}</td>
-        <td style={s.tdCalc}>{won(d.vat)}</td>
-        <td style={s.tdCalcStrong}>{won(d.gross)}</td>
-        <td style={s.tdCalc}>{won(row.deposit)}</td>
+        {/* 자동 기입 칸 — 고칠 수 있다. 직접 적는 칸과는 배경으로만 가른다(자동 = 배경 없음) */}
+        <td style={s.td}>
+          <MoneyCell auto strong dense value={row.supply_amount} disabled={ro} label={t('공급가액')}
+            onSave={v => put({ supply_amount: v, vat_override: null })} />
+        </td>
+        <td style={s.td}>
+          <MoneyCell auto dense value={d.vat} disabled={ro} label={t('VAT')}
+            onSave={v => put({ vat_override: vatOverrideFor(row.supply_amount, v) })} />
+        </td>
+        <td style={s.td}>
+          <MoneyCell auto strong dense value={d.gross} disabled={ro} label={t('공급대가')}
+            onSave={v => put(fromGross(v))} />
+        </td>
+        <td style={s.td}>
+          <MoneyCell auto dense value={row.deposit} disabled={ro} label={t('계약금')}
+            onSave={v => put({ deposit: v })} />
+        </td>
         <td style={s.td}>
           <MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} dense onSave={v => put({ capital: v })} />
         </td>
@@ -755,11 +802,23 @@ function RowCard({ row, canEdit, onWrite, onVoid }: {
         <div style={s.fields}>
           <Field label={t('세금계산서 발행일')}><DateCell value={row.invoice_on} disabled={ro} label={t('세금계산서 발행일')} onSave={v => put({ invoice_on: v })} /></Field>
           <Field label={t('사업자명')}><TextCell value={row.biz_name} disabled={ro} label={t('사업자명')} onSave={v => put({ biz_name: v })} /></Field>
-          {/* 계약서에서 오는 값 — 보여만 준다 */}
-          <Field label={t('공급가액')}><span style={s.calcPlain}>{won(row.supply_amount)}</span></Field>
-          <Field label={t('VAT')}><span style={s.calcPlain}>{won(d.vat)}</span></Field>
-          <Field label={t('공급대가')}><span style={s.calcPlainStrong}>{won(d.gross)}</span></Field>
-          <Field label={t('계약금')}><span style={s.calcPlain}>{won(row.deposit)}</span></Field>
+          {/* 자동 기입 칸 — 고칠 수 있다(배경 없음 = 자동) */}
+          <Field label={t('공급가액')}>
+            <MoneyCell auto strong value={row.supply_amount} disabled={ro} label={t('공급가액')}
+              onSave={v => put({ supply_amount: v, vat_override: null })} />
+          </Field>
+          <Field label={t('VAT')}>
+            <MoneyCell auto value={d.vat} disabled={ro} label={t('VAT')}
+              onSave={v => put({ vat_override: vatOverrideFor(row.supply_amount, v) })} />
+          </Field>
+          <Field label={t('공급대가')}>
+            <MoneyCell auto strong value={d.gross} disabled={ro} label={t('공급대가')}
+              onSave={v => put(fromGross(v))} />
+          </Field>
+          <Field label={t('계약금')}>
+            <MoneyCell auto value={row.deposit} disabled={ro} label={t('계약금')}
+              onSave={v => put({ deposit: v })} />
+          </Field>
           <Field label={t('캐피탈')}><MoneyCell value={row.capital} disabled={ro} label={t('캐피탈')} onSave={v => put({ capital: v })} /></Field>
           <Field label={t('계약금 입금일')}><DateCell value={row.deposit_paid_on} disabled={ro} label={t('계약금 입금일')} onSave={v => put({ deposit_paid_on: v })} /></Field>
           <Field label={t('캐피탈 입금일')}><DateCell value={row.capital_paid_on} disabled={ro} label={t('캐피탈 입금일')} onSave={v => put({ capital_paid_on: v })} /></Field>
@@ -828,8 +887,17 @@ const CELL: React.CSSProperties = {
   ...CONTROL, height: 'var(--h-control-sm)', minHeight: 'var(--h-control-sm)',
   fontSize: 'var(--fs-label)', padding: '0 7px',
 }
+/**
+ * **자동 기입 칸의 바탕** — 앱의 카드 배경(`--card`)이다.
+ *
+ * 「입력 필요」 폼은 이 색 판 위에 있어 「배경 없음」으로 보이고, 흰 표·흰 카드 위에서도 같은 색으로 보인다.
+ * `transparent` 로 두면 흰 표 위에서는 흰색이 되어 **직접 적는 칸과 구분이 사라진다**(표에서 실제로 그랬다).
+ * 직접 적는 칸은 흰 바탕 — 둘을 가르는 것은 **바탕 하나뿐**이다.
+ */
+const AUTO_BG = 'var(--card)'
+
 /** 못 적는 칸 — 테두리는 그대로 두고 흐리게. 적을 수 있는 칸처럼 보이면 눌러 보다가 헛수고한다 */
-const OFF: React.CSSProperties = { background: 'var(--soft, #F7F7F4)', color: 'var(--muted)', cursor: 'default' }
+const OFF: React.CSSProperties = { background: 'var(--card)', color: 'var(--muted)', cursor: 'default' }
 
 /**
  * 계산해서 보여만 주는 값 — 적는 칸과 **같은 자리**를 차지한다.
@@ -895,7 +963,7 @@ const s: Record<string, React.CSSProperties> = {
   // 적는 중에는 그 건만 — 묶을 높이가 없다(폼이 잘리면 안 된다)
   pendListOne: { display: 'flex', flexDirection: 'column', gap: 2 },
   pendItem: { borderTop: 'var(--hairline)' },
-  pendItemOpen: { borderTop: 'var(--hairline)', background: 'var(--soft, #FAFAF7)', borderRadius: 'var(--r-sm)', padding: '2px 6px 8px' },
+  pendItemOpen: { borderTop: 'var(--hairline)', background: 'var(--card)', borderRadius: 'var(--r-sm)', padding: '2px 6px 8px' },
   pendHead: { display: 'flex', alignItems: 'baseline', gap: 8, width: '100%', border: 'none', background: 'none', padding: '7px 0', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--fs-label)', textAlign: 'left', flexWrap: 'wrap' },
   /*
    * **버튼은 줄마다 같은 자리에 선다.** 앞 글자 길이에 따라 좌우로 흔들리면 줄을 훑을 때
@@ -935,6 +1003,12 @@ const s: Record<string, React.CSSProperties> = {
 
   // ── 폼(입력 필요 · 휴대폰 카드 · 원가 창) ──
   moneyInput: { ...CONTROL, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  /*
+   * **자동 기입 칸**(계약서에서 온 값) — 고칠 수 있지만 **배경을 걷어** 직접 적는 칸(흰 바탕)과 가른다
+   * (2026-09-17 지시). 테두리·높이·글자는 같다 — 다른 것은 바탕 하나뿐이어야 「무엇이 다른지」가 읽힌다.
+   */
+  moneyAuto: { ...CONTROL, background: AUTO_BG, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  strongNum: { fontWeight: 700, color: 'var(--dark)' },
   textInput: CONTROL,
   textInputWide: CONTROL,
   dateInput: { ...CONTROL, minWidth: 0, justifyContent: 'space-between' },
@@ -951,6 +1025,7 @@ const s: Record<string, React.CSSProperties> = {
 
   // ── 표(PC·태블릿) — 칸이 열셋이라 한 단계 촘촘하게 ──
   moneyCell: { ...CELL, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
+  moneyCellAuto: { ...CELL, background: AUTO_BG, textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
   textCell: CELL,
   textCellWide: CELL,
   dateCell: { ...CELL, minWidth: 0, justifyContent: 'space-between' },
@@ -961,7 +1036,7 @@ const s: Record<string, React.CSSProperties> = {
   cards: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   rowCard: { border: 'var(--hairline)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 6 },
   // 삭제된 카드 — 표의 회색 줄과 같은 뜻이다
-  rowCardDead: { border: '1px solid var(--req)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--soft, #FAFAF7)', color: 'var(--muted)' },
+  rowCardDead: { border: '1px solid var(--req)', borderRadius: 'var(--r-sm)', padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--card)', color: 'var(--muted)' },
   voidBar: { display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 6, borderBottom: 'var(--hairline)' },
   cardFoot: { gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', paddingTop: 4 },
   rowCardHead: { display: 'flex', alignItems: 'baseline', gap: 6, border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },

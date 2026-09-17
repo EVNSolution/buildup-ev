@@ -480,6 +480,8 @@ model OrderPnl {
   /// 공급가액(VAT 별도)·계약금 — **계약서에서 가져와 굳힌다.** 화면에서 고치지 않는다(2026-09-16 지시)
   supply_amount BigInt  @default(0)
   deposit       BigInt  @default(0)
+  /// 손으로 고친 VAT — 없으면 엑셀 식(공급가액 × 10% 버림)을 쓴다. 세금계산서가 반올림이면 1원이 다르다
+  vat_override  BigInt?
   /// 캐피탈 — 경영관리가 직접 적는다
   capital       BigInt  @default(0)
 
