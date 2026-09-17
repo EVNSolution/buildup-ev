@@ -1320,9 +1320,9 @@ export const EN: Record<string, string> = {
  * 쓰는 법: tf('{0} 대화', name)
  */
 export const EN_FMT: Record<string, string> = {
+  '계약 {0}': 'Signed {0}',
   '{0} 손익 삭제': 'Void P&L · {0}',
   '삭제 {0}건': '{0} voided',
-  '수락 {0}': 'Accepted {0}',
   '{0}일 경과': '{0}d over',
   '{0}일 남음': '{0}d left',
   '{0} 일정': 'Schedule for {0}',

@@ -353,8 +353,8 @@ function PendingRow({ item, canEdit, isMobile, open, onToggle, onFile, onDraft }
         <span style={s.caret}>{open ? '▾' : '▸'}</span>
         <span style={s.pendNo}>{item.quote_no ?? `#${item.quote_id}`}</span>
         <span style={s.pendName}>{item.customer ?? '—'}</span>
-        {/* 특장사가 수락한 날 — 이 순서(오래된 것 먼저)가 곧 처리 순서다 */}
-        <span style={s.pendSub}>{tf('수락 {0}', item.accepted_on ?? '—')}</span>
+        {/* 계약이 체결된 날 — 이 순서(오래된 것 먼저)가 곧 처리 순서다 */}
+        <span style={s.pendSub}>{tf('계약 {0}', item.contracted_on ?? '—')}</span>
         <span style={s.pendAmount}>{item.supply_default === null ? '—' : won(item.supply_default)}</span>
         {!open && <span style={s.pendCta}>{t('입력')}</span>}
       </button>

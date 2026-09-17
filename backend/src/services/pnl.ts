@@ -46,8 +46,8 @@ export interface PnlPending {
   quote_id: number;
   quote_no: string | null;
   customer: string | null;
-  /** 특장사가 **수락한** 날 — 이때부터 「입력 필요」에 선다 */
-  accepted_on: string | null;
+  /** 계약이 **체결된** 날(전자서명 완료 또는 서면계약 스캔본 등록) — 이때부터 「입력 필요」에 선다 */
+  contracted_on: string | null;
   /** 계약서에서 가져온 값들 — 「입력 필요」 칸에 그대로 보여 준다(고칠 수 없다) */
   supply_default: number | null;
   deposit_default: number;
@@ -172,31 +172,40 @@ export async function contractDefaults(quoteId: number): Promise<{ supply: numbe
 const DEFAULTS_LIMIT = 60;
 
 /**
- * 아직 발행일을 안 적은 건 — **특장사가 수락한 뒤부터** 여기 선다(2026-09-16 지시).
+ * 아직 발행일을 안 적은 건 — **계약이 체결된 뒤부터** 여기 선다(2026-09-17 지시).
  *
- * 계약만 끝난 건은 아직 만들지도 않은 차라 세금계산서를 끊을 일이 없다.
- * 특장사가 수락하면 그때부터 실제로 만들기 시작하므로, 그 시점을 기준으로 삼는다.
+ * 체결 = 전자서명 완료 **또는** 서면계약 스캔본 등록. 두 길 모두 계약 줄을 `COMPLETED` 로 남기고
+ * 체결 시각(`completed_at`)을 적는다 — 그 줄 하나로 두 길을 함께 본다.
+ * (그 전에는 특장사 수락 시점이었다. 계약만 끝나도 세금계산서 준비는 시작되므로 앞당겼다.)
+ *
+ * ⚠️ 견적 상태(contracted 이상)로 고르지 않는다 — 상태는 되돌리기·재배정으로 오가지만,
+ *    **체결됐다는 사실**은 계약 줄에만 정확히 남는다.
  *
  * **오래된 것이 맨 위**다 — 먼저 처리할 순서이고, 밀린 건이 아래로 묻히면 안 된다.
  */
 export async function pnlPending(): Promise<PnlPending[]> {
   if (!prisma) return [];
-  const quotes = await prisma.quote.findMany({
+  const found = await prisma.quote.findMany({
     where: {
       ...VISIBLE,
-      // 수락한 주문만 — 취소(배정 취소·주문 삭제)된 건은 수락 기록이 지워지거나 canceled 로 남는다
-      order: { is: { accepted_at: { not: null }, canceled_at: null } },
+      contracts: { some: { status: 'COMPLETED' } },
       OR: [{ pnl: { is: null } }, { pnl: { invoice_on: null } }],
     },
     select: {
       id: true, quote_no: true, created_at: true,
       customer: { select: { name: true } },
-      order: { select: { accepted_at: true } },
+      // 체결 시각 — 여러 번 체결됐으면(재계약) 가장 이른 것이 기다린 시간이다
+      contracts: {
+        where: { status: 'COMPLETED' },
+        orderBy: { completed_at: 'asc' }, take: 1,
+        select: { completed_at: true },
+      },
       pnl: { select: { supply_amount: true, deposit: true, vat_override: true, biz_name: true, capital: true, deposit_paid_on: true, capital_paid_on: true, cost: true, memo: true } },
     },
-    // 수락이 오래된 것부터 — 화면에서 다시 정렬하지 않게 여기서 못 박는다
-    orderBy: { order: { accepted_at: 'asc' } },
   });
+  // 계약 줄의 시각으로 줄 세운다(관계 칸으로는 DB 가 정렬하지 못한다) — 시각이 없으면 견적을 만든 날
+  const signedAt = (q: typeof found[number]) => (q.contracts[0]?.completed_at ?? q.created_at).getTime();
+  const quotes = [...found].sort((a, b) => signedAt(a) - signedAt(b) || a.id - b.id);
 
   const out: PnlPending[] = [];
   for (const q of quotes) {
@@ -212,7 +221,7 @@ export async function pnlPending(): Promise<PnlPending[]> {
       quote_id: q.id,
       quote_no: q.quote_no,
       customer: q.customer?.name ?? null,
-      accepted_on: day(q.order?.accepted_at ?? null) ?? day(q.created_at),
+      contracted_on: day(q.contracts[0]?.completed_at ?? null) ?? day(q.created_at),
       supply_default: supply,
       deposit_default: deposit,
       draft: kept ? {
