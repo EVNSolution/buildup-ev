@@ -246,6 +246,9 @@ interface Tile {
  * 「이름 + 숫자 + 아래 줄」 전체의 한가운데에 서서, 정작 맞춰야 할 **숫자 줄과 어긋났다**(제보).
  * 그래서 격자로 바꾸고 줄(이름/숫자/아래)과 칸을 좌표로 못 박는다 — 꺾쇠는 숫자 줄에만 놓인다.
  */
+/** 칸 사이 한 칸의 폭 — 모든 카드가 같은 값을 써야 꺾쇠가 위아래로 줄을 맞춘다 */
+const SEP_W = 20
+
 function TileRow({ tiles, isMobile, mobileCols, big, small }: {
   tiles: Tile[]; isMobile: boolean; mobileCols: number
   /** 첫 카드(영업 성과) — 한 단계 크게 */
@@ -278,8 +281,16 @@ function TileRow({ tiles, isMobile, mobileCols, big, small }: {
       </div>
     )
   }
-  // '1fr auto 1fr auto …' — 홀수 칸이 내용, 짝수 칸이 칸 사이
-  const cols = tiles.map(() => '1fr').join(' auto ')
+  /*
+   * 홀수 칸이 내용, 짝수 칸이 칸 사이. **칸 사이는 무엇이 들어가든 같은 폭**이다(SEP_W).
+   *
+   * ⚠️ 예전에는 `auto` 였다 — 꺾쇠(7px)·세로선(1px)·빈칸(0px)마다 폭이 달라, 카드마다 내용 칸이
+   *    조금씩 다른 넓이를 나눠 가졌다. 그래서 위아래 카드의 꺾쇠가 **세로로 줄을 맞추지 못했다**
+   *    (실측 3~5px 어긋남, 제보). 폭을 못 박으면 같은 칸 수의 카드끼리는 꺾쇠가 정확히 겹치고,
+   *    칸 수가 달라도 한가운데 꺾쇠는 늘 폭의 절반에 선다.
+   * ⚠️ 내용 칸은 `minmax(0, 1fr)` — 그냥 `1fr` 은 긴 금액이 칸을 넓혀 또 어긋난다.
+   */
+  const cols = tiles.map(() => 'minmax(0, 1fr)').join(` ${SEP_W}px `)
   return (
     <div style={{ ...s.tilesRow, gridTemplateColumns: cols }}>
       {tiles.map((x, i) => (
