@@ -13,6 +13,8 @@ export interface PnlRow {
   invoice_on: string | null
   supply_amount: number
   deposit: number
+  /** 손으로 고친 VAT — null 이면 식(공급가액 × 10% 버림) */
+  vat_override: number | null
   capital: number
   deposit_paid_on: string | null
   capital_paid_on: string | null
@@ -40,6 +42,7 @@ export interface PnlPending {
   /** 임시저장해 둔 값 — 다시 열면 적어 둔 대로 열린다. 없으면 null */
   draft: {
     biz_name: string | null
+    vat_override: number | null
     capital: number
     deposit_paid_on: string | null
     capital_paid_on: string | null
@@ -58,10 +61,11 @@ export interface PnlView {
 
 /**
  * 적을 수 있는 칸 — 안 보낸 칸은 그대로 둔다(부분 저장).
- * ⚠️ **공급가액·계약금은 없다** — 계약서에서 가져와 굳힌 값이라 고치지 않는다(서버도 받지 않는다).
+ * 자동 기입 칸(공급가액·계약금·VAT)도 고칠 수 있다(2026-09-17). `vat_override: null` 은 식으로 되돌린다.
  */
 export type PnlPatch = Partial<Pick<PnlRow,
-  'invoice_on' | 'biz_name' | 'capital' | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
+  | 'invoice_on' | 'biz_name' | 'supply_amount' | 'deposit' | 'vat_override'
+  | 'capital' | 'deposit_paid_on' | 'capital_paid_on' | 'cost' | 'memo'
 >>
 
 async function jsonOf<T>(res: Response): Promise<T> {

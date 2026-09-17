@@ -26,6 +26,8 @@ export interface PnlRow {
   invoice_on: string | null;
   supply_amount: number;
   deposit: number;
+  /** 손으로 고친 VAT — null 이면 식(버림 10%) */
+  vat_override: number | null;
   capital: number;
   deposit_paid_on: string | null;
   capital_paid_on: string | null;
@@ -55,6 +57,7 @@ export interface PnlPending {
    */
   draft: {
     biz_name: string | null;
+    vat_override: number | null;
     capital: number;
     deposit_paid_on: string | null;
     capital_paid_on: string | null;
@@ -69,7 +72,7 @@ const day = (d: Date | null | undefined): string | null => (d ? d.toISOString().
 /** DB 행 + 견적을 화면 모양으로 */
 type RowWithQuote = {
   quote_id: number; invoice_on: Date | null; biz_name: string | null;
-  supply_amount: bigint; deposit: bigint; capital: bigint;
+  supply_amount: bigint; deposit: bigint; vat_override: bigint | null; capital: bigint;
   deposit_paid_on: Date | null; capital_paid_on: Date | null;
   cost: bigint; cost_source: string; memo: string | null; updated_by: string | null;
   voided_at: Date | null; voided_by: string | null; void_reason: string | null;
@@ -91,6 +94,7 @@ function toRow(r: RowWithQuote): PnlRow {
     invoice_on: day(r.invoice_on),
     supply_amount: n(r.supply_amount),
     deposit: n(r.deposit),
+    vat_override: r.vat_override === null ? null : n(r.vat_override),
     capital: n(r.capital),
     deposit_paid_on: day(r.deposit_paid_on),
     capital_paid_on: day(r.capital_paid_on),
@@ -188,7 +192,7 @@ export async function pnlPending(): Promise<PnlPending[]> {
       id: true, quote_no: true, created_at: true,
       customer: { select: { name: true } },
       order: { select: { accepted_at: true } },
-      pnl: { select: { supply_amount: true, deposit: true, biz_name: true, capital: true, deposit_paid_on: true, capital_paid_on: true, cost: true, memo: true } },
+      pnl: { select: { supply_amount: true, deposit: true, vat_override: true, biz_name: true, capital: true, deposit_paid_on: true, capital_paid_on: true, cost: true, memo: true } },
     },
     // 수락이 오래된 것부터 — 화면에서 다시 정렬하지 않게 여기서 못 박는다
     orderBy: { order: { accepted_at: 'asc' } },
@@ -213,6 +217,7 @@ export async function pnlPending(): Promise<PnlPending[]> {
       deposit_default: deposit,
       draft: kept ? {
         biz_name: kept.biz_name,
+        vat_override: kept.vat_override === null ? null : n(kept.vat_override),
         capital: n(kept.capital),
         deposit_paid_on: day(kept.deposit_paid_on),
         capital_paid_on: day(kept.capital_paid_on),
@@ -228,13 +233,17 @@ export async function pnlPending(): Promise<PnlPending[]> {
 /**
  * 화면이 적을 수 있는 칸 — 안 보낸 칸은 그대로 둔다(부분 저장).
  *
- * ⚠️ **공급가액·계약금은 여기 없다.** 계약서에서 가져와 줄을 만들 때 굳히고, 그 뒤로는 고치지 않는다
- *    (2026-09-16 지시 — 고쳐야 하는 예외가 생기면 그때 다시 본다). 화면에서 빼는 것만으로는
- *    막은 것이 아니라 **서버가 받지 않는다.**
+ * **자동 기입 칸(공급가액·계약금·VAT)도 고칠 수 있다**(2026-09-17 지시 — 실제 계산서가 계약과 다른 일이 있었다).
+ * 다만 **저절로 다시 계산되지는 않는다** — 줄을 만들 때 계약서에서 한 번 채우고, 그 뒤로 바뀌는 것은
+ * 사람이 고칠 때뿐이다. 단가표를 나중에 고쳐도 이미 나간 줄이 소급해 바뀌지 않는다.
  */
 export interface PnlPatch {
   invoice_on?: string | null;
   biz_name?: string | null;
+  supply_amount?: number;
+  deposit?: number;
+  /** null 을 보내면 식(버림 10%)으로 되돌린다 */
+  vat_override?: number | null;
   capital?: number;
   deposit_paid_on?: string | null;
   capital_paid_on?: string | null;
@@ -269,6 +278,9 @@ export async function savePnl(quoteId: number, patch: PnlPatch, by: string): Pro
   const put = (key: string, v: unknown) => { if (v !== undefined) data[key] = v; };
   put('invoice_on', dateOf(patch.invoice_on));
   put('biz_name', text(patch.biz_name, 120));
+  put('supply_amount', money(patch.supply_amount));
+  put('deposit', money(patch.deposit));
+  put('vat_override', patch.vat_override === null ? null : money(patch.vat_override));
   put('capital', money(patch.capital));
   put('deposit_paid_on', dateOf(patch.deposit_paid_on));
   put('capital_paid_on', dateOf(patch.capital_paid_on));
@@ -276,10 +288,10 @@ export async function savePnl(quoteId: number, patch: PnlPatch, by: string): Pro
   put('memo', text(patch.memo, 500));
 
   if (!exists) {
-    // 계약서 금액은 **줄을 만들 때 한 번** 굳힌다 — 그 뒤로는 어떤 요청도 이 둘을 못 바꾼다
+    // 처음 만들 때 계약서에서 채운다 — 사람이 함께 보낸 값이 있으면 그 값이 이긴다(고친 것이다)
     const d = await contractDefaults(quoteId);
-    data['supply_amount'] = BigInt(d.supply ?? 0);
-    data['deposit'] = BigInt(d.deposit);
+    if (data['supply_amount'] === undefined) data['supply_amount'] = BigInt(d.supply ?? 0);
+    if (data['deposit'] === undefined) data['deposit'] = BigInt(d.deposit);
     await prisma.orderPnl.create({ data: { quote_id: quoteId, ...data } as never });
   } else {
     await prisma.orderPnl.update({ where: { quote_id: quoteId }, data: data as never });
@@ -339,7 +351,7 @@ export async function pnlSummary(ym: string): Promise<PnlSummary> {
   const empty = sumP([]);
   if (!prisma) return { month: ym, pending: 0, month_total: empty, all_total: empty };
   const { from, to } = monthBounds(ym);
-  const pick = { supply_amount: true, deposit: true, capital: true, cost: true, invoice_on: true } as const;
+  const pick = { supply_amount: true, deposit: true, vat_override: true, capital: true, cost: true, invoice_on: true } as const;
   const [rows, pending] = await Promise.all([
     // 삭제한 줄과 발행일이 없는 줄은 어느 달의 숫자도 아니다
     prisma.orderPnl.findMany({ where: { voided_at: null, invoice_on: { not: null } }, select: pick }),
@@ -347,6 +359,7 @@ export async function pnlSummary(ym: string): Promise<PnlSummary> {
   ]);
   const num = (r: typeof rows[number]) => ({
     supply_amount: n(r.supply_amount), deposit: n(r.deposit), capital: n(r.capital), cost: n(r.cost),
+    vat_override: r.vat_override === null ? null : n(r.vat_override),
   });
   const inMonth = (r: typeof rows[number]) =>
     !!r.invoice_on && r.invoice_on >= new Date(from) && r.invoice_on < new Date(to);

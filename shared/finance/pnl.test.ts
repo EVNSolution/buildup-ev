@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { vatOf, grossOf, payDiffOf, deriveP, sumP, monthBounds, isYearMonth, supplyFromGross } from './pnl';
+import { vatOf, grossOf, payDiffOf, deriveP, sumP, monthBounds, isYearMonth, supplyFromGross, fromGross, vatOverrideFor } from './pnl';
 
 /**
  * **엑셀과 같은 숫자가 나오는가.**
@@ -76,6 +76,38 @@ describe('계약서 금액에서 공급가액 되짚기', () => {
     for (const g of [1_100_000, 21_619_000, 33_333_333, 7, 999_999]) {
       expect(Math.abs(grossOf(supplyFromGross(g)) - g), String(g)).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('자동 칸을 사람이 고칠 때(2026-09-17)', () => {
+  it('🔴 VAT 를 고치면 공급대가·입금 차액이 그 값을 따른다', () => {
+    const d = deriveP({ supply_amount: 18_463_636, deposit: 400_000, capital: 0, vat_override: 1_846_364 });
+    expect(d.vat).toBe(1_846_364);
+    expect(d.gross).toBe(20_310_000);
+    expect(d.pay_diff).toBe(20_310_000 - 400_000);
+  });
+
+  it('🔴 식과 같은 VAT 는 「고친 값」이 아니다 — 공급가액을 바꾸면 따라와야 한다', () => {
+    expect(vatOverrideFor(18_960_000, 1_896_000)).toBeNull();
+    expect(vatOverrideFor(18_960_000, 1_896_001)).toBe(1_896_001);
+  });
+
+  it('🔴 공급대가를 고치면 **적은 값 그대로** 보인다 — 1원도 다르지 않다', () => {
+    for (const g of [20_310_000, 20_856_000, 33_333_333, 7, 1_000_001]) {
+      const r = fromGross(g);
+      expect(deriveP({ supply_amount: r.supply_amount, deposit: 0, capital: 0, vat_override: r.vat_override }).gross, String(g)).toBe(g);
+    }
+    // 식으로 딱 떨어지면 VAT 를 고친 것으로 두지 않는다
+    expect(fromGross(20_856_000)).toEqual({ supply_amount: 18_960_000, vat_override: null });
+  });
+
+  it('🔴 합계도 고친 VAT 를 쓴다', () => {
+    const z = sumP([
+      { supply_amount: 100, deposit: 0, capital: 0, vat_override: 11 },
+      { supply_amount: 100, deposit: 0, capital: 0 },
+    ]);
+    expect(z.vat).toBe(21);
+    expect(z.gross).toBe(221);
   });
 });
 

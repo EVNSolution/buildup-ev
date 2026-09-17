@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
  *   ① 돈에 관한 표라 **보는 것부터** 권한을 건다(`pnl.view`), 적는 것은 `pnl.manage`
  *   ② 「입력 필요」에 서는 시점은 **특장사 수락**이다 — 계약만 끝난 건은 아직 만들 차가 없다
  *   ③ 달을 가르는 기준은 **세금계산서 발행일** — 적는 순간 그 달 표로 들어가고 「입력 필요」에서 빠진다
- *   ④ 계약서 금액(공급가액·계약금)은 **굳는다** — 화면에서도 서버에서도 못 고친다
+ *   ④ 계약서 금액(공급가액·계약금·VAT)은 줄을 만들 때 채우고, 그 뒤로는 **사람이 고칠 때만** 바뀐다
  *   ⑤ 삭제는 줄을 지우지 않는다 — 사유를 남기고 합계에서만 뺀다
  */
 process.env['ALLOW_TEST_PERMISSION_BYPASS'] = 'false';
@@ -164,17 +164,39 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
     expect(r.body.data.invoice_on).toBe('2026-09-12');
   }, 30_000);
 
-  it('🔴 계약서 금액은 굳는다 — 보내도 안 바뀐다(화면에서 빼는 것만으로는 막은 것이 아니다)', async () => {
+  it('🔴 자동 기입 칸도 사람이 고친다 — 공급가액·계약금·VAT(2026-09-17 지시)', async () => {
     const id = await acceptedQuote();
     const made = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-14' });
-    const supply = made.body.data.supply_amount as number;
-    const deposit = made.body.data.deposit as number;
+    expect(made.body.data.vat_override, '처음에는 식을 쓴다').toBeNull();
 
-    const hack = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper)
-      .send({ supply_amount: 1, deposit: 2, biz_name: '바꿔치기' });
-    expect(hack.status).toBe(200);
-    expect(hack.body.data.supply_amount, '공급가액이 바뀌었다').toBe(supply);
-    expect(hack.body.data.deposit, '계약금이 바뀌었다').toBe(deposit);
+    // 실제 세금계산서가 계약과 달랐다 — 고친다
+    const fix = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper)
+      .send({ supply_amount: 18_463_636, deposit: 500_000, vat_override: 1_846_364 });
+    expect(fix.status, JSON.stringify(fix.body)).toBe(200);
+    expect(fix.body.data.supply_amount).toBe(18_463_636);
+    expect(fix.body.data.deposit).toBe(500_000);
+    expect(fix.body.data.vat_override).toBe(1_846_364);
+
+    // VAT 를 비우면(null) 식으로 돌아간다
+    const back = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ vat_override: null });
+    expect(back.body.data.vat_override).toBeNull();
+    // 다른 칸만 고쳐도 고친 금액은 그대로다(부분 저장)
+    const memo = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ memo: 'x' });
+    expect(memo.body.data.supply_amount).toBe(18_463_636);
+  }, 30_000);
+
+  it('🔴 처음 만들 때 사람이 보낸 금액이 계약서 값을 이긴다', async () => {
+    const id = await acceptedQuote();
+    const r = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper)
+      .send({ supply_amount: 1_234_000, deposit: 111_000 });
+    expect(r.body.data.supply_amount).toBe(1_234_000);
+    expect(r.body.data.deposit).toBe(111_000);
+  }, 30_000);
+
+  it('🔴 보기 권한만으로는 금액을 고치지 못한다', async () => {
+    const id = await acceptedQuote();
+    await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-14' });
+    expect((await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', looker).send({ supply_amount: 1 })).status).toBe(403);
   }, 30_000);
 
   it('🔴 삭제는 줄을 지우지 않는다 — 사유를 남기고 합계에서만 뺀다', async () => {

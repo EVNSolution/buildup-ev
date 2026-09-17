@@ -85,17 +85,52 @@ export interface PnlBase {
   deposit: number;
   capital: number;
   cost?: number;
+  /**
+   * **손으로 고친 VAT** — 없으면(null) 엑셀 식(버림 10%)을 쓴다(2026-09-17 지시로 자동 칸도 고칠 수 있게 됐다).
+   * 세금계산서를 끊는 쪽이 반올림하면 1원이 다르다 — 그때 실제 계산서 값을 적는다.
+   */
+  vat_override?: number | null;
+}
+
+/** 그 줄의 VAT — 고친 값이 있으면 그것, 없으면 식 */
+export function vatFor(row: Pick<PnlBase, 'supply_amount' | 'vat_override'>): number {
+  return row.vat_override ?? vatOf(row.supply_amount);
 }
 
 export function deriveP(row: PnlBase): PnlDerived {
   const profit = profitOf(row.supply_amount, row.cost ?? 0);
+  const vat = vatFor(row);
+  const gross = (row.supply_amount || 0) + vat;
   return {
-    vat: vatOf(row.supply_amount),
-    gross: grossOf(row.supply_amount),
-    pay_diff: payDiffOf(row.supply_amount, row.deposit, row.capital),
+    vat,
+    gross,
+    pay_diff: gross - (row.capital || 0) - (row.deposit || 0),
     profit,
     margin: marginOf(row.supply_amount, profit),
   };
+}
+
+/**
+ * **공급대가를 고쳤을 때** 공급가액·VAT 를 되짚는다.
+ *
+ * 공급대가는 저장하지 않는 값이라, 사람이 고치면 그 뿌리(공급가액)를 바꿔야 한다.
+ * 공급가액은 딱 맞는 값을 고르고(`supplyFromGross`), 그래도 1원이 남으면 **VAT 를 고친 것으로** 둔다 —
+ * 그래야 적은 공급대가가 **한 원도 다르지 않게** 그대로 보인다.
+ */
+export function fromGross(gross: number): { supply_amount: number; vat_override: number | null } {
+  const g = Math.max(0, Math.round(gross || 0));
+  const supply = supplyFromGross(g);
+  const vat = g - supply;
+  return { supply_amount: supply, vat_override: vat === vatOf(supply) ? null : vat };
+}
+
+/**
+ * **VAT 를 고쳤을 때** — 식과 같으면 고친 것이 아니다(null 로 되돌린다).
+ * 식과 같은 값을 「고친 값」으로 붙잡아 두면, 나중에 공급가액을 바꿔도 VAT 가 안 따라온다.
+ */
+export function vatOverrideFor(supply: number, vat: number): number | null {
+  const v = Math.max(0, Math.round(vat || 0));
+  return v === vatOf(supply) ? null : v;
 }
 
 /** 여러 줄의 합 — 엑셀 20행(합계)과 같다. 합계도 줄과 **같은 함수**로 낸다 */
