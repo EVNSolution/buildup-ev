@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
  * **차량 판매건별 손익** — 권한과 「달 가르기」.
  *
  *   ① 돈에 관한 표라 **보는 것부터** 권한을 건다(`pnl.view`), 적는 것은 `pnl.manage`
- *   ② 「입력 필요」에 서는 시점은 **특장사 수락**이다 — 계약만 끝난 건은 아직 만들 차가 없다
+ *   ② 「입력 필요」에 서는 시점은 **계약 체결**이다 — 전자서명 완료 또는 서면계약 스캔본 등록(2026-09-17)
  *   ③ 달을 가르는 기준은 **세금계산서 발행일** — 적는 순간 그 달 표로 들어가고 「입력 필요」에서 빠진다
  *   ④ 계약서 금액(공급가액·계약금·VAT)은 줄을 만들 때 채우고, 그 뒤로는 **사람이 고칠 때만** 바뀐다
  *   ⑤ 삭제는 줄을 지우지 않는다 — 사유를 남기고 합계에서만 뺀다
@@ -42,12 +42,14 @@ async function contractedQuote(price = 1_000_000): Promise<number> {
   return q.id;
 }
 
-/** 특장사가 **수락한** 건 — 여기서부터 「입력 필요」다 */
-async function acceptedQuote(acceptedAt = new Date()): Promise<number> {
+/**
+ * **계약이 체결된** 건 — 여기서부터 「입력 필요」다(2026-09-17).
+ * `method` 로 전자서명(EMAIL)과 서면계약 스캔본(PAPER)을 고른다 — 둘 다 같은 자리에 선다.
+ */
+async function signedQuote(signedAt = new Date(), method: 'EMAIL' | 'PAPER' = 'EMAIL'): Promise<number> {
   const id = await contractedQuote();
-  await prisma!.quote.update({ where: { id }, data: { status: 'ordered' } });
-  await prisma!.order.create({
-    data: { quote_id: id, maker_org_id: 'ORG_BRAIN', assigned_at: acceptedAt, accepted_at: acceptedAt },
+  await prisma!.purchaseContract.create({
+    data: { quote_id: id, signing_method: method, status: 'COMPLETED', completed_at: signedAt, customer_snapshot: {} },
   });
   return id;
 }
@@ -76,6 +78,7 @@ afterAll(async () => {
   if (!prisma) return;
   await prisma.orderPnl.deleteMany({ where: { quote_id: { in: quotes } } });
   await prisma.order.deleteMany({ where: { quote_id: { in: quotes } } });
+  await prisma.purchaseContract.deleteMany({ where: { quote_id: { in: quotes } } });
   await prisma.quote.deleteMany({ where: { id: { in: quotes } } });
   await prisma.customer.deleteMany({ where: { id: customerId } });
   await prisma.accessControl.deleteMany({ where: { subject_ref: { in: USERS } } });
@@ -90,25 +93,48 @@ describe.runIf(live)('손익 — 권한', () => {
 
   it('🔴 보기 권한만 있으면 읽되 적지는 못한다', async () => {
     expect((await request(app).get('/api/v1/pnl').set('Cookie', looker)).status).toBe(200);
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     const w = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', looker).send({ invoice_on: '2026-09-10' });
     expect(w.status, '보기 권한으로 적혔다').toBe(403);
   }, 30_000);
 });
 
 describe.runIf(live)('손익 — 언제부터 「입력 필요」인가', () => {
-  it('🔴 계약만 끝난 건은 아직 아니다 — **특장사가 수락해야** 선다', async () => {
-    const only = await contractedQuote();
-    const before = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
-    expect(before.body.data.pending.some((p: { quote_id: number }) => p.quote_id === only), '계약만 끝난 건이 벌써 떴다').toBe(false);
+  it('🔴 전자서명이 끝나면 선다 — 서명 요청만 보낸 건은 아직 아니다', async () => {
+    // 서명 요청만 나간 건(SENT) — 체결이 아니다
+    const sentOnly = await contractedQuote();
+    await prisma!.purchaseContract.create({
+      data: { quote_id: sentOnly, signing_method: 'EMAIL', status: 'SENT', sent_at: new Date(), customer_snapshot: {} },
+    });
+    // 계약 줄이 아예 없는 건(상태만 계약완료) — 체결 기록이 없으면 세우지 않는다
+    const noRow = await contractedQuote();
 
-    const accepted = await acceptedQuote();
-    const after = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
-    expect(after.body.data.pending.some((p: { quote_id: number }) => p.quote_id === accepted), '수락한 건이 안 떴다').toBe(true);
+    const signed = await signedQuote(new Date(), 'EMAIL');
+    const v = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
+    const ids = v.body.data.pending.map((p: { quote_id: number }) => p.quote_id);
+    expect(ids, '서명 요청만 보낸 건이 떴다').not.toContain(sentOnly);
+    expect(ids, '체결 기록이 없는 건이 떴다').not.toContain(noRow);
+    expect(ids, '전자서명이 끝난 건이 안 떴다').toContain(signed);
   }, 30_000);
 
-  it('🔴 오래 기다린 것이 맨 위다 — 밀린 건이 아래로 묻히면 안 된다', async () => {
-    const old = await acceptedQuote(new Date('2020-01-02T00:00:00Z'));
+  it('🔴 서면계약 스캔본을 올려도 선다 — 전자서명과 같은 자리', async () => {
+    const paper = await signedQuote(new Date(), 'PAPER');
+    const v = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
+    const p = v.body.data.pending.find((x: { quote_id: number }) => x.quote_id === paper);
+    expect(p, '서면계약 건이 안 떴다').toBeTruthy();
+    expect(p.contracted_on, '체결일이 안 실렸다').toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  }, 30_000);
+
+  it('🔴 특장사 수락 여부와 상관없다 — 체결만 되면 선다', async () => {
+    const id = await signedQuote();
+    // 주문이 아예 없다(배정 전)
+    expect(await prisma!.order.findUnique({ where: { quote_id: id } })).toBeNull();
+    const v = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
+    expect(v.body.data.pending.some((p: { quote_id: number }) => p.quote_id === id)).toBe(true);
+  }, 30_000);
+
+  it('🔴 오래 기다린 것이 맨 위다 — 체결일 기준, 밀린 건이 아래로 묻히면 안 된다', async () => {
+    const old = await signedQuote(new Date('2020-01-02T00:00:00Z'));
     const v = await request(app).get('/api/v1/pnl').set('Cookie', keeper);
     expect(v.body.data.pending[0]?.quote_id, '가장 오래 기다린 건이 맨 위가 아니다').toBe(old);
   }, 30_000);
@@ -116,7 +142,7 @@ describe.runIf(live)('손익 — 언제부터 「입력 필요」인가', () => 
 
 describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다', () => {
   it('🔴 발행일을 적으면 그 달 표로 들어가고 「입력 필요」에서 빠진다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
 
     const before = await request(app).get('/api/v1/pnl?month=2026-09').set('Cookie', keeper);
     expect(before.status).toBe(200);
@@ -140,7 +166,7 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
   }, 60_000);
 
   it('🔴 발행일을 지우면 「입력 필요」로 돌아온다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-11' });
     await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: null });
     const v = await request(app).get('/api/v1/pnl?month=2026-09').set('Cookie', keeper);
@@ -155,7 +181,7 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
   }, 30_000);
 
   it('🔴 적은 값은 그대로 남는다 — 비운 칸은 건드리지 않는다(부분 저장)', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-12', capital: 5_000_000, memo: '확인필요' });
     // 비고만 고친다 — 금액이 0 으로 밀리면 안 된다
     const r = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ memo: '확인완료' });
@@ -165,7 +191,7 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
   }, 30_000);
 
   it('🔴 자동 기입 칸도 사람이 고친다 — 공급가액·계약금·VAT(2026-09-17 지시)', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     const made = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-14' });
     expect(made.body.data.vat_override, '처음에는 식을 쓴다').toBeNull();
 
@@ -186,7 +212,7 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
   }, 30_000);
 
   it('🔴 처음 만들 때 사람이 보낸 금액이 계약서 값을 이긴다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     const r = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper)
       .send({ supply_amount: 1_234_000, deposit: 111_000 });
     expect(r.body.data.supply_amount).toBe(1_234_000);
@@ -194,13 +220,13 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
   }, 30_000);
 
   it('🔴 보기 권한만으로는 금액을 고치지 못한다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-09-14' });
     expect((await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', looker).send({ supply_amount: 1 })).status).toBe(403);
   }, 30_000);
 
   it('🔴 삭제는 줄을 지우지 않는다 — 사유를 남기고 합계에서만 뺀다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-11-03' });
 
     // 사유 없이는 못 지운다
@@ -225,13 +251,13 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
   }, 30_000);
 
   it('🔴 보기 권한만으로는 지우지 못한다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper).send({ invoice_on: '2026-11-04' });
     expect((await request(app).post(`/api/v1/pnl/${id}/void`).set('Cookie', looker).send({ reason: 'x' })).status).toBe(403);
   }, 30_000);
 
   it('🔴 임시저장 — 발행일 없이 적어 두면 「입력 필요」에 남고, 다시 열면 그대로 열린다', async () => {
-    const id = await acceptedQuote();
+    const id = await signedQuote();
     // 발행일 없이 저장한다(임시저장)
     const draft = await request(app).put(`/api/v1/pnl/${id}`).set('Cookie', keeper)
       .send({ biz_name: '임시상사', capital: 7_777_000, memo: '확인 중', cost: 1_000_000 });
@@ -264,10 +290,10 @@ describe.runIf(live)('손익 — 세금계산서 발행일이 달을 정한다',
     const a0 = before.body.data.all_total.count as number;
 
     // ① 이번 달에 한 건 — 둘 다 하나씩 는다
-    const now = await acceptedQuote();
+    const now = await signedQuote();
     await request(app).put(`/api/v1/pnl/${now}`).set('Cookie', keeper).send({ invoice_on: `${ym}-15` });
     // ② 아주 지난 달에 한 건 — **전체만** 는다
-    const old = await acceptedQuote();
+    const old = await signedQuote();
     await request(app).put(`/api/v1/pnl/${old}`).set('Cookie', keeper).send({ invoice_on: '2020-03-04' });
 
     const after = await request(app).get('/api/v1/pnl/summary').set('Cookie', keeper);

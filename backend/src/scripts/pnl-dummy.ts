@@ -1,5 +1,5 @@
 /**
- * **로컬 확인용 더미** — 「입력 필요」에 설 건(특장사 수락 완료)을 만든다.
+ * **로컬 확인용 더미** — 「입력 필요」에 설 건(계약 체결 완료)을 만든다.
  *
  * ⚠️ 로컬에서 손으로만 돌린다(배포·시드에 들어가지 않는다). 운영 DB 에는 절대 돌리지 말 것.
  *    `npx tsx src/scripts/pnl-dummy.ts [개수]`
@@ -35,8 +35,16 @@ async function main() {
       },
       select: { id: true },
     });
-    // 수락일을 하루씩 벌려 둔다 — 「오래된 것이 맨 위」를 눈으로 확인할 수 있게
-    const acceptedAt = new Date(Date.now() - (i + 1) * 86_400_000);
+    // 체결일을 하루씩 벌려 둔다 — 「오래된 것이 맨 위」를 눈으로 확인할 수 있게
+    const signedAt = new Date(Date.now() - (i + 1) * 86_400_000);
+    // 「입력 필요」는 **체결된 계약 줄**을 본다 — 짝수는 전자서명, 홀수는 서면계약으로 섞는다
+    await prisma.purchaseContract.create({
+      data: {
+        quote_id: quote.id, signing_method: i % 2 === 0 ? 'EMAIL' : 'PAPER',
+        status: 'COMPLETED', completed_at: signedAt, customer_snapshot: { name },
+      },
+    });
+    const acceptedAt = signedAt;
     await prisma.order.create({
       data: {
         quote_id: quote.id, maker_org_id: 'ORG_BRAIN',
@@ -44,7 +52,7 @@ async function main() {
         delivery_due: new Date(Date.now() + 20 * 86_400_000),
       },
     });
-    console.log(`  · 견적 #${quote.id} · ${name} · 수락 ${acceptedAt.toISOString().slice(0, 10)}`);
+    console.log(`  · 견적 #${quote.id} · ${name} · 체결 ${signedAt.toISOString().slice(0, 10)}`);
   }
   console.log(`더미 ${n}건을 「입력 필요」에 세웠다.`);
 }

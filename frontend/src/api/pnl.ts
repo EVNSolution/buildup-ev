@@ -35,8 +35,8 @@ export interface PnlPending {
   quote_id: number
   quote_no: string | null
   customer: string | null
-  /** 특장사가 **수락한** 날 — 이때부터 「입력 필요」에 선다 */
-  accepted_on: string | null
+  /** 계약이 **체결된** 날(전자서명 완료 또는 서면계약 스캔본 등록) — 이때부터 「입력 필요」에 선다 */
+  contracted_on: string | null
   supply_default: number | null
   deposit_default: number
   /** 임시저장해 둔 값 — 다시 열면 적어 둔 대로 열린다. 없으면 null */
