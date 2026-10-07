@@ -81,7 +81,7 @@ const TABLES: Record<string, TableDef> = {
     }),
   },
   subsidy_local: {
-    pk: ['region', 'year'], fields: ['amount', 'active', 'extra', 'remaining_quota', 'as_of'], numeric: ['amount', 'extra', 'remaining_quota'],
+    pk: ['region', 'year'], fields: ['amount', 'active', 'regional_delivery_fee', 'remaining_quota', 'as_of'], numeric: ['amount', 'regional_delivery_fee', 'remaining_quota'],
     list: async (q) => db().subsidyLocal.findMany({
       where: q ? { region: { contains: q, mode: 'insensitive' } } : undefined,
       orderBy: [{ year: 'desc' }, { region: 'asc' }],
@@ -89,8 +89,8 @@ const TABLES: Record<string, TableDef> = {
     find: async (k) => db().subsidyLocal.findUnique({ where: { region_year: { region: String(k['region']), year: Number(k['year']) } } }),
     upsert: async (k, d) => db().subsidyLocal.upsert({
       where: { region_year: { region: String(k['region']), year: Number(k['year']) } },
-      update: { amount: Number(d['amount']), active: d['active'] !== false && d['active'] !== 'false', extra: num(d['extra']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
-      create: { region: String(k['region']), year: Number(k['year']), amount: Number(d['amount']), active: d['active'] !== false && d['active'] !== 'false', extra: num(d['extra']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
+      update: { amount: Number(d['amount']), active: d['active'] !== false && d['active'] !== 'false', regional_delivery_fee: num(d['regional_delivery_fee']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
+      create: { region: String(k['region']), year: Number(k['year']), amount: Number(d['amount']), active: d['active'] !== false && d['active'] !== 'false', regional_delivery_fee: num(d['regional_delivery_fee']), remaining_quota: num(d['remaining_quota']), as_of: (d['as_of'] as string) ?? null },
     }),
   },
   subsidy_national: {
@@ -163,6 +163,11 @@ const TABLES: Record<string, TableDef> = {
       create: { months: Number(k['months']), rate: String(d['rate']), label: (d['label'] as string) ?? null, active: d['active'] !== false },
     }),
   },
+};
+
+/** 이름이 바뀐 칸 — 옛 감사이력의 필드 이름을 지금 이름으로 읽는다(되돌리기용). */
+const LEGACY_FIELDS: Record<string, Record<string, string>> = {
+  subsidy_local: { extra: 'regional_delivery_fee' },
 };
 
 const rowKey = (def: TableDef, k: Row) => def.pk.map((f) => String(k[f] ?? '')).join('|');
@@ -263,7 +268,8 @@ optionDbRouter.post('/:table/rollback', rbac('ADMIN'), requireTablePermission(),
   for (const l of logs) {
     if (l.action === 'create') createdAfter.add(l.row_key);
     const m = target.get(l.row_key) ?? new Map<string, string | null>();
-    if (!m.has(l.field)) m.set(l.field, l.old_value);
+    const field = LEGACY_FIELDS[table]?.[l.field] ?? l.field;
+    if (!m.has(field)) m.set(field, l.old_value);
     target.set(l.row_key, m);
   }
 

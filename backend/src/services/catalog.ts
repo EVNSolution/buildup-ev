@@ -100,5 +100,5 @@ export async function listRegionNames(): Promise<string[]> {
 export async function findLocalSubsidy(region: string, year: number) {
   if (!prisma) throw new Error('DB_UNAVAILABLE');
   const row = await prisma.subsidyLocal.findFirst({ where: { region, year } });
-  return row ? { region, year, amount: row.amount, extra: row.extra ?? null } : null;
+  return row ? { region, year, amount: row.amount, regional_delivery_fee: row.regional_delivery_fee ?? null } : null;
 }

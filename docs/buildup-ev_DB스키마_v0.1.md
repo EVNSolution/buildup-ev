@@ -139,7 +139,7 @@ DB는 도어 **단품가격만** 관리. 조합가는 룰로 계산.
 | region_id | BIGINT | FK→region | |
 | year | INT | | |
 | amount | DECIMAL(12,2) | | 지방보조금 (남양주 3,450,000) |
-| extra | DECIMAL(12,2) | | 추가보조(옵션DB L열, 용도 확인 필요) |
+| extra | INT | NULL | **지역별 추가 탁송료**(옵션DB L열). 최종 차량 인수 때 지역별로 더 드는 탁송료. 차량 탁송료 `tax_config.delivery_fee`와 별개, 보조금 아님. 현재 견적 계산 미사용(값만 보관). Prisma 필드명 `regional_delivery_fee` |
 | remaining_quota | INT | NULL | `[결정필요]` 잔여물량(소진 추적). 정적 보관 vs 런타임 외부조회 |
 | as_of | DATE | NULL | 잔여물량 기준일 |
 

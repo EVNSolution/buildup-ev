@@ -51,7 +51,7 @@ export function OptionDbTab({ only, note }: Props = {}) {
   // 어떤 칸이 원인지는 단위 칸(unit)이 있으면 그것을 보고, 없는 표는 여기서 정한다.
   const WON_FIELDS: Record<string, string[]> = {
     option_price: ['supply_price'],
-    subsidy_local: ['amount', 'extra'],
+    subsidy_local: ['amount', 'regional_delivery_fee'],
     subsidy_national: ['amount'],
   }
   const isWonField = (f: string, row: Record<string, unknown>) =>
@@ -113,7 +113,8 @@ export function OptionDbTab({ only, note }: Props = {}) {
   const COL_KO: Record<string, string> = {
     model_code: t('차종'), value_code: t('옵션 코드'), supply_price: t('단가'), memo: t('메모'),
     key: t('상수 이름'), description: t('설명'), category: t('구분'),
-    region: t('지역'), year: t('연도'), amount: t('금액'), extra: t('추가'), remaining_quota: t('잔여물량'),
+    region: t('지역'), year: t('연도'), amount: t('금액'), regional_delivery_fee: t('지역별 추가 탁송료'),
+    extra: t('지역별 추가 탁송료'), // 이름 바꾸기 전 감사이력 remaining_quota: t('잔여물량'),
     as_of: t('기준일'), active: t('적용'), param_key: t('항목'), value: t('값'), unit: t('단위'),
     months: t('개월수'), rate: t('이율'), label: t('표기'),
     // 치수 프리셋 — 서류의 어느 칸으로 가는지까지 적는다

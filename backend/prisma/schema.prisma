@@ -253,7 +253,10 @@ model SubsidyLocal {
   region          String  @db.VarChar(60)
   year            Int
   amount          Int
-  extra           Int?
+  /// 지역별 추가 탁송료 — 최종 차량 인수 때 지역에 따라 더 드는 탁송료.
+  /// 차량 탁송료(tax_config.delivery_fee)와 **별개**다. 지방보조금이 아니다.
+  /// 지금은 견적 계산 어디에도 쓰지 않는다(값만 보관). DB 열 이름은 운영 규칙상 `extra` 그대로 둔다.
+  regional_delivery_fee Int? @map("extra")
   remaining_quota Int?
   as_of           String? @db.VarChar(20)
   active          Boolean @default(true) // 예산 소진 시 관리자가 off → 견적에 지방보조금 미적용
