@@ -987,6 +987,7 @@ export const EN: Record<string, string> = {
   '지역': 'Region',
   '지역 목록 로딩 중…': 'Loading regions…',
   '지역(시·군·구)': 'Region (city / county / district)',
+  '지역별 추가 탁송료': 'Regional extra delivery fee',
   '지역을 검색해 선택하세요': 'Search and select a region',
   '지역을 골라야 지방보조금이 반영됩니다.': 'Select a region to apply the local subsidy.',
   '지연': 'Delayed',

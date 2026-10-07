@@ -28,10 +28,12 @@ export function fetchPublicRegions(): Promise<string[]> {
 }
 
 export async function fetchPublicLocalSubsidy(region: string, year: number): Promise<number> {
-  const d = await get<{ amount: number; extra: number | null } | null>(
+  const d = await get<{ amount: number } | null>(
     `/api/v1/public/subsidy/local?region=${encodeURIComponent(region)}&year=${year}`,
   )
-  return d ? d.amount + (d.extra ?? 0) : 0
+  // 지방보조금은 amount 하나다. 같은 행의 지역별 추가 탁송료(regional_delivery_fee)는
+  // 보조금이 아니므로 더하지 않는다 — 영업 견적·견적서와 같은 금액이어야 한다.
+  return d ? d.amount : 0
 }
 
 /** 상담 신청(접수) — 성공하면 접수번호만 돌아온다. */

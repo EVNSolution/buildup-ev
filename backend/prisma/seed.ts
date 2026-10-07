@@ -328,7 +328,8 @@ async function main() {
     region:          r['region']!,
     year:            num(r['year']) ?? 0,
     amount:          num(r['amount']) ?? 0,
-    extra:           num(r['extra']),
+    // 지역별 추가 탁송료(DB 열 extra). 옛 CSV 머리글 extra 도 받는다.
+    regional_delivery_fee: num(r['regional_delivery_fee'] ?? r['extra']),
     remaining_quota: num(r['remaining_quota']),
     as_of:           opt(r['as_of']),
   }));
@@ -336,7 +337,9 @@ async function main() {
     for (const sl of slocs) {
       await prisma.subsidyLocal.upsert({
         where: { region_year: { region: sl.region, year: sl.year } },
-        update: sl, create: sl,
+        // CSV 칸이 비어 있으면 운영에서 넣은 지역별 추가 탁송료를 null 로 덮지 않는다.
+        update: sl.regional_delivery_fee == null ? { ...sl, regional_delivery_fee: undefined } : sl,
+        create: sl,
       });
     }
     console.log(`  subsidy_local: ${slocs.length}`);
