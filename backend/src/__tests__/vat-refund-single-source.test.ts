@@ -43,5 +43,12 @@ describe('부가세 환급 판정의 단일 출처', () => {
     const rule = codeOnly(read('shared/pricing/vat-refund.ts'));
     expect(rule).toMatch(/'simplified'/);
     expect(rule).toMatch(/'consumer'/);
+    expect(rule).toMatch(/'vat_exempt'/);
+  });
+
+  it('🔴 택배(개인사업자 혜택) 판정도 isIndividualBenefit() 를 거친다 — 면세사업자가 빠지지 않게', () => {
+    for (const f of BUILDERS) {
+      expect(codeOnly(read(f)), `${f}`).toMatch(/is_individual:\s*isIndividualBenefit\(/);
+    }
   });
 });

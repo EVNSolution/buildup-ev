@@ -28,7 +28,7 @@ const BODYTYPE_DISP: Record<string, string> = { BODY_REEFER: '냉장/냉동', BO
 const TOP_DISP: Record<string, string> = { TOP_LOW: '저상', TOP_STD: '표준' };
 const DOOR_DISP: Record<string, string> = { DOOR_SWING: '여닫이', DOOR_SLIDE: '슬라이딩', DOOR_EVSLIDE: 'EV미닫이', DOOR_COUPANG: '미닫이', DOOR_FOLD: '양문미닫이' };
 const PART_DISP: Record<string, string> = { PART_NET: '그물망', PART_REEFER: '냉장/냉동 이동식', PART_NONE: 'X' };
-const BIZ_DISP: Record<string, string> = { individual: '개인사업자', corporation: '법인사업자', simplified: '간이과세자', consumer: '일반구매자' };
+const BIZ_DISP: Record<string, string> = { individual: '개인사업자', corporation: '법인사업자', simplified: '간이과세자', vat_exempt: '면세사업자', consumer: '일반구매자' };
 const ox = (on: boolean) => (on ? 'O' : 'X');
 
 // ── 포맷 ──
@@ -225,7 +225,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
   const bodyOnly = inp['body_only'] === true;
   /** 차량만 견적 — 특장을 장착하지 않는다. 특장만과 동시에 참일 수 없다. */
   const vehicleOnly = !bodyOnly && inp['vehicle_only'] === true;
-  /** 일반구매자(비사업자) — 부가세 환급 대상이 아니다 */
+  /** 일반구매자·간이과세자·면세사업자 — 부가세 환급 대상이 아니다 */
   const noVatRefund = params.no_vat_refund === true;
 
   const data = {

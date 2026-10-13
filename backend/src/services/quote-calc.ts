@@ -9,6 +9,7 @@ import {
   dieselDeducts, toDieselStatus, type QuoteParams,
   resolveCarPrice,
   noVatRefund,
+  isIndividualBenefit,
   readCustomOptions, type CustomOption,
   bodyOnlyParams,
   vehicleOnlyParams,
@@ -140,7 +141,7 @@ export async function buildQuoteParams(
   const zeroed = extra?.promotion_zeroed ?? [];
   const { trim_price, option_sum } = assembleOptionSum(selections, price, zeroed, extra?.custom_options ?? []);
   const bizType = (customer?.biz_type ?? 'individual') as
-    'individual' | 'corporation' | 'simplified' | 'consumer';
+    'individual' | 'corporation' | 'simplified' | 'vat_exempt' | 'consumer';
 
   // 지방보조금 미적용: 관리자 DB 토글(subsidy_local.active=false) 또는 견적별 영업 토글
   const localOff = extra?.local_subsidy_off === true || subsidyLoc?.active === false;
@@ -160,7 +161,7 @@ export async function buildQuoteParams(
     no_vat_refund: noVatRefund(bizType),
     is_sosang: customer?.is_sosang ?? false,
     sosang_rate: subsidyNat?.sosang_rate ? Number(subsidyNat.sosang_rate) : 0.3,
-    is_individual: bizType === 'individual',
+    is_individual: isIndividualBenefit(bizType),   // 면세사업자도 개인사업자 혜택(택배)
     has_transport_license: customer?.has_transport_license ?? false,
     takbae_rate: TAKBAE_RATE,
     body_price: Math.round(option_sum * 1.1),  // I16 VAT포함(옛 0원처리가 반영된 합계)

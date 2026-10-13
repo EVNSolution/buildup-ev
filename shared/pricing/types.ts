@@ -1,5 +1,8 @@
-/** individual=개인사업자 · corporation=법인사업자 · simplified=간이과세자 · consumer=일반구매자(부가세 환급 불가) */
-export type BizType = 'individual' | 'corporation' | 'simplified' | 'consumer';
+/**
+ * individual=개인사업자 · corporation=법인사업자 · simplified=간이과세자 ·
+ * vat_exempt=면세사업자(개인사업자와 같은 혜택, 부가세 환급만 불가) · consumer=일반구매자(부가세 환급 불가)
+ */
+export type BizType = 'individual' | 'corporation' | 'simplified' | 'vat_exempt' | 'consumer';
 
 /** 등록비·기타비 상수 (tax_config) */
 export interface TaxConfig {

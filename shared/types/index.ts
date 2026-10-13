@@ -42,8 +42,11 @@ export interface ModelOptionsResponse {
 
 // ── 고객 정보 ──────────────────────────────────────────────────────────
 
-/** individual=개인사업자 · corporate=법인사업자 · simplified=간이과세자 · consumer=일반구매자(부가세 환급 불가) */
-export type BusinessType = 'individual' | 'corporate' | 'simplified' | 'consumer';
+/**
+ * individual=개인사업자 · corporate=법인사업자 · simplified=간이과세자 ·
+ * vat_exempt=면세사업자(개인사업자와 같은 혜택, 부가세 환급만 불가) · consumer=일반구매자(부가세 환급 불가)
+ */
+export type BusinessType = 'individual' | 'corporate' | 'simplified' | 'vat_exempt' | 'consumer';
 
 export interface CustomerInfo {
   /** 법인사업자면 **상호**, 그 외에는 **성명**. 계약서 `{{buyer_name}}` 으로 나간다. */

@@ -211,7 +211,7 @@ async function buildParams(
   const trim_price = bodyOnly ? 0 : rawTrim;
 
   const bizType = (customer?.biz_type ?? 'individual') as
-    'individual' | 'corporation' | 'simplified' | 'consumer';
+    'individual' | 'corporation' | 'simplified' | 'vat_exempt' | 'consumer';
   // 지방보조금 미적용: 관리자 DB 토글(active=false) 또는 견적별 영업 토글
   const localOff = extra?.local_subsidy_off === true || subsidyLoc?.active === false;
 

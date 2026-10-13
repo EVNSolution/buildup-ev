@@ -9,7 +9,7 @@ import { useEscapeClose } from '../lib/escClose'
 // 영업의 「수정」 폼을 그대로 쓰지 않고, 같은 항목을 읽기 전용으로 보여준다.
 // 값은 견적 저장 시 함께 굳어진 입력 스냅샷(quote.inputs)과 고객 마스터에서 그대로 읽는다.
 const BIZ_KO: Record<string, string> = {
-  individual: '개인사업자', corporate: '법인사업자', simplified: '간이과세자', personal: '개인',
+  individual: '개인사업자', corporate: '법인사업자', simplified: '간이과세자', vat_exempt: '면세사업자', personal: '개인',
 }
 const DIESEL_KO: Record<string, string> = {
   none: '경유차 없음', keep: '경유차 유지 후 전기차 전환', scrap: '경유차 폐차 후 전기차 전환',
