@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { calcQuote } from './quote.js';
 import { calcPrice } from './core.js';
-import { noVatRefund, NO_VAT_REFUND_BIZ_TYPES } from './vat-refund.js';
+import { noVatRefund, NO_VAT_REFUND_BIZ_TYPES, isIndividualBenefit } from './vat-refund.js';
 import { QUOTE_PARAMS, REGRESSION_PARAMS } from './fixtures.js';
 import type { BizType } from './types.js';
 
@@ -43,13 +43,17 @@ describe('환급 대상 판정 — 사업자 구분', () => {
     expect(noVatRefund('consumer')).toBe(true);
   });
 
+  it('🔴 면세사업자는 환급 대상이 아니다', () => {
+    expect(noVatRefund('vat_exempt')).toBe(true);
+  });
+
   it('개인·법인 사업자는 환급 대상이다', () => {
     expect(noVatRefund('individual')).toBe(false);
     expect(noVatRefund('corporation')).toBe(false);
   });
 
   it('BizType 이 전부 둘 중 한쪽으로 판정된다 — 새 구분이 생기면 여기서 걸린다', () => {
-    const all: BizType[] = ['individual', 'corporation', 'simplified', 'consumer'];
+    const all: BizType[] = ['individual', 'corporation', 'simplified', 'vat_exempt', 'consumer'];
     expect(all.filter(noVatRefund).sort()).toEqual([...NO_VAT_REFUND_BIZ_TYPES].sort());
   });
 });
@@ -75,5 +79,46 @@ describe('Ver1.21 엔진(calcPrice) — 같은 규칙을 쓴다', () => {
     if (r.status !== 'ok') throw new Error('expected ok');
     expect(r.vat).toBeGreaterThan(0);
     expect(r.vat_refunded_price).toBe(r.applied_price - r.vat);
+  });
+});
+
+/**
+ * 면세사업자 = **개인사업자와 같은 혜택, 부가세 환급만 0원.**
+ *
+ * 부가세는 그대로 내고(공급가 10%), 보조금(국고·지방·소상공인·택배)도 개인사업자와 같다.
+ * 그러니 실구매가는 정확히 「같은 조건의 개인사업자 + 부가세액」이어야 한다.
+ */
+describe('면세사업자', () => {
+  it('🔴 개인사업자 혜택(택배 보조금) 대상이다 — 법인·간이·일반은 아니다', () => {
+    expect(isIndividualBenefit('individual')).toBe(true);
+    expect(isIndividualBenefit('vat_exempt')).toBe(true);
+    expect(isIndividualBenefit('corporation')).toBe(false);
+    expect(isIndividualBenefit('simplified')).toBe(false);
+    expect(isIndividualBenefit('consumer')).toBe(false);
+  });
+
+  it('🔴 calcPrice — 보조금은 개인사업자와 같고, 실구매가는 부가세만큼 비싸다', () => {
+    const run = (biz: BizType) => {
+      const r = calcPrice({ ...REGRESSION_PARAMS, customer: { ...REGRESSION_PARAMS.customer, biz_type: biz } });
+      if (r.status !== 'ok') throw new Error('expected ok');
+      return r;
+    };
+    const ind = run('individual');
+    const ex = run('vat_exempt');
+    expect(ex.vat).toBe(ind.vat);
+    expect(ex.vat).toBeGreaterThan(0);
+    expect(ex.subsidy_total).toBe(ind.subsidy_total);
+    expect(ex.subsidy_takbae).toBe(ind.subsidy_takbae);
+    expect(ex.subsidy_takbae).toBeGreaterThan(0);
+    expect(ex.vat_refunded_price).toBe(ex.applied_price);
+    expect(ex.real_price).toBe(ind.real_price + ind.vat);
+  });
+
+  it('🔴 calcQuote — 개인사업자 파라미터에서 환급만 막으면 환급액 0, 실구매가는 그만큼 비싸다', () => {
+    const ind = calcQuote({ ...QUOTE_PARAMS, is_individual: true, no_vat_refund: noVatRefund('individual') });
+    const ex = calcQuote({ ...QUOTE_PARAMS, is_individual: isIndividualBenefit('vat_exempt'), no_vat_refund: noVatRefund('vat_exempt') });
+    expect(ex.vat_refund_price).toBe(0);
+    expect(ex.subsidy_total).toBe(ind.subsidy_total);
+    expect(ex.real_price).toBeGreaterThan(ind.real_price);
   });
 });

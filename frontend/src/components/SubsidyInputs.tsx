@@ -38,6 +38,7 @@ export const BUSINESS_TYPE_OPTIONS: { value: BusinessType; label: string }[] = [
   { value: 'individual', label: '개인사업자' },
   { value: 'corporate', label: '법인사업자' },
   { value: 'simplified', label: '간이과세자' },
+  { value: 'vat_exempt', label: '면세사업자' },
   { value: 'consumer', label: '일반구매자' },
 ]
 

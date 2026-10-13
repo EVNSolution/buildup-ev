@@ -1,6 +1,6 @@
 import type { ApiPricingBundle, CustomerInfo } from '@shared/types/index'
 import type { QuoteResult } from '@shared/pricing/core'
-import { calcQuote, assembleOptionSum, makePriceLookup, groupOfPriceCode, bodyOnlyParams, vehicleOnlyParams, noVatRefund, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, rowState } from '@shared/pricing/core'
+import { calcQuote, assembleOptionSum, makePriceLookup, groupOfPriceCode, bodyOnlyParams, vehicleOnlyParams, noVatRefund, isIndividualBenefit, resolveCarPrice, TAKBAE_RATE, DEFAULT_TAX_EXEMPT_TYPE, rowState } from '@shared/pricing/core'
 import type { CustomOption, CustomOptionDraft } from '@shared/pricing/core'
 
 /**
@@ -114,7 +114,7 @@ export function buildLiveTotal(args: LiveTotalArgs): QuoteResult | null {
     no_vat_refund: noVatRefund(biz),
     is_sosang: subsidyInputs.is_small_business ?? false,
     sosang_rate: bundle.subsidy_national?.sosang_rate ?? 0.3,
-    is_individual: biz === 'individual',
+    is_individual: isIndividualBenefit(biz),   // 면세사업자도 개인사업자 혜택(택배)
     has_transport_license: subsidyInputs.has_transport_license ?? false,
     takbae_rate: TAKBAE_RATE,
     body_price: Math.round(option_sum * 1.1),

@@ -205,6 +205,7 @@ export const EN: Record<string, string> = {
   '가 되어 제작 배정을 할 수 있습니다. 견적서·계약서는 이 시점의 내용으로 고정되어 더 이상 고칠 수 없습니다.': 'without an e-signature, and production can be assigned. The quotation and contract are frozen as they are at this point and can no longer be edited.',
   '가운데 자리': 'Middle digits',
   '간이과세자': 'Simplified taxpayer',
+  '면세사업자': 'VAT-exempt business',
   '값': 'Value',
   '같은 고객·같은 옵션으로 새 견적을 만듭니다 (새 번호·임시저장)': 'Creates a new quote with the same customer and options (new number, draft)',
   '개월수': 'Months',

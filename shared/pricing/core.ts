@@ -10,7 +10,7 @@ export type {
 } from './types.js';
 
 import type { PricingParams, PricingResult } from './types.js';
-import { noVatRefund } from './vat-refund.js';
+import { noVatRefund, isIndividualBenefit } from './vat-refund.js';
 
 export {
   assembleOptionSum, optionBreakdown, valueUnitPrice, doorAddUnitPrice,
@@ -28,7 +28,7 @@ export { bodyOnlyParams } from './body-only.js';
 export { vehicleOnlyParams } from './vehicle-only.js';
 
 // 가격바가 보여줄 파생값(계산은 여기 한 곳에만 — 화면·앱이 공유한다)
-export { noVatRefund, NO_VAT_REFUND_BIZ_TYPES } from './vat-refund.js';
+export { noVatRefund, NO_VAT_REFUND_BIZ_TYPES, isIndividualBenefit } from './vat-refund.js';
 export { resolveCarPrice, trimPriceVatIncluded, resolveTrimLabel, CAR_TRIM_LABEL_MAX } from './car-price.js';
 
 // 커스텀 특장 옵션 — 단가표에 없는 사양을 영업이 직접 적어 넣는다
@@ -75,7 +75,7 @@ export function calcPrice(p: PricingParams): PricingResult {
   const subsidy_diesel =
     c.biz_type === 'corporation' && c.diesel_conversion ? s.diesel_conversion : 0;
   const subsidy_takbae =
-    c.has_transport_license && c.biz_type === 'individual'
+    c.has_transport_license && isIndividualBenefit(c.biz_type)
       ? Math.floor(subsidy_national * s.takbae_rate)
       : 0;
   const subsidy_total =

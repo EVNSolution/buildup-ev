@@ -4,6 +4,7 @@
  * 환급을 못 받는 쪽:
  *   · `consumer`   일반구매자(비사업자) — 매입세액공제 자체가 없다
  *   · `simplified` 간이과세자 — 세금계산서로 매입세액을 돌려받지 못한다
+ *   · `vat_exempt` 면세사업자 — 부가세는 내지만 매입세액공제를 받지 못한다
  *
  * ⚠️ 이 판정을 호출부에서 `biz === 'consumer'` 처럼 다시 쓰지 말 것.
  *    실제로 그렇게 두 곳(서버·화면)에 흩어져 있었고, 간이과세자를 넣을 때
@@ -13,9 +14,19 @@
 import type { BizType } from './types.js';
 
 /** 부가세 환급 대상이 아닌 사업자 구분 */
-export const NO_VAT_REFUND_BIZ_TYPES: readonly BizType[] = ['consumer', 'simplified'];
+export const NO_VAT_REFUND_BIZ_TYPES: readonly BizType[] = ['consumer', 'simplified', 'vat_exempt'];
 
 /** 이 사업자 구분은 부가세를 환급받지 못하는가 */
 export function noVatRefund(biz: BizType | string | null | undefined): boolean {
   return NO_VAT_REFUND_BIZ_TYPES.includes(biz as BizType);
+}
+
+/**
+ * 개인사업자 혜택(택배 보조금) 대상인가.
+ *
+ * 면세사업자는 개인사업자와 **같은 혜택**을 받는다 — 다른 점은 부가세 환급뿐이다.
+ * 판정을 호출부에서 `biz === 'individual'` 로 다시 쓰면 면세사업자가 빠진다.
+ */
+export function isIndividualBenefit(biz: BizType | string | null | undefined): boolean {
+  return biz === 'individual' || biz === 'vat_exempt';
 }

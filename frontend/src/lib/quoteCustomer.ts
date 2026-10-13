@@ -10,9 +10,10 @@ import type { QuoteSaveValues } from '../components/QuoteSaveModal'
  */
 
 /** 화면 표기 → 저장값 */
-export function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual' | 'corporation' | 'simplified' | 'consumer' {
+export function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'individual' | 'corporation' | 'simplified' | 'vat_exempt' | 'consumer' {
   if (bt === 'corporate') return 'corporation'
   if (bt === 'simplified') return 'simplified'
+  if (bt === 'vat_exempt') return 'vat_exempt'   // 면세사업자 — 개인사업자 혜택, 부가세 환급 불가
   if (bt === 'consumer') return 'consumer'   // 일반구매자(비사업자) — 부가세 환급 불가
   return 'individual'
 }
@@ -21,6 +22,7 @@ export function mapBizType(bt: CustomerInfo['business_type'] | undefined): 'indi
 export function unmapBizType(v: unknown): CustomerInfo['business_type'] {
   if (v === 'corporation') return 'corporate'
   if (v === 'simplified') return 'simplified'
+  if (v === 'vat_exempt') return 'vat_exempt'
   if (v === 'consumer') return 'consumer'
   return 'individual'
 }
