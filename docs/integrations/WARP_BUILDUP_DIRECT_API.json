@@ -15,13 +15,18 @@
     "EVN-WARP": {
       "route_style": "next",
       "route_root": "app/api/external",
-      "source_roots": ["app", "lib"]
+      "source_roots": [
+        "app",
+        "lib"
+      ]
     },
     "buildup-ev": {
       "route_style": "express",
       "route_file": "backend/src/routes/external.ts",
       "route_prefix": "/api/external",
-      "source_roots": ["backend/src"]
+      "source_roots": [
+        "backend/src"
+      ]
     }
   },
   "endpoints": [
@@ -132,6 +137,50 @@
           "token": "externalRouter.get('/quotes/:id/contract-pdf'"
         }
       }
+    },
+    {
+      "id": "buildup.linked-quotes.list",
+      "method": "GET",
+      "path": "/api/external/customers/:warpCustomerId/quotes",
+      "provider": "buildup-ev",
+      "caller": "EVN-WARP",
+      "capability": "linked-customer.quote.read",
+      "sources": {
+        "EVN-WARP": {
+          "file": "lib/buildup-import/quotes-client.ts",
+          "token": "/api/external/customers/${encodeURIComponent(customerId)}/quotes"
+        },
+        "buildup-ev": {
+          "file": "backend/src/routes/external.ts",
+          "token": "/customers/:warpCustomerId/quotes"
+        }
+      }
+    },
+    {
+      "id": "buildup.linked-quote.snapshot",
+      "method": "GET",
+      "path": "/api/external/customers/:warpCustomerId/quotes/:quoteId",
+      "provider": "buildup-ev",
+      "caller": "EVN-WARP",
+      "capability": "linked-customer.quote.read",
+      "sources": {
+        "EVN-WARP": {
+          "file": "lib/buildup-import/quotes-client.ts",
+          "token": "/api/external/customers/${encodeURIComponent(customerId)}/quotes/${quoteId}"
+        },
+        "buildup-ev": {
+          "file": "backend/src/routes/external.ts",
+          "token": "/customers/:warpCustomerId/quotes/:quoteId"
+        }
+      }
     }
-  ]
+  ],
+  "proposed_extension": {
+    "status": "owner-review-required",
+    "scope": "Exact linked customer quote list and read-only snapshot. WARP applies user-selected values with existing lead revision/audit rules. No automatic stage change or BuildUP customer/quote writes.",
+    "issues": {
+      "EVN-WARP": "https://github.com/EVNSolution/EVN-WARP/issues/166",
+      "buildup-ev": "https://github.com/EVNSolution/buildup-ev/issues/483"
+    }
+  }
 }

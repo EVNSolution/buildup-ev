@@ -21,6 +21,8 @@ import { prisma } from '../lib/prisma.js';
 import { readFrozenDoc } from '../services/doc-freeze.js';
 import { generateQuotePdf } from '../services/quote-pdf.js';
 
+import { listWarpQuotes, exportWarpQuote, validWarpCustomerId, WarpQuoteError } from '../services/warp-quote.js';
+
 export const externalRouter = Router();
 
 /** 상수시간 키 비교 — 길이가 달라도 안전하게. */
@@ -90,6 +92,24 @@ externalRouter.get('/customers', async (req: Request, res): Promise<void> => {
     console.error('[GET /external/customers]', e);
     res.status(500).json({ error: { code: 'INTERNAL', message: '고객 export 중 오류' } });
   }
+});
+
+// Linked-customer quote selection: bounded read-only DTO, never phone/name matching.
+externalRouter.get('/customers/:warpCustomerId/quotes', async (req, res): Promise<void> => {
+  noStore(res);
+  const id = String(req.params['warpCustomerId']);
+  if (!validWarpCustomerId(id)) { res.status(400).json({ error: '고객 연결을 확인해 주세요.' }); return; }
+  try { res.json(await listWarpQuotes(id)); }
+  catch (e) { res.status(e instanceof WarpQuoteError ? e.status : 503).json({ error: e instanceof WarpQuoteError ? e.message : '견적 목록 조회 실패' }); }
+});
+externalRouter.get('/customers/:warpCustomerId/quotes/:quoteId', async (req, res): Promise<void> => {
+  noStore(res);
+  const id = String(req.params['warpCustomerId']), quoteId = Number(req.params['quoteId']);
+  if (!validWarpCustomerId(id) || !Number.isSafeInteger(quoteId) || quoteId <= 0) {
+    res.status(400).json({ error: '고객·견적 번호를 확인해 주세요.' }); return;
+  }
+  try { res.json(await exportWarpQuote(id, quoteId)); }
+  catch (e) { res.status(e instanceof WarpQuoteError ? e.status : 503).json({ error: e instanceof WarpQuoteError ? e.message : '견적서 조회 실패' }); }
 });
 
 // ── GET /quotes/:id/quote-pdf — 견적서 PDF (WARP 딜 서류함 첨부용, #200) ──

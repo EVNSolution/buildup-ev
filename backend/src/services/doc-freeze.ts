@@ -12,6 +12,7 @@
  *   파일을 보관하면 무엇이 바뀌든 절대 변하지 않는다.
  */
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { prisma } from '../lib/prisma.js';
 import { generateQuotePdf } from './quote-pdf.js';
@@ -67,6 +68,10 @@ export async function freezeQuoteDocs(quoteId: number): Promise<FrozenDocs> {
   const quotePath = path.join(dir, 'frozen_quote.pdf');
   const contractPath = path.join(dir, 'frozen_contract.pdf');
   await writeFile(quotePath, q.pdf);
+  // Bind machine-readable amounts to the bytes sent to the customer. Legacy PDFs are not backfilled.
+  await writeFile(`${quotePath}.warp.json`, JSON.stringify({
+    version: 1, pdfSha256: createHash('sha256').update(q.pdf).digest('hex'), facts: q.warpFacts,
+  }));
   await writeFile(contractPath, c.pdf);
 
   const frozenAt = new Date();
@@ -126,6 +131,7 @@ export async function collectContractFilePaths(quoteId: number): Promise<string[
   ]);
   return [
     quote?.docs_frozen_quote_path,
+    quote?.docs_frozen_quote_path ? `${quote.docs_frozen_quote_path}.warp.json` : null,
     quote?.docs_frozen_contract_path,
     ...contracts.map((c) => c.signed_pdf_path),
   ].filter((p): p is string => !!p);

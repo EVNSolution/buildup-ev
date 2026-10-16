@@ -87,6 +87,7 @@ jobs:
             src/__tests__/my-page-access.test.ts \
             src/__tests__/body-only-required.test.ts \
             src/__tests__/quote-template.test.ts \
+            src/__tests__/warp-quote.test.ts \
             src/__tests__/doc-archive.test.ts \
             src/__tests__/customer-folders.test.ts \
             src/__tests__/sales-scope.test.ts \
