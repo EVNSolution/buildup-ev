@@ -181,6 +181,10 @@
     "issues": {
       "EVN-WARP": "https://github.com/EVNSolution/EVN-WARP/issues/166",
       "buildup-ev": "https://github.com/EVNSolution/buildup-ev/issues/483"
+    },
+    "pull_requests": {
+      "EVN-WARP": "https://github.com/EVNSolution/EVN-WARP/pull/167",
+      "buildup-ev": "https://github.com/EVNSolution/buildup-ev/pull/484"
     }
   }
 }

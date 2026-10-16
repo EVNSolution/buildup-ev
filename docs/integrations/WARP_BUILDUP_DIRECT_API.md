@@ -56,6 +56,7 @@ HQ 장애 중에도 마지막 승인 정책 아래 직접 Data Plane은 계속 �
 ## 제안: 연결 고객의 최종 견적 선택 (2026-10-16)
 
 상태: **Owner 검토 대기 / 운영 미배포**. [WARP #166](https://github.com/EVNSolution/EVN-WARP/issues/166), [BuildUP EV #483](https://github.com/EVNSolution/buildup-ev/issues/483).
+검토 PR: [WARP #167](https://github.com/EVNSolution/EVN-WARP/pull/167), [BuildUP EV #484](https://github.com/EVNSolution/buildup-ev/pull/484).
 기존 계약 고정 범위와 별도로 아래 두 GET을 확장하는 제안이며, 양쪽 manifest를 같은 내용으로 검토한다. 공유키 보호를 사용하지만 기존 승인을 새 데이터 제공 승인으로 간주하지 않는다.
 
 | Method | 제공 경로 | 용도 |
