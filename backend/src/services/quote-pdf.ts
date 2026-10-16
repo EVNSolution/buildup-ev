@@ -21,7 +21,10 @@ const TEMPLATE = readFileSync(path.resolve(__dirname, '../../..', 'doc-templates
 export class QuotePdfError extends Error {
   constructor(message: string, public code: 'NOT_FOUND' | 'DB_UNAVAILABLE' = 'NOT_FOUND') { super(message); }
 }
-export interface QuotePdfResult { pdf: Buffer; filename: string; customerName: string | null }
+export interface WarpQuoteFacts {
+  model: string; spec: string; grossAmountWon: number; amountWon: number;
+}
+export interface QuotePdfResult { pdf: Buffer; filename: string; customerName: string | null; warpFacts: WarpQuoteFacts }
 
 // ── 표기 매핑(프레젠테이션 전용) ──
 const BODYTYPE_DISP: Record<string, string> = { BODY_REEFER: '냉장/냉동', BODY_DRY: '내장' };
@@ -75,7 +78,7 @@ function renderTokens(tpl: string, data: Record<string, unknown>): string {
   });
 }
 
-export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult> {
+export async function generateQuotePdf(quoteId: number, options: { archive?: boolean } = {}): Promise<QuotePdfResult> {
   if (!prisma) throw new QuotePdfError('DB 연결 필요', 'DB_UNAVAILABLE');
 
   const quote = await prisma.quote.findUnique({
@@ -362,7 +365,7 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
      * 견적서는 화면에서 열 때마다 여기를 지나므로, 그냥 쌓으면 같은 파일이 수십 장 생긴다.
      * 보관이 실패해도 견적서는 그대로 나간다(이 함수는 예외를 던지지 않는다).
      */
-    await archiveCustomerDoc({
+    if (options.archive !== false) await archiveCustomerDoc({
       customerId: quote.customer_id,
       customerName: quote.customer?.name,
       quoteNo: quote.quote_no,
@@ -371,7 +374,17 @@ export async function generateQuotePdf(quoteId: number): Promise<QuotePdfResult>
     });
 
     const customerSlug = (quote.customer?.name ?? '').replace(/\s+/g, '_') || 'unknown';
-    return { pdf, filename: `견적서_${customerSlug}_${quoteId}.pdf`, customerName: quote.customer?.name ?? null };
+    return { pdf, filename: `견적서_${customerSlug}_${quoteId}.pdf`, customerName: quote.customer?.name ?? null,
+      // Use the same calculation and option labels as this exact PDF, never a second WARP formula.
+      warpFacts: {
+        model: modelName,
+        spec: [bodyOnly ? '' : trimName, bodyOnly ? '특장만' : vehicleOnly ? '차량만 · 특장 없음' : '',
+          vehicleOnly ? '' : optionSummary,
+          ...(vehicleOnly ? [] : readCustomOptions(inp['custom_options']).map(o => o.name))].filter(Boolean).join(' · '),
+        grossAmountWon: Math.round(r.car_price + r.body_price),
+        amountWon: Math.round(r.real_price),
+      },
+    };
   } finally {
     await browser.close();
   }
