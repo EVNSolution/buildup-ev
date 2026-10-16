@@ -176,7 +176,7 @@
     }
   ],
   "proposed_extension": {
-    "status": "owner-review-required",
+    "status": "user-approved-for-scoped-release",
     "scope": "Exact linked customer quote list and read-only snapshot. WARP applies user-selected values with existing lead revision/audit rules. No automatic stage change or BuildUP customer/quote writes.",
     "issues": {
       "EVN-WARP": "https://github.com/EVNSolution/EVN-WARP/issues/166",
@@ -185,6 +185,12 @@
     "pull_requests": {
       "EVN-WARP": "https://github.com/EVNSolution/EVN-WARP/pull/167",
       "buildup-ev": "https://github.com/EVNSolution/buildup-ev/pull/484"
+    },
+    "authorization": {
+      "date": "2026-10-16",
+      "source": "explicit user instruction in development task",
+      "scope": "Both linked-customer read endpoints, frozen quote facts preservation, WARP quote application and production deployment",
+      "executing_github_account": "SUMZ711"
     }
   }
 }

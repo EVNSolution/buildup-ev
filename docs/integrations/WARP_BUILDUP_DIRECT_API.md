@@ -55,9 +55,9 @@ HQ 장애 중에도 마지막 승인 정책 아래 직접 Data Plane은 계속 �
 
 ## 제안: 연결 고객의 최종 견적 선택 (2026-10-16)
 
-상태: **Owner 검토 대기 / 운영 미배포**. [WARP #166](https://github.com/EVNSolution/EVN-WARP/issues/166), [BuildUP EV #483](https://github.com/EVNSolution/buildup-ev/issues/483).
+상태: **사용자 명시 승인 / 배포 전 검증 완료**. [WARP #166](https://github.com/EVNSolution/EVN-WARP/issues/166), [BuildUP EV #483](https://github.com/EVNSolution/buildup-ev/issues/483).
 검토 PR: [WARP #167](https://github.com/EVNSolution/EVN-WARP/pull/167), [BuildUP EV #484](https://github.com/EVNSolution/buildup-ev/pull/484).
-기존 계약 고정 범위와 별도로 아래 두 GET을 확장하는 제안이며, 양쪽 manifest를 같은 내용으로 검토한다. 공유키 보호를 사용하지만 기존 승인을 새 데이터 제공 승인으로 간주하지 않는다.
+기존 계약 고정 범위와 별도로 아래 두 GET을 확장하는 제안이며, 양쪽 manifest를 같은 내용으로 검토한다. 공유키 보호를 사용하지만 이번 연결 고객 견적 조회·금액 보관·WARP 반영과 배포 범위에 한해 2026-10-16 사용자 명시 승인이 확인되었다. 실제 GitHub 실행 계정은 SUMZ711이며 OziinG가 실행한 것으로 기록하지 않는다.
 
 | Method | 제공 경로 | 용도 |
 | --- | --- | --- |
@@ -89,5 +89,5 @@ HQ 장애 중에도 마지막 승인 정책 아래 직접 Data Plane은 계속 �
 - 합성 고객으로 PC·390px 모바일에서 선택·저장·새로고침 후 유지, 두 금액, PDF 첨부, 확정일 공란 및 단계 유지 확인.
 - LeadDetailClient 기존 lint 2 오류·14 경고가 기준 revision에도 동일하게 존재한다. 새 독립 파일과 수정 영업절차 모듈 lint는 통과. 전체 lint 성공으로 보고하지 않는다.
 - 운영 데이터/실제 고객/실제 BuildUP 인증으로 연결한 통합 검증은 미실시. 합성 원본 서버를 사용한 로컬 UI 검증이다.
-- OziinG의 API 계약 및 BuildUP 운영 배포 승인 → BuildUP 제공 기능 배포 → WARP 소비 기능 배포 → 권한 있는 검증 고객의 원본/PDF/두 금액 대조 순서다. 승인 전에는 Draft PR로 유지한다.
+- 이번 범위 사용자 명시 승인 확인 → BuildUP 제공 기능 배포 → WARP 소비 기능 배포 → 권한 있는 검증 고객의 원본/PDF/두 금액 대조 순서다. 기존 고객·견적 입력값의 일괄 변경과 별도 권한 확대는 승인 범위에 포함하지 않는다.
 - 롤백 시 두 GET 소비·제공 기능을 함께 비활성화한다. 추가한 총액 JSON 필드와 PDF/수치 보관 파일을 삭제하거나 고객을 병합하지 않는다. 기존 수기 입력은 유지한다.
